@@ -30,7 +30,7 @@ Now you can just build it:
 go build ./cmd/infrared
 ```
 
-or istall it:
+or install it:
 
 ```bash
 go install ./cmd/infrared
