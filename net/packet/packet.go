@@ -7,6 +7,9 @@ import (
 	"io"
 )
 
+// Uncompressed is a packet when it's compression size is 0
+const Uncompressed = VarInt(0)
+
 // Packet define a net data package
 type Packet struct {
 	ID   byte
@@ -14,14 +17,16 @@ type Packet struct {
 }
 
 //Marshal generate Packet with the ID and Fields
-func Marshal(ID byte, fields ...FieldEncoder) (pk Packet) {
-	pk.ID = ID
+func Marshal(ID byte, fields ...FieldEncoder) Packet {
+	pk := Packet{
+		ID: ID,
+	}
 
 	for _, v := range fields {
 		pk.Data = append(pk.Data, v.Encode()...)
 	}
 
-	return
+	return pk
 }
 
 //Scan decode the packet and fill data into fields
@@ -33,12 +38,16 @@ func (p Packet) Scan(fields ...FieldDecoder) error {
 			return err
 		}
 	}
+
 	return nil
 }
 
-func (p *Packet) Pack(threshold int) (pack []byte) {
+// Pack packs a packet and compresses it when it's size is greater than the threshold
+func (p *Packet) Pack(threshold int) []byte {
 	data := []byte{p.ID}
 	data = append(data, p.Data...)
+
+	var pack []byte
 
 	if threshold > 0 {
 		if len(data) > threshold {
@@ -59,7 +68,7 @@ func (p *Packet) Pack(threshold int) (pack []byte) {
 		pack = append(pack, data...)
 	}
 
-	return
+	return pack
 }
 
 // RecvPacket receive a packet from server
@@ -102,36 +111,40 @@ func RecvPacket(r io.ByteReader, useZlib bool) (*Packet, error) {
 func Unpack(data []byte) (*Packet, error) {
 	reader := bytes.NewReader(data)
 
-	var sizeUncompressed VarInt
-	if err := sizeUncompressed.Decode(reader); err != nil {
+	var compressionSize VarInt
+	if err := compressionSize.Decode(reader); err != nil {
 		return nil, err
 	}
 
-	uncompressData := make([]byte, sizeUncompressed)
-	if sizeUncompressed != 0 { // != 0 means compressed, let's decompress
+	buffer := make([]byte, compressionSize)
+	if compressionSize != Uncompressed {
 		r, err := zlib.NewReader(reader)
+		if err != nil {
+			return nil, fmt.Errorf("decompress fail: %v", err)
+		}
 
+		_, err = io.ReadFull(r, buffer)
 		if err != nil {
 			return nil, fmt.Errorf("decompress fail: %v", err)
 		}
-		_, err = io.ReadFull(r, uncompressData)
-		if err != nil {
-			return nil, fmt.Errorf("decompress fail: %v", err)
-		}
+
 		r.Close()
 	} else {
-		uncompressData = data[1:]
+		buffer = data[1:]
 	}
+
 	return &Packet{
-		ID:   uncompressData[0],
-		Data: uncompressData[1:],
+		ID:   buffer[0],
+		Data: buffer[1:],
 	}, nil
 }
 
 func Compress(data []byte) []byte {
-	var b bytes.Buffer
-	w := zlib.NewWriter(&b)
+	var buffer bytes.Buffer
+
+	w := zlib.NewWriter(&buffer)
 	w.Write(data)
 	w.Close()
-	return b.Bytes()
+
+	return buffer.Bytes()
 }
