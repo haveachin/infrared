@@ -5,8 +5,8 @@ Ever wanted to have only one exposed port at your server for multiple minecraft 
 
 ## Features
 
-- [ ] Reverse Proxy
-- [ ] Display Placeholder Server
+- [x] Reverse Proxy
+- [x] Display Placeholder Server
 - [ ] Autostart Server when pinged
 - [ ] gRPC API
 
@@ -42,7 +42,19 @@ Just download a build from [here](https://github.com/haveachin/infrared/releases
 
 ## Environment Variables
 
-soon
+**!!Flags override environment variables!!**  
+`INFRARED_ADDRESS` is the address that the proxy listens to  
+`INFRARED_CONFIG_PATH` is the path of all your server configs
+
+## Flags
+
+**!!Flags override environment variables!!**  
+`--address` is the address that the proxy listens to [default: ":25565"]  
+`--config_path` is the path of all your server configs [default: "./configs/"]
+
+### Example Usage
+
+`./infrared --address ":8080" --config_path "."`
 
 ## Example Config for a Vanilla Server
 
@@ -50,7 +62,6 @@ soon
 DomainName: "mc.example.com"
 ListenTo: ":25565"
 ProxyTo: ":8080"
-Deadline: "5s"
 PingCommand: "java -Xmx512M -Xms512M -jar ./path/to/minecraft_server.jar nogui"
 DisconnectMessage: "Sorry §e$username§r, but the server is §osleeping§r right now."
 Placeholder:
@@ -68,10 +79,9 @@ Placeholder:
 ```
 
 `DomainName` is a [fully qualified domain name](https://en.wikipedia.org/wiki/Domain_name)  
-`ListenTo` is the address that the proxy listen to for incoming connections  
+`ListenTo` is the address that the proxy listen to for incoming connections **not implemented yet**  
 `ProxyTo` is the address that the proxy sents the incoming connections to  
-`Deadline` is the duration that a connection can idle for without sending any data  
-`PingCommand` is a command that is executed when the server gets a [SLP](https://wiki.vg/Server_List_Ping) for a **login** while being offline  
+`PingCommand` is a command that is executed when the server gets a [SLP](https://wiki.vg/Server_List_Ping) for a **login** while being offline  **not implemented yet**
 `DisconnectMessage` is the text that gets diplayed as reason for the disconnect (use $username when you want to use their username)
 
 `Placeholder` is a data object that represents a [SLP response](https://wiki.vg/Server_List_Ping) from a vannila minecraft server  
