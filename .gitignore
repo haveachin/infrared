@@ -13,3 +13,6 @@
 
 # Config files
 *.yaml
+
+# Images
+*.png
