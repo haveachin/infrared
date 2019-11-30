@@ -62,7 +62,8 @@ Just download a build from [here](https://github.com/haveachin/infrared/releases
 DomainName: "mc.example.com"
 ListenTo: ":25565"
 ProxyTo: ":8080"
-PingCommand: "java -Xmx512M -Xms512M -jar ./path/to/minecraft_server.jar nogui"
+ServerJar: "./path/to/minecraft_server.jar"
+MaxMemory: "512M"
 DisconnectMessage: "Sorry §e$username§r, but the server is §osleeping§r right now."
 Placeholder:
     Version: "1.14.4"
@@ -81,7 +82,8 @@ Placeholder:
 `DomainName` is a [fully qualified domain name](https://en.wikipedia.org/wiki/Domain_name)  
 `ListenTo` is the address that the proxy listen to for incoming connections **not implemented yet**  
 `ProxyTo` is the address that the proxy sents the incoming connections to  
-`PingCommand` is a command that is executed when the server gets a [SLP](https://wiki.vg/Server_List_Ping) for a **login** while being offline  **not implemented yet**
+`ServerJar` is tha path to your minecraft_server.jar **not implemented yet**  
+`MaxMemory` is the maximum amount of memory (RAM) that the server is allowed to use  **not implemented yet**    
 `DisconnectMessage` is the text that gets diplayed as reason for the disconnect (use $username when you want to use their username)
 
 `Placeholder` is a data object that represents a [SLP response](https://wiki.vg/Server_List_Ping) from a vannila minecraft server  
