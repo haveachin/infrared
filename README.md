@@ -62,13 +62,14 @@ Just download a build from [here](https://github.com/haveachin/infrared/releases
 DomainName: "mc.example.com"
 ListenTo: ":25565"
 ProxyTo: ":8080"
-ServerJar: "./path/to/minecraft_server.jar"
+Java: "/path/to/bin/java"
+ServerJar: "/path/to/minecraft_server.jar"
 MaxMemory: "512M"
 DisconnectMessage: "Sorry §e$username§r, but the server is §osleeping§r right now."
 Placeholder:
     Version: "1.14.4"
     Protocol: 498
-    Icon: "./path/to/icon.png"
+    Icon: "/path/to/icon.png"
     Motd: "Server is currently sleeping"
     MaxPlayers: 20
     PlayersOnline: 2
@@ -82,8 +83,9 @@ Placeholder:
 `DomainName` is a [fully qualified domain name](https://en.wikipedia.org/wiki/Domain_name)  
 `ListenTo` is the address that the proxy listen to for incoming connections **not implemented yet**  
 `ProxyTo` is the address that the proxy sents the incoming connections to  
+`Java` is the path to your java binary  
 `ServerJar` is tha path to your minecraft_server.jar **not implemented yet**  
-`MaxMemory` is the maximum amount of memory (RAM) that the server is allowed to use  **not implemented yet**    
+`MaxMemory` is the maximum amount of memory (RAM) that the server is allowed to use  **not implemented yet**  
 `DisconnectMessage` is the text that gets diplayed as reason for the disconnect (use $username when you want to use their username)
 
 `Placeholder` is a data object that represents a [SLP response](https://wiki.vg/Server_List_Ping) from a vannila minecraft server  
