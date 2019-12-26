@@ -8,7 +8,8 @@ Ever wanted to have only one exposed port at your server for multiple minecraft 
 - [x] Reverse Proxy
 - [x] Display Placeholder Server
 - [ ] Autostart Server when pinged
-- [ ] gRPC API
+- [ ] API for logging via InfluxDB
+- [ ] gRPC API for live data
 
 ## Installation
 
@@ -62,10 +63,14 @@ Just download a build from [here](https://github.com/haveachin/infrared/releases
 DomainName: "mc.example.com"
 ListenTo: ":25565"
 ProxyTo: ":8080"
-Java: "/path/to/bin/java"
-ServerJar: "/path/to/minecraft_server.jar"
-MaxMemory: "512M"
 DisconnectMessage: "Sorry §e$username§r, but the server is §osleeping§r right now."
+Command: "java -server -Xmx512M -jar minecraft_server.jar nogui"
+Docker:
+    ContainerID: "4c01db0b339c"
+    Portainer:
+        EndpointID: "1"
+        Username: "admin"
+        Password: "foobar"
 Placeholder:
     Version: "1.14.4"
     Protocol: 498
@@ -83,18 +88,27 @@ Placeholder:
 `DomainName` is a [fully qualified domain name](https://en.wikipedia.org/wiki/Domain_name)  
 `ListenTo` is the address that the proxy listen to for incoming connections **not implemented yet**  
 `ProxyTo` is the address that the proxy sents the incoming connections to  
-`Java` is the path to your java binary  
-`ServerJar` is tha path to your minecraft_server.jar **not implemented yet**  
-`MaxMemory` is the maximum amount of memory (RAM) that the server is allowed to use  **not implemented yet**  
-`DisconnectMessage` is the text that gets diplayed as reason for the disconnect (use $username when you want to use their username)
+`DisconnectMessage` is the text that gets diplayed as reason for the disconnect (use $username when you want to use their username)  
+`Command` is the command that start the minecraft server  
 
-`Placeholder` is a data object that represents a [SLP response](https://wiki.vg/Server_List_Ping) from a vannila minecraft server  
-`Version` is the minecraft version diplayed with the placeholder  
-`Protocol` is the [version number](https://wiki.vg/Protocol_version_numbers) of the protocol that is used  
-`Icon` is the path to the icon image that is diplayed on the client side  
-`Motd` is the Motd of a minecraft server  
-`MaxPlayers` is the maximum of players that can join the minecraft server  
-`PlayersOnline` is the amount of players that are online currently on the server  
-`Players` is an array of players that are shown on the client side when hovered over the player count  
-`Name` is the player name displayed  
-`ID` is the UUID of the player (importent for the player head that is diplayed next to the name)
+**Only used if the** `Command` **is not present**  
+`Docker` is a data object that represents a docker interface.
+
+- `ContainerID` is the ID of the container that contains the minecraft server  
+**Only needed if you are using [Portainer](https://www.portainer.io/) for user privilege management**
+- `Portainer` is a data object that represents a portainer interface
+  - `EndpointID` is the id of the docker endoint
+  - `Username` is the username for the portainer user
+  - `Password` is the password for the portainer user
+
+`Placeholder` is a data object that represents a [SLP response](https://wiki.vg/Server_List_Ping) from a vannila minecraft server
+
+- `Version` is the minecraft version diplayed with the placeholder
+- `Protocol` is the [version number](https://wiki.vg/Protocol_version_numbers) of the protocol that is used
+- `Icon` is the path to the icon image that is diplayed on the client side
+- `Motd` is the Motd of a minecraft server
+- `MaxPlayers` is the maximum of players that can join the minecraft server
+- `PlayersOnline` is the amount of players that are online currently on the server
+- `Players` is an array of players that are shown on the client side when hovered over the player count
+- `Name` is the player name displayed
+- `ID` is the UUID of the player (importent for the player head that is diplayed next to the name)
