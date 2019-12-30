@@ -32,6 +32,10 @@ func ParseSLPHandshake(pk Packet) (SLPHandshake, error) {
 	return handshake, nil
 }
 
+func (pk SLPHandshake) Marshal() Packet {
+	return Marshal(SLPHandshakePacketID, pk.ProtocolVersion, pk.ServerAddress, pk.ServerPort, pk.NextState)
+}
+
 func (handshake SLPHandshake) RequestsStatus() bool {
 	return handshake.NextState == SLPHandshakeStatusState
 }
