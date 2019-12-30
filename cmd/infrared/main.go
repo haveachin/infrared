@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/haveachin/infrared"
+	"github.com/haveachin/infrared/config"
 )
 
 const (
@@ -39,20 +40,12 @@ func main() {
 		configPath = viper.GetString(envConfigPath)
 	}
 
-	proxy := infrared.Proxy{
-		Addr:    address,
-		Configs: map[string]infrared.Config{},
-	}
-
-	configs, err := infrared.ReadConfigs(configPath)
+	vprs, err := config.ReadAll(configPath)
 	if err != nil {
 		log.Fatal(err)
 		return
 	}
 
-	for _, config := range configs {
-		proxy.Configs[config.DomainName] = config
-	}
-
-	log.Fatal(proxy.ListenAndServe())
+	gateway := infrared.NewGateway(vprs)
+	gateway.Open()
 }
