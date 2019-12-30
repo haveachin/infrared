@@ -26,6 +26,7 @@ func ListenMC(addr string) (*Listener, error) {
 func (l Listener) Accept() (Conn, error) {
 	conn, err := l.Listener.Accept()
 	return Conn{
+		Addr:       conn.RemoteAddr().String(),
 		Socket:     conn,
 		ByteReader: bufio.NewReader(conn),
 		Writer:     conn,
@@ -34,6 +35,7 @@ func (l Listener) Accept() (Conn, error) {
 
 //Conn is a minecraft Connection
 type Conn struct {
+	Addr   string
 	Socket net.Conn
 	io.ByteReader
 	io.Writer
@@ -44,27 +46,38 @@ type Conn struct {
 // DialMC create a Minecraft connection
 func DialMC(addr string) (*Conn, error) {
 	conn, err := net.Dial("tcp", addr)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Conn{
+		Addr:       conn.RemoteAddr().String(),
 		Socket:     conn,
 		ByteReader: bufio.NewReader(conn),
 		Writer:     conn,
-	}, err
+	}, nil
 }
 
 // DialMCTimeout acts like DialMC but takes a timeout.
 func DialMCTimeout(addr string, timeout time.Duration) (*Conn, error) {
 	conn, err := net.DialTimeout("tcp", addr, timeout)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Conn{
+		Addr:       conn.RemoteAddr().String(),
 		Socket:     conn,
 		ByteReader: bufio.NewReader(conn),
 		Writer:     conn,
-	}, err
+	}, nil
 }
 
 // WrapConn warp an net.Conn to MC-Conn
 // Helps you modify the connection process (eg. using DialContext).
 func WrapConn(conn net.Conn) *Conn {
 	return &Conn{
+		Addr:       conn.RemoteAddr().String(),
 		Socket:     conn,
 		ByteReader: bufio.NewReader(conn),
 		Writer:     conn,
