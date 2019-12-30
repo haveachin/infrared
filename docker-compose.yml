@@ -1,0 +1,13 @@
+version: '3'
+
+services:
+  infrared:
+    build: .
+    container_name: infrared
+    restart: always
+    ports:
+      - 8080:8080
+    volumes:
+      - ./config:/home/haveachin/infrared/configs
+    environment:
+        INFRARED_CONFIG_PATH: ./configs/
