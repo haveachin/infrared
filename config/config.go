@@ -138,12 +138,14 @@ func (config Config) MarshalPlaceholder() ([]byte, error) {
 		})
 	}
 
-	img64, err := loadImageToBase64String(config.Placeholder.Icon)
-	if err != nil {
-		return nil, err
-	}
+	if config.Placeholder.Icon != "" {
+		img64, err := loadImageToBase64String(config.Placeholder.Icon)
+		if err != nil {
+			return nil, err
+		}
 
-	placeholder.Favicon = fmt.Sprintf("data:image/png;base64,%s", img64)
+		placeholder.Favicon = fmt.Sprintf("data:image/png;base64,%s", img64)
+	}
 
 	return json.Marshal(placeholder)
 }
