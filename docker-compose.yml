@@ -4,10 +4,10 @@ services:
   infrared:
     build: .
     container_name: infrared
-    restart: always
+    restart: "no"
     ports:
-      - 8080:8080
+      - 8123:8080
     volumes:
-      - /your/path/here:/configs
+      - "../config/:/configs"
     environment:
         INFRARED_CONFIG_PATH: ./configs/
