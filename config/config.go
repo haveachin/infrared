@@ -1,0 +1,172 @@
+package config
+
+import (
+	"bufio"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
+	"log"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/spf13/viper"
+)
+
+// Config is a data representation of a proxy configuration
+type Config struct {
+	DomainName        string
+	ListenTo          string
+	ProxyTo           string
+	DisconnectMessage string
+	Timeout           string
+	Command           string
+	Docker            struct {
+		ContainerID string
+		Portainer   struct {
+			Address    string
+			EndpointID string
+			Username   string
+			Password   string
+		}
+	}
+	Placeholder struct {
+		Version       string
+		Protocol      int
+		Icon          string
+		Motd          string
+		MaxPlayers    int
+		PlayersOnline int
+		Players       []struct {
+			Name string
+			ID   string
+		}
+	}
+}
+
+// ReadAll reads all files that are in the given path
+func ReadAll(path string) ([]*viper.Viper, error) {
+	files, err := ioutil.ReadDir(path)
+	if err != nil {
+		return nil, err
+	}
+
+	vprs := []*viper.Viper{}
+
+	for _, file := range files {
+		fileName := file.Name()
+
+		log.Printf("Loading \"%s\"", fileName)
+
+		extension := filepath.Ext(fileName)
+		configName := fileName[0 : len(fileName)-len(extension)]
+
+		vpr := viper.New()
+		vpr.AddConfigPath(path)
+		vpr.SetConfigName(configName)
+		vpr.SetConfigType(strings.TrimPrefix(extension, "."))
+
+		vprs = append(vprs, vpr)
+	}
+
+	return vprs, nil
+}
+
+// Load loads the config from the viper configuration
+func Load(vpr *viper.Viper) (Config, error) {
+	config := Config{}
+
+	if err := vpr.ReadInConfig(); err != nil {
+		return config, err
+	}
+
+	if err := vpr.Unmarshal(&config); err != nil {
+		return config, err
+	}
+
+	return config, nil
+}
+
+// UsesDocker returns a bool that determines if the config has data to support a docker process
+func (config Config) UsesDocker() bool {
+	return config.Docker.ContainerID != ""
+}
+
+// UsesPortainer returns a bool that determines if the config has data to support a portainer process
+func (config Config) UsesPortainer() bool {
+	if !config.UsesDocker() {
+		return false
+	}
+
+	if config.Docker.Portainer.EndpointID == "" {
+		return false
+	}
+
+	if config.Docker.Portainer.Username == "" {
+		return false
+	}
+
+	if config.Docker.Portainer.Password == "" {
+		return false
+	}
+
+	return true
+}
+
+// MarshalPlaceholder marshals the placeholder data to a SLP placeholder response object
+func (config Config) MarshalPlaceholder() ([]byte, error) {
+	placeholder := placeholder{
+		Version: version{
+			Name:     config.Placeholder.Version,
+			Protocol: config.Placeholder.Protocol,
+		},
+		Description: description{
+			Text: config.Placeholder.Motd,
+		},
+		Players: players{
+			Max:    config.Placeholder.MaxPlayers,
+			Online: config.Placeholder.PlayersOnline,
+			Sample: []sample{},
+		},
+	}
+
+	for _, p := range config.Placeholder.Players {
+		placeholder.Players.Sample = append(placeholder.Players.Sample, sample{
+			Name: p.Name,
+			ID:   p.ID,
+		})
+	}
+
+	img64, err := loadImageToBase64String(config.Placeholder.Icon)
+	if err != nil {
+		return nil, err
+	}
+
+	placeholder.Favicon = fmt.Sprintf("data:image/png;base64,%s", img64)
+
+	return json.Marshal(placeholder)
+}
+
+func loadImageToBase64String(path string) (string, error) {
+	if path == "" {
+		return "", nil
+	}
+
+	imgFile, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer imgFile.Close()
+
+	fileInfo, err := imgFile.Stat()
+	if err != nil {
+		return "", err
+	}
+
+	buffer := make([]byte, fileInfo.Size())
+	fileReader := bufio.NewReader(imgFile)
+	fileReader.Read(buffer)
+
+	return base64.StdEncoding.EncodeToString(buffer), nil
+}
