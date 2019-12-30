@@ -7,7 +7,7 @@ Ever wanted to have only one exposed port at your server for multiple minecraft 
 
 - [x] Reverse Proxy
 - [x] Display Placeholder Server
-- [ ] Autostart Server when pinged
+- [x] Autostart Server when pinged
 - [ ] API for logging via InfluxDB
 - [ ] gRPC API for live data
 
@@ -64,10 +64,12 @@ DomainName: "mc.example.com"
 ListenTo: ":25565"
 ProxyTo: ":8080"
 DisconnectMessage: "Sorry §e$username§r, but the server is §osleeping§r right now."
+Timeout: "13m37s"
 Command: "java -server -Xmx512M -jar minecraft_server.jar nogui"
 Docker:
     ContainerID: "4c01db0b339c"
     Portainer:
+        Address: "localhost:9000"
         EndpointID: "1"
         Username: "admin"
         Password: "foobar"
@@ -89,6 +91,7 @@ Placeholder:
 `ListenTo` is the address that the proxy listen to for incoming connections **not implemented yet**  
 `ProxyTo` is the address that the proxy sents the incoming connections to  
 `DisconnectMessage` is the text that gets diplayed as reason for the disconnect (use $username when you want to use their username)  
+`Timeout` is the duration befor it will be shut down  
 `Command` is the command that start the minecraft server  
 
 **Only used if the** `Command` **is not present**  
@@ -97,7 +100,8 @@ Placeholder:
 - `ContainerID` is the ID of the container that contains the minecraft server  
 **Only needed if you are using [Portainer](https://www.portainer.io/) for user privilege management**
 - `Portainer` is a data object that represents a portainer interface
-  - `EndpointID` is the id of the docker endoint
+  - `Address` is the address of the portainer instance
+  - `EndpointID` is the id of the docker endpoint
   - `Username` is the username for the portainer user
   - `Password` is the password for the portainer user
 
