@@ -66,6 +66,7 @@ func ReadAll(path string) ([]*viper.Viper, error) {
 		vpr.AddConfigPath(path)
 		vpr.SetConfigName(configName)
 		vpr.SetConfigType(strings.TrimPrefix(extension, "."))
+		loadDefaults(vpr)
 
 		vprs = append(vprs, vpr)
 	}
@@ -171,4 +172,14 @@ func loadImageToBase64String(path string) (string, error) {
 	fileReader.Read(buffer)
 
 	return base64.StdEncoding.EncodeToString(buffer), nil
+}
+
+func loadDefaults(vpr *viper.Viper) {
+	vpr.SetDefault("DisconnectMessage", "Hey §e$username§r! The server was sleeping but it's starting now.")
+	vpr.SetDefault("Timeout", "10m")
+	vpr.SetDefault("Placeholder.Version", "Infrared 1.15.1")
+	vpr.SetDefault("Placeholder.Protocol", 575)
+	vpr.SetDefault("Placeholder.Motd", "Server is currently sleeping")
+	vpr.SetDefault("Placeholder.MaxPlayers", 20)
+	vpr.SetDefault("Placeholder.PlayersOnline", 0)
 }
