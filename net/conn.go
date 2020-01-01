@@ -25,6 +25,10 @@ func ListenMC(addr string) (*Listener, error) {
 //Accept a minecraft Conn
 func (l Listener) Accept() (Conn, error) {
 	conn, err := l.Listener.Accept()
+	if err != nil {
+		return Conn{}, err
+	}
+
 	return Conn{
 		Addr:       conn.RemoteAddr().String(),
 		Socket:     conn,
