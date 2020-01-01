@@ -68,20 +68,27 @@ func NewProxy(cfg config.Config) (*Proxy, error) {
 
 // HandleConn takes a minecraft client connection and it's initial handschake packet
 // and relays all following packets to the remote connection (ProxyTo)
-func (p *Proxy) HandleConn(conn *net.Conn, handshake packet.SLPHandshake) {
-	rconn, err := net.DialMC(p.ProxyTo)
-	if err != nil {
-		if handshake.RequestsLogin() && !p.hasRunningProcess {
-			log.Printf("[%s] requested login for %s[%s]: starting process", conn.Addr, p.DomainName, p.ListenTo)
+func (p *Proxy) HandleConn(conn *net.Conn, handshake packet.SLPHandshake) error {
+	if !p.hasRunningProcess {
+		if handshake.RequestsLogin() {
+			log.Printf("Process[%s:%s]: starting", p.DomainName, p.ListenTo)
+
 			if err := p.Process.Start(); err != nil {
-				log.Printf("Could not start process for %s[%s]: %s", p.DomainName, p.ListenTo, err)
+				log.Printf("Process[%s:%s]: %s", p.DomainName, p.ListenTo, err)
 			} else {
 				p.hasRunningProcess = true
 				go p.doTimeout()
 			}
 		}
+
 		p.simulateServer(conn, handshake)
-		return
+		return nil
+	}
+
+	rconn, err := net.DialMC(p.ProxyTo)
+	if err != nil {
+		p.simulateServer(conn, handshake)
+		return err
 	}
 
 	var pipe = func(src, dst *net.Conn) {
@@ -97,7 +104,6 @@ func (p *Proxy) HandleConn(conn *net.Conn, handshake packet.SLPHandshake) {
 		for {
 			n, err := src.Socket.Read(buffer)
 			if err != nil {
-				log.Println(err)
 				return
 			}
 
@@ -105,7 +111,6 @@ func (p *Proxy) HandleConn(conn *net.Conn, handshake packet.SLPHandshake) {
 
 			_, err = dst.Socket.Write(data)
 			if err != nil {
-				log.Println(err)
 				return
 			}
 		}
@@ -116,21 +121,25 @@ func (p *Proxy) HandleConn(conn *net.Conn, handshake packet.SLPHandshake) {
 		go pipe(rconn, conn)
 
 		if err := rconn.WritePacket(handshake.Marshal()); err != nil {
-			log.Printf("Could not send handshake to [%s]", rconn.Addr)
-			return
+			return fmt.Errorf("failed to write handshake packet to [%s]", rconn.Addr)
 		}
 
-		log.Println("SLP Status should go thru")
+		pk, err := conn.ReadPacket()
+		if err != nil {
+			return fmt.Errorf("failed to read request packet from [%s]", conn.Addr)
+		}
+
+		if err := rconn.WritePacket(pk); err != nil {
+			return fmt.Errorf("failed to write request packet to [%s]", rconn.Addr)
+		}
 	} else if handshake.RequestsLogin() {
 		if err := rconn.WritePacket(handshake.Marshal()); err != nil {
-			log.Printf("Could not send handshake to [%s]", rconn.Addr)
-			return
+			return fmt.Errorf("failed to write handshake packet to [%s]", rconn.Addr)
 		}
 
 		username, err := sniffUsername(conn, rconn)
 		if err != nil {
-			log.Printf("Username sniff failed for [%s]", conn.Addr)
-			return
+			return fmt.Errorf("failed to sniff username from [%s]", conn.Addr)
 		}
 
 		if p.isTimingOut {
@@ -138,35 +147,38 @@ func (p *Proxy) HandleConn(conn *net.Conn, handshake packet.SLPHandshake) {
 		}
 
 		p.Players[conn] = username
-		log.Printf("%s[%s] connected over %s[%s]", username, conn.Addr, p.DomainName, p.ListenTo)
 
 		go pipe(conn, rconn)
 		go pipe(rconn, conn)
+
+		return fmt.Errorf("%s[%s] connected over %s[%s]", username, conn.Addr, p.DomainName, p.ListenTo)
 	}
+
+	return nil
 }
 
-// OnConfigChange is a callback function that handles config changes
-func (p *Proxy) OnConfigChange(cfg config.Config) {
+// ApplyConfigChange is a callback function that handles config changes
+func (p *Proxy) ApplyConfigChange(cfg config.Config) error {
 	placeholderBytes, err := cfg.MarshalPlaceholder()
 	if err != nil {
-		log.Printf("Could not mashal palceholder for %s[%s]: %s", cfg.DomainName, cfg.ListenTo, err)
-	} else {
-		p.placeholderPacket = packet.SLPResponse{
-			JSONResponse: packet.String(placeholderBytes),
-		}.Marshal()
+		return fmt.Errorf("%s[%s] could not mashal palceholder; %s", p.DomainName, p.ListenTo, err)
 	}
 
 	timeout, err := time.ParseDuration(cfg.Timeout)
 	if err != nil {
-		log.Printf("Could not parse timeout for %s[%s]: %s", cfg.DomainName, cfg.ListenTo, err)
-	} else {
-		p.Timeout = timeout
+		return fmt.Errorf("%s[%s] could not parse timeout; %s", p.DomainName, p.ListenTo, err)
 	}
 
 	p.DomainName = cfg.DomainName
 	p.ListenTo = cfg.ListenTo
 	p.ProxyTo = cfg.ProxyTo
 	p.DisconnectMessage = cfg.DisconnectMessage
+	p.Timeout = timeout
+	p.placeholderPacket = packet.SLPResponse{
+		JSONResponse: packet.String(placeholderBytes),
+	}.Marshal()
+
+	return nil
 }
 
 func processFromConfig(cfg config.Config) (process.Process, error) {
@@ -203,9 +215,9 @@ func (p *Proxy) doTimeout() {
 		p.isTimingOut = false
 		return
 	case <-time.After(p.Timeout):
-		log.Printf("%s[%s] timed out: stopping process", p.DomainName, p.ListenTo)
+		log.Printf("Process[%s:%s]: timed out; stopping process", p.DomainName, p.ListenTo)
 		if err := p.Process.Stop(); err != nil {
-			log.Printf("Could not stop process for %s[%s]: %s", p.DomainName, p.ListenTo, err)
+			log.Printf("Process[%s:%s]: %s", p.DomainName, p.ListenTo, err)
 		}
 		p.hasRunningProcess = false
 		return
@@ -261,8 +273,6 @@ func (p Proxy) sendDisconnectMessage(conn *net.Conn) error {
 	if err != nil {
 		return err
 	}
-
-	log.Printf("%s[%s] tried to connect over %s[%s]", start.Name, conn.Addr, p.DomainName, p.ListenTo)
 
 	message := strings.Replace(p.DisconnectMessage, "$username", string(start.Name), -1)
 	message = fmt.Sprintf("{\"text\":\"%s\"}", message)
