@@ -115,4 +115,4 @@ Placeholder:
 - `PlayersOnline` is the amount of players that are online currently on the server
 - `Players` is an array of players that are shown on the client side when hovered over the player count
 - `Name` is the player name displayed
-- `ID` is the UUID of the player (importent for the player head that is diplayed next to the name)
+- `ID` is the UUID of the player (important for the player head that is displayed next to the name)
