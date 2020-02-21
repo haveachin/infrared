@@ -3,6 +3,7 @@ package infrared
 import (
 	"fmt"
 	"log"
+	"strings"
 
 	"github.com/haveachin/infrared/net"
 	"github.com/haveachin/infrared/net/packet"
@@ -66,6 +67,8 @@ func (g *Gate) Open() error {
 			}
 		}
 
+		log.Printf("Gate[%s]: Connection accepted", g.ListensTo)
+
 		go func() {
 			if err := g.serve(&conn); err != nil {
 				log.Printf("Gate[%s]: %s", g.ListensTo, err)
@@ -85,7 +88,7 @@ func (g Gate) serve(conn *net.Conn) error {
 		return fmt.Errorf("[%s] handshake parsing failed; %s", conn.Addr, err)
 	}
 
-	addr := string(handshake.ServerAddress)
+	addr := strings.Trim(string(handshake.ServerAddress), ".")
 	addrWithPort := fmt.Sprintf("%s:%d", addr, handshake.ServerPort)
 	proxy, ok := g.proxies[addr]
 	if !ok {

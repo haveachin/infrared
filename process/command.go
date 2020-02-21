@@ -27,5 +27,9 @@ func (proc commandProcess) Start() error {
 }
 
 func (proc commandProcess) Stop() error {
+	if proc.command.Process == nil {
+		return nil
+	}
+
 	return proc.command.Process.Signal(syscall.SIGQUIT)
 }

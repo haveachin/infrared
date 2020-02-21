@@ -25,6 +25,7 @@ type Proxy struct {
 	Players           map[*net.Conn]string
 	Process           process.Process
 	placeholderPacket packet.Packet
+	close             chan bool
 	hasRunningProcess bool
 	isTimingOut       bool
 	cancelTimeout     chan bool
@@ -71,31 +72,43 @@ func NewProxy(cfg config.Config) (*Proxy, error) {
 func (p *Proxy) HandleConn(conn *net.Conn, handshake packet.SLPHandshake) error {
 	if !p.hasRunningProcess {
 		if handshake.RequestsLogin() {
-			log.Printf("Process[%s:%s]: starting", p.DomainName, p.ListenTo)
+			log.Printf("Process[%s|%s]: starting", p.DomainName, p.ListenTo)
 
 			if err := p.Process.Start(); err != nil {
-				log.Printf("Process[%s:%s]: %s", p.DomainName, p.ListenTo, err)
+				log.Printf("Process[%s|%s]: %s", p.DomainName, p.ListenTo, err)
 			} else {
 				p.hasRunningProcess = true
 				go p.doTimeout()
 			}
 		}
 
-		p.simulateServer(conn, handshake)
+		p.handleServerListPing(conn, handshake)
 		return nil
 	}
 
 	rconn, err := net.DialMC(p.ProxyTo)
 	if err != nil {
-		p.simulateServer(conn, handshake)
+		p.handleServerListPing(conn, handshake)
 		return err
 	}
 
 	var pipe = func(src, dst *net.Conn) {
 		defer func() {
+			if src == conn {
+				return
+			}
+
+			log.Printf("%s[%s] lost connection", p.Players[conn], conn.Addr)
 			delete(p.Players, conn)
-			_ = conn.Close()
-			_ = rconn.Close()
+
+			if err := conn.Close(); err != nil {
+				log.Println(err)
+			}
+
+			if err = rconn.Close(); err != nil {
+				log.Println(err)
+			}
+
 			go p.doTimeout()
 		}()
 
@@ -104,22 +117,17 @@ func (p *Proxy) HandleConn(conn *net.Conn, handshake packet.SLPHandshake) error 
 		for {
 			n, err := src.Socket.Read(buffer)
 			if err != nil {
+				//log.Print(err)
 				return
 			}
 
 			data := buffer[:n]
 
-			_, err = dst.Socket.Write(data)
-			if err != nil {
-				return
-			}
+			_, _ = dst.Socket.Write(data)
 		}
 	}
 
 	if handshake.RequestsStatus() {
-		go pipe(conn, rconn)
-		go pipe(rconn, conn)
-
 		if err := rconn.WritePacket(handshake.Marshal()); err != nil {
 			return fmt.Errorf("failed to write handshake packet to [%s]", rconn.Addr)
 		}
@@ -153,6 +161,11 @@ func (p *Proxy) HandleConn(conn *net.Conn, handshake packet.SLPHandshake) error 
 
 		return fmt.Errorf("%s[%s] connected over %s[%s]", username, conn.Addr, p.DomainName, p.ListenTo)
 	}
+
+	go pipe(conn, rconn)
+	go pipe(rconn, conn)
+
+	<-p.close
 
 	return nil
 }
@@ -215,29 +228,24 @@ func (p *Proxy) doTimeout() {
 		p.isTimingOut = false
 		return
 	case <-time.After(p.Timeout):
-		log.Printf("Process[%s:%s]: timed out; stopping process", p.DomainName, p.ListenTo)
+		log.Printf("Process[%s|%s]: timed out; stopping process", p.DomainName, p.ListenTo)
 		if err := p.Process.Stop(); err != nil {
-			log.Printf("Process[%s:%s]: %s", p.DomainName, p.ListenTo, err)
+			log.Printf("Process[%s|%s]: %s", p.DomainName, p.ListenTo, err)
 		}
 		p.hasRunningProcess = false
 		return
 	}
 }
 
-func (p Proxy) simulateServer(conn *net.Conn, handshake packet.SLPHandshake) {
+func (p Proxy) handleServerListPing(conn *net.Conn, handshake packet.SLPHandshake) error {
 	if handshake.RequestsLogin() {
-		if err := p.sendDisconnectMessage(conn); err != nil {
-			log.Println(err)
-		}
-		return
+		return p.handleLoginState(conn)
 	}
 
-	if err := p.makeHandshake(conn); err != nil {
-		log.Println(err)
-	}
+	return p.handleStatusState(conn)
 }
 
-func (p Proxy) makeHandshake(conn *net.Conn) error {
+func (p Proxy) handleStatusState(conn *net.Conn) error {
 	pk, err := conn.ReadPacket()
 	if err != nil {
 		return err
@@ -263,7 +271,7 @@ func (p Proxy) makeHandshake(conn *net.Conn) error {
 	return conn.WritePacket(pk)
 }
 
-func (p Proxy) sendDisconnectMessage(conn *net.Conn) error {
+func (p Proxy) handleLoginState(conn *net.Conn) error {
 	pk, err := conn.ReadPacket()
 	if err != nil {
 		return err

@@ -11,17 +11,15 @@ import (
 
 // Gateway is a data structure that holds all proxies and incoming connections
 type Gateway struct {
-	gates     map[string]*Gate // ListenTo
-	wg        *sync.WaitGroup
-	listeners map[string]chan bool
+	gates map[string]*Gate // ListenTo
+	wg    *sync.WaitGroup
 }
 
 // NewGateway creates a new gateway that orchestrates all proxies
 func NewGateway(vprs []*viper.Viper) Gateway {
 	g := Gateway{
-		gates:     map[string]*Gate{},
-		wg:        &sync.WaitGroup{},
-		listeners: map[string]chan bool{},
+		gates: map[string]*Gate{},
+		wg:    &sync.WaitGroup{},
 	}
 
 	for _, vpr := range vprs {

@@ -13,3 +13,5 @@
 
 # Config files
 *.yaml
+
+cmd/infrared/server
