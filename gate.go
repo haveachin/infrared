@@ -5,7 +5,7 @@ import (
 	"log"
 	"strings"
 
-	"github.com/haveachin/infrared/net"
+	"github.com/Tnze/go-mc/net"
 	"github.com/haveachin/infrared/net/packet"
 )
 
@@ -62,7 +62,8 @@ func (g *Gate) Open() error {
 			case <-g.close:
 				return fmt.Errorf("Gate[%s] was closed", g.ListensTo)
 			default:
-				log.Printf("Could not accept [%s]: %s", conn.Addr, err)
+				connAddr := conn.Socket.RemoteAddr().String()
+				log.Printf("Could not accept [%s]: %s", connAddr, err)
 				continue
 			}
 		}
@@ -78,21 +79,22 @@ func (g *Gate) Open() error {
 }
 
 func (g Gate) serve(conn *net.Conn) error {
+	connAddr := conn.Socket.RemoteAddr().String()
 	pk, err := conn.ReadPacket()
 	if err != nil {
-		return fmt.Errorf("[%s] handshake reading failed; %s", conn.Addr, err)
+		return fmt.Errorf("[%s] handshake reading failed; %s", connAddr, err)
 	}
 
 	handshake, err := packet.ParseSLPHandshake(pk)
 	if err != nil {
-		return fmt.Errorf("[%s] handshake parsing failed; %s", conn.Addr, err)
+		return fmt.Errorf("[%s] handshake parsing failed; %s", connAddr, err)
 	}
 
 	addr := strings.Trim(string(handshake.ServerAddress), ".")
 	addrWithPort := fmt.Sprintf("%s:%d", addr, handshake.ServerPort)
 	proxy, ok := g.proxies[addr]
 	if !ok {
-		return fmt.Errorf("[%s] requested unknown address [%s]", conn.Addr, addrWithPort)
+		return fmt.Errorf("[%s] requested unknown address [%s]", connAddr, addrWithPort)
 	}
 
 	if err := proxy.HandleConn(conn, handshake); err != nil {

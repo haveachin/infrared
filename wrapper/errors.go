@@ -1,4 +1,4 @@
-package packet
+package wrapper
 
 import "errors"
 

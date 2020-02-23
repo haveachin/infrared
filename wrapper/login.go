@@ -1,4 +1,6 @@
-package packet
+package wrapper
+
+import "github.com/Tnze/go-mc/net/packet"
 
 const (
 	LoginStartPacketID      = 0x00
@@ -6,10 +8,10 @@ const (
 )
 
 type LoginStart struct {
-	Name String
+	Name packet.String
 }
 
-func ParseLoginStart(pk Packet) (LoginStart, error) {
+func ParseLoginStart(pk packet.Packet) (LoginStart, error) {
 	var start LoginStart
 
 	if pk.ID != LoginStartPacketID {
@@ -24,7 +26,7 @@ func ParseLoginStart(pk Packet) (LoginStart, error) {
 }
 
 type LoginDisconnect struct {
-	Reason Chat
+	Reason packet.Chat
 }
 
 func (pk LoginDisconnect) Marshal() Packet {

@@ -7,20 +7,22 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Tnze/go-mc/net"
 	"github.com/haveachin/infrared/config"
-	"github.com/haveachin/infrared/net"
 	"github.com/haveachin/infrared/process"
+	"github.com/haveachin/infrared/wrapper"
+	proxy "github.com/jpillora/go-tcp-proxy"
 
-	"github.com/haveachin/infrared/net/packet"
+	"github.com/Tnze/go-mc/net/packet"
 )
 
 // Proxy is a TCP server that takes an incoming request and sends it to another
 // server, proxying the response back to the client.
 type Proxy struct {
+	proxy             proxy.Proxy
 	DomainName        string
 	ListenTo          string
 	ProxyTo           string
-	DisconnectMessage string
 	Timeout           time.Duration
 	Players           map[*net.Conn]string
 	Process           process.Process
@@ -51,13 +53,13 @@ func NewProxy(cfg config.Config) (*Proxy, error) {
 	}
 
 	return &Proxy{
-		DomainName:        cfg.DomainName,
-		ListenTo:          cfg.ListenTo,
-		ProxyTo:           cfg.ProxyTo,
-		DisconnectMessage: cfg.DisconnectMessage,
-		Timeout:           timeout,
-		Players:           map[*net.Conn]string{},
-		Process:           proc,
+		proxy:      proxy.New(),
+		DomainName: cfg.DomainName,
+		ListenTo:   cfg.ListenTo,
+		ProxyTo:    cfg.ProxyTo,
+		Timeout:    timeout,
+		Players:    map[*net.Conn]string{},
+		Process:    proc,
 		placeholderPacket: packet.SLPResponse{
 			JSONResponse: packet.String(placeholderBytes),
 		}.Marshal(),
@@ -69,7 +71,9 @@ func NewProxy(cfg config.Config) (*Proxy, error) {
 
 // HandleConn takes a minecraft client connection and it's initial handschake packet
 // and relays all following packets to the remote connection (ProxyTo)
-func (p *Proxy) HandleConn(conn *net.Conn, handshake packet.SLPHandshake) error {
+func (p *Proxy) HandleConn(conn *net.Conn, handshake wrapper.SLPHandshake) error {
+	defer conn.Close()
+
 	if !p.hasRunningProcess {
 		if handshake.RequestsLogin() {
 			log.Printf("Process[%s|%s]: starting", p.DomainName, p.ListenTo)
@@ -91,6 +95,7 @@ func (p *Proxy) HandleConn(conn *net.Conn, handshake packet.SLPHandshake) error 
 		p.handleServerListPing(conn, handshake)
 		return err
 	}
+	defer rconn.Close()
 
 	var pipe = func(src, dst *net.Conn) {
 		defer func() {
@@ -98,26 +103,17 @@ func (p *Proxy) HandleConn(conn *net.Conn, handshake packet.SLPHandshake) error 
 				return
 			}
 
-			log.Printf("%s[%s] lost connection", p.Players[conn], conn.Addr)
+			//log.Printf("%s[%s] lost connection", p.Players[conn], conn.Addr)
 			delete(p.Players, conn)
-
-			if err := conn.Close(); err != nil {
-				log.Println(err)
-			}
-
-			if err = rconn.Close(); err != nil {
-				log.Println(err)
-			}
-
 			go p.doTimeout()
+			p.close <- true
 		}()
 
-		buffer := make([]byte, 65535)
+		buffer := make([]byte, 0xffff)
 
 		for {
 			n, err := src.Socket.Read(buffer)
 			if err != nil {
-				//log.Print(err)
 				return
 			}
 
@@ -185,7 +181,6 @@ func (p *Proxy) ApplyConfigChange(cfg config.Config) error {
 	p.DomainName = cfg.DomainName
 	p.ListenTo = cfg.ListenTo
 	p.ProxyTo = cfg.ProxyTo
-	p.DisconnectMessage = cfg.DisconnectMessage
 	p.Timeout = timeout
 	p.placeholderPacket = packet.SLPResponse{
 		JSONResponse: packet.String(placeholderBytes),

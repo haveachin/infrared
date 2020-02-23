@@ -1,4 +1,6 @@
-package packet
+package wrapper
+
+import "github.com/Tnze/go-mc/net/packet"
 
 const (
 	SLPHandshakePacketID = 0x00
@@ -12,13 +14,13 @@ const (
 )
 
 type SLPHandshake struct {
-	ProtocolVersion VarInt
-	ServerAddress   String
-	ServerPort      UnsignedShort
-	NextState       Byte
+	ProtocolVersion packet.VarInt
+	ServerAddress   packet.String
+	ServerPort      packet.UnsignedShort
+	NextState       packet.Byte
 }
 
-func ParseSLPHandshake(pk Packet) (SLPHandshake, error) {
+func ParseSLPHandshake(pk packet.Packet) (SLPHandshake, error) {
 	var handshake SLPHandshake
 
 	if pk.ID != SLPHandshakePacketID {
