@@ -1,4 +1,4 @@
-package config
+package infrared
 
 type placeholder struct {
 	Version     version     `json:"version"`

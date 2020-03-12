@@ -1,35 +1,53 @@
 package process
 
 import (
-	"os"
 	"os/exec"
 	"strings"
 	"syscall"
 )
 
 type commandProcess struct {
-	command *exec.Cmd
+	command   *exec.Cmd
+	isRunning bool
 }
 
 // NewCommand create a new command line process that manages itself
 func NewCommand(command string) Process {
 	cmdWithArgs := strings.Split(command, " ")
 	cmd := exec.Command(cmdWithArgs[0], cmdWithArgs[1:]...)
-	cmd.Stdout = os.Stdout
+	// cmd.Stdout = os.Stdout
 
 	return commandProcess{
-		command: cmd,
+		command:   cmd,
+		isRunning: false,
 	}
 }
 
 func (proc commandProcess) Start() error {
-	return proc.command.Start()
+	if err := proc.command.Start(); err != nil {
+		return err
+	}
+
+	proc.isRunning = true
+
+	return nil
 }
 
 func (proc commandProcess) Stop() error {
-	if proc.command.Process == nil {
+	p := proc.command.Process
+	if p == nil {
 		return nil
 	}
 
-	return proc.command.Process.Signal(syscall.SIGQUIT)
+	if err := p.Signal(syscall.SIGQUIT); err != nil {
+		return err
+	}
+
+	proc.isRunning = false
+
+	return nil
+}
+
+func (proc commandProcess) IsRunning() bool {
+	return proc.isRunning
 }

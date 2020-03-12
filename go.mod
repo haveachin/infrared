@@ -7,11 +7,10 @@ require (
 	github.com/Tnze/go-mc v1.15.1
 	github.com/docker/distribution v2.7.1+incompatible // indirect
 	github.com/docker/docker v1.13.1
-	github.com/docker/go-connections v0.4.0
+	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/docker/go-units v0.4.0 // indirect
 	github.com/fsnotify/fsnotify v1.4.7
-	github.com/go-delve/delve v1.3.2
-	github.com/google/uuid v1.1.1
+	github.com/go-delve/delve v1.3.2 // indirect
 	github.com/jpillora/go-tcp-proxy v1.0.0
 	github.com/opencontainers/go-digest v1.0.0-rc1 // indirect
 	github.com/pelletier/go-toml v1.6.0 // indirect

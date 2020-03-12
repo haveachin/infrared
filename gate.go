@@ -5,19 +5,19 @@ import (
 	"log"
 	"strings"
 
-	"github.com/Tnze/go-mc/net"
-	"github.com/haveachin/infrared/net/packet"
+	mc "github.com/Tnze/go-mc/net"
+	"github.com/haveachin/infrared/wrapper"
 )
 
 type Gate struct {
 	ListensTo string
-	listener  *net.Listener
-	proxies   map[string]*Proxy // domain name
+	listener  *mc.Listener
+	highways  map[string]*Highway // domain name
 	close     chan bool
 }
 
 func NewGate(listenTo string) (*Gate, error) {
-	listener, err := net.ListenMC(listenTo)
+	listener, err := mc.ListenMC(listenTo)
 	if err != nil {
 		return nil, err
 	}
@@ -25,24 +25,24 @@ func NewGate(listenTo string) (*Gate, error) {
 	return &Gate{
 		ListensTo: listenTo,
 		listener:  listener,
-		proxies:   map[string]*Proxy{},
+		highways:  map[string]*Highway{},
 		close:     make(chan bool, 1),
 	}, nil
 }
 
-func (g *Gate) add(proxy *Proxy) error {
-	if _, ok := g.proxies[proxy.DomainName]; ok {
-		return fmt.Errorf("%s[%s] is already in use", proxy.DomainName, g.ListensTo)
+func (g *Gate) add(hw *Highway) error {
+	if _, ok := g.highways[hw.DomainName]; ok {
+		return fmt.Errorf("%s[%s] is already in use", hw.DomainName, g.ListensTo)
 	}
 
-	g.proxies[proxy.DomainName] = proxy
+	g.highways[hw.DomainName] = hw
 	return nil
 }
 
-func (g *Gate) remove(proxy *Proxy) {
-	delete(g.proxies, proxy.DomainName)
+func (g *Gate) remove(hw *Highway) {
+	delete(g.highways, hw.DomainName)
 
-	if len(g.proxies) > 0 {
+	if len(g.highways) > 0 {
 		return
 	}
 
@@ -78,21 +78,21 @@ func (g *Gate) Open() error {
 	}
 }
 
-func (g Gate) serve(conn *net.Conn) error {
+func (g Gate) serve(conn *mc.Conn) error {
 	connAddr := conn.Socket.RemoteAddr().String()
 	pk, err := conn.ReadPacket()
 	if err != nil {
 		return fmt.Errorf("[%s] handshake reading failed; %s", connAddr, err)
 	}
 
-	handshake, err := packet.ParseSLPHandshake(pk)
+	handshake, err := wrapper.ParseSLPHandshake(pk)
 	if err != nil {
 		return fmt.Errorf("[%s] handshake parsing failed; %s", connAddr, err)
 	}
 
 	addr := strings.Trim(string(handshake.ServerAddress), ".")
 	addrWithPort := fmt.Sprintf("%s:%d", addr, handshake.ServerPort)
-	proxy, ok := g.proxies[addr]
+	proxy, ok := g.highways[addr]
 	if !ok {
 		return fmt.Errorf("[%s] requested unknown address [%s]", connAddr, addrWithPort)
 	}

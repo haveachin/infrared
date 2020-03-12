@@ -1,4 +1,4 @@
-package config
+package infrared
 
 import (
 	"bufio"
@@ -45,8 +45,8 @@ type Config struct {
 	}
 }
 
-// ReadAll reads all files that are in the given path
-func ReadAll(path string) ([]*viper.Viper, error) {
+// ReadAllConfigs reads all files that are in the given path
+func ReadAllConfigs(path string) ([]*viper.Viper, error) {
 	files, err := ioutil.ReadDir(path)
 	if err != nil {
 		return nil, err
@@ -75,7 +75,7 @@ func ReadAll(path string) ([]*viper.Viper, error) {
 }
 
 // Load loads the config from the viper configuration
-func Load(vpr *viper.Viper) (Config, error) {
+func LoadConfig(vpr *viper.Viper) (Config, error) {
 	config := Config{}
 
 	if err := vpr.ReadInConfig(); err != nil {

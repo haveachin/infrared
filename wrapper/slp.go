@@ -9,8 +9,8 @@ const (
 	SLPPingPacketID      = 0x01
 	SLPPongPacketID      = 0x01
 
-	SLPHandshakeStatusState = Byte(1)
-	SLPHandshakeLoginState  = Byte(2)
+	SLPHandshakeStatusState = packet.Byte(1)
+	SLPHandshakeLoginState  = packet.Byte(2)
 )
 
 type SLPHandshake struct {
@@ -34,22 +34,22 @@ func ParseSLPHandshake(pk packet.Packet) (SLPHandshake, error) {
 	return handshake, nil
 }
 
-func (pk SLPHandshake) Marshal() Packet {
-	return Marshal(SLPHandshakePacketID, pk.ProtocolVersion, pk.ServerAddress, pk.ServerPort, pk.NextState)
+func (pk SLPHandshake) Marshal() packet.Packet {
+	return packet.Marshal(SLPHandshakePacketID, pk.ProtocolVersion, pk.ServerAddress, pk.ServerPort, pk.NextState)
 }
 
-func (handshake SLPHandshake) RequestsStatus() bool {
+func (handshake SLPHandshake) IsStatusRequest() bool {
 	return handshake.NextState == SLPHandshakeStatusState
 }
 
-func (handshake SLPHandshake) RequestsLogin() bool {
+func (handshake SLPHandshake) IsLoginRequest() bool {
 	return handshake.NextState == SLPHandshakeLoginState
 }
 
 type SLPResponse struct {
-	JSONResponse String
+	JSONResponse packet.String
 }
 
-func (pk SLPResponse) Marshal() Packet {
-	return Marshal(SLPResponsePacketID, pk.JSONResponse)
+func (pk SLPResponse) Marshal() packet.Packet {
+	return packet.Marshal(SLPResponsePacketID, pk.JSONResponse)
 }

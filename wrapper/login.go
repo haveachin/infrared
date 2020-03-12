@@ -29,6 +29,6 @@ type LoginDisconnect struct {
 	Reason packet.Chat
 }
 
-func (pk LoginDisconnect) Marshal() Packet {
-	return Marshal(LoginDisconnectPacketID, pk.Reason)
+func (pk LoginDisconnect) Marshal() packet.Packet {
+	return packet.Marshal(LoginDisconnectPacketID, pk.Reason)
 }
