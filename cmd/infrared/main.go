@@ -2,13 +2,11 @@ package main
 
 import (
 	"log"
-
-	"github.com/spf13/pflag"
-
-	"github.com/spf13/viper"
+	"os"
 
 	"github.com/haveachin/infrared"
-	"github.com/haveachin/infrared/config"
+	"github.com/spf13/pflag"
+	"github.com/spf13/viper"
 )
 
 const (
@@ -40,12 +38,16 @@ func main() {
 		configPath = viper.GetString(envConfigPath)
 	}
 
-	vprs, err := config.ReadAll(configPath)
+	vprs, err := infrared.ReadAllConfigs(configPath)
 	if err != nil {
 		log.Fatal(err)
 		return
 	}
 
-	gateway := infrared.NewGateway(vprs)
+	info := log.New(os.Stdout, "[INFO]: ", log.Ldate|log.Ltime)
+	warning := log.New(os.Stdout, "[WRNG]: ", log.Ldate|log.Ltime)
+	critical := log.New(os.Stdout, "[CRTL]: ", log.Ldate|log.Ltime)
+
+	gateway := infrared.NewGateway(vprs, info, warning, critical)
 	gateway.Open()
 }
