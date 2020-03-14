@@ -93,7 +93,7 @@ func (hw *Highway) HandleConn(conn *mc.Conn, handshake wrapper.SLPHandshake) err
 			return hw.server.RespondToSLPLogin(*conn)
 		}
 
-		hw.doTimeout()
+		hw.startTimeout()
 
 		return hw.server.RespondToSLPLogin(*conn)
 	}
@@ -109,12 +109,15 @@ func (hw *Highway) HandleConn(conn *mc.Conn, handshake wrapper.SLPHandshake) err
 			conn.Close()
 			rconn.Close()
 
-			if handshake.IsLoginRequest() {
-				log.Info().Msgf("Highway[%s|%s]: %s[%s] left the game", hw.DomainName, hw.ListenTo, hw.Players[conn], connAddr)
-				delete(hw.Players, conn)
-				if len(hw.Players) <= 0 {
-					hw.doTimeout()
-				}
+			if handshake.IsStatusRequest() {
+				return
+			}
+
+			log.Info().Msgf("Highway[%s|%s]: %s[%s] left the game", hw.DomainName, hw.ListenTo, hw.Players[conn], connAddr)
+			delete(hw.Players, conn)
+
+			if len(hw.Players) <= 0 {
+				hw.startTimeout()
 			}
 		}()
 
@@ -158,10 +161,7 @@ func (hw *Highway) HandleConn(conn *mc.Conn, handshake wrapper.SLPHandshake) err
 			return fmt.Errorf("failed to sniff username from [%s]", connAddr)
 		}
 
-		if hw.cancelTimeout != nil {
-			hw.cancelTimeout()
-			hw.cancelTimeout = nil
-		}
+		hw.stopTimeout()
 
 		hw.Players[conn] = username
 		log.Info().Msgf("Highway[%s|%s]: %s[%s] joined the game", hw.DomainName, hw.ListenTo, username, connAddr)
@@ -211,21 +211,33 @@ func processFromConfig(cfg Config) (process.Process, error) {
 	return nil, errors.New("no container in config")
 }
 
-func (hw Highway) doTimeout() {
-	log.Info().Msgf("Process[%s|%s]: Timing out in %s", hw.DomainName, hw.ListenTo, hw.Timeout)
-	cancel := make(chan bool, 1)
-
-	select {
-	case <-cancel:
-	case <-time.After(hw.Timeout):
-		log.Info().Msgf("Process[%s|%s]: Stopping", hw.DomainName, hw.ListenTo)
-		hw.process.Stop()
+func (hw *Highway) startTimeout() {
+	if hw.cancelTimeout != nil {
+		return
 	}
+
+	timer := time.AfterFunc(hw.Timeout, func() {
+		log.Info().Msgf("Process[%s|%s]: Stopping", hw.DomainName, hw.ListenTo)
+		if err := hw.process.Stop(); err != nil {
+			log.Err(err).Msgf("Process[%s|%s]: Failed to stop", hw.DomainName, hw.ListenTo)
+		}
+	})
 
 	hw.cancelTimeout = func() {
-		cancel <- true
+		timer.Stop()
 		log.Info().Msgf("Process[%s|%s]: Timeout canceled", hw.DomainName, hw.ListenTo)
 	}
+
+	log.Info().Msgf("Process[%s|%s]: Timing out in %s", hw.DomainName, hw.ListenTo, hw.Timeout)
+}
+
+func (hw *Highway) stopTimeout() {
+	if hw.cancelTimeout == nil {
+		return
+	}
+
+	hw.cancelTimeout()
+	hw.cancelTimeout = nil
 }
 
 func sniffUsername(conn, rconn *mc.Conn) (string, error) {
