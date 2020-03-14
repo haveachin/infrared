@@ -1,10 +1,11 @@
 package main
 
 import (
-	"log"
 	"os"
 
 	"github.com/haveachin/infrared"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 )
@@ -25,6 +26,9 @@ func init() {
 
 	pflag.Parse()
 	viper.BindPFlags(pflag.CommandLine)
+
+	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 }
 
 func main() {
@@ -40,14 +44,10 @@ func main() {
 
 	vprs, err := infrared.ReadAllConfigs(configPath)
 	if err != nil {
-		log.Fatal(err)
+		log.Info().Err(err)
 		return
 	}
 
-	info := log.New(os.Stdout, "[INFO]: ", log.Ldate|log.Ltime)
-	warning := log.New(os.Stdout, "[WRNG]: ", log.Ldate|log.Ltime)
-	critical := log.New(os.Stdout, "[CRTL]: ", log.Ldate|log.Ltime)
-
-	gateway := infrared.NewGateway(vprs, info, warning, critical)
+	gateway := infrared.NewGateway(vprs)
 	gateway.Open()
 }
