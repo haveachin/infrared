@@ -6,11 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
 )
 
@@ -21,10 +21,9 @@ type Config struct {
 	ProxyTo           string
 	DisconnectMessage string
 	Timeout           string
-	Command           string
 	Docker            struct {
-		ContainerID string
-		Portainer   struct {
+		ContainerName string
+		Portainer     struct {
 			Address    string
 			EndpointID string
 			Username   string
@@ -57,7 +56,7 @@ func ReadAllConfigs(path string) ([]*viper.Viper, error) {
 	for _, file := range files {
 		fileName := file.Name()
 
-		log.Printf("Loading \"%s\"", fileName)
+		log.Info().Msgf("Loading \"%s\"", fileName)
 
 		extension := filepath.Ext(fileName)
 		configName := fileName[0 : len(fileName)-len(extension)]
@@ -74,7 +73,7 @@ func ReadAllConfigs(path string) ([]*viper.Viper, error) {
 	return vprs, nil
 }
 
-// Load loads the config from the viper configuration
+// LoadConfig loads the config from the viper configuration
 func LoadConfig(vpr *viper.Viper) (Config, error) {
 	config := Config{}
 
@@ -91,7 +90,7 @@ func LoadConfig(vpr *viper.Viper) (Config, error) {
 
 // UsesDocker returns a bool that determines if the config has data to support a docker process
 func (config Config) UsesDocker() bool {
-	return config.Docker.ContainerID != ""
+	return config.Docker.ContainerName != ""
 }
 
 // UsesPortainer returns a bool that determines if the config has data to support a portainer process

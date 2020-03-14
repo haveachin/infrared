@@ -1,47 +1,41 @@
 package infrared
 
 import (
-	"log"
 	"sync"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
 )
 
 // Gateway is a data structure that holds all proxies and incoming connections
 type Gateway struct {
-	info     *log.Logger
-	warning  *log.Logger
-	critical *log.Logger
-	gates    map[string]*Gate
-	wg       *sync.WaitGroup
+	gates map[string]*Gate
+	wg    *sync.WaitGroup
 }
 
 // NewGateway creates a new gateway that orchestrates all proxies
-func NewGateway(vprs []*viper.Viper, info, warning, critical *log.Logger) Gateway {
+func NewGateway(vprs []*viper.Viper) Gateway {
 	g := Gateway{
-		info:     info,
-		warning:  warning,
-		critical: critical,
-		gates:    map[string]*Gate{},
-		wg:       &sync.WaitGroup{},
+		gates: map[string]*Gate{},
+		wg:    &sync.WaitGroup{},
 	}
 
 	for _, vpr := range vprs {
 		cfg, err := LoadConfig(vpr)
 		if err != nil {
-			warning.Printf("Failed to read config: %s", err)
+			log.Err(err).Msg("Failed to read config")
 			continue
 		}
 
 		hw, err := NewHighway(cfg)
 		if err != nil {
-			warning.Printf("Failed to create proxy %s[%s]: %s", cfg.DomainName, cfg.ListenTo, err)
+			log.Err(err).Msgf("Failed to create proxy %s[%s]", cfg.DomainName, cfg.ListenTo)
 			continue
 		}
 
 		if err := g.add(hw); err != nil {
-			warning.Printf("Failed to add proxy %s[%s] to gateway: %s", cfg.DomainName, cfg.ListenTo, err)
+			log.Err(err).Msgf("Failed to add proxy %s[%s] to gateway", cfg.DomainName, cfg.ListenTo)
 			continue
 		}
 
@@ -55,23 +49,23 @@ func NewGateway(vprs []*viper.Viper, info, warning, critical *log.Logger) Gatewa
 // Open opens the gateway and starts all proxies
 func (g *Gateway) Open() {
 	if len(g.gates) <= 0 {
-		log.Println("Gateway has no gates")
+		log.Fatal().Msg("Gateway has no gates")
 		return
 	}
 
-	g.info.Println("Opening gateway")
+	log.Info().Msg("Opening gateway")
 
 	for _, gate := range g.gates {
 		loopGate := *gate
 		g.wg.Add(1)
 		go func() {
-			g.info.Println(loopGate.Open())
+			log.Err(loopGate.Open())
 			g.wg.Done()
 		}()
 	}
 
 	g.wg.Wait()
-	g.info.Println("Gateway closed")
+	log.Info().Msg("Gateway closed")
 }
 
 func (g *Gateway) add(hw *Highway) error {
@@ -95,18 +89,18 @@ func (g *Gateway) add(hw *Highway) error {
 
 func (g *Gateway) onConfigChange(hw *Highway, vpr *viper.Viper) func(fsnotify.Event) {
 	return func(in fsnotify.Event) {
-		g.info.Printf("Configuration \"%s\" changed", in.Name)
+		log.Info().Msgf("Configuration \"%s\" changed", in.Name)
 
 		cfg, err := LoadConfig(vpr)
 		if err != nil {
-			g.warning.Printf("Failed to read config: %s", err)
+			log.Err(err).Msg("Failed to read config")
 			return
 		}
 
 		if cfg.ListenTo == hw.ListenTo {
 			if cfg.DomainName == hw.DomainName {
 				if err := hw.ApplyConfigChange(cfg); err != nil {
-					g.warning.Printf("Syntax error in \"%s\": %s", in.Name, err)
+					log.Err(err).Msgf("Syntax error in \"%s\"", in.Name)
 					return
 				}
 				return
@@ -116,7 +110,7 @@ func (g *Gateway) onConfigChange(hw *Highway, vpr *viper.Viper) func(fsnotify.Ev
 			currentDomainName := hw.DomainName
 
 			if err := hw.ApplyConfigChange(cfg); err != nil {
-				g.warning.Printf("Syntax error in \"%s\": %s", in.Name, err)
+				log.Err(err).Msgf("Syntax error in \"%s\"", in.Name)
 				return
 			}
 
@@ -129,7 +123,7 @@ func (g *Gateway) onConfigChange(hw *Highway, vpr *viper.Viper) func(fsnotify.Ev
 		gate := g.gates[hw.ListenTo]
 
 		if err := hw.ApplyConfigChange(cfg); err != nil {
-			g.warning.Printf("Syntax error in \"%s\": %s", in.Name, err)
+			log.Err(err).Msgf("Syntax error in \"%s\"", in.Name)
 			return
 		}
 
@@ -145,7 +139,7 @@ func (g *Gateway) onConfigChange(hw *Highway, vpr *viper.Viper) func(fsnotify.Ev
 
 		g.wg.Add(1)
 		go func() {
-			g.info.Println(gate.Open())
+			log.Err(gate.Open())
 			g.wg.Done()
 		}()
 	}

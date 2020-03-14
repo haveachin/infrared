@@ -2,11 +2,11 @@ package infrared
 
 import (
 	"fmt"
-	"log"
 	"strings"
 
 	mc "github.com/Tnze/go-mc/net"
 	"github.com/haveachin/infrared/wrapper"
+	"github.com/rs/zerolog/log"
 )
 
 type Gate struct {
@@ -53,26 +53,26 @@ func (g *Gate) remove(hw *Highway) {
 }
 
 func (g *Gate) Open() error {
-	log.Printf("Gate[%s] opened", g.ListensTo)
+	log.Info().Msgf("Gate[%s]: Opened", g.ListensTo)
 
 	for {
 		conn, err := g.listener.Accept()
 		if err != nil {
 			select {
 			case <-g.close:
-				return fmt.Errorf("Gate[%s] was closed", g.ListensTo)
+				return fmt.Errorf("Gate[%s]: Closed", g.ListensTo)
 			default:
 				connAddr := conn.Socket.RemoteAddr().String()
-				log.Printf("Could not accept [%s]: %s", connAddr, err)
+				log.Err(err).Msgf("Gate[%s]: Could not accept [%s]", connAddr)
 				continue
 			}
 		}
 
-		log.Printf("Gate[%s]: Connection accepted", g.ListensTo)
+		log.Debug().Msgf("Gate[%s]: Connection accepted", g.ListensTo)
 
 		go func() {
 			if err := g.serve(&conn); err != nil {
-				log.Printf("Gate[%s]: %s", g.ListensTo, err)
+				log.Debug().AnErr("error", err).Msgf("Gate[%s]:", g.ListensTo)
 			}
 		}()
 	}
@@ -98,7 +98,7 @@ func (g Gate) serve(conn *mc.Conn) error {
 	}
 
 	if err := proxy.HandleConn(conn, handshake); err != nil {
-		log.Printf("Gate[%s]: %s", g.ListensTo, err)
+		return err
 	}
 
 	return nil

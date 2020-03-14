@@ -65,9 +65,8 @@ ListenTo: ":25565"
 ProxyTo: ":8080"
 DisconnectMessage: "Sorry §e$username§r, but the server is §osleeping§r right now."
 Timeout: "13m37s"
-Command: "java -server -Xmx512M -jar minecraft_server.jar nogui"
 Docker:
-    ContainerID: "4c01db0b339c"
+    ContainerName: "mc"
     Portainer:
         Address: "localhost:9000"
         EndpointID: "1"
@@ -92,12 +91,11 @@ Placeholder:
 `ProxyTo` is the address that the proxy sents the incoming connections to  
 `DisconnectMessage` is the text that gets diplayed as reason for the disconnect (use $username when you want to use their username)  
 `Timeout` is the duration befor it will be shut down  
-`Command` is the command that start the minecraft server  
 
 **Only used if the** `Command` **is not present**  
 `Docker` is a data object that represents a docker interface.
 
-- `ContainerID` is the ID of the container that contains the minecraft server  
+- `ContainerName` is the Name of the container that contains the minecraft server  
 **Only needed if you are using [Portainer](https://www.portainer.io/) for user privilege management**
 - `Portainer` is a data object that represents a portainer interface
   - `Address` is the address of the portainer instance

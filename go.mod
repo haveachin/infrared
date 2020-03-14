@@ -11,9 +11,11 @@ require (
 	github.com/docker/go-units v0.4.0 // indirect
 	github.com/fsnotify/fsnotify v1.4.7
 	github.com/go-delve/delve v1.3.2 // indirect
-	github.com/jpillora/go-tcp-proxy v1.0.0
+	github.com/jpillora/go-tcp-proxy v1.0.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0-rc1 // indirect
 	github.com/pelletier/go-toml v1.6.0 // indirect
+	github.com/rs/zerolog v1.18.0
+	github.com/sirupsen/logrus v1.4.2
 	github.com/spf13/afero v1.2.2 // indirect
 	github.com/spf13/cast v1.3.1 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect

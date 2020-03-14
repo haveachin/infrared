@@ -1,6 +1,7 @@
 package process
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/docker/docker/api/types"
@@ -9,45 +10,81 @@ import (
 )
 
 type dockerProcess struct {
-	client      *client.Client
-	containerID string
+	client        *client.Client
+	containerName string
 }
 
 // NewDocker create a new docker process that manages a container
-func NewDocker(containerID string) (Process, error) {
+func NewDocker(containerName string) (Process, error) {
 	cli, err := client.NewEnvClient()
 	if err != nil {
 		return nil, err
 	}
 
 	return dockerProcess{
-		client:      cli,
-		containerID: containerID,
+		client:        cli,
+		containerName: containerName,
 	}, nil
 }
 
 func (proc dockerProcess) Start() error {
+	containerID, err := proc.resolveContainerName()
+	if err != nil {
+		return err
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), contextTimeout)
 	defer cancel()
 
-	return proc.client.ContainerStart(ctx, proc.containerID, types.ContainerStartOptions{})
+	return proc.client.ContainerStart(ctx, containerID, types.ContainerStartOptions{})
 }
 
 func (proc dockerProcess) Stop() error {
+	containerID, err := proc.resolveContainerName()
+	if err != nil {
+		return err
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), contextTimeout)
 	defer cancel()
 
-	return proc.client.ContainerStop(ctx, proc.containerID, nil)
+	return proc.client.ContainerStop(ctx, containerID, nil)
 }
 
-func (proc dockerProcess) IsRunning() bool {
+func (proc dockerProcess) IsRunning() (bool, error) {
+	containerID, err := proc.resolveContainerName()
+	if err != nil {
+		return false, err
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	info, err := proc.client.ContainerInspect(ctx, proc.containerID)
+	info, err := proc.client.ContainerInspect(ctx, containerID)
 	if err != nil {
-		return false
+		return false, err
 	}
 
-	return info.State.Running
+	return info.State.Running, nil
+}
+
+func (proc dockerProcess) resolveContainerName() (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), contextTimeout)
+	defer cancel()
+
+	containers, err := proc.client.ContainerList(ctx, types.ContainerListOptions{})
+	if err != nil {
+		return "", err
+	}
+
+	for _, container := range containers {
+		for _, name := range container.Names {
+			if name != proc.containerName {
+				continue
+			}
+			return container.ID, nil
+		}
+	}
+
+	return "", fmt.Errorf("container with name \"%s\" not found", proc.containerName)
 }
