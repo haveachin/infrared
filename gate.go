@@ -94,7 +94,8 @@ func (g Gate) serve(conn *mc.Conn) error {
 	addrWithPort := fmt.Sprintf("%s:%d", addr, handshake.ServerPort)
 	proxy, ok := g.highways[addr]
 	if !ok {
-		return fmt.Errorf("[%s] requested unknown address [%s]", connAddr, addrWithPort)
+		log.Info().Msgf("Gate[%s]: [%s] requested unknown address [%s]", g.ListensTo, connAddr, addrWithPort)
+		return nil
 	}
 
 	if err := proxy.HandleConn(conn, handshake); err != nil {

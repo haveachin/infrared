@@ -28,7 +28,7 @@ func init() {
 	viper.BindPFlags(pflag.CommandLine)
 
 	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
-	zerolog.SetGlobalLevel(zerolog.InfoLevel)
+	zerolog.SetGlobalLevel(zerolog.DebugLevel)
 }
 
 func main() {

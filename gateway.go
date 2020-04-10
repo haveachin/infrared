@@ -93,27 +93,20 @@ func (g *Gateway) onConfigChange(hw *Highway, vpr *viper.Viper) func(fsnotify.Ev
 
 		cfg, err := LoadConfig(vpr)
 		if err != nil {
-			log.Err(err).Msg("Failed to read config")
+			log.Err(err).Msgf("Failed to read config from \"%s\"", in.Name)
 			return
 		}
 
 		if cfg.ListenTo == hw.ListenTo {
 			if cfg.DomainName == hw.DomainName {
-				if err := hw.ApplyConfigChange(cfg); err != nil {
-					log.Err(err).Msgf("Syntax error in \"%s\"", in.Name)
-					return
-				}
+				hw.ApplyConfigChange(cfg)
 				return
 			}
 
 			gate := g.gates[hw.ListenTo]
 			currentDomainName := hw.DomainName
 
-			if err := hw.ApplyConfigChange(cfg); err != nil {
-				log.Err(err).Msgf("Syntax error in \"%s\"", in.Name)
-				return
-			}
-
+			hw.ApplyConfigChange(cfg)
 			gate.highways[cfg.DomainName] = hw
 			delete(gate.highways, currentDomainName)
 
@@ -122,11 +115,7 @@ func (g *Gateway) onConfigChange(hw *Highway, vpr *viper.Viper) func(fsnotify.Ev
 
 		gate := g.gates[hw.ListenTo]
 
-		if err := hw.ApplyConfigChange(cfg); err != nil {
-			log.Err(err).Msgf("Syntax error in \"%s\"", in.Name)
-			return
-		}
-
+		hw.ApplyConfigChange(cfg)
 		g.add(hw)
 
 		gate.remove(hw)

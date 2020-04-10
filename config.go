@@ -19,10 +19,12 @@ type Config struct {
 	DomainName        string
 	ListenTo          string
 	ProxyTo           string
+	DNSAddress        string
 	DisconnectMessage string
 	Timeout           string
 	Docker            struct {
 		ContainerName string
+		CallbackURL   string
 		Portainer     struct {
 			Address    string
 			EndpointID string
@@ -168,7 +170,10 @@ func loadImageToBase64String(path string) (string, error) {
 
 	buffer := make([]byte, fileInfo.Size())
 	fileReader := bufio.NewReader(imgFile)
-	fileReader.Read(buffer)
+	_, err = fileReader.Read(buffer)
+	if err != nil {
+		return "", nil
+	}
 
 	return base64.StdEncoding.EncodeToString(buffer), nil
 }

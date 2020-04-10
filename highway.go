@@ -3,6 +3,7 @@ package infrared
 import (
 	"errors"
 	"fmt"
+	"net"
 	"time"
 
 	mc "github.com/Tnze/go-mc/net"
@@ -14,14 +15,17 @@ import (
 	"github.com/Tnze/go-mc/net/packet"
 )
 
+type Filter func(*[]byte)
+
 // Highway is a TCP server that takes an incoming request and sends it to another
 // server, proxying the response back to the client.
 type Highway struct {
-	DomainName string
-	ListenTo   string
-	ProxyTo    string
-	Timeout    time.Duration
-	Players    map[*mc.Conn]string
+	DomainName  string
+	ListenTo    string
+	ProxyTo     string
+	Timeout     time.Duration
+	CallbackURL string
+	Players     map[*mc.Conn]string
 
 	server        simulation.Server
 	process       process.Process
@@ -38,6 +42,15 @@ func NewHighway(cfg Config) (*Highway, error) {
 	proc, err := processFromConfig(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("could not load process for %s[%s]: %s", cfg.DomainName, cfg.ListenTo, err)
+	}
+
+	if cfg.ProxyTo == "" {
+		ip, err := net.ResolveIPAddr("127.0.0.11", cfg.Docker.ContainerName)
+		if err != nil {
+			return nil, fmt.Errorf("Highway[%s|%s]: Could not resolve \"%s\"", cfg.DomainName, cfg.ListenTo, cfg.Docker.ContainerName)
+		}
+
+		cfg.ProxyTo = ip.String()
 	}
 
 	timeout, err := time.ParseDuration(cfg.Timeout)
@@ -67,7 +80,14 @@ func NewHighway(cfg Config) (*Highway, error) {
 func (hw *Highway) HandleConn(conn *mc.Conn, handshake wrapper.SLPHandshake) error {
 	isServerRunning := true
 
-	rconn, err := mc.DialMC(hw.ProxyTo)
+	ip, err := net.ResolveIPAddr("8.8.8.8", hw.ProxyTo) //127.0.0.11
+	if err != nil {
+		log.Err(err).Msgf("Highway[%s|%s]: Could not resolve \"%s\"", hw.DomainName, hw.ListenTo, hw.ProxyTo)
+	}
+
+	log.Debug().Msgf("Highway[%s|%s]: Resolve \"%s\" to \"%s\"", hw.DomainName, hw.ListenTo, hw.ProxyTo, ip.String())
+
+	rconn, err := mc.DialMC(ip.String())
 	if err != nil {
 		isServerRunning = false
 	}
@@ -88,6 +108,7 @@ func (hw *Highway) HandleConn(conn *mc.Conn, handshake wrapper.SLPHandshake) err
 			return hw.server.RespondToSLPLogin(*conn)
 		}
 
+		log.Info().Msgf("Process[%s|%s]: Starting", hw.DomainName, hw.ListenTo)
 		if err := hw.process.Start(); err != nil {
 			log.Err(err).Msgf("Process[%s|%s]: Could not start the container", hw.DomainName, hw.ListenTo)
 			return hw.server.RespondToSLPLogin(*conn)
@@ -100,7 +121,7 @@ func (hw *Highway) HandleConn(conn *mc.Conn, handshake wrapper.SLPHandshake) err
 
 	connAddr := conn.Socket.RemoteAddr().String()
 
-	var pipe = func(src, dst *mc.Conn) {
+	var pipe = func(src, dst *mc.Conn, filters []Filter) {
 		defer func() {
 			if src == conn {
 				return
@@ -131,6 +152,12 @@ func (hw *Highway) HandleConn(conn *mc.Conn, handshake wrapper.SLPHandshake) err
 
 			data := buffer[:n]
 
+			for _, filter := range filters {
+				if filter != nil {
+					filter(&data)
+				}
+			}
+
 			_, err = dst.Socket.Write(data)
 			if err != nil {
 				return
@@ -138,11 +165,11 @@ func (hw *Highway) HandleConn(conn *mc.Conn, handshake wrapper.SLPHandshake) err
 		}
 	}
 
-	if handshake.IsStatusRequest() {
-		if err := rconn.WritePacket(handshake.Marshal()); err != nil {
-			return fmt.Errorf("failed to write handshake packet to [%s]", connAddr)
-		}
+	if err := rconn.WritePacket(handshake.Marshal()); err != nil {
+		return fmt.Errorf("failed to write handshake packet to [%s]", connAddr)
+	}
 
+	if handshake.IsStatusRequest() {
 		pk, err := conn.ReadPacket()
 		if err != nil {
 			return fmt.Errorf("failed to read request packet from [%s]", connAddr)
@@ -152,10 +179,6 @@ func (hw *Highway) HandleConn(conn *mc.Conn, handshake wrapper.SLPHandshake) err
 			return fmt.Errorf("failed to write request packet to [%s]", connAddr)
 		}
 	} else if handshake.IsLoginRequest() {
-		if err := rconn.WritePacket(handshake.Marshal()); err != nil {
-			return fmt.Errorf("failed to write handshake packet to [%s]", connAddr)
-		}
-
 		username, err := sniffUsername(conn, rconn)
 		if err != nil {
 			return fmt.Errorf("failed to sniff username from [%s]", connAddr)
@@ -167,34 +190,49 @@ func (hw *Highway) HandleConn(conn *mc.Conn, handshake wrapper.SLPHandshake) err
 		log.Info().Msgf("Highway[%s|%s]: %s[%s] joined the game", hw.DomainName, hw.ListenTo, username, connAddr)
 	}
 
-	go pipe(conn, rconn)
-	go pipe(rconn, conn)
+	var highPing = func(data *[]byte) {
+		time.Sleep(300 * time.Millisecond)
+	}
+
+	filters := []Filter{
+		highPing,
+	}
+
+	go pipe(conn, rconn, filters)
+	go pipe(rconn, conn, filters)
 
 	return nil
 }
 
 // ApplyConfigChange is a callback function that handles config changes
-func (hw *Highway) ApplyConfigChange(cfg Config) error {
-	placeholderBytes, err := cfg.MarshalPlaceholder()
-	if err != nil {
-		return fmt.Errorf("%s[%s] could not mashal palceholder; %s", hw.DomainName, hw.ListenTo, err)
-	}
-
+func (hw *Highway) ApplyConfigChange(cfg Config) {
 	timeout, err := time.ParseDuration(cfg.Timeout)
 	if err != nil {
-		return fmt.Errorf("%s[%s] could not parse timeout; %s", hw.DomainName, hw.ListenTo, err)
+		log.Err(err).Msgf("Highway[%s|%s]: Could not parse timeout", hw.DomainName, hw.ListenTo)
+	} else {
+		hw.Timeout = timeout
+	}
+
+	placeholderBytes, err := cfg.MarshalPlaceholder()
+	if err != nil {
+		log.Err(err).Msgf("Highway[%s|%s]: Could not mashal palceholder", hw.DomainName, hw.ListenTo)
+	} else {
+		hw.server.PlaceholderPacket = wrapper.SLPResponse{
+			JSONResponse: packet.String(placeholderBytes),
+		}.Marshal()
+	}
+
+	proc, err := processFromConfig(cfg)
+	if err != nil {
+		log.Err(err).Msgf("Highway[%s|%s]: Could not update container", hw.DomainName, hw.ListenTo)
+	} else {
+		hw.process = proc
 	}
 
 	hw.DomainName = cfg.DomainName
 	hw.ListenTo = cfg.ListenTo
 	hw.ProxyTo = cfg.ProxyTo
-	hw.Timeout = timeout
 	hw.server.DisconnectMessage = cfg.DisconnectMessage
-	hw.server.PlaceholderPacket = wrapper.SLPResponse{
-		JSONResponse: packet.String(placeholderBytes),
-	}.Marshal()
-
-	return nil
 }
 
 func processFromConfig(cfg Config) (process.Process, error) {
@@ -209,6 +247,24 @@ func processFromConfig(cfg Config) (process.Process, error) {
 	}
 
 	return nil, errors.New("no container in config")
+}
+
+func sniffUsername(conn, rconn *mc.Conn) (string, error) {
+	pk, err := conn.ReadPacket()
+	if err != nil {
+		return "", err
+	}
+
+	start, err := wrapper.ParseLoginStart(pk)
+	if err != nil {
+		return "", err
+	}
+
+	if err := rconn.WritePacket(pk); err != nil {
+		return "", err
+	}
+
+	return string(start.Name), nil
 }
 
 func (hw *Highway) startTimeout() {
@@ -238,22 +294,4 @@ func (hw *Highway) stopTimeout() {
 
 	hw.cancelTimeout()
 	hw.cancelTimeout = nil
-}
-
-func sniffUsername(conn, rconn *mc.Conn) (string, error) {
-	pk, err := conn.ReadPacket()
-	if err != nil {
-		return "", err
-	}
-
-	start, err := wrapper.ParseLoginStart(pk)
-	if err != nil {
-		return "", err
-	}
-
-	if err := rconn.WritePacket(pk); err != nil {
-		return "", err
-	}
-
-	return string(start.Name), nil
 }
