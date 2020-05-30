@@ -2,7 +2,7 @@ version: "3"
 
 services:
   infrared:
-    build: "./cmd/infrared"
+    build: "."
     container_name: "infrared"
     restart: "unless-stopped"
     stdin_open: true
