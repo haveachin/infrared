@@ -17,7 +17,7 @@ Infrared works as a reverse proxy using a subdomains to connect clients to a spe
 ## Deploy
 
 ```shell script
-$ docker build --no-cache -t infrared:latest https://github.com/haveachin/infrared.git &&
+$ docker build --no-cache -t haveachin/infrared:latest https://github.com/haveachin/infrared.git &&
   docker image prune -f --filter label=stage=intermediate &&
   docker run -d --name infrared --restart=unless-stopped -it -v /usr/local/infrared/configs/:/configs -p 25565:25565/tcp --expose 25565 haveachin/infrared:latest
 ```
@@ -25,7 +25,7 @@ $ docker build --no-cache -t infrared:latest https://github.com/haveachin/infrar
 ## Update
 
 ```shell script
-$ docker build --no-cache -t infrared:latest https://github.com/haveachin/infrared.git &&
+$ docker build --no-cache -t haveachin/infrared:latest https://github.com/haveachin/infrared.git &&
   docker image prune -f --filter label=stage=intermediate &&
   docker stop infrared &&
   docker rm infrared &&
