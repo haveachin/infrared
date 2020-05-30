@@ -9,7 +9,7 @@ import (
 	"golang.org/x/net/context"
 )
 
-type dockerProcess struct {
+type docker struct {
 	client        *client.Client
 	containerName string
 }
@@ -21,13 +21,13 @@ func NewDocker(containerName string) (Process, error) {
 		return nil, err
 	}
 
-	return dockerProcess{
+	return docker{
 		client:        cli,
 		containerName: containerName,
 	}, nil
 }
 
-func (proc dockerProcess) Start() error {
+func (proc docker) Start() error {
 	containerID, err := proc.resolveContainerName()
 	if err != nil {
 		return err
@@ -39,7 +39,7 @@ func (proc dockerProcess) Start() error {
 	return proc.client.ContainerStart(ctx, containerID, types.ContainerStartOptions{})
 }
 
-func (proc dockerProcess) Stop() error {
+func (proc docker) Stop() error {
 	containerID, err := proc.resolveContainerName()
 	if err != nil {
 		return err
@@ -51,7 +51,7 @@ func (proc dockerProcess) Stop() error {
 	return proc.client.ContainerStop(ctx, containerID, nil)
 }
 
-func (proc dockerProcess) IsRunning() (bool, error) {
+func (proc docker) IsRunning() (bool, error) {
 	containerID, err := proc.resolveContainerName()
 	if err != nil {
 		return false, err
@@ -68,7 +68,7 @@ func (proc dockerProcess) IsRunning() (bool, error) {
 	return info.State.Running, nil
 }
 
-func (proc dockerProcess) resolveContainerName() (string, error) {
+func (proc docker) resolveContainerName() (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), contextTimeout)
 	defer cancel()
 

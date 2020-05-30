@@ -1,53 +1,103 @@
 package main
 
 import (
+	"flag"
 	"os"
+	"strconv"
+	"time"
 
 	"github.com/haveachin/infrared"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
-	"github.com/spf13/pflag"
-	"github.com/spf13/viper"
 )
 
 const (
-	envPrefix     = "infrared"
-	envAddress    = "address"
-	envConfigPath = "config_path"
+	envPrefix     = "INFRARED_"
+	envDebug      = envPrefix + "DEBUG"
+	envColor      = envPrefix + "COLOR"
+	envConfigPath = envPrefix + "CONFIG_PATH"
 )
 
+const (
+	clfDebug      = "debug"
+	clfColor      = "color"
+	clfConfigPath = "config-path"
+)
+
+var (
+	debug      = false
+	color      = true
+	configPath = "./configs"
+)
+
+func envBool(name string, value bool) bool {
+	envString := os.Getenv(name)
+	if envString == "" {
+		return value
+	}
+
+	envBool, err := strconv.ParseBool(envString)
+	if err != nil {
+		return value
+	}
+
+	return envBool
+}
+
+func envString(name string, value string) string {
+	envString := os.Getenv(name)
+	if envString == "" {
+		return value
+	}
+
+	return envString
+}
+
+func initEnv() {
+	debug = envBool(envDebug, debug)
+	color = envBool(envColor, color)
+	configPath = envString(envConfigPath, configPath)
+}
+
+func initFlags() {
+	flag.BoolVar(&debug, clfDebug, debug, "starts infrared in debug mode")
+	flag.BoolVar(&color, clfColor, color, "enables color in console logs")
+	flag.StringVar(&configPath, clfConfigPath, configPath, "path of all proxy configs")
+	flag.Parse()
+}
+
 func init() {
-	viper.SetEnvPrefix(envPrefix)
-	viper.BindEnv(envAddress)
-	viper.BindEnv(envConfigPath)
+	initEnv()
+	initFlags()
 
-	pflag.String(envAddress, ":25565", "address that the proxy listens to")
-	pflag.String(envConfigPath, "./configs/", "path of all your server configs")
+	log.Logger = log.Output(zerolog.ConsoleWriter{
+		Out:        os.Stderr,
+		TimeFormat: time.RFC3339,
+		NoColor:    !color,
+	})
+	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 
-	pflag.Parse()
-	viper.BindPFlags(pflag.CommandLine)
-
-	log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr})
-	zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	if debug {
+		zerolog.SetGlobalLevel(zerolog.DebugLevel)
+	}
 }
 
 func main() {
-	address := viper.Get(envAddress).(string)
-	if address == "" {
-		address = viper.GetString(envAddress)
-	}
-
-	configPath := viper.Get(envConfigPath).(string)
-	if configPath == "" {
-		configPath = viper.GetString(envConfigPath)
-	}
-
-	vprs, err := infrared.ReadAllConfigs(configPath)
+	vprs, err := infrared.ReadAllProxyConfigs(configPath)
 	if err != nil {
 		log.Info().Err(err)
 		return
 	}
 
-	gateway := infrared.NewGateway(vprs)
-	gateway.Open()
+	gateway := infrared.NewGateway()
+
+	for _, vpr := range vprs {
+		if _, err := gateway.AddProxyByViper(vpr); err != nil {
+			log.Err(err)
+		}
+	}
+
+	if err := gateway.ListenAndServe(); err != nil {
+		log.Err(err)
+	}
 }

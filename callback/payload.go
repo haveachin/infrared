@@ -8,5 +8,5 @@ type Payload struct {
 	Success             bool      `json:"success"`
 	Message             string    `json:"message"`
 	ContainerName       string    `json:"containerName"`
-	PortainerEndpointID string    `json:"portainerEnpointId,omitempty"`
+	PortainerEndpointID string    `json:"portainerEndpointId,omitempty"`
 }

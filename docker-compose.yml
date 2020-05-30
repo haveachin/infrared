@@ -1,13 +1,18 @@
-version: "3.7"
+version: "3"
 
 services:
   infrared:
     build: "."
     container_name: "infrared"
     restart: "unless-stopped"
+    stdin_open: true
+    tty: true
     ports:
       - "25565:25565/tcp"
     volumes:
-      - "/usr/local/infrared/configs/:/configs"
+      - "/usr/local/infrared/configs:/configs"
+    expose:
+      - "25565"
     environment:
-        INFRARED_CONFIG_PATH: "./configs/"
+      INFRARED_DEBUG: false
+      INFRARED_CONFIG_PATH: "/configs"

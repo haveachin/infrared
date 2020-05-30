@@ -2,105 +2,219 @@ package infrared
 
 import (
 	"fmt"
-	"strings"
-
-	mc "github.com/Tnze/go-mc/net"
-	"github.com/haveachin/infrared/wrapper"
+	"github.com/fsnotify/fsnotify"
+	"github.com/haveachin/infrared/mc"
+	"github.com/haveachin/infrared/mc/protocol"
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"github.com/spf13/viper"
 )
 
 type Gate struct {
-	ListensTo string
-	listener  *mc.Listener
-	highways  map[string]*Highway // domain name
-	close     chan bool
+	listenTo string
+	listener *mc.Listener
+	proxies  map[string]*Proxy // map key is domain name
+	close    chan bool
+	logger   zerolog.Logger
 }
 
 func NewGate(listenTo string) (*Gate, error) {
-	listener, err := mc.ListenMC(listenTo)
+	listener, err := mc.Listen(listenTo)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Gate{
-		ListensTo: listenTo,
-		listener:  listener,
-		highways:  map[string]*Highway{},
-		close:     make(chan bool, 1),
-	}, nil
-}
-
-func (g *Gate) add(hw *Highway) error {
-	if _, ok := g.highways[hw.DomainName]; ok {
-		return fmt.Errorf("%s[%s] is already in use", hw.DomainName, g.ListensTo)
+	gate := Gate{
+		listenTo: listenTo,
+		listener: listener,
+		proxies:  map[string]*Proxy{},
+		close:    make(chan bool, 1),
 	}
 
-	g.highways[hw.DomainName] = hw
+	gate.OverrideLogger(log.Logger)
+
+	return &gate, nil
+}
+
+func (gate *Gate) OverrideLogger(logger zerolog.Logger) zerolog.Logger {
+	gate.logger = logger.With().Str("gate", gate.listenTo).Logger()
+	for _, proxy := range gate.proxies {
+		proxy.OverrideLogger(gate.logger)
+	}
+	return gate.logger
+}
+
+func (gate *Gate) AddProxyByViper(vpr *viper.Viper) (*Proxy, error) {
+	cfg, err := LoadProxyConfig(vpr)
+	if err != nil {
+		return nil, err
+	}
+
+	proxy, err := NewProxy(cfg)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := gate.AddProxy(proxy); err != nil {
+		return nil, err
+	}
+
+	vpr.WatchConfig()
+	vpr.OnConfigChange(gate.onConfigChange(proxy, vpr))
+	return proxy, nil
+}
+
+func (gate *Gate) AddProxy(proxy *Proxy) error {
+	if gate.listenTo != proxy.listenTo {
+		return ErrProxyNotSupported
+	}
+
+	if _, ok := gate.proxies[proxy.domainName]; ok {
+		return ErrProxySignatureAlreadyRegistered
+	}
+
+	proxy.OverrideLogger(gate.logger)
+	gate.proxies[proxy.domainName] = proxy
+
+	gate.logger.Debug().
+		Str("destinationAddress", proxy.proxyTo).
+		Str("domainName", proxy.domainName).
+		Msg("Added proxy to gate")
+
 	return nil
 }
 
-func (g *Gate) remove(hw *Highway) {
-	delete(g.highways, hw.DomainName)
+func (gate *Gate) RemoveProxy(domainName string) {
+	delete(gate.proxies, domainName)
 
-	if len(g.highways) > 0 {
+	if len(gate.proxies) > 0 {
 		return
 	}
 
-	go func() {
-		g.close <- true
-		g.listener.Close()
-	}()
+	gate.Close()
 }
 
-func (g *Gate) Open() error {
-	log.Info().Msgf("Gate[%s]: Opened", g.ListensTo)
+func (gate *Gate) ListenAndServe() error {
+	gate.logger.Info().Msgf("Starting gate on %s", gate.listenTo)
+
+	if len(gate.proxies) <= 0 {
+		return ErrNoProxyInGate
+	}
 
 	for {
-		conn, err := g.listener.Accept()
+		conn, err := gate.listener.Accept()
 		if err != nil {
 			select {
-			case <-g.close:
-				return fmt.Errorf("Gate[%s]: Closed", g.ListensTo)
+			case <-gate.close:
+				gate.logger.Info().Msg("Closed")
+				return nil
 			default:
-				connAddr := conn.Socket.RemoteAddr().String()
-				log.Err(err).Msgf("Gate[%s]: Could not accept [%s]", connAddr)
+				gate.logger.Debug().Err(err).Msg("Could not accept connection")
 				continue
 			}
 		}
 
-		log.Debug().Msgf("Gate[%s]: Connection accepted", g.ListensTo)
-
-		go func() {
-			if err := g.serve(&conn); err != nil {
-				log.Debug().AnErr("error", err).Msgf("Gate[%s]:", g.ListensTo)
-			}
-		}()
+		go gate.serve(conn)
 	}
 }
 
-func (g Gate) serve(conn *mc.Conn) error {
-	connAddr := conn.Socket.RemoteAddr().String()
-	pk, err := conn.ReadPacket()
-	if err != nil {
-		return fmt.Errorf("[%s] handshake reading failed; %s", connAddr, err)
+func (gate *Gate) Close() {
+	go func() {
+		gate.close <- true
+	}()
+
+	if err := gate.listener.Close(); err != nil {
+		gate.logger.Err(err)
 	}
 
-	handshake, err := wrapper.ParseSLPHandshake(pk)
+	for _, proxy := range gate.proxies {
+		proxy.Close()
+	}
+}
+
+func (gate Gate) serve(conn mc.Conn) {
+	connAddr := conn.RemoteAddr().String()
+	logger := gate.logger.With().Str("connection", connAddr).Logger()
+	logger.Debug().Msg("Connection accepted")
+
+	packet, err := conn.PeekPacket()
 	if err != nil {
-		return fmt.Errorf("[%s] handshake parsing failed; %s", connAddr, err)
+		logger.Debug().Err(err).Msg("Handshake reading failed")
+		return
 	}
 
-	addr := strings.Trim(string(handshake.ServerAddress), ".")
+	handshake, err := protocol.ParseSLPHandshake(packet)
+	if err != nil {
+		logger.Debug().Err(err).Msg("Handshake parsing failed")
+		return
+	}
+
+	if handshake.IsForgeAddress() {
+		logger.Debug().Msg("Connection is a forge client")
+	}
+
+	addr := handshake.ParseServerAddress()
 	addrWithPort := fmt.Sprintf("%s:%d", addr, handshake.ServerPort)
-	proxy, ok := g.highways[addr]
+	logger = logger.With().Str("requestedAddress", addrWithPort).Logger()
+	proxy, ok := gate.proxies[addr]
 	if !ok {
-		log.Info().Msgf("Gate[%s]: [%s] requested unknown address [%s]", g.ListensTo, connAddr, addrWithPort)
+		logger.Info().Msg("Unknown address requested")
+		return
+	}
+
+	if err := proxy.HandleConn(conn); err != nil {
+		logger.Err(err)
+	}
+}
+
+func (gate *Gate) onConfigChange(proxy *Proxy, vpr *viper.Viper) func(fsnotify.Event) {
+	return func(in fsnotify.Event) {
+		if in.Op != fsnotify.Write {
+			return
+		}
+
+		logger := gate.logger.With().Str("path", in.Name).Logger()
+		logger.Info().Msg("Configuration changed")
+
+		cfg, err := LoadProxyConfig(vpr)
+		if err != nil {
+			logger.Err(err).Msg("Failed to load configuration")
+			return
+		}
+
+		if cfg.ListenTo != gate.listenTo {
+			logger.Err(ErrProxyNotSupported).Msg("Automatically closing this proxy now")
+			vpr.OnConfigChange(nil)
+			proxy.Close()
+			gate.RemoveProxy(proxy.domainName)
+			return
+		}
+
+		if err := gate.UpdateProxy(proxy, cfg); err != nil {
+			log.Err(err)
+		}
+	}
+}
+
+func (gate *Gate) UpdateProxy(proxy *Proxy, cfg ProxyConfig) error {
+	if cfg.DomainName == proxy.domainName {
+		if err := proxy.updateConfig(cfg); err != nil {
+			return err
+		}
 		return nil
 	}
 
-	if err := proxy.HandleConn(conn, handshake); err != nil {
+	if _, ok := gate.proxies[cfg.DomainName]; ok {
+		return ErrProxySignatureAlreadyRegistered
+	}
+
+	oldDomainName := proxy.domainName
+
+	if err := proxy.updateConfig(cfg); err != nil {
 		return err
 	}
 
+	gate.proxies[proxy.domainName] = proxy
+	delete(gate.proxies, oldDomainName)
 	return nil
 }

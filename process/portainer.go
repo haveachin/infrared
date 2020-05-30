@@ -14,11 +14,11 @@ const (
 	authenticationEndpoint = "http://%s/api/auth"
 	startContainerEndpoint = "http://%s/api/endpoints/%s/docker/containers/%s/start"
 	stopContainerEndpoint  = "http://%s/api/endpoints/%s/docker/containers/%s/stop"
-	jsonContainerEndpoint  = "http://%s/api/endpoints/%s/docker/containers/%s/json"
-	jsonContainersEndpoint = "http://%s/api/endpoints/%s/docker/containers/json?all=true"
+	getContainerEndpoint   = "http://%s/api/endpoints/%s/docker/containers/%s/json"
+	getContainersEndpoint  = "http://%s/api/endpoints/%s/docker/containers/json?all=true"
 )
 
-type portainerProcess struct {
+type portainer struct {
 	client        http.Client
 	token         string
 	address       string
@@ -29,8 +29,8 @@ type portainerProcess struct {
 }
 
 // NewPortainer creates a new portainer process that manages a docker container
-func NewPortainer(address, endpointID, containerName, username, password string) (Process, error) {
-	proc := portainerProcess{
+func NewPortainer(containerName, address, endpointID, username, password string) (Process, error) {
+	proc := portainer{
 		client: http.Client{
 			Timeout: contextTimeout,
 		},
@@ -44,42 +44,42 @@ func NewPortainer(address, endpointID, containerName, username, password string)
 	return proc, nil
 }
 
-func (proc portainerProcess) Start() error {
+func (proc portainer) Start() error {
 	containerID, err := proc.resolveContainerName()
 	if err != nil {
 		return err
 	}
 
 	url := fmt.Sprintf(startContainerEndpoint, proc.address, proc.endpointID, containerID)
-	if _, err := proc.do(http.MethodPost, url); err != nil {
+	if _, err := proc.request(http.MethodPost, url); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (proc portainerProcess) Stop() error {
+func (proc portainer) Stop() error {
 	containerID, err := proc.resolveContainerName()
 	if err != nil {
 		return err
 	}
 
 	url := fmt.Sprintf(stopContainerEndpoint, proc.address, proc.endpointID, containerID)
-	if _, err := proc.do(http.MethodPost, url); err != nil {
+	if _, err := proc.request(http.MethodPost, url); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (proc portainerProcess) IsRunning() (bool, error) {
+func (proc portainer) IsRunning() (bool, error) {
 	containerID, err := proc.resolveContainerName()
 	if err != nil {
 		return false, err
 	}
 
-	url := fmt.Sprintf(jsonContainerEndpoint, proc.address, proc.endpointID, containerID)
-	response, err := proc.do(http.MethodGet, url)
+	url := fmt.Sprintf(getContainerEndpoint, proc.address, proc.endpointID, containerID)
+	response, err := proc.request(http.MethodGet, url)
 	if err != nil {
 		return false, err
 	}
@@ -102,7 +102,7 @@ func (proc portainerProcess) IsRunning() (bool, error) {
 	return state.State.Running, nil
 }
 
-func (proc portainerProcess) do(method, url string) (*http.Response, error) {
+func (proc portainer) request(method, url string) (*http.Response, error) {
 	request, err := http.NewRequest(method, url, nil)
 	if err != nil {
 		return nil, err
@@ -124,15 +124,15 @@ func (proc portainerProcess) do(method, url string) (*http.Response, error) {
 		if err := proc.authenticate(); err != nil {
 			return nil, fmt.Errorf("could not authorize; %s", err)
 		}
-		return proc.do(method, url)
+		return proc.request(method, url)
 	}
 
 	return response, nil
 }
 
-func (proc portainerProcess) resolveContainerName() (string, error) {
-	url := fmt.Sprintf(jsonContainersEndpoint, proc.address, proc.endpointID)
-	response, err := proc.do(http.MethodGet, url)
+func (proc portainer) resolveContainerName() (string, error) {
+	url := fmt.Sprintf(getContainersEndpoint, proc.address, proc.endpointID)
+	response, err := proc.request(http.MethodGet, url)
 	if err != nil {
 		return "", err
 	}
@@ -142,10 +142,10 @@ func (proc portainerProcess) resolveContainerName() (string, error) {
 		return "", err
 	}
 
-	containers := []struct {
+	var containers []struct {
 		ID    string   `json:"Id"`
 		Names []string `json:"Names"`
-	}{}
+	}
 
 	if err := json.Unmarshal(data, &containers); err != nil {
 		return "", err
@@ -163,8 +163,8 @@ func (proc portainerProcess) resolveContainerName() (string, error) {
 	return "", fmt.Errorf("container with name \"%s\" not found", proc.containerName)
 }
 
-func (proc *portainerProcess) authenticate() error {
-	credentials := struct {
+func (proc *portainer) authenticate() error {
+	var credentials = struct {
 		Username string `json:"Username"`
 		Password string `json:"Password"`
 	}{
@@ -192,7 +192,7 @@ func (proc *portainerProcess) authenticate() error {
 		return err
 	}
 
-	jwtResponse := struct {
+	var jwtResponse = struct {
 		JWT string `json:"jwt"`
 	}{}
 
