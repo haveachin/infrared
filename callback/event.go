@@ -5,17 +5,17 @@ import "errors"
 type Event string
 
 const (
-	PlayerJoin   Event = "PlayerJoin"
-	PlayerLeave  Event = "PlayerLeave"
-	ProcessStart Event = "ProcessStart"
-	ProcessStop  Event = "ProcessStop"
+	PlayerJoinEvent   Event = "PlayerJoin"
+	PlayerLeaveEvent  Event = "PlayerLeave"
+	ProcessStartEvent Event = "ProcessStart"
+	ProcessStopEvent  Event = "ProcessStop"
 )
 
 var Events = []Event{
-	PlayerJoin,
-	PlayerLeave,
-	ProcessStart,
-	ProcessStop,
+	PlayerJoinEvent,
+	PlayerLeaveEvent,
+	ProcessStartEvent,
+	ProcessStopEvent,
 }
 
 func ParseEvents(name string) (Event, error) {
