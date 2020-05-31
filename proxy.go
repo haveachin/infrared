@@ -21,12 +21,12 @@ type Proxy struct {
 	// ServerBoundModifiers modify traffic that is send from the client to the server
 	ServerBoundModifiers []Modifier
 
-	domainName           string
-	listenTo             string
-	proxyTo              string
-	timeout              time.Duration
-	callbackURL          string
-	players              map[*mc.Conn]string
+	domainName  string
+	listenTo    string
+	proxyTo     string
+	timeout     time.Duration
+	callbackURL string
+	players     map[*mc.Conn]string
 
 	server        sim.Server
 	process       process.Process
@@ -40,8 +40,8 @@ func NewProxy(cfg ProxyConfig) (*Proxy, error) {
 	proxy := Proxy{
 		ClientBoundModifiers: []Modifier{},
 		ServerBoundModifiers: []Modifier{},
-		players:       map[*mc.Conn]string{},
-		cancelTimeout: nil,
+		players:              map[*mc.Conn]string{},
+		cancelTimeout:        nil,
 	}
 
 	if err := proxy.updateConfig(cfg); err != nil {
@@ -113,10 +113,11 @@ func (proxy *Proxy) HandleConn(conn mc.Conn) error {
 
 		proxy.stopTimeout()
 		proxy.players[&conn] = username
-		proxy.logger.Info().Msgf("%s joined the game", proxy.players[&conn])
+		logger = logger.With().Str("username", username).Logger()
+		logger.Info().Msgf("%s joined the game", proxy.players[&conn])
 
 		defer func() {
-			proxy.logger.Info().Msgf("%s left the game", proxy.players[&conn])
+			logger.Info().Msgf("%s left the game", proxy.players[&conn])
 			delete(proxy.players, &conn)
 
 			if len(proxy.players) <= 0 {
