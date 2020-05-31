@@ -99,9 +99,7 @@ from a vanilla minecraft server
 
 ```yaml
 DomainName: "mc.example.com"
-ListenTo: ":25565"
 ProxyTo: ":8080"
-DisconnectMessage: "Sorry §e$username§r, but the server is §osleeping§r right now."
 Timeout: "13m37s"
 Docker:
   DNSServer: "127.0.0.11"
@@ -111,7 +109,8 @@ Docker:
     EndpointID: "1"
     Username: "admin"
     Password: "foobar"
-Placeholder:
+Server:
+  DisconnectMessage: "Sorry §e$username§r, but the server is §osleeping§r right now."
   Version: "1.14.4"
   Protocol: 498
   Icon: "/path/to/icon.png"
