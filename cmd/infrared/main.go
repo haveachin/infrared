@@ -71,7 +71,7 @@ func init() {
 	initFlags()
 
 	log.Logger = log.Output(zerolog.ConsoleWriter{
-		Out:        os.Stderr,
+		Out:        os.Stdout,
 		TimeFormat: time.RFC3339,
 		NoColor:    !color,
 	})
