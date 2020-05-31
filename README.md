@@ -1,9 +1,9 @@
 # Infrared
 
-An ultra lightweight minecraft reverse proxy and idle placeholder:
-Ever wanted to have only one exposed port at your server for multiple minecraft servers?
+An ultra lightweight Minecraft reverse proxy and idle placeholder:
+Ever wanted to have only one exposed port at your server for multiple Minecraft servers?
 Then infrared is the tool you need!
-Infrared works as a reverse proxy using a subdomains to connect clients to a specific minecraft server.
+Infrared works as a reverse proxy using a subdomains to connect clients to a specific Minecraft server.
 
 ## Features
 
@@ -63,7 +63,7 @@ All config options are below, but only the marked* fields are essential for a va
 
 `Docker`* is a data object that represents a docker interface.
 - `DNSServer` is the address of the DNS that resolves container names [default: `"127.0.0.11"`]
-- `ContainerName`* is the Name of the container that contains the minecraft server
+- `ContainerName`* is the Name of the container that contains the Minecraft server
 - `Portainer` is a data object that represents a Portainer interface that is only needed
 if you are using [Portainer](https://www.portainer.io/) for user privilege management
   - `Address`* is the address of the Portainer instance
@@ -72,14 +72,14 @@ if you are using [Portainer](https://www.portainer.io/) for user privilege manag
   - `Password`* is the password for the Portainer user
 
 `Server` is a data object that represents a [SLP response](https://wiki.vg/Server_List_Ping)
-from a vanilla minecraft server
+from a vanilla Minecraft server
 - `DisconnectMessage` is the text that gets displayed as reason for the disconnect
 (use $username when you want to use their username) [default: `"Hey §e$username§r! The server was sleeping but it is starting now."`]  
-- `Version` is the minecraft version displayed with the placeholder [default: `"Infrared 1.15.2"`]
+- `Version` is the Minecraft version displayed with the placeholder [default: `"Infrared 1.15.2"`]
 - `Protocol` is the [version number](https://wiki.vg/Protocol_version_numbers) of the protocol that is used [default: `578`]
 - `Icon` is the path to the icon image that is displayed on the client side
-- `Motd` is the Motd of a minecraft server [default: `"Powered by Infrared"`]
-- `MaxPlayers` is the maximum of players that can join the minecraft server [default: `20`]
+- `Motd` is the Motd of a Minecraft server [default: `"Powered by Infrared"`]
+- `MaxPlayers` is the maximum of players that can join the Minecraft server [default: `20`]
 - `PlayersOnline` is the amount of players that are online currently on the server [default: `0`]
 - `Players` is an array of players that are shown on the client side when hovered over the player count
     - `Name` is the player name displayed
@@ -87,7 +87,7 @@ from a vanilla minecraft server
 
 `LoggerCallback` is a data object that represents a callback interface for the logger **[not implemented yet]**
 - `URL` is the URL for the callback
-- `Options` specify the logs that are send to the callback URL
+- `Options` specify the logs that are sent to the callback URL
   - `PlayerJoin`
   - `PlayerLeave`
   - `ProcessStart`
