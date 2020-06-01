@@ -7,11 +7,12 @@ type Event string
 const EventKey = "event"
 
 const (
-	ErrorEvent        Event = "Error"
-	PlayerJoinEvent   Event = "PlayerJoin"
-	PlayerLeaveEvent  Event = "PlayerLeave"
-	ProcessStartEvent Event = "ProcessStart"
-	ProcessStopEvent  Event = "ProcessStop"
+	ErrorEvent          Event = "Error"
+	PlayerJoinEvent     Event = "PlayerJoin"
+	PlayerLeaveEvent    Event = "PlayerLeave"
+	ProcessStartEvent   Event = "ProcessStart"
+	ProcessStopEvent    Event = "ProcessStop"
+	ProcessTimeoutEvent Event = "ProcessTimeout"
 )
 
 var Events = []Event{
@@ -20,6 +21,7 @@ var Events = []Event{
 	PlayerLeaveEvent,
 	ProcessStartEvent,
 	ProcessStopEvent,
+	ProcessTimeoutEvent,
 }
 
 func ParseEvent(name string) (Event, error) {
