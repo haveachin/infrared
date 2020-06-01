@@ -10,7 +10,7 @@ Infrared works as a reverse proxy using a subdomains to connect clients to a spe
 - [x] Reverse Proxy
 - [x] Display Placeholder Server
 - [x] Autostart Server when pinged
-- [ ] Logger Callback URLs
+- [x] Logger Callback URLs
 - [ ] JSON Endpoint for logs
 - [ ] gRPC API for live data
 
@@ -61,7 +61,7 @@ All config options are below, but only the marked* fields are essential for a va
 `ProxyTo`* is the address that the proxy sends the incoming connections to  
 `Timeout` is the duration before it will be shut down [default: `5m`]  
 
-`Docker`* is a data object that represents a docker interface.
+`Docker`* is a data object that represents a docker interface
 - `DNSServer` is the address of the DNS that resolves container names [default: `"127.0.0.11"`]
 - `ContainerName`* is the Name of the container that contains the Minecraft server
 - `Portainer` is a data object that represents a Portainer interface that is only needed
@@ -85,13 +85,15 @@ from a vanilla Minecraft server
     - `Name` is the player name displayed
     - `ID` is the UUID of the player (important for the player head next to the name)
 
-`LoggerCallback` is a data object that represents a callback interface for the logger **[not implemented yet]**
-- `URL` is the URL for the callback
-- `Options` specify the logs that are sent to the callback URL
-  - `PlayerJoin`
-  - `PlayerLeave`
-  - `ProcessStart`
-  - `ProcessStop`
+`CallbackLog` is a data object that represents a callback log writer
+- `URL` is the URL for the callback log server (logs are send in JSON via POST-Method)
+- `Events` specify the logs that are sent to the callback URL (all logs are send if this is empty or nonexistent)
+  - `Error` will send error logs
+  - `PlayerJoin` will send player joins
+  - `PlayerLeave` will send player leaves
+  - `ContainerStart` will send container starts
+  - `ContainerStop` will send container stops
+  - `ContainerTimeout` will send container timeout start (when the last player leaves the server)
 
 ## Example Config for a Vanilla Server
 
@@ -122,4 +124,11 @@ Server:
       ID: "8667ba71-b85a-4004-af54-457a9734eed7"
     - Name: "Alex"
       ID: "ec561538-f3fd-461d-aff5-086b22154bce"
+CallbackLog:
+  URL: "http://localhost:8080/logs"
+  Events:
+    - "Error"
+    - "PlayerJoin"
+    - "PlayerLeave"
+    - "ContainerStart"
 ```
