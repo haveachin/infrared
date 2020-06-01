@@ -67,6 +67,7 @@ func (gateway *Gateway) AddGate(gate *Gate) error {
 		return ErrGateSignatureAlreadyRegistered
 	}
 
+	gate.AddLoggerOutput(io.MultiWriter(gateway.loggerOutputs...))
 	gate.overrideLogger(gateway.logger)
 	gateway.gates[gate.listenTo] = gate
 

@@ -90,6 +90,7 @@ func (gate *Gate) AddProxy(proxy *Proxy) error {
 		return ErrProxySignatureAlreadyRegistered
 	}
 
+	proxy.AddLoggerOutput(io.MultiWriter(gate.loggerOutputs...))
 	proxy.overrideLogger(gate.logger)
 	gate.proxies[proxy.domainName] = proxy
 
