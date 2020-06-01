@@ -4,6 +4,8 @@ import "errors"
 
 type Event string
 
+const EventKey = "event"
+
 const (
 	ErrorEvent        Event = "Error"
 	PlayerJoinEvent   Event = "PlayerJoin"
