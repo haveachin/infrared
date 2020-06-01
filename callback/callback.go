@@ -3,23 +3,43 @@ package callback
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"net/http"
 )
 
-type ConsoleWriter struct {
+func NewLogWriter(cfg Config) (LogWriter, error) {
+	var events []Event
+
+	for _, eventString := range cfg.Events {
+		event, err := ParseEvent(eventString)
+		if err != nil {
+			return LogWriter{}, err
+		}
+
+		events = append(events, event)
+	}
+
+	return LogWriter{
+		URL:    cfg.URL,
+		Events: events,
+	}, nil
+}
+
+type LogWriter struct {
 	URL    string
 	Events []Event
-	zerolog.ConsoleWriter
 }
 
-func (w ConsoleWriter) Write(b []byte) (int, error) {
+func (w LogWriter) Write(b []byte) (int, error) {
 	go w.handleLog(b)
-	return w.ConsoleWriter.Write(b)
+	return len(b), nil
 }
 
-func (w ConsoleWriter) handleLog(b []byte) {
+func (w LogWriter) handleLog(b []byte) {
+	if w.URL == "" {
+		return
+	}
+
 	eventJSON := struct {
 		Event string `json:"event"`
 	}{}
@@ -29,18 +49,20 @@ func (w ConsoleWriter) handleLog(b []byte) {
 		return
 	}
 
-	hasEvent := false
-	for _, event := range w.Events {
-		if eventJSON.Event != string(event) {
-			continue
+	if len(w.Events) > 0 {
+		hasEvent := false
+		for _, event := range w.Events {
+			if eventJSON.Event != string(event) {
+				continue
+			}
+
+			hasEvent = true
+			break
 		}
 
-		hasEvent = true
-		break
-	}
-
-	if !hasEvent {
-		return
+		if !hasEvent {
+			return
+		}
 	}
 
 	if err := postToURL(w.URL, b); err != nil {
