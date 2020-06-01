@@ -2,13 +2,12 @@ package main
 
 import (
 	"flag"
-	"os"
-	"strconv"
-	"time"
-
 	"github.com/haveachin/infrared"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"os"
+	"strconv"
+	"time"
 )
 
 const (
@@ -70,19 +69,21 @@ func init() {
 	initEnv()
 	initFlags()
 
-	log.Logger = log.Output(zerolog.ConsoleWriter{
-		Out:        os.Stdout,
-		TimeFormat: time.RFC3339,
-		NoColor:    !color,
-	})
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
-
 	if debug {
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
 	}
 }
 
 func main() {
+	defaultConsoleWriter := zerolog.ConsoleWriter{
+		Out:        os.Stdout,
+		TimeFormat: time.RFC3339,
+		NoColor:    !color,
+	}
+
+	log.Logger = log.Output(defaultConsoleWriter)
+
 	vprs, err := infrared.ReadAllProxyConfigs(configPath)
 	if err != nil {
 		log.Info().Err(err)
@@ -90,6 +91,7 @@ func main() {
 	}
 
 	gateway := infrared.NewGateway()
+	gateway.AddLoggerOutput(defaultConsoleWriter)
 
 	for _, vpr := range vprs {
 		if _, err := gateway.AddProxyByViper(vpr); err != nil {
