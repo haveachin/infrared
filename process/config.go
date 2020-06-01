@@ -1,17 +1,21 @@
 package process
 
 type Config struct {
-	DNSServer string
+	DNSServer     string
 	ContainerName string
-	Portainer struct {
-		Address string
+	Portainer     struct {
+		Address    string
 		EndpointID string
-		Username string
-		Password string
+		Username   string
+		Password   string
 	}
 }
 
 func (cfg Config) hasPortainerConfig() bool {
+	if cfg.Portainer.Address == "" {
+		return false
+	}
+
 	if cfg.Portainer.EndpointID == "" {
 		return false
 	}
