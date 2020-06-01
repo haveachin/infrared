@@ -16,7 +16,9 @@ type Gate struct {
 	listener *mc.Listener
 	proxies  map[string]*Proxy // map key is domain name
 	close    chan bool
-	logger   zerolog.Logger
+
+	logger        zerolog.Logger
+	loggerOutputs []io.Writer
 }
 
 func NewGate(listenTo string) (*Gate, error) {
@@ -26,10 +28,11 @@ func NewGate(listenTo string) (*Gate, error) {
 	}
 
 	gate := Gate{
-		listenTo: listenTo,
-		listener: listener,
-		proxies:  map[string]*Proxy{},
-		close:    make(chan bool, 1),
+		listenTo:      listenTo,
+		listener:      listener,
+		proxies:       map[string]*Proxy{},
+		close:         make(chan bool, 1),
+		loggerOutputs: []io.Writer{},
 	}
 
 	gate.overrideLogger(log.Logger)
@@ -37,18 +40,24 @@ func NewGate(listenTo string) (*Gate, error) {
 	return &gate, nil
 }
 
-func (gate *Gate) LoggerOutput(w io.Writer) {
-	gate.logger = gate.logger.Output(w)
+func (gate *Gate) AddLoggerOutput(w io.Writer) {
+	gate.loggerOutputs = append(gate.loggerOutputs, w)
+	gate.logger = gate.logger.Output(io.MultiWriter(gate.loggerOutputs...))
+
 	for _, proxy := range gate.proxies {
-		proxy.LoggerOutput(w)
+		proxy.AddLoggerOutput(w)
 	}
 }
 
 func (gate *Gate) overrideLogger(logger zerolog.Logger) zerolog.Logger {
-	gate.logger = logger.With().Str("gate", gate.listenTo).Logger()
+	gate.logger = logger.With().
+		Str("gate", gate.listenTo).Logger().
+		Output(io.MultiWriter(gate.loggerOutputs...))
+
 	for _, proxy := range gate.proxies {
 		proxy.overrideLogger(gate.logger)
 	}
+
 	return gate.logger
 }
 

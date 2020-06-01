@@ -17,34 +17,41 @@ type Gateway struct {
 	gates   map[string]*Gate
 	wg      *sync.WaitGroup
 	running bool
-	logger  zerolog.Logger
+
+	logger        zerolog.Logger
+	loggerOutputs []io.Writer
 }
 
 // NewGateway creates a new gateway that
 // uses the default log.Logger from the zerolog/log package
 func NewGateway() Gateway {
 	return Gateway{
-		gates:   map[string]*Gate{},
-		wg:      &sync.WaitGroup{},
-		running: false,
-		logger:  log.Logger,
+		gates:         map[string]*Gate{},
+		wg:            &sync.WaitGroup{},
+		running:       false,
+		logger:        log.Logger,
+		loggerOutputs: []io.Writer{},
 	}
 }
 
-func (gateway *Gateway) LoggerOutput(w io.Writer) {
-	gateway.logger = gateway.logger.Output(w)
+func (gateway *Gateway) AddLoggerOutput(w io.Writer) {
+	gateway.loggerOutputs = append(gateway.loggerOutputs, w)
+	gateway.logger = gateway.logger.Output(io.MultiWriter(gateway.loggerOutputs...))
+
 	for _, gate := range gateway.gates {
-		gate.LoggerOutput(w)
+		gate.AddLoggerOutput(w)
 	}
 }
 
 // overrideLogger overrides its own logger and the logger of all child gates
 // Note that each gate updates all their proxies.
 func (gateway *Gateway) overrideLogger(logger zerolog.Logger) zerolog.Logger {
-	gateway.logger = logger
+	gateway.logger = logger.Output(io.MultiWriter(gateway.loggerOutputs...))
+
 	for _, gate := range gateway.gates {
 		gate.overrideLogger(logger)
 	}
+
 	return gateway.logger
 }
 

@@ -22,18 +22,18 @@ type Proxy struct {
 	// ServerBoundModifiers modify traffic that is send from the client to the server
 	ServerBoundModifiers []Modifier
 
-	domainName  string
-	listenTo    string
-	proxyTo     string
-	timeout     time.Duration
-	callbackURL string
-	players     map[*mc.Conn]string
+	domainName string
+	listenTo   string
+	proxyTo    string
+	timeout    time.Duration
+	players    map[*mc.Conn]string
 
 	server        sim.Server
 	process       process.Process
 	cancelTimeout func()
 
-	logger zerolog.Logger
+	logger        zerolog.Logger
+	loggerOutputs []io.Writer
 }
 
 // NewProxy takes a config an creates a new proxy based on it
@@ -54,14 +54,16 @@ func NewProxy(cfg ProxyConfig) (*Proxy, error) {
 	return &proxy, nil
 }
 
-func (proxy *Proxy) LoggerOutput(w io.Writer) {
-	proxy.logger = proxy.logger.Output(w)
+func (proxy *Proxy) AddLoggerOutput(w io.Writer) {
+	proxy.loggerOutputs = append(proxy.loggerOutputs, w)
+	proxy.logger = proxy.logger.Output(io.MultiWriter(proxy.loggerOutputs...))
 }
 
 func (proxy *Proxy) overrideLogger(logger zerolog.Logger) zerolog.Logger {
 	proxy.logger = logger.With().
 		Str("destinationAddress", proxy.proxyTo).
-		Str("domainName", proxy.domainName).Logger()
+		Str("domainName", proxy.domainName).Logger().
+		Output(io.MultiWriter(proxy.loggerOutputs...))
 
 	return proxy.logger
 }
