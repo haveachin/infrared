@@ -5,6 +5,7 @@ import "errors"
 type Event string
 
 const (
+	ErrorEvent        Event = "Error"
 	PlayerJoinEvent   Event = "PlayerJoin"
 	PlayerLeaveEvent  Event = "PlayerLeave"
 	ProcessStartEvent Event = "ProcessStart"
@@ -12,6 +13,7 @@ const (
 )
 
 var Events = []Event{
+	ErrorEvent,
 	PlayerJoinEvent,
 	PlayerLeaveEvent,
 	ProcessStartEvent,
