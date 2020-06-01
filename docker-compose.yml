@@ -15,4 +15,5 @@ services:
       - "25565"
     environment:
       INFRARED_DEBUG: false
+      INFRARED_COLOR: true
       INFRARED_CONFIG_PATH: "/configs"
