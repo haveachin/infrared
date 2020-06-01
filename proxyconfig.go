@@ -1,6 +1,7 @@
 package infrared
 
 import (
+	"github.com/haveachin/infrared/callback"
 	"github.com/haveachin/infrared/mc/sim"
 	"github.com/haveachin/infrared/process"
 	"io/ioutil"
@@ -13,12 +14,13 @@ import (
 
 // ProxyConfig is a data representation of a proxy configuration
 type ProxyConfig struct {
-	DomainName string
-	ListenTo   string
-	ProxyTo    string
-	Timeout    string
-	Docker     process.Config
-	Server     sim.ServerConfig
+	DomainName  string
+	ListenTo    string
+	ProxyTo     string
+	Timeout     string
+	Docker      process.Config
+	Server      sim.ServerConfig
+	CallbackLog callback.Config
 }
 
 // ReadAllConfigs reads all files that are in the given path
