@@ -3,6 +3,7 @@ package infrared
 import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"io"
 	"net"
 	"sync"
 	"time"
@@ -48,12 +49,16 @@ func NewProxy(cfg ProxyConfig) (*Proxy, error) {
 		return nil, err
 	}
 
-	proxy.OverrideLogger(log.Logger)
+	proxy.overrideLogger(log.Logger)
 
 	return &proxy, nil
 }
 
-func (proxy *Proxy) OverrideLogger(logger zerolog.Logger) zerolog.Logger {
+func (proxy *Proxy) LoggerOutput(w io.Writer) {
+	proxy.logger = proxy.logger.Output(w)
+}
+
+func (proxy *Proxy) overrideLogger(logger zerolog.Logger) zerolog.Logger {
 	proxy.logger = logger.With().
 		Str("destinationAddress", proxy.proxyTo).
 		Str("domainName", proxy.domainName).Logger()
@@ -170,7 +175,7 @@ func (proxy *Proxy) HandleConn(conn mc.Conn) error {
 // updateConfig is a callback function that handles config changes
 func (proxy *Proxy) updateConfig(cfg ProxyConfig) error {
 	if cfg.ProxyTo == "" {
-		ip, err := net.ResolveIPAddr(cfg.Process.DNSServer, cfg.Process.ContainerName)
+		ip, err := net.ResolveIPAddr(cfg.Docker.DNSServer, cfg.Docker.ContainerName)
 		if err != nil {
 			return err
 		}
@@ -183,7 +188,7 @@ func (proxy *Proxy) updateConfig(cfg ProxyConfig) error {
 		return err
 	}
 
-	proc, err := process.New(cfg.Process)
+	proc, err := process.New(cfg.Docker)
 	if err != nil {
 		return err
 	}

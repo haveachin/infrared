@@ -8,6 +8,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
+	"io"
 )
 
 type Gate struct {
@@ -31,15 +32,22 @@ func NewGate(listenTo string) (*Gate, error) {
 		close:    make(chan bool, 1),
 	}
 
-	gate.OverrideLogger(log.Logger)
+	gate.overrideLogger(log.Logger)
 
 	return &gate, nil
 }
 
-func (gate *Gate) OverrideLogger(logger zerolog.Logger) zerolog.Logger {
+func (gate *Gate) LoggerOutput(w io.Writer) {
+	gate.logger = gate.logger.Output(w)
+	for _, proxy := range gate.proxies {
+		proxy.LoggerOutput(w)
+	}
+}
+
+func (gate *Gate) overrideLogger(logger zerolog.Logger) zerolog.Logger {
 	gate.logger = logger.With().Str("gate", gate.listenTo).Logger()
 	for _, proxy := range gate.proxies {
-		proxy.OverrideLogger(gate.logger)
+		proxy.overrideLogger(gate.logger)
 	}
 	return gate.logger
 }
@@ -73,7 +81,7 @@ func (gate *Gate) AddProxy(proxy *Proxy) error {
 		return ErrProxySignatureAlreadyRegistered
 	}
 
-	proxy.OverrideLogger(gate.logger)
+	proxy.overrideLogger(gate.logger)
 	gate.proxies[proxy.domainName] = proxy
 
 	gate.logger.Debug().

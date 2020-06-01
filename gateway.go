@@ -2,6 +2,7 @@ package infrared
 
 import (
 	"github.com/rs/zerolog"
+	"io"
 	"sync"
 
 	"github.com/fsnotify/fsnotify"
@@ -13,35 +14,42 @@ import (
 // A gateway is managing all proxies by dynamically forwarding
 // incoming connections to their corresponding proxy.
 type Gateway struct {
-	gates  map[string]*Gate
-	wg     *sync.WaitGroup
+	gates   map[string]*Gate
+	wg      *sync.WaitGroup
 	running bool
-	logger zerolog.Logger
+	logger  zerolog.Logger
 }
 
 // NewGateway creates a new gateway that
 // uses the default log.Logger from the zerolog/log package
 func NewGateway() Gateway {
 	return Gateway{
-		gates:  map[string]*Gate{},
-		wg:     &sync.WaitGroup{},
+		gates:   map[string]*Gate{},
+		wg:      &sync.WaitGroup{},
 		running: false,
-		logger: log.Logger,
+		logger:  log.Logger,
 	}
 }
 
-// OverrideLogger overrides its own logger and the logger of all child gates
+func (gateway *Gateway) LoggerOutput(w io.Writer) {
+	gateway.logger = gateway.logger.Output(w)
+	for _, gate := range gateway.gates {
+		gate.LoggerOutput(w)
+	}
+}
+
+// overrideLogger overrides its own logger and the logger of all child gates
 // Note that each gate updates all their proxies.
-func (gateway *Gateway) OverrideLogger(logger zerolog.Logger) zerolog.Logger {
+func (gateway *Gateway) overrideLogger(logger zerolog.Logger) zerolog.Logger {
 	gateway.logger = logger
 	for _, gate := range gateway.gates {
-		gate.OverrideLogger(logger)
+		gate.overrideLogger(logger)
 	}
 	return gateway.logger
 }
 
 // AddGate manually adds the given gate to the gateway for automatic management.
-// The gate's logger will be updated through the OverrideLogger method.
+// The gate's logger will be updated through the overrideLogger method.
 // Note that the gate must be populated with at least one proxy or this will return an error.
 func (gateway *Gateway) AddGate(gate *Gate) error {
 	if len(gate.proxies) <= 0 {
@@ -52,7 +60,7 @@ func (gateway *Gateway) AddGate(gate *Gate) error {
 		return ErrGateSignatureAlreadyRegistered
 	}
 
-	gate.OverrideLogger(gateway.logger)
+	gate.overrideLogger(gateway.logger)
 	gateway.gates[gate.listenTo] = gate
 
 	gateway.logger.Debug().
