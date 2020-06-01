@@ -31,7 +31,9 @@ type LogWriter struct {
 }
 
 func (w LogWriter) Write(b []byte) (int, error) {
-	go w.handleLog(b)
+	bb := make([]byte, len(b))
+	copy(bb, b)
+	go w.handleLog(bb)
 	return len(b), nil
 }
 
