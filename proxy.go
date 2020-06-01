@@ -15,6 +15,42 @@ import (
 	"github.com/haveachin/infrared/process"
 )
 
+type playerMap struct {
+	sync.RWMutex
+	players map[*mc.Conn]string
+}
+
+func (p *playerMap) put(key *mc.Conn, value string) {
+	p.Lock()
+	defer p.Unlock()
+	p.players[key] = value
+}
+
+func (p *playerMap) remove(key *mc.Conn) {
+	p.Lock()
+	defer p.Unlock()
+	delete(p.players, key)
+}
+
+func (p *playerMap) length() int {
+	p.RLock()
+	defer p.RUnlock()
+	return len(p.players)
+}
+
+func (p *playerMap) keys() []*mc.Conn {
+	p.RLock()
+	defer p.RUnlock()
+
+	var conns []*mc.Conn
+
+	for conn := range p.players {
+		conns = append(conns, conn)
+	}
+
+	return conns
+}
+
 // Proxy is a TCP server that takes an incoming request and sends it to another
 // server, proxying the response back to the client.
 type Proxy struct {
@@ -28,7 +64,7 @@ type Proxy struct {
 	proxyTo       string
 	timeout       time.Duration
 	cancelTimeout func()
-	players       map[*mc.Conn]string
+	players       playerMap
 
 	server    sim.Server
 	process   process.Process
@@ -45,7 +81,7 @@ func NewProxy(cfg ProxyConfig) (*Proxy, error) {
 	proxy := Proxy{
 		ClientBoundModifiers: []Modifier{},
 		ServerBoundModifiers: []Modifier{},
-		players:              map[*mc.Conn]string{},
+		players:              playerMap{players: map[*mc.Conn]string{}},
 		cancelTimeout:        nil,
 		logWriter:            logWriter,
 		loggerOutputs:        []io.Writer{logWriter},
@@ -125,15 +161,15 @@ func (proxy *Proxy) HandleConn(conn mc.Conn) error {
 		}
 
 		proxy.stopTimeout()
-		proxy.players[&conn] = username
+		proxy.players.put(&conn, username)
 		logger = logger.With().Str("username", username).Logger()
-		logger.Info().Interface(callback.EventKey, callback.PlayerJoinEvent).Msgf("%s joined the game", proxy.players[&conn])
+		logger.Info().Interface(callback.EventKey, callback.PlayerJoinEvent).Msgf("%s joined the game", username)
 
 		defer func() {
-			logger.Info().Interface(callback.EventKey, callback.PlayerLeaveEvent).Msgf("%s left the game", proxy.players[&conn])
-			delete(proxy.players, &conn)
+			logger.Info().Interface(callback.EventKey, callback.PlayerLeaveEvent).Msgf("%s left the game", username)
+			proxy.players.remove(&conn)
 
-			if len(proxy.players) <= 0 {
+			if proxy.players.length() <= 0 {
 				proxy.startTimeout()
 			}
 		}()
@@ -251,8 +287,8 @@ func (proxy *Proxy) stopTimeout() {
 	proxy.cancelTimeout = nil
 }
 
-func (proxy Proxy) Close() {
-	for conn := range proxy.players {
+func (proxy *Proxy) Close() {
+	for _, conn := range proxy.players.keys() {
 		if err := conn.Close(); err != nil {
 			proxy.logger.Err(err)
 		}
