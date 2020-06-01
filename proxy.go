@@ -99,7 +99,7 @@ func (proxy *Proxy) HandleConn(conn mc.Conn) error {
 
 		isProcessRunning, err := proxy.process.IsRunning()
 		if err != nil {
-			logger.Err(err).Msg("Could not determine if the container is running")
+			logger.Err(err).Interface(callback.EventKey, callback.ErrorEvent).Msg("Could not determine if the container is running")
 			return proxy.server.HandleConn(conn)
 		}
 
@@ -107,9 +107,9 @@ func (proxy *Proxy) HandleConn(conn mc.Conn) error {
 			return proxy.server.HandleConn(conn)
 		}
 
-		logger.Info().Msg("Starting container")
+		logger.Info().Interface(callback.EventKey, callback.ContainerStartEvent).Msg("Starting container")
 		if err := proxy.process.Start(); err != nil {
-			logger.Err(err).Msg("Could not start the container")
+			logger.Err(err).Interface(callback.EventKey, callback.ErrorEvent).Msg("Could not start the container")
 			return proxy.server.HandleConn(conn)
 		}
 
@@ -127,10 +127,10 @@ func (proxy *Proxy) HandleConn(conn mc.Conn) error {
 		proxy.stopTimeout()
 		proxy.players[&conn] = username
 		logger = logger.With().Str("username", username).Logger()
-		logger.Info().Msgf("%s joined the game", proxy.players[&conn])
+		logger.Info().Interface(callback.EventKey, callback.PlayerJoinEvent).Msgf("%s joined the game", proxy.players[&conn])
 
 		defer func() {
-			logger.Info().Msgf("%s left the game", proxy.players[&conn])
+			logger.Info().Interface(callback.EventKey, callback.PlayerLeaveEvent).Msgf("%s left the game", proxy.players[&conn])
 			delete(proxy.players, &conn)
 
 			if len(proxy.players) <= 0 {
@@ -228,9 +228,9 @@ func (proxy *Proxy) startTimeout() {
 	}
 
 	timer := time.AfterFunc(proxy.timeout, func() {
-		proxy.logger.Info().Msgf("Stopping container")
+		proxy.logger.Info().Interface(callback.EventKey, callback.ContainerStopEvent).Msgf("Stopping container")
 		if err := proxy.process.Stop(); err != nil {
-			proxy.logger.Err(err).Msg("Failed to stop the container")
+			proxy.logger.Err(err).Interface(callback.EventKey, callback.ErrorEvent).Msg("Failed to stop the container")
 		}
 	})
 
@@ -239,7 +239,7 @@ func (proxy *Proxy) startTimeout() {
 		proxy.logger.Debug().Msg("Timeout canceled")
 	}
 
-	proxy.logger.Info().Msgf("Timing out in %s", proxy.timeout)
+	proxy.logger.Info().Interface(callback.EventKey, callback.ContainerTimeoutEvent).Msgf("Timing out in %s", proxy.timeout)
 }
 
 func (proxy *Proxy) stopTimeout() {
