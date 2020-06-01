@@ -18,7 +18,7 @@ var Events = []Event{
 	ProcessStopEvent,
 }
 
-func ParseEvents(name string) (Event, error) {
+func ParseEvent(name string) (Event, error) {
 	for _, event := range Events {
 		if name == string(event) {
 			return event, nil
