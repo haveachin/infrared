@@ -1,6 +1,7 @@
 package infrared
 
 import (
+	"github.com/haveachin/infrared/callback"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"io"
@@ -22,15 +23,16 @@ type Proxy struct {
 	// ServerBoundModifiers modify traffic that is send from the client to the server
 	ServerBoundModifiers []Modifier
 
-	domainName string
-	listenTo   string
-	proxyTo    string
-	timeout    time.Duration
-	players    map[*mc.Conn]string
-
-	server        sim.Server
-	process       process.Process
+	domainName    string
+	listenTo      string
+	proxyTo       string
+	timeout       time.Duration
 	cancelTimeout func()
+	players       map[*mc.Conn]string
+
+	server    sim.Server
+	process   process.Process
+	logWriter *callback.LogWriter
 
 	logger        zerolog.Logger
 	loggerOutputs []io.Writer
@@ -38,11 +40,15 @@ type Proxy struct {
 
 // NewProxy takes a config an creates a new proxy based on it
 func NewProxy(cfg ProxyConfig) (*Proxy, error) {
+	logWriter := &callback.LogWriter{}
+
 	proxy := Proxy{
 		ClientBoundModifiers: []Modifier{},
 		ServerBoundModifiers: []Modifier{},
 		players:              map[*mc.Conn]string{},
 		cancelTimeout:        nil,
+		logWriter:            logWriter,
+		loggerOutputs:        []io.Writer{logWriter},
 	}
 
 	if err := proxy.updateConfig(cfg); err != nil {
@@ -198,6 +204,14 @@ func (proxy *Proxy) updateConfig(cfg ProxyConfig) error {
 	if err := proxy.server.UpdateConfig(cfg.Server); err != nil {
 		return err
 	}
+
+	logWriter, err := callback.NewLogWriter(cfg.CallbackLog)
+	if err != nil {
+		return err
+	}
+
+	proxy.logWriter.URL = logWriter.URL
+	proxy.logWriter.Events = logWriter.Events
 
 	proxy.domainName = cfg.DomainName
 	proxy.listenTo = cfg.ListenTo
