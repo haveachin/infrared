@@ -15,8 +15,8 @@ const (
 	SLPHandshakeStatusState = pk.Byte(1)
 	SLPHandshakeLoginState  = pk.Byte(2)
 
-	ForgeAddressSuffix  = "\\x00FML\\x00"
-	Forge2AddressSuffix = "\\x00FML2\\x00"
+	ForgeAddressSuffix  = "\x00FML\x00"
+	Forge2AddressSuffix = "\x00FML2\x00"
 )
 
 type SLPHandshake struct {
