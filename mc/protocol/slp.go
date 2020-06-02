@@ -15,7 +15,8 @@ const (
 	SLPHandshakeStatusState = pk.Byte(1)
 	SLPHandshakeLoginState  = pk.Byte(2)
 
-	ForgeAddressSuffix = "\\x00FML\\x00"
+	ForgeAddressSuffix  = "\\x00FML\\x00"
+	Forge2AddressSuffix = "\\x00FML2\\x00"
 )
 
 type SLPHandshake struct {
@@ -61,14 +62,30 @@ func (handshake SLPHandshake) IsLoginRequest() bool {
 }
 
 func (handshake SLPHandshake) IsForgeAddress() bool {
-	return strings.HasSuffix(string(handshake.ServerAddress), ForgeAddressSuffix)
+	addr := string(handshake.ServerAddress)
+
+	if strings.HasSuffix(addr, ForgeAddressSuffix) {
+		return true
+	}
+
+	if strings.HasSuffix(addr, Forge2AddressSuffix) {
+		return true
+	}
+
+	return false
 }
 
 func (handshake SLPHandshake) ParseServerAddress() string {
 	addr := string(handshake.ServerAddress)
+
 	if strings.HasSuffix(addr, ForgeAddressSuffix) {
 		addr = strings.TrimSuffix(addr, ForgeAddressSuffix)
 	}
+
+	if strings.HasSuffix(addr, Forge2AddressSuffix) {
+		addr = strings.TrimSuffix(addr, Forge2AddressSuffix)
+	}
+
 	return strings.Trim(addr, ".")
 }
 
