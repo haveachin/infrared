@@ -1,3 +1,7 @@
+<p align="center">
+  <img width="200" height="auto" src="https://i.imgur.com/MUi1FxE.jpg">
+</p>
+
 # Infrared
 
 An ultra lightweight Minecraft reverse proxy and idle placeholder:
