@@ -1,16 +1,7 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<svg width="100%" height="100%" viewBox="0 0 539 539" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linejoin:round;stroke-miterlimit:2;">
-    <g transform="matrix(0.998872,0,0,1.05298,0.411812,-25.1198)">
-        <path d="M269.392,221.817L461.027,127.043L460.919,379.102L271.293,467.798L269.392,221.817Z" style="fill:rgb(201,15,26);"/>
-    </g>
-    <g transform="matrix(1,0,0,1.01336,0,-35.6536)">
-        <path d="M78.297,142.065L269.5,47.284L460.919,142.405L269.5,240.884L78.297,142.065Z" style="fill:rgb(237,27,36);"/>
-    </g>
-    <g transform="matrix(1,0,0,0.993891,-7.77156e-15,2.89649)">
-        <path d="M78.297,106.061L78.297,376.796L271.399,467.422L269.608,206.816L78.297,106.061Z" style="fill:rgb(223,17,29);"/>
-    </g>
-</svg>
+<p align="center">
+   <img width="300" height="auto" src="https://i.imgur.com/PtgmeTX.png">
+ </p>
+
 
 
 
