@@ -100,7 +100,7 @@ from a vanilla Minecraft server
   - `PlayerLeave` will send player leaves
   - `ContainerStart` will send container starts
   - `ContainerStop` will send container stops
-  - `ContainerTimeout` will send container timeout start (when the last player leaves the server)
+  - `ContainerTimeout` will send container shutdown timer starts (when the last player has left the server)
 
 ## Example Config for a Vanilla Server
 
