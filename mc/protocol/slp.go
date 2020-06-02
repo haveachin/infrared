@@ -77,16 +77,10 @@ func (handshake SLPHandshake) IsForgeAddress() bool {
 
 func (handshake SLPHandshake) ParseServerAddress() string {
 	addr := string(handshake.ServerAddress)
-
-	if strings.HasSuffix(addr, ForgeAddressSuffix) {
-		addr = strings.TrimSuffix(addr, ForgeAddressSuffix)
-	}
-
-	if strings.HasSuffix(addr, Forge2AddressSuffix) {
-		addr = strings.TrimSuffix(addr, Forge2AddressSuffix)
-	}
-
-	return strings.Trim(addr, ".")
+	addr = strings.TrimSuffix(addr, ForgeAddressSuffix)
+	addr = strings.TrimSuffix(addr, Forge2AddressSuffix)
+	addr = strings.Trim(addr, ".")
+	return addr
 }
 
 type SLPResponse struct {
