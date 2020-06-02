@@ -57,12 +57,7 @@ func (gateway *Gateway) overrideLogger(logger zerolog.Logger) zerolog.Logger {
 
 // AddGate manually adds the given gate to the gateway for automatic management.
 // The gate's logger will be updated through the overrideLogger method.
-// Note that the gate must be populated with at least one proxy or this will return an error.
 func (gateway *Gateway) AddGate(gate *Gate) error {
-	if len(gate.proxies) <= 0 {
-		return ErrNoProxyInGate
-	}
-
 	if _, ok := gateway.gates[gate.listenTo]; ok {
 		return ErrGateSignatureAlreadyRegistered
 	}
@@ -138,11 +133,11 @@ func (gateway *Gateway) AddProxy(proxy *Proxy) error {
 		return err
 	}
 
-	if err := gate.AddProxy(proxy); err != nil {
+	if err := gateway.AddGate(gate); err != nil {
 		return err
 	}
 
-	if err := gateway.AddGate(gate); err != nil {
+	if err := gate.AddProxy(proxy); err != nil {
 		return err
 	}
 
