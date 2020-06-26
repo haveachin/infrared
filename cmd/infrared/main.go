@@ -95,7 +95,7 @@ func main() {
 
 	for _, vpr := range vprs {
 		if _, err := gateway.AddProxyByViper(vpr); err != nil {
-			log.Err(err)
+			log.Err(err).Msg("Invalid proxy config")
 		}
 	}
 
