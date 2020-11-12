@@ -23,7 +23,7 @@ func NewDocker(containerName string) (Process, error) {
 
 	return docker{
 		client:        cli,
-		containerName: containerName,
+		containerName: fmt.Sprintf("/%s", containerName),
 	}, nil
 }
 
@@ -72,7 +72,7 @@ func (proc docker) resolveContainerName() (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), contextTimeout)
 	defer cancel()
 
-	containers, err := proc.client.ContainerList(ctx, types.ContainerListOptions{})
+	containers, err := proc.client.ContainerList(ctx, types.ContainerListOptions{All: true})
 	if err != nil {
 		return "", err
 	}
