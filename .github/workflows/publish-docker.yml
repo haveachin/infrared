@@ -1,0 +1,31 @@
+# Builds and publishes a docker images
+
+name: Publish Docker Container
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+      - name: Build and push Docker image to GitHub
+        uses: docker/build-push-action@v1.1.0
+        with:
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+          repository: sirpumpkinhead/infrared/infrared
+          registry: docker.pkg.github.com
+          tag_with_ref: true
+      - name: Build and push Docker image to DockerHub
+        uses: docker/build-push-action@v1.1.0
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+          repository: konstantinstruempf/infrared/infrared
+          tag_with_ref: true
