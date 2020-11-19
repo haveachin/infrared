@@ -1,6 +1,6 @@
 # Builds and publishes a docker images
 
-name: Publish Docker Container
+name: Publish Docker Images
 
 on:
   push:
