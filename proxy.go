@@ -151,6 +151,8 @@ func (proxy *Proxy) HandleConn(conn mc.Conn) error {
 		}
 
 		proxy.startTimeout()
+
+		return proxy.server.HandleConn(conn)
 	}
 
 	if handshake.IsLoginRequest() {
@@ -206,13 +208,7 @@ func (proxy *Proxy) HandleConn(conn mc.Conn) error {
 
 	wg.Add(2)
 	go pipe(conn, rconn, proxy.ClientBoundModifiers)
-	if handshake.IsLoginRequest() {
-		//handle handshake packet and forward IP addresses.
-
-		go pipe(rconn, conn, proxy.ServerBoundModifiers)
-	} else {
-		go pipe(rconn, conn, proxy.ServerBoundModifiers)
-	}
+	go pipe(rconn, conn, proxy.ServerBoundModifiers)
 	wg.Wait()
 
 	conn.Close()
