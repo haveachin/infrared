@@ -1,6 +1,8 @@
 package infrared
 
 import (
+	"bytes"
+	"encoding/binary"
 	"github.com/haveachin/infrared/callback"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
@@ -62,6 +64,7 @@ type Proxy struct {
 	domainName    string
 	listenTo      string
 	proxyTo       string
+	proxyProtocol bool
 	timeout       time.Duration
 	cancelTimeout func()
 	players       playerMap
@@ -126,7 +129,7 @@ func (proxy *Proxy) HandleConn(conn mc.Conn) error {
 		return err
 	}
 
-	rconn, err := mc.DialTimeout(proxy.proxyTo, time.Millisecond*500)
+	rconn, err := mc.DialTimeout(proxy.proxyTo, proxy.proxyProtocol, time.Millisecond*500)
 	if err != nil {
 		defer conn.Close()
 		if handshake.IsStatusRequest() {
@@ -150,8 +153,6 @@ func (proxy *Proxy) HandleConn(conn mc.Conn) error {
 		}
 
 		proxy.startTimeout()
-
-		return proxy.server.HandleConn(conn)
 	}
 
 	if handshake.IsLoginRequest() {
@@ -207,7 +208,13 @@ func (proxy *Proxy) HandleConn(conn mc.Conn) error {
 
 	wg.Add(2)
 	go pipe(conn, rconn, proxy.ClientBoundModifiers)
-	go pipe(rconn, conn, proxy.ServerBoundModifiers)
+	if handshake.IsLoginRequest() {
+		//handle handshake packet and forward IP addresses.
+
+		go pipe(rconn, conn, proxy.ServerBoundModifiers)
+	} else {
+		go pipe(rconn, conn, proxy.ServerBoundModifiers)
+	}
 	wg.Wait()
 
 	conn.Close()
@@ -322,4 +329,34 @@ func sniffUsername(conn, rconn mc.Conn) (string, error) {
 	}
 
 	return string(loginStartPacket.Name), nil
+}
+
+
+func makeHandshakePacket(address string, port uint16, protocolVersion int, state int32, username []byte) []byte {
+	var buf bytes.Buffer
+
+	buf.Write([]byte("\x00"))
+
+	putVarInt(&buf, int32(protocolVersion))
+
+	putVarInt(&buf, int32(len(address)))
+	buf.WriteString(address)
+
+	binary.Write(&buf, binary.BigEndian, port)
+
+	putVarInt(&buf, int32(state))
+
+	var out bytes.Buffer
+	putVarInt(&out, int32(buf.Len()))
+
+	out.Write(buf.Bytes())
+	out.Write(username)
+	return out.Bytes()
+}
+
+func putVarInt(buf *bytes.Buffer, value int32) {
+	bytes := make([]byte, binary.MaxVarintLen32)
+	bytesWritten := binary.PutUvarint(bytes, uint64(value))
+
+	buf.Write(bytes[:bytesWritten])
 }
