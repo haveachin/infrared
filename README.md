@@ -65,8 +65,9 @@ Every proxy has its own config file that has to end in `.yml` or `.yaml`.
 All config options are listed below, but only the marked* fields are required for a valid config file.
 
 `DomainName`* is a [fully qualified domain name](https://en.wikipedia.org/wiki/Domain_name)  
-`ListenTo` is the address (usually just the port) that the proxy should listen to for incomming connections [default: `":25565"`]  
-`ProxyTo`* is the address that the proxy should send incomming connections to  
+`ListenTo` is the address (usually just the port) that the proxy should listen to for incoming connections [default: `":25565"`]  
+`ProxyTo`* is the address that the proxy should send incoming connections to\
+`proxyProtocol` enables HAProxy's PROXY protocol for IP forwarding\
 `Timeout` is the [time](https://golang.org/pkg/time/#ParseDuration) to wait before shutting down the server after all players have left [default: `5m`]  
 
 `Docker`* is a data object that represents a docker interface
@@ -110,6 +111,7 @@ from a vanilla Minecraft server
 ```yaml
 DomainName: "mc.example.com"
 ProxyTo: ":8080"
+proxyProtocol: false
 Timeout: "13m37s"
 Docker:
   DNSServer: "127.0.0.11"
