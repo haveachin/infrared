@@ -82,6 +82,7 @@ func NewProxy(cfg ProxyConfig) (*Proxy, error) {
 	proxy := Proxy{
 		ClientBoundModifiers: []Modifier{},
 		ServerBoundModifiers: []Modifier{},
+		proxyProtocol: 		  cfg.proxyProtocol,
 		players:              playerMap{players: map[*mc.Conn]string{}},
 		cancelTimeout:        nil,
 		logWriter:            logWriter,
