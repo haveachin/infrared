@@ -17,7 +17,8 @@ type ProxyConfig struct {
 	DomainName    string
 	ListenTo      string
 	ProxyTo       string
-	proxyProtocol bool
+	ProxyProtocol bool
+	test          string
 	Timeout       string
 	Docker        process.Config
 	Server        sim.ServerConfig
@@ -63,8 +64,6 @@ func LoadProxyConfig(vpr *viper.Viper) (ProxyConfig, error) {
 	if err := vpr.Unmarshal(&cfg); err != nil {
 		return cfg, err
 	}
-
-	cfg.proxyProtocol = vpr.GetBool("proxyProtocol")
 
 	return cfg, nil
 }
