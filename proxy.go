@@ -127,7 +127,7 @@ func (proxy *Proxy) HandleConn(conn mc.Conn) error {
 	if err != nil {
 		return err
 	}
-	rconn, err := mc.DialTimeout(proxy.proxyTo, time.Millisecond*500, proxy.ProxyProtocol)
+	rconn, err := mc.DialTimeout(proxy.proxyTo, conn.RemoteAddr(),  time.Millisecond*500, proxy.ProxyProtocol)
 	if err != nil {
 		defer conn.Close()
 		if handshake.IsStatusRequest() {

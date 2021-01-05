@@ -56,7 +56,7 @@ func Dial(addr string) (Conn, error) {
 }
 
 // DialTimeout acts like DialMC but takes a timeout.
-func DialTimeout(addr string, timeout time.Duration, ProxyProtocol bool) (Conn, error) {
+func DialTimeout(addr string, clientAddress net.Addr, timeout time.Duration, ProxyProtocol bool) (Conn, error) {
 	conn, err := net.DialTimeout("tcp", addr, timeout)
 	if err != nil {
 		return Conn{}, err
@@ -71,7 +71,7 @@ func DialTimeout(addr string, timeout time.Duration, ProxyProtocol bool) (Conn, 
 			Version:            2,
 			Command:            proxyproto.PROXY,
 			TransportProtocol:  proxyproto.TCPv4,
-			SourceAddr: conn.RemoteAddr(),
+			SourceAddr: clientAddress,
 			DestinationAddr: &net.TCPAddr{
 				IP:   net.ParseIP(destinationIP),
 				Port: int(destinationPort),
