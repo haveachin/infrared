@@ -6,7 +6,6 @@ import (
 	pk "github.com/haveachin/infrared/mc/packet"
 	"github.com/pires/go-proxyproto"
 	"io"
-	"log"
 	"net"
 	"strconv"
 	"strings"
@@ -57,13 +56,13 @@ func Dial(addr string) (Conn, error) {
 }
 
 // DialTimeout acts like DialMC but takes a timeout.
-func DialTimeout(addr string, proxyProtocol bool, timeout time.Duration) (Conn, error) {
+func DialTimeout(addr string, timeout time.Duration, ProxyProtocol bool) (Conn, error) {
 	conn, err := net.DialTimeout("tcp", addr, timeout)
 	if err != nil {
 		return Conn{}, err
 	}
 
-	if proxyProtocol { //If proxy protocol is enabled
+	if ProxyProtocol { //If proxy protocol is enabled
 		addrParts := strings.Split(addr, ":")
 		destinationIP := addrParts[0]
 		destinationPort, _ := strconv.ParseInt(addrParts[1], 10, 0)
@@ -81,7 +80,7 @@ func DialTimeout(addr string, proxyProtocol bool, timeout time.Duration) (Conn, 
 
 		_, err = header.WriteTo(conn)
 		if err != nil {
-			log.Fatalf("Error: %s", err.Error())
+			return Conn{}, err
 		}
 	}
 
