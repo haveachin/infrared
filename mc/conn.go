@@ -71,7 +71,7 @@ func DialTimeout(addr string, timeout time.Duration, ProxyProtocol bool) (Conn, 
 			Version:            2,
 			Command:            proxyproto.PROXY,
 			TransportProtocol:  proxyproto.TCPv4,
-			SourceAddr: conn.LocalAddr(),
+			SourceAddr: conn.RemoteAddr(),
 			DestinationAddr: &net.TCPAddr{
 				IP:   net.ParseIP(destinationIP),
 				Port: int(destinationPort),
