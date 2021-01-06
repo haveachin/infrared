@@ -14,13 +14,15 @@ import (
 
 // ProxyConfig is a data representation of a proxy configuration
 type ProxyConfig struct {
-	DomainName  string
-	ListenTo    string
-	ProxyTo     string
-	Timeout     string
-	Docker      process.Config
-	Server      sim.ServerConfig
-	CallbackLog callback.Config
+	DomainName    string
+	ListenTo      string
+	ProxyTo       string
+	ProxyProtocol bool
+	test          string
+	Timeout       string
+	Docker        process.Config
+	Server        sim.ServerConfig
+	CallbackLog   callback.Config
 }
 
 // ReadAllConfigs reads all files that are in the given path
@@ -45,7 +47,6 @@ func ReadAllProxyConfigs(path string) ([]*viper.Viper, error) {
 		vpr.SetConfigName(configName)
 		vpr.SetConfigType(strings.TrimPrefix(extension, "."))
 		loadProxyConfigDefaults(vpr)
-
 		vprs = append(vprs, vpr)
 	}
 

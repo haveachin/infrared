@@ -3,11 +3,13 @@ package mc
 import (
 	"bufio"
 	"crypto/cipher"
+	pk "github.com/haveachin/infrared/mc/packet"
+	"github.com/pires/go-proxyproto"
 	"io"
 	"net"
+	"strconv"
+	"strings"
 	"time"
-
-	pk "github.com/haveachin/infrared/mc/packet"
 )
 
 // A Listener is a minecraft Listener
@@ -28,6 +30,7 @@ func Listen(addr string) (*Listener, error) {
 	if err != nil {
 		return nil, err
 	}
+
 
 	return &Listener{l}, nil
 }
@@ -53,10 +56,32 @@ func Dial(addr string) (Conn, error) {
 }
 
 // DialTimeout acts like DialMC but takes a timeout.
-func DialTimeout(addr string, timeout time.Duration) (Conn, error) {
+func DialTimeout(addr string, clientAddress net.Addr, timeout time.Duration, ProxyProtocol bool) (Conn, error) {
 	conn, err := net.DialTimeout("tcp", addr, timeout)
 	if err != nil {
 		return Conn{}, err
+	}
+
+	if ProxyProtocol { //If proxy protocol is enabled
+		addrParts := strings.Split(addr, ":")
+		destinationIP := addrParts[0]
+		destinationPort, _ := strconv.ParseInt(addrParts[1], 10, 0)
+
+		header := &proxyproto.Header{
+			Version:            2,
+			Command:            proxyproto.PROXY,
+			TransportProtocol:  proxyproto.TCPv4,
+			SourceAddr: clientAddress,
+			DestinationAddr: &net.TCPAddr{
+				IP:   net.ParseIP(destinationIP),
+				Port: int(destinationPort),
+			},
+		}
+
+		_, err = header.WriteTo(conn)
+		if err != nil {
+			return Conn{}, err
+		}
 	}
 
 	return WrapConn(conn), nil
