@@ -253,6 +253,7 @@ func (proxy *Proxy) updateConfig(cfg ProxyConfig) error {
 	proxy.domainName = cfg.DomainName
 	proxy.listenTo = cfg.ListenTo
 	proxy.proxyTo = cfg.ProxyTo
+	proxy.proxyProtocol = cfg.ProxyProtocol
 	proxy.timeout = timeout
 	proxy.process = proc
 
