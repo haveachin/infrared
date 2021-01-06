@@ -62,7 +62,7 @@ type Proxy struct {
 	domainName    string
 	listenTo      string
 	proxyTo       string
-	ProxyProtocol bool
+	proxyProtocol bool
 	timeout       time.Duration
 	cancelTimeout func()
 	players       playerMap
@@ -82,7 +82,7 @@ func NewProxy(cfg ProxyConfig) (*Proxy, error) {
 	proxy := Proxy{
 		ClientBoundModifiers: []Modifier{},
 		ServerBoundModifiers: []Modifier{},
-		ProxyProtocol: 		  cfg.ProxyProtocol,
+		proxyProtocol:        cfg.ProxyProtocol,
 		players:              playerMap{players: map[*mc.Conn]string{}},
 		cancelTimeout:        nil,
 		logWriter:            logWriter,
@@ -127,7 +127,7 @@ func (proxy *Proxy) HandleConn(conn mc.Conn) error {
 	if err != nil {
 		return err
 	}
-	rconn, err := mc.DialTimeout(proxy.proxyTo, conn.RemoteAddr(),  time.Millisecond*500, proxy.ProxyProtocol)
+	rconn, err := mc.DialTimeout(proxy.proxyTo, conn.RemoteAddr(), time.Millisecond*500, proxy.proxyProtocol)
 	if err != nil {
 		defer conn.Close()
 		if handshake.IsStatusRequest() {

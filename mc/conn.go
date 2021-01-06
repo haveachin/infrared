@@ -31,7 +31,6 @@ func Listen(addr string) (*Listener, error) {
 		return nil, err
 	}
 
-
 	return &Listener{l}, nil
 }
 
@@ -56,22 +55,22 @@ func Dial(addr string) (Conn, error) {
 }
 
 // DialTimeout acts like DialMC but takes a timeout.
-func DialTimeout(addr string, clientAddress net.Addr, timeout time.Duration, ProxyProtocol bool) (Conn, error) {
+func DialTimeout(addr string, clientAddress net.Addr, timeout time.Duration, proxyProtocol bool) (Conn, error) {
 	conn, err := net.DialTimeout("tcp", addr, timeout)
 	if err != nil {
 		return Conn{}, err
 	}
 
-	if ProxyProtocol { //If proxy protocol is enabled
+	if proxyProtocol {
 		addrParts := strings.Split(addr, ":")
 		destinationIP := addrParts[0]
 		destinationPort, _ := strconv.ParseInt(addrParts[1], 10, 0)
 
 		header := &proxyproto.Header{
-			Version:            2,
-			Command:            proxyproto.PROXY,
-			TransportProtocol:  proxyproto.TCPv4,
-			SourceAddr: clientAddress,
+			Version:           2,
+			Command:           proxyproto.PROXY,
+			TransportProtocol: proxyproto.TCPv4,
+			SourceAddr:        clientAddress,
 			DestinationAddr: &net.TCPAddr{
 				IP:   net.ParseIP(destinationIP),
 				Port: int(destinationPort),

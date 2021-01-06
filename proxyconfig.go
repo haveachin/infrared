@@ -18,7 +18,6 @@ type ProxyConfig struct {
 	ListenTo      string
 	ProxyTo       string
 	ProxyProtocol bool
-	test          string
 	Timeout       string
 	Docker        process.Config
 	Server        sim.ServerConfig
@@ -47,6 +46,7 @@ func ReadAllProxyConfigs(path string) ([]*viper.Viper, error) {
 		vpr.SetConfigName(configName)
 		vpr.SetConfigType(strings.TrimPrefix(extension, "."))
 		loadProxyConfigDefaults(vpr)
+
 		vprs = append(vprs, vpr)
 	}
 
