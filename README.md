@@ -67,7 +67,7 @@ All config options are listed below, but only the marked* fields are required fo
 `DomainName`* is a [fully qualified domain name](https://en.wikipedia.org/wiki/Domain_name)  
 `ListenTo` is the address (usually just the port) that the proxy should listen to for incoming connections [default: `":25565"`]  
 `ProxyTo`* is the address that the proxy should send incoming connections to\
-`ProxyProtocol` enables HAProxy's PROXY protocol for IP forwarding\
+`ProxyProtocol` enables HAProxy's PROXY protocol for IP forwarding (ONLY SET THIS TO TRUE IF YOU USE IT)\
 `Timeout` is the [time](https://golang.org/pkg/time/#ParseDuration) to wait before shutting down the server after all players have left [default: `5m`]  
 
 `Docker`* is a data object that represents a docker interface
