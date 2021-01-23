@@ -110,7 +110,7 @@ from a vanilla Minecraft server
 
 ```yaml
 DomainName: "mc.example.com"
-ProxyTo: ":8080"
+ProxyTo: "0.0.0.0:25565"
 ProxyProtocol: false
 Timeout: "13m37s"
 Docker:
