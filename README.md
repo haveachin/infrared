@@ -110,6 +110,7 @@ from a vanilla Minecraft server
 
 ```yaml
 DomainName: "mc.example.com"
+# Replace 0.0.0.0 with the backend IP of the server
 ProxyTo: "0.0.0.0:25565"
 ProxyProtocol: false
 Timeout: "13m37s"
