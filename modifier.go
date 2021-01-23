@@ -1,4 +1,4 @@
-package infrared
+package main
 
 import (
 	"github.com/haveachin/infrared/mc"

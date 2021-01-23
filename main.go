@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"github.com/haveachin/infrared"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 	"os"
@@ -84,22 +83,13 @@ func main() {
 
 	log.Logger = log.Output(defaultConsoleWriter)
 
-	vprs, err := infrared.ReadAllProxyConfigs(configPath)
+	cfg, err := loadAndWatchConfig(configPath)
 	if err != nil {
 		log.Info().Err(err)
 		return
 	}
 
-	gateway := infrared.NewGateway()
-	gateway.AddLoggerOutput(defaultConsoleWriter)
-
-	for _, vpr := range vprs {
-		if _, err := gateway.AddProxyByViper(vpr); err != nil {
-			log.Err(err).Msg("Invalid proxy config")
-		}
-	}
-
-	if err := gateway.ListenAndServe(); err != nil {
-		log.Err(err)
-	}
+	gateway := newGateway()
+	proxy := newProxy(cfg)
+	gateway.addProxy(&proxy)
 }
