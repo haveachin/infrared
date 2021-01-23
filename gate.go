@@ -9,6 +9,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"github.com/spf13/viper"
 	"io"
+	"strings"
 )
 
 type Gate struct {
@@ -86,13 +87,13 @@ func (gate *Gate) AddProxy(proxy *Proxy) error {
 		return ErrProxyNotSupported
 	}
 
-	if _, ok := gate.proxies[proxy.domainName]; ok {
+	if _, ok := gate.proxies[strings.ToLower(proxy.domainName)]; ok {
 		return ErrProxySignatureAlreadyRegistered
 	}
 
 	proxy.AddLoggerOutput(io.MultiWriter(gate.loggerOutputs...))
 	proxy.overrideLogger(gate.logger)
-	gate.proxies[proxy.domainName] = proxy
+	gate.proxies[strings.ToLower(proxy.domainName)] = proxy
 
 	gate.logger.Debug().
 		Str("destinationAddress", proxy.proxyTo).
@@ -103,7 +104,7 @@ func (gate *Gate) AddProxy(proxy *Proxy) error {
 }
 
 func (gate *Gate) RemoveProxy(domainName string) {
-	delete(gate.proxies, domainName)
+	delete(gate.proxies, strings.ToLower(domainName))
 
 	if len(gate.proxies) > 0 {
 		return
@@ -174,7 +175,7 @@ func (gate Gate) serve(conn mc.Conn) {
 	addr := handshake.ParseServerAddress()
 	addrWithPort := fmt.Sprintf("%s:%d", addr, handshake.ServerPort)
 	logger = logger.With().Str("requestedAddress", addrWithPort).Logger()
-	proxy, ok := gate.proxies[addr]
+	proxy, ok := gate.proxies[strings.ToLower(addr)]
 	if !ok {
 		logger.Info().Msg("Unknown address requested")
 		return
@@ -222,7 +223,7 @@ func (gate *Gate) UpdateProxy(proxy *Proxy, cfg ProxyConfig) error {
 		return nil
 	}
 
-	if _, ok := gate.proxies[cfg.DomainName]; ok {
+	if _, ok := gate.proxies[strings.ToLower(cfg.DomainName)]; ok {
 		return ErrProxySignatureAlreadyRegistered
 	}
 
@@ -232,7 +233,7 @@ func (gate *Gate) UpdateProxy(proxy *Proxy, cfg ProxyConfig) error {
 		return err
 	}
 
-	gate.proxies[proxy.domainName] = proxy
-	delete(gate.proxies, oldDomainName)
+	gate.proxies[strings.ToLower(proxy.domainName)] = proxy
+	delete(gate.proxies, strings.ToLower(oldDomainName))
 	return nil
 }
