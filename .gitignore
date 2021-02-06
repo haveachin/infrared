@@ -14,4 +14,4 @@
 # Config files
 *.yaml
 
-cmd/infrared/configs
+.idea
