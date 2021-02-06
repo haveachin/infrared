@@ -25,11 +25,11 @@ type ProxyConfig struct {
 	ListenTo          string
 	ProxyTo           string
 	ProxyProtocol     bool
-	Timeout           string
+	Timeout           time.Duration
 	DisconnectMessage string
+	Docker            process.Config
 	OnlineStatus      plasma.StatusResponse
 	OfflineStatus     plasma.StatusResponse
-	Process           process.Config
 	CallbackServer    callback.Config
 }
 
@@ -37,17 +37,18 @@ func (cfg *ProxyConfig) setDefaults() {
 	cfg.vpr.SetDefault("DomainName", "localhost")
 	cfg.vpr.SetDefault("ListenTo", ":25565")
 	cfg.vpr.SetDefault("ProxyProtocol", false)
-	cfg.vpr.SetDefault("Timeout", "5m")
-	cfg.vpr.SetDefault("DisconnectMessage", "Sorry {{username}}, but the ")
+	cfg.vpr.SetDefault("Timeout", "1s")
+	cfg.vpr.SetDefault("DisconnectMessage", "Sorry {{username}}, but the server is offline.")
 
-	cfg.vpr.SetDefault("Process.DNSServer", "127.0.0.11")
+	cfg.vpr.SetDefault("Docker.DNSServer", "127.0.0.11")
+	cfg.vpr.SetDefault("Docker.Timeout", "5m")
 
-	cfg.vpr.SetDefault("Server.DisconnectMessage", "Hey §e$username§r! The listeners was sleeping but it is starting now.")
-	cfg.vpr.SetDefault("Server.Version", "Infrared 1.15.2")
-	cfg.vpr.SetDefault("Server.Protocol", 578)
-	cfg.vpr.SetDefault("Server.Motd", "Powered by Infrared")
-	cfg.vpr.SetDefault("Server.MaxPlayers", 20)
-	cfg.vpr.SetDefault("Server.PlayersOnline", 0)
+	cfg.vpr.SetDefault("OfflineStatus.DisconnectMessage", "Hey §e$username§r! The listeners was sleeping but it is starting now.")
+	cfg.vpr.SetDefault("OfflineStatus.Version.Name", "Infrared 1.16.5")
+	cfg.vpr.SetDefault("OfflineStatus.Version.ProtocolNumber", 754)
+	cfg.vpr.SetDefault("OfflineStatus.PlayersInfo.MaxPlayers", 20)
+	cfg.vpr.SetDefault("OfflineStatus.PlayersInfo.PlayersOnline", 0)
+	cfg.vpr.SetDefault("OfflineStatus.MOTD", "Powered by Infrared")
 }
 
 func ReadFilePaths(path string, recursive bool) ([]string, error) {

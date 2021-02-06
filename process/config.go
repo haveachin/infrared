@@ -1,8 +1,11 @@
 package process
 
+import "time"
+
 type Config struct {
 	DNSServer     string
 	ContainerName string
+	Timeout       time.Duration
 	Portainer     struct {
 		Address    string
 		EndpointID string
