@@ -141,22 +141,28 @@ func NewProxyConfigFromPath(path string) (*ProxyConfig, error) {
 	cfg := ProxyConfig{vpr: vpr}
 	cfg.setDefaults()
 
-	vpr.OnConfigChange(func(in fsnotify.Event) {
-		if in.Op != fsnotify.Write {
-			return
-		}
-		if err := cfg.Reload(); err != nil {
-			log.Printf("Failed update on %s; error %s", path, err)
-			return
-		}
-		log.Println("Updated", path)
-	})
+	vpr.OnConfigChange(cfg.onConfigChange(path))
 	if err := cfg.Reload(); err != nil {
 		return nil, err
 	}
 	vpr.WatchConfig()
 
 	return &cfg, err
+}
+
+func (cfg *ProxyConfig) onConfigChange(path string) func(fsnotify.Event) {
+	return func(in fsnotify.Event) {
+		if in.Op != fsnotify.Write {
+			return
+		}
+
+		if err := cfg.Reload(); err != nil {
+			log.Printf("Failed update on %s; error %s", path, err)
+			return
+		}
+
+		log.Println("Updated", path)
+	}
 }
 
 // Reload loads the ProxyConfig from it's source file
