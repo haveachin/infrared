@@ -1,90 +1,123 @@
-package main
+package infrared
 
 import (
-	"github.com/haveachin/infrared/mc"
-	"github.com/haveachin/infrared/mc/protocol"
-	"io"
-	"os"
+	"errors"
+	"github.com/specspace/plasma"
+	"github.com/specspace/plasma/protocol/packets/handshaking"
+	"log"
 	"sync"
 )
 
-type gateway struct {
-	listener map[string]mc.Listener
-	proxies  map[string]*proxy
-	wg       *sync.WaitGroup
-	logger   io.Writer
-
-	done chan bool
+type Gateway struct {
+	listeners sync.Map
+	proxies   sync.Map
+	closed    chan bool
+	wg        sync.WaitGroup
 }
 
-func newGateway() gateway {
-	return gateway{
-		listener: map[string]mc.Listener{},
-		proxies:  map[string]*proxy{},
-		wg:       &sync.WaitGroup{},
-		logger:   os.Stdout,
-		done:     make(chan bool, 1),
-	}
-}
-
-func (gateway *gateway) addProxy(proxy *proxy) {
-	if _, ok := gateway.listener[proxy.ListenTo]; !ok {
-		go func() {
-			_ = gateway.listenAndServe(proxy.ListenTo)
-		}()
+func (gateway *Gateway) ListenAndServe(proxies []*Proxy) error {
+	if len(proxies) <= 0 {
+		return errors.New("no proxies in gateway")
 	}
 
-	gateway.proxies[proxy.uid()] = proxy
+	gateway.closed = make(chan bool, len(proxies))
+
+	for _, proxy := range proxies {
+		if err := gateway.RegisterProxy(proxy); err != nil {
+			gateway.Close()
+			return err
+		}
+	}
+
+	log.Println("All proxies are online")
+	gateway.wg.Wait()
+	return nil
 }
 
-func (gateway *gateway) listenAndServe(addr string) error {
-	l, err := mc.Listen(addr)
+// Close closes all listeners
+func (gateway *Gateway) Close() {
+	gateway.listeners.Range(func(k, v interface{}) bool {
+		gateway.closed <- true
+		v.(plasma.Listener).Close()
+		return false
+	})
+}
+
+func (gateway *Gateway) RegisterProxy(proxy *Proxy) error {
+	// Register new Proxy
+	log.Println("Registering proxy with UID", proxy.UID())
+	gateway.proxies.Store(proxy.UID(), proxy)
+
+	// Check if a gate is already listening to the Proxy address
+	if _, ok := gateway.listeners.Load(proxy.ListenTo()); ok {
+		return nil
+	}
+
+	gateway.wg.Add(1)
+	go gateway.listenAndServe(proxy.ListenTo())
+	return nil
+}
+
+func (gateway *Gateway) listenAndServe(addr string) error {
+	defer gateway.wg.Done()
+
+	log.Println("Creating listener on", addr)
+	listener, err := plasma.Listen(addr)
 	if err != nil {
 		return err
 	}
+	gateway.listeners.Store(addr, listener)
 
 	for {
-		conn, err := l.Accept()
+		conn, err := listener.Accept()
 		if err != nil {
 			select {
-			case <-gateway.done:
+			case <-gateway.closed:
+				log.Println("Closing listener on", addr)
+				gateway.listeners.Delete(addr)
+				// TODO: Event listener closed
 				return nil
 			default:
+				// TODO: Event connection failed
 				continue
 			}
 		}
 
-		go gateway.serve(conn, addr)
+		go func() {
+			log.Printf("[>] Incoming %s on listener %s", conn.RemoteAddr(), addr)
+			if err := gateway.serve(conn, addr); err != nil {
+				log.Printf("[x] %s closed connection with %s; error: %s", conn.RemoteAddr(), addr, err)
+				return
+			}
+			log.Printf("[x] %s closed connection with %s", conn.RemoteAddr(), addr)
+			conn.Close()
+		}()
 	}
 }
 
-func (gateway *gateway) serve(conn mc.Conn, addr string) {
-	packet, err := conn.PeekPacket()
+func (gateway *Gateway) serve(conn plasma.Conn, addr string) error {
+	pk, err := conn.PeekPacket()
 	if err != nil {
-		return
+		// TODO: Debug invalid packet format; not a minecraft client?
+		return err
 	}
 
-	handshake, err := protocol.ParseSLPHandshake(packet)
+	hs, err := handshaking.UnmarshalServerBoundHandshake(pk)
 	if err != nil {
-		return
+		// TODO: Debug invalid packet send from client
+		return err
 	}
 
-	domain := handshake.ParseServerAddress()
-	proxyUID := domain + addr
-	proxy, ok := gateway.proxies[proxyUID]
+	proxyUID := proxyUID(hs.ParseServerAddress(), addr)
+
+	log.Printf("[i] %s requests proxy with UID %s", conn.RemoteAddr(), proxyUID)
+	v, ok := gateway.proxies.Load(proxyUID)
 	if !ok {
-		return
+		// Client send an invalid address/port; we don't have a v for that address
+		// TODO: Log error and show message to client if possible
+		return errors.New("no proxy with uid " + proxyUID)
 	}
+	proxy := v.(*Proxy)
 
-	_ = proxy.handleConn(conn)
-}
-
-// Close closes all gates
-func (gateway *gateway) close() error {
-	for _, l := range gateway.listener {
-		if err := l.Close(); err != nil {
-			return err
-		}
-	}
-	return nil
+	return proxy.handleConn(conn)
 }
