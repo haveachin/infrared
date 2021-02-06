@@ -56,6 +56,12 @@ func (proxy *Proxy) OfflineStatus() plasma.StatusResponse {
 	return proxy.Config.OfflineStatus
 }
 
+func (proxy *Proxy) Timeout() time.Duration {
+	proxy.Config.RLock()
+	defer proxy.Config.RUnlock()
+	return proxy.Config.Timeout
+}
+
 func (proxy *Proxy) UID() string {
 	return proxyUID(proxy.DomainName(), proxy.ListenTo())
 }
@@ -73,7 +79,7 @@ func (proxy *Proxy) handleConn(conn plasma.Conn) error {
 		return err
 	}
 
-	rconn, err := plasma.DialTimeout(proxy.ProxyTo(), time.Second)
+	rconn, err := plasma.DialTimeout(proxy.ProxyTo(), proxy.Timeout())
 	if err != nil {
 		log.Printf("[i] %s did not respond to ping; is the target offline?", proxy.ProxyTo())
 		if err := proxy.startProcessIfNotRunning(); err != nil {
