@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 )
 
 var ErrFileIsDir = errors.New("file is a dir")
@@ -144,8 +145,11 @@ func NewProxyConfigFromPath(path string) (*ProxyConfig, error) {
 		if in.Op != fsnotify.Write {
 			return
 		}
-		log.Println("Changes in", path)
-		_ = cfg.Reload()
+		if err := cfg.Reload(); err != nil {
+			log.Printf("Failed update on %s; error %s", path, err)
+			return
+		}
+		log.Println("Updated", path)
 	})
 	if err := cfg.Reload(); err != nil {
 		return nil, err
