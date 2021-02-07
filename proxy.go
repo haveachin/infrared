@@ -50,16 +50,48 @@ func (proxy *Proxy) DisconnectMessage() string {
 	return proxy.Config.DisconnectMessage
 }
 
-func (proxy *Proxy) OfflineStatus() plasma.StatusResponse {
+func (proxy *Proxy) OnlineStatusPacket() (protocol.Packet, error) {
 	proxy.Config.RLock()
 	defer proxy.Config.RUnlock()
-	return proxy.Config.OfflineStatus
+	if proxy.Config.onlineStatusPacket != nil {
+		return *proxy.Config.onlineStatusPacket, nil
+	}
+
+	bb, err := proxy.Config.OnlineStatus.StatusResponse().JSON()
+	if err != nil {
+		return protocol.Packet{}, err
+	}
+
+	pk := status.ClientBoundResponse{
+		JSONResponse: protocol.String(bb),
+	}.Marshal()
+	proxy.Config.onlineStatusPacket = &pk
+	return pk, nil
+}
+
+func (proxy *Proxy) OfflineStatusPacket() (protocol.Packet, error) {
+	proxy.Config.RLock()
+	defer proxy.Config.RUnlock()
+	if proxy.Config.offlineStatusPacket != nil {
+		return *proxy.Config.offlineStatusPacket, nil
+	}
+
+	bb, err := proxy.Config.OfflineStatus.StatusResponse().JSON()
+	if err != nil {
+		return protocol.Packet{}, err
+	}
+
+	pk := status.ClientBoundResponse{
+		JSONResponse: protocol.String(bb),
+	}.Marshal()
+	proxy.Config.offlineStatusPacket = &pk
+	return pk, nil
 }
 
 func (proxy *Proxy) Timeout() time.Duration {
 	proxy.Config.RLock()
 	defer proxy.Config.RUnlock()
-	return proxy.Config.Timeout
+	return time.Millisecond * time.Duration(proxy.Config.Timeout)
 }
 
 func (proxy *Proxy) UID() string {
@@ -142,19 +174,6 @@ func (proxy *Proxy) startProcessIfNotRunning() error {
 	return nil
 }
 
-func (proxy *Proxy) updateStatusResponse() error {
-	json, err := proxy.OfflineStatus().JSON()
-	if err != nil {
-		return err
-	}
-
-	pk := status.ClientBoundResponse{
-		JSONResponse: protocol.String(json),
-	}.Marshal()
-	proxy.statusResponsePacket = &pk
-	return nil
-}
-
 func (proxy *Proxy) sniffUsername(conn, rconn plasma.Conn) error {
 	pk, err := conn.ReadPacket()
 	if err != nil {
@@ -209,11 +228,12 @@ func (proxy *Proxy) handleStatusRequest(conn plasma.Conn) error {
 		return err
 	}
 
-	if err := proxy.updateStatusResponse(); err != nil {
+	responsePk, err := proxy.OfflineStatusPacket()
+	if err != nil {
 		return err
 	}
 
-	if err := conn.WritePacket(*proxy.statusResponsePacket); err != nil {
+	if err := conn.WritePacket(responsePk); err != nil {
 		return err
 	}
 

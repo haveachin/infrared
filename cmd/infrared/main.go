@@ -63,7 +63,7 @@ func main() {
 
 	cfgs, err := infrared.LoadProxyConfigsFromPath(configPath, false)
 	if err != nil {
-		log.Println("Could not load proxy configs from", configPath)
+		log.Printf("Failed loading proxy configs from %s; error: %s", configPath, err)
 		return
 	}
 
@@ -74,10 +74,31 @@ func main() {
 		})
 	}
 
-	log.Println("Starting Infrared")
+	outCfgs := make(chan *infrared.ProxyConfig)
+	go func() {
+		if err := infrared.WatchProxyConfigFolder(configPath, outCfgs); err != nil {
+			log.Println("Failed watching config folder; error:", err)
+			log.Println("SYSTEM FAILURE: CONFIG WATCHER FAILED")
+		}
+	}()
 
 	gateway := infrared.Gateway{}
+	go func() {
+		for {
+			cfg, ok := <-outCfgs
+			if !ok {
+				return
+			}
+
+			proxy := &infrared.Proxy{Config: cfg}
+			if err := gateway.RegisterProxy(proxy); err != nil {
+				log.Println("Failed registering proxy; error:", err)
+			}
+		}
+	}()
+
+	log.Println("Starting Infrared")
 	if err := gateway.ListenAndServe(proxies); err != nil {
-		log.Fatal("Gateway exited with", err)
+		log.Fatal("Gateway exited; error:", err)
 	}
 }

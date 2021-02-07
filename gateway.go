@@ -43,10 +43,42 @@ func (gateway *Gateway) Close() {
 	})
 }
 
+func (gateway *Gateway) CloseProxy(proxyUID string) {
+	log.Println("Closing proxy with UID", proxyUID)
+	v, ok := gateway.proxies.LoadAndDelete(proxyUID)
+	if !ok {
+		return
+	}
+	proxy := v.(*Proxy)
+
+	closeListener := true
+	gateway.proxies.Range(func(k, v interface{}) bool {
+		otherProxy := v.(*Proxy)
+		if proxy.ListenTo() == otherProxy.ListenTo() {
+			closeListener = true
+			return false
+		}
+		return true
+	})
+
+	if !closeListener {
+		return
+	}
+
+	v, ok = gateway.listeners.Load(proxy.ListenTo())
+	if ok {
+		return
+	}
+	v.(plasma.Listener).Close()
+}
+
 func (gateway *Gateway) RegisterProxy(proxy *Proxy) error {
 	// Register new Proxy
 	log.Println("Registering proxy with UID", proxy.UID())
 	gateway.proxies.Store(proxy.UID(), proxy)
+	proxy.Config.OnConfigRemove(func() {
+		gateway.CloseProxy(proxy.UID())
+	})
 
 	// Check if a gate is already listening to the Proxy address
 	if _, ok := gateway.listeners.Load(proxy.ListenTo()); ok {
@@ -71,16 +103,15 @@ func (gateway *Gateway) listenAndServe(addr string) error {
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
-			select {
-			case <-gateway.closed:
+			if err.Error() == "use of closed network connection" {
 				log.Println("Closing listener on", addr)
 				gateway.listeners.Delete(addr)
 				// TODO: Event listener closed
 				return nil
-			default:
-				// TODO: Event connection failed
-				continue
 			}
+
+			// TODO: Event connection failed
+			continue
 		}
 
 		go func() {

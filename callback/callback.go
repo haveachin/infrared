@@ -3,7 +3,6 @@ package callback
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/rs/zerolog/log"
 	"net/http"
 )
 
@@ -47,7 +46,6 @@ func (w LogWriter) handleLog(b []byte) {
 	}{}
 
 	if err := json.Unmarshal(b, &eventJSON); err != nil {
-		log.Err(err)
 		return
 	}
 
@@ -68,7 +66,6 @@ func (w LogWriter) handleLog(b []byte) {
 	}
 
 	if err := postToURL(w.URL, b); err != nil {
-		log.Err(err).Str("url", w.URL)
 	}
 }
 
