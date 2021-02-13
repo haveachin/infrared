@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"time"
 )
 
 // ProxyConfig is a data representation of a Proxy configuration
@@ -18,6 +19,7 @@ type ProxyConfig struct {
 	watcher *fsnotify.Watcher
 
 	removeCallback      func()
+	changeCallback      func()
 	onlineStatusPacket  *protocol.Packet
 	offlineStatusPacket *protocol.Packet
 
@@ -189,23 +191,9 @@ func NewProxyConfigFromPath(path string) (*ProxyConfig, error) {
 
 	go func() {
 		defer watcher.Close()
-		for {
-			select {
-			case event, ok := <-watcher.Events:
-				if !ok {
-					return
-				}
-				cfg.onConfigChange(event)
-				if event.Op&fsnotify.Remove == fsnotify.Remove {
-					return
-				}
-			case err, ok := <-watcher.Errors:
-				if !ok {
-					return
-				}
-				log.Printf("Failed watching %s; error %s", path, err)
-			}
-		}
+		log.Printf("Starting to watch %s", path)
+		cfg.watch(path, time.Millisecond*50)
+		log.Printf("Stopping to watch %s", path)
 	}()
 
 	if err := watcher.Add(path); err != nil {
@@ -215,26 +203,54 @@ func NewProxyConfigFromPath(path string) (*ProxyConfig, error) {
 	return &cfg, err
 }
 
-func (cfg *ProxyConfig) onConfigChange(event fsnotify.Event) {
-	if event.Op&fsnotify.Remove == fsnotify.Remove {
-		if cfg.removeCallback != nil {
-			cfg.removeCallback()
+func (cfg *ProxyConfig) watch(path string, interval time.Duration) {
+	// The interval protects the watcher from write event spams
+	// This is necessary due to how some text editors handle file safes
+	tick := time.Tick(interval)
+	var lastEvent *fsnotify.Event
+
+	for {
+		select {
+		case <-tick:
+			if lastEvent == nil {
+				continue
+			}
+			cfg.onConfigWrite(*lastEvent)
+			lastEvent = nil
+		case event, ok := <-cfg.watcher.Events:
+			if !ok {
+				return
+			}
+			if event.Op&fsnotify.Remove == fsnotify.Remove {
+				cfg.removeCallback()
+				return
+			}
+			if event.Op&fsnotify.Write == fsnotify.Write {
+				lastEvent = &event
+			}
+		case err, ok := <-cfg.watcher.Errors:
+			if !ok {
+				return
+			}
+			log.Printf("Failed watching %s; error %s", path, err)
 		}
-	} else if event.Op&fsnotify.Write == fsnotify.Write {
-		if err := cfg.LoadFromPath(event.Name); err != nil {
-			log.Printf("Failed update on %s; error %s", event.Name, err)
-			return
-		}
-		log.Println("Updated", event.Name)
 	}
 }
 
-func (cfg *ProxyConfig) OnConfigRemove(fn func()) {
-	cfg.removeCallback = fn
+func (cfg *ProxyConfig) onConfigWrite(event fsnotify.Event) {
+	log.Println("Updating", event.Name)
+	if err := cfg.LoadFromPath(event.Name); err != nil {
+		log.Printf("Failed update on %s; error %s", event.Name, err)
+		return
+	}
+	cfg.changeCallback()
 }
 
 // LoadFromPath loads the ProxyConfig from a file
 func (cfg *ProxyConfig) LoadFromPath(path string) error {
+	cfg.Lock()
+	defer cfg.Unlock()
+
 	var defaultCfg map[string]interface{}
 	bb, err := json.Marshal(DefaultProxyConfig())
 	if err != nil {
@@ -252,6 +268,7 @@ func (cfg *ProxyConfig) LoadFromPath(path string) error {
 
 	var loadedCfg map[string]interface{}
 	if err := json.Unmarshal(bb, &loadedCfg); err != nil {
+		log.Println(string(bb))
 		return err
 	}
 
@@ -264,10 +281,6 @@ func (cfg *ProxyConfig) LoadFromPath(path string) error {
 		return err
 	}
 
-	// TODO: Trigger ProxyConfig changed event
-
-	cfg.Lock()
-	defer cfg.Unlock()
 	return json.Unmarshal(bb, cfg)
 }
 

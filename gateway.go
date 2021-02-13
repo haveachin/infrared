@@ -55,7 +55,7 @@ func (gateway *Gateway) CloseProxy(proxyUID string) {
 	gateway.proxies.Range(func(k, v interface{}) bool {
 		otherProxy := v.(*Proxy)
 		if proxy.ListenTo() == otherProxy.ListenTo() {
-			closeListener = true
+			closeListener = false
 			return false
 		}
 		return true
@@ -66,7 +66,7 @@ func (gateway *Gateway) CloseProxy(proxyUID string) {
 	}
 
 	v, ok = gateway.listeners.Load(proxy.ListenTo())
-	if ok {
+	if !ok {
 		return
 	}
 	v.(plasma.Listener).Close()
@@ -74,24 +74,29 @@ func (gateway *Gateway) CloseProxy(proxyUID string) {
 
 func (gateway *Gateway) RegisterProxy(proxy *Proxy) error {
 	// Register new Proxy
-	log.Println("Registering proxy with UID", proxy.UID())
-	gateway.proxies.Store(proxy.UID(), proxy)
-	proxy.Config.OnConfigRemove(func() {
-		gateway.CloseProxy(proxy.UID())
-	})
+	proxyUID := proxy.UID()
+	log.Println("Registering proxy with UID", proxyUID)
+	gateway.proxies.Store(proxyUID, proxy)
 
-	// Check if a gate is already listening to the Proxy address
-	if _, ok := gateway.listeners.Load(proxy.ListenTo()); ok {
-		return nil
+	proxy.Config.removeCallback = func() {
+		gateway.CloseProxy(proxyUID)
 	}
 
-	gateway.wg.Add(1)
-	go gateway.listenAndServe(proxy.ListenTo())
-	return nil
-}
+	proxy.Config.changeCallback = func() {
+		if proxyUID == proxy.UID() {
+			return
+		}
+		gateway.CloseProxy(proxyUID)
+		if err := gateway.RegisterProxy(proxy); err != nil {
+			log.Println(err)
+		}
+	}
 
-func (gateway *Gateway) listenAndServe(addr string) error {
-	defer gateway.wg.Done()
+	// Check if a gate is already listening to the Proxy address
+	addr := proxy.ListenTo()
+	if _, ok := gateway.listeners.Load(addr); ok {
+		return nil
+	}
 
 	log.Println("Creating listener on", addr)
 	listener, err := plasma.Listen(addr)
@@ -99,6 +104,18 @@ func (gateway *Gateway) listenAndServe(addr string) error {
 		return err
 	}
 	gateway.listeners.Store(addr, listener)
+
+	gateway.wg.Add(1)
+	go func() {
+		if err := gateway.listenAndServe(listener, addr); err != nil {
+			log.Printf("Failed to listen on %s; error: %s", proxy.ListenTo(), err)
+		}
+	}()
+	return nil
+}
+
+func (gateway *Gateway) listenAndServe(listener plasma.Listener, addr string) error {
+	defer gateway.wg.Done()
 
 	for {
 		conn, err := listener.Accept()
