@@ -3,6 +3,7 @@ package infrared
 import (
 	"encoding/json"
 	"github.com/fsnotify/fsnotify"
+	"github.com/haveachin/infrared/process"
 	"github.com/specspace/plasma"
 	"github.com/specspace/plasma/protocol"
 	"io/ioutil"
@@ -20,6 +21,7 @@ type ProxyConfig struct {
 
 	removeCallback      func()
 	changeCallback      func()
+	process             process.Process
 	onlineStatusPacket  *protocol.Packet
 	offlineStatusPacket *protocol.Packet
 
@@ -45,6 +47,16 @@ type DockerConfig struct {
 		Username   string `json:"username"`
 		Password   string `json:"password"`
 	} `json:"portainer"`
+}
+
+func (docker DockerConfig) IsDocker() bool {
+	return docker.ContainerName != ""
+}
+
+func (docker DockerConfig) IsPortainer() bool {
+	return docker.ContainerName != "" &&
+		docker.Portainer.Address != "" &&
+		docker.Portainer.EndpointID != ""
 }
 
 type StatusConfig struct {
@@ -93,12 +105,17 @@ func DefaultProxyConfig() ProxyConfig {
 	return ProxyConfig{
 		DomainName:        "localhost",
 		ListenTo:          ":25565",
-		ProxyTo:           ":25565",
 		Timeout:           1000,
 		DisconnectMessage: "Sorry {{username}}, but the server is offline.",
 		Docker: DockerConfig{
 			DNSServer: "127.0.0.11",
 			Timeout:   300000,
+		},
+		OnlineStatus: StatusConfig{
+			VersionName:    "Infrared 1.16.5",
+			ProtocolNumber: 754,
+			MaxPlayers:     20,
+			MOTD:           "Powered by Infrared",
 		},
 		OfflineStatus: StatusConfig{
 			VersionName:    "Infrared 1.16.5",
@@ -243,6 +260,9 @@ func (cfg *ProxyConfig) onConfigWrite(event fsnotify.Event) {
 		log.Printf("Failed update on %s; error %s", event.Name, err)
 		return
 	}
+	cfg.onlineStatusPacket = nil
+	cfg.offlineStatusPacket = nil
+	cfg.process = nil
 	cfg.changeCallback()
 }
 

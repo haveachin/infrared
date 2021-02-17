@@ -16,7 +16,7 @@ type docker struct {
 
 // NewDocker create a new docker process that manages a container
 func NewDocker(containerName string) (Process, error) {
-	cli, err := client.NewEnvClient()
+	cli, err := client.NewClientWithOpts(client.FromEnv)
 	if err != nil {
 		return nil, err
 	}
