@@ -2,6 +2,7 @@ package infrared
 
 import (
 	"fmt"
+	"github.com/haveachin/infrared/callback"
 	"github.com/haveachin/infrared/process"
 	"github.com/specspace/plasma"
 	"github.com/specspace/plasma/protocol"
@@ -87,8 +88,8 @@ func (proxy *Proxy) DisconnectMessage() string {
 }
 
 func (proxy *Proxy) OnlineStatusPacket() (protocol.Packet, error) {
-	proxy.Config.RLock()
-	defer proxy.Config.RUnlock()
+	proxy.Config.Lock()
+	defer proxy.Config.Unlock()
 	if proxy.Config.onlineStatusPacket != nil {
 		return *proxy.Config.onlineStatusPacket, nil
 	}
@@ -106,8 +107,8 @@ func (proxy *Proxy) OnlineStatusPacket() (protocol.Packet, error) {
 }
 
 func (proxy *Proxy) OfflineStatusPacket() (protocol.Packet, error) {
-	proxy.Config.RLock()
-	defer proxy.Config.RUnlock()
+	proxy.Config.Lock()
+	defer proxy.Config.Unlock()
 	if proxy.Config.offlineStatusPacket != nil {
 		return *proxy.Config.offlineStatusPacket, nil
 	}
@@ -134,6 +135,15 @@ func (proxy *Proxy) DockerTimeout() time.Duration {
 	proxy.Config.RLock()
 	defer proxy.Config.RUnlock()
 	return time.Millisecond * time.Duration(proxy.Config.Docker.Timeout)
+}
+
+func (proxy *Proxy) CallbackLogger() callback.Logger {
+	proxy.Config.RLock()
+	defer proxy.Config.RUnlock()
+	return callback.Logger{
+		URL:    proxy.Config.CallbackServer.URL,
+		Events: proxy.Config.CallbackServer.Events,
+	}
 }
 
 func (proxy *Proxy) UID() string {
@@ -163,19 +173,19 @@ func (proxy *Proxy) removePlayer(conn plasma.Conn) int {
 func (proxy *Proxy) handleConn(conn plasma.Conn) error {
 	pk, err := conn.ReadPacket()
 	if err != nil {
-		// TODO: Debug invalid packet format; not a minecraft client?
 		return err
 	}
 
 	hs, err := handshaking.UnmarshalServerBoundHandshake(pk)
 	if err != nil {
-		// TODO: Debug invalid packet send from client
 		return err
 	}
 
-	rconn, err := plasma.DialTimeout(proxy.ProxyTo(), proxy.Timeout())
+	proxyTo := proxy.ProxyTo()
+	proxyUID := proxy.UID()
+	rconn, err := plasma.DialTimeout(proxyTo, proxy.Timeout())
 	if err != nil {
-		log.Printf("[i] %s did not respond to ping; is the target offline?", proxy.ProxyTo())
+		log.Printf("[i] %s did not respond to ping; is the target offline?", proxyTo)
 		if hs.IsStatusRequest() {
 			return proxy.handleStatusRequest(conn, false)
 		}
@@ -190,6 +200,7 @@ func (proxy *Proxy) handleConn(conn plasma.Conn) error {
 	if hs.IsStatusRequest() {
 		return proxy.handleStatusRequest(conn, true)
 	}
+	proxy.cancelProcessTimeout()
 
 	if err := rconn.WritePacket(pk); err != nil {
 		return err
@@ -200,16 +211,25 @@ func (proxy *Proxy) handleConn(conn plasma.Conn) error {
 		return err
 	}
 	proxy.addPlayer(conn, username)
-
-	proxy.cancelProcessTimeout()
+	proxy.CallbackLogger().LogEvent(callback.PlayerJoinEvent{
+		Username:      username,
+		RemoteAddress: conn.RemoteAddr().String(),
+		TargetAddress: proxyTo,
+		ProxyUID:      proxyUID,
+	})
 
 	go pipe(rconn, conn)
 	pipe(conn, rconn)
 
-	proxy.mu.Lock()
-	proxy.mu.Unlock()
+	proxy.CallbackLogger().LogEvent(callback.PlayerLeaveEvent{
+		Username:      username,
+		RemoteAddress: conn.RemoteAddr().String(),
+		TargetAddress: proxyTo,
+		ProxyUID:      proxyUID,
+	})
 
-	if proxy.removePlayer(conn) <= 0 {
+	remainingPlayers := proxy.removePlayer(conn)
+	if remainingPlayers <= 0 {
 		proxy.timeoutProcess()
 	}
 	return nil
@@ -248,6 +268,7 @@ func (proxy *Proxy) startProcessIfNotRunning() error {
 	}
 
 	log.Println("[i] Starting container for", proxy.UID())
+	proxy.CallbackLogger().LogEvent(callback.ContainerStartEvent{ProxyUID: proxy.UID()})
 	return proxy.Process().Start()
 }
 
@@ -260,9 +281,12 @@ func (proxy *Proxy) timeoutProcess() {
 		return
 	}
 
+	proxy.cancelProcessTimeout()
+
 	log.Printf("[i] Starting container timeout %s on %s", proxy.DockerTimeout(), proxy.UID())
 	timer := time.AfterFunc(proxy.DockerTimeout(), func() {
 		log.Println("[i] Stopping container on", proxy.UID())
+		proxy.CallbackLogger().LogEvent(callback.ContainerStopEvent{ProxyUID: proxy.UID()})
 		if err := proxy.Process().Stop(); err != nil {
 			log.Printf("[w] Failed to stop the container for %s; error: %s", proxy.UID(), err)
 		}

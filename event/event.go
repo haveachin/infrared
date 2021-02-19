@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-type Topic int
+type Topic string
 
 type Bus struct {
 	subscriber sync.Map
@@ -19,19 +19,19 @@ type Event struct {
 	OccurredAt time.Time
 }
 
-type Channel chan Event
+type CallbackFunc func(Event)
 
-func (bus *Bus) Subscribe(topic Topic, channel Channel) {
+func (bus *Bus) Subscribe(topic Topic, channel CallbackFunc) {
 	if channel == nil {
 		return
 	}
 
 	subs, ok := bus.subscriber.Load(topic)
 	if !ok {
-		subs = []Channel{}
+		subs = []CallbackFunc{}
 	}
 
-	subs = append(subs.([]Channel), channel)
+	subs = append(subs.([]CallbackFunc), channel)
 	bus.subscriber.Store(topic, subs)
 }
 
@@ -48,7 +48,7 @@ func (bus *Bus) Publish(topic Topic, data interface{}) {
 		OccurredAt: time.Now(),
 	}
 
-	for _, sub := range subs.([]Channel) {
-		sub <- event
+	for _, sub := range subs.([]CallbackFunc) {
+		sub(event)
 	}
 }

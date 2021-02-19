@@ -2,6 +2,7 @@ package infrared
 
 import (
 	"errors"
+	"github.com/haveachin/infrared/callback"
 	"github.com/specspace/plasma"
 	"github.com/specspace/plasma/protocol/packets/handshaking"
 	"log"
@@ -123,11 +124,9 @@ func (gateway *Gateway) listenAndServe(listener plasma.Listener, addr string) er
 			if err.Error() == "use of closed network connection" {
 				log.Println("Closing listener on", addr)
 				gateway.listeners.Delete(addr)
-				// TODO: Event listener closed
 				return nil
 			}
 
-			// TODO: Event connection failed
 			continue
 		}
 
@@ -146,13 +145,11 @@ func (gateway *Gateway) listenAndServe(listener plasma.Listener, addr string) er
 func (gateway *Gateway) serve(conn plasma.Conn, addr string) error {
 	pk, err := conn.PeekPacket()
 	if err != nil {
-		// TODO: Debug invalid packet format; not a minecraft client?
 		return err
 	}
 
 	hs, err := handshaking.UnmarshalServerBoundHandshake(pk)
 	if err != nil {
-		// TODO: Debug invalid packet send from client
 		return err
 	}
 
@@ -162,10 +159,16 @@ func (gateway *Gateway) serve(conn plasma.Conn, addr string) error {
 	v, ok := gateway.proxies.Load(proxyUID)
 	if !ok {
 		// Client send an invalid address/port; we don't have a v for that address
-		// TODO: Log error and show message to client if possible
 		return errors.New("no proxy with uid " + proxyUID)
 	}
 	proxy := v.(*Proxy)
 
-	return proxy.handleConn(conn)
+	if err := proxy.handleConn(conn); err != nil {
+		proxy.CallbackLogger().LogEvent(callback.ErrorEvent{
+			Error:    err.Error(),
+			ProxyUID: proxyUID,
+		})
+		return err
+	}
+	return nil
 }
