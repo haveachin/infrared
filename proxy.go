@@ -87,6 +87,11 @@ func (proxy *Proxy) DisconnectMessage() string {
 	defer proxy.Config.RUnlock()
 	return proxy.Config.DisconnectMessage
 }
+func (proxy *Proxy) IsOnlineStatusConfigured() bool {
+	proxy.Config.Lock()
+	defer proxy.Config.Unlock()
+	return proxy.Config.OnlineStatus.ProtocolNumber != 0
+}
 
 func (proxy *Proxy) OnlineStatusPacket() (protocol.Packet, error) {
 	proxy.Config.Lock()
@@ -204,10 +209,9 @@ func (proxy *Proxy) handleConn(conn plasma.Conn) error {
 	}
 	defer rconn.Close()
 
-	if hs.IsStatusRequest() {
+	if hs.IsStatusRequest() && proxy.IsOnlineStatusConfigured() {
 		return proxy.handleStatusRequest(conn, true)
 	}
-	proxy.cancelProcessTimeout()
 
 	if proxy.ProxyProtocol() {
 		header := &proxyproto.Header{
@@ -227,17 +231,21 @@ func (proxy *Proxy) handleConn(conn plasma.Conn) error {
 		return err
 	}
 
-	username, err := proxy.sniffUsername(conn, rconn)
-	if err != nil {
-		return err
+	var username string
+	if hs.IsLoginRequest() {
+		proxy.cancelProcessTimeout()
+		username, err = proxy.sniffUsername(conn, rconn)
+		if err != nil {
+			return err
+		}
+		proxy.addPlayer(conn, username)
+		proxy.CallbackLogger().LogEvent(callback.PlayerJoinEvent{
+			Username:      username,
+			RemoteAddress: conn.RemoteAddr().String(),
+			TargetAddress: proxyTo,
+			ProxyUID:      proxyUID,
+		})
 	}
-	proxy.addPlayer(conn, username)
-	proxy.CallbackLogger().LogEvent(callback.PlayerJoinEvent{
-		Username:      username,
-		RemoteAddress: conn.RemoteAddr().String(),
-		TargetAddress: proxyTo,
-		ProxyUID:      proxyUID,
-	})
 
 	go pipe(rconn, conn)
 	pipe(conn, rconn)

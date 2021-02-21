@@ -111,12 +111,6 @@ func DefaultProxyConfig() ProxyConfig {
 			DNSServer: "127.0.0.11",
 			Timeout:   300000,
 		},
-		OnlineStatus: StatusConfig{
-			VersionName:    "Infrared 1.16.5",
-			ProtocolNumber: 754,
-			MaxPlayers:     20,
-			MOTD:           "Powered by Infrared",
-		},
 		OfflineStatus: StatusConfig{
 			VersionName:    "Infrared 1.16.5",
 			ProtocolNumber: 754,
