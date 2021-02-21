@@ -120,10 +120,7 @@ More info on [Portainer](https://www.portainer.io/).
 
 ```json
 {
-  "domainName": "min.example.com",
-  "listenTo": ":25565",
-  "proxyTo": ":8080",
-  "timeout": 1000
+  "proxyTo": ":8080"
 }
 ```
 
