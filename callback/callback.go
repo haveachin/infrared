@@ -3,7 +3,6 @@ package callback
 import (
 	"bytes"
 	"encoding/json"
-	"log"
 	"net/http"
 	"time"
 )
@@ -44,7 +43,6 @@ func (w Logger) LogEvent(event Event) {
 	if err != nil {
 		return
 	}
-	log.Println("Send", w.URL, string(bb))
 
 	_, _ = http.Post(w.URL, "application/json", bytes.NewReader(bb))
 }
