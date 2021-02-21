@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/haveachin/infrared/callback"
 	"github.com/haveachin/infrared/process"
+	"github.com/pires/go-proxyproto"
 	"github.com/specspace/plasma"
 	"github.com/specspace/plasma/protocol"
 	"github.com/specspace/plasma/protocol/packets/handshaking"
@@ -137,6 +138,12 @@ func (proxy *Proxy) DockerTimeout() time.Duration {
 	return time.Millisecond * time.Duration(proxy.Config.Docker.Timeout)
 }
 
+func (proxy *Proxy) ProxyProtocol() bool {
+	proxy.Config.RLock()
+	defer proxy.Config.RUnlock()
+	return proxy.Config.ProxyProtocol
+}
+
 func (proxy *Proxy) CallbackLogger() callback.Logger {
 	proxy.Config.RLock()
 	defer proxy.Config.RUnlock()
@@ -201,6 +208,20 @@ func (proxy *Proxy) handleConn(conn plasma.Conn) error {
 		return proxy.handleStatusRequest(conn, true)
 	}
 	proxy.cancelProcessTimeout()
+
+	if proxy.ProxyProtocol() {
+		header := &proxyproto.Header{
+			Version:           2,
+			Command:           proxyproto.PROXY,
+			TransportProtocol: proxyproto.TCPv4,
+			SourceAddr:        conn.RemoteAddr(),
+			DestinationAddr:   rconn.RemoteAddr(),
+		}
+
+		if _, err = header.WriteTo(conn); err != nil {
+			return err
+		}
+	}
 
 	if err := rconn.WritePacket(pk); err != nil {
 		return err
