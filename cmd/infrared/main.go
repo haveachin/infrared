@@ -3,29 +3,21 @@ package main
 import (
 	"flag"
 	"github.com/haveachin/infrared"
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
+	"log"
 	"os"
 	"strconv"
-	"time"
 )
 
 const (
 	envPrefix     = "INFRARED_"
-	envDebug      = envPrefix + "DEBUG"
-	envColor      = envPrefix + "COLOR"
 	envConfigPath = envPrefix + "CONFIG_PATH"
 )
 
 const (
-	clfDebug      = "debug"
-	clfColor      = "color"
 	clfConfigPath = "config-path"
 )
 
 var (
-	debug      = false
-	color      = true
 	configPath = "./configs"
 )
 
@@ -53,14 +45,10 @@ func envString(name string, value string) string {
 }
 
 func initEnv() {
-	debug = envBool(envDebug, debug)
-	color = envBool(envColor, color)
 	configPath = envString(envConfigPath, configPath)
 }
 
 func initFlags() {
-	flag.BoolVar(&debug, clfDebug, debug, "starts infrared in debug mode")
-	flag.BoolVar(&color, clfColor, color, "enables color in console logs")
 	flag.StringVar(&configPath, clfConfigPath, configPath, "path of all proxy configs")
 	flag.Parse()
 }
@@ -68,38 +56,49 @@ func initFlags() {
 func init() {
 	initEnv()
 	initFlags()
-
-	zerolog.SetGlobalLevel(zerolog.InfoLevel)
-	if debug {
-		zerolog.SetGlobalLevel(zerolog.DebugLevel)
-	}
 }
 
 func main() {
-	defaultConsoleWriter := zerolog.ConsoleWriter{
-		Out:        os.Stdout,
-		TimeFormat: time.RFC3339,
-		NoColor:    !color,
-	}
+	log.Println("Loading proxy configs")
 
-	log.Logger = log.Output(defaultConsoleWriter)
-
-	vprs, err := infrared.ReadAllProxyConfigs(configPath)
+	cfgs, err := infrared.LoadProxyConfigsFromPath(configPath, false)
 	if err != nil {
-		log.Info().Err(err)
+		log.Printf("Failed loading proxy configs from %s; error: %s", configPath, err)
 		return
 	}
 
-	gateway := infrared.NewGateway()
-	gateway.AddLoggerOutput(defaultConsoleWriter)
-
-	for _, vpr := range vprs {
-		if _, err := gateway.AddProxyByViper(vpr); err != nil {
-			log.Err(err).Msg("Invalid proxy config")
-		}
+	var proxies []*infrared.Proxy
+	for _, cfg := range cfgs {
+		proxies = append(proxies, &infrared.Proxy{
+			Config: cfg,
+		})
 	}
 
-	if err := gateway.ListenAndServe(); err != nil {
-		log.Err(err)
+	outCfgs := make(chan *infrared.ProxyConfig)
+	go func() {
+		if err := infrared.WatchProxyConfigFolder(configPath, outCfgs); err != nil {
+			log.Println("Failed watching config folder; error:", err)
+			log.Println("SYSTEM FAILURE: CONFIG WATCHER FAILED")
+		}
+	}()
+
+	gateway := infrared.Gateway{}
+	go func() {
+		for {
+			cfg, ok := <-outCfgs
+			if !ok {
+				return
+			}
+
+			proxy := &infrared.Proxy{Config: cfg}
+			if err := gateway.RegisterProxy(proxy); err != nil {
+				log.Println("Failed registering proxy; error:", err)
+			}
+		}
+	}()
+
+	log.Println("Starting Infrared")
+	if err := gateway.ListenAndServe(proxies); err != nil {
+		log.Fatal("Gateway exited; error:", err)
 	}
 }

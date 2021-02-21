@@ -1,250 +1,174 @@
 package infrared
 
 import (
-	"github.com/rs/zerolog"
-	"io"
+	"errors"
+	"github.com/haveachin/infrared/callback"
+	"github.com/specspace/plasma"
+	"github.com/specspace/plasma/protocol/packets/handshaking"
+	"log"
 	"sync"
-
-	"github.com/fsnotify/fsnotify"
-	"github.com/rs/zerolog/log"
-	"github.com/spf13/viper"
 )
 
-// Gateway is a data structure that holds all gates.
-// A gateway is managing all proxies by dynamically forwarding
-// incoming connections to their corresponding proxy.
 type Gateway struct {
-	gates   map[string]*Gate
-	wg      *sync.WaitGroup
-	running bool
-
-	logger        zerolog.Logger
-	loggerOutputs []io.Writer
+	listeners sync.Map
+	proxies   sync.Map
+	closed    chan bool
+	wg        sync.WaitGroup
 }
 
-// NewGateway creates a new gateway that
-// uses the default log.Logger from the zerolog/log package
-func NewGateway() Gateway {
-	return Gateway{
-		gates:         map[string]*Gate{},
-		wg:            &sync.WaitGroup{},
-		running:       false,
-		logger:        log.Logger,
-		loggerOutputs: []io.Writer{},
+func (gateway *Gateway) ListenAndServe(proxies []*Proxy) error {
+	if len(proxies) <= 0 {
+		return errors.New("no proxies in gateway")
 	}
+
+	gateway.closed = make(chan bool, len(proxies))
+
+	for _, proxy := range proxies {
+		if err := gateway.RegisterProxy(proxy); err != nil {
+			gateway.Close()
+			return err
+		}
+	}
+
+	log.Println("All proxies are online")
+	gateway.wg.Wait()
+	return nil
 }
 
-func (gateway *Gateway) AddLoggerOutput(w io.Writer) {
-	gateway.loggerOutputs = append(gateway.loggerOutputs, w)
-	gateway.logger = gateway.logger.Output(io.MultiWriter(gateway.loggerOutputs...))
-
-	for _, gate := range gateway.gates {
-		gate.AddLoggerOutput(w)
-	}
+// Close closes all listeners
+func (gateway *Gateway) Close() {
+	gateway.listeners.Range(func(k, v interface{}) bool {
+		gateway.closed <- true
+		v.(plasma.Listener).Close()
+		return false
+	})
 }
 
-// overrideLogger overrides its own logger and the logger of all child gates
-// Note that each gate updates all their proxies.
-func (gateway *Gateway) overrideLogger(logger zerolog.Logger) zerolog.Logger {
-	gateway.logger = logger.Output(io.MultiWriter(gateway.loggerOutputs...))
+func (gateway *Gateway) CloseProxy(proxyUID string) {
+	log.Println("Closing proxy with UID", proxyUID)
+	v, ok := gateway.proxies.LoadAndDelete(proxyUID)
+	if !ok {
+		return
+	}
+	proxy := v.(*Proxy)
 
-	for _, gate := range gateway.gates {
-		gate.overrideLogger(logger)
+	closeListener := true
+	gateway.proxies.Range(func(k, v interface{}) bool {
+		otherProxy := v.(*Proxy)
+		if proxy.ListenTo() == otherProxy.ListenTo() {
+			closeListener = false
+			return false
+		}
+		return true
+	})
+
+	if !closeListener {
+		return
 	}
 
-	return gateway.logger
+	v, ok = gateway.listeners.Load(proxy.ListenTo())
+	if !ok {
+		return
+	}
+	v.(plasma.Listener).Close()
 }
 
-// AddGate manually adds the given gate to the gateway for automatic management.
-// The gate's logger will be updated through the overrideLogger method.
-func (gateway *Gateway) AddGate(gate *Gate) error {
-	if _, ok := gateway.gates[gate.listenTo]; ok {
-		return ErrGateSignatureAlreadyRegistered
+func (gateway *Gateway) RegisterProxy(proxy *Proxy) error {
+	// Register new Proxy
+	proxyUID := proxy.UID()
+	log.Println("Registering proxy with UID", proxyUID)
+	gateway.proxies.Store(proxyUID, proxy)
+
+	proxy.Config.removeCallback = func() {
+		gateway.CloseProxy(proxyUID)
 	}
 
-	gate.AddLoggerOutput(io.MultiWriter(gateway.loggerOutputs...))
-	gate.overrideLogger(gateway.logger)
-	gateway.gates[gate.listenTo] = gate
+	proxy.Config.changeCallback = func() {
+		if proxyUID == proxy.UID() {
+			return
+		}
+		gateway.CloseProxy(proxyUID)
+		if err := gateway.RegisterProxy(proxy); err != nil {
+			log.Println(err)
+		}
+	}
 
-	gateway.logger.Debug().
-		Str("gate", gate.listenTo).
-		Msg("Added gate to gateway")
-
-	if !gateway.running {
+	// Check if a gate is already listening to the Proxy address
+	addr := proxy.ListenTo()
+	if _, ok := gateway.listeners.Load(addr); ok {
 		return nil
 	}
+
+	log.Println("Creating listener on", addr)
+	listener, err := plasma.Listen(addr)
+	if err != nil {
+		return err
+	}
+	gateway.listeners.Store(addr, listener)
 
 	gateway.wg.Add(1)
 	go func() {
-		if err := gate.ListenAndServe(); err != nil {
-			gateway.logger.Err(err)
+		if err := gateway.listenAndServe(listener, addr); err != nil {
+			log.Printf("Failed to listen on %s; error: %s", proxy.ListenTo(), err)
+		}
+	}()
+	return nil
+}
+
+func (gateway *Gateway) listenAndServe(listener plasma.Listener, addr string) error {
+	defer gateway.wg.Done()
+
+	for {
+		conn, err := listener.Accept()
+		if err != nil {
+			if err.Error() == "use of closed network connection" {
+				log.Println("Closing listener on", addr)
+				gateway.listeners.Delete(addr)
+				return nil
+			}
+
+			continue
 		}
 
-		delete(gateway.gates, gate.listenTo)
-		gateway.wg.Done()
-	}()
-
-	return nil
-}
-
-// RemoveGate closes the gate and then removes it from the gateway.
-// If the gate does not exist, RemoveGate is a no-op.
-func (gateway *Gateway) RemoveGate(addr string) {
-	gate, ok := gateway.gates[addr]
-	if !ok {
-		return
-	}
-
-	gate.Close()
-	delete(gateway.gates, addr)
-}
-
-// AddProxyByViper adds a proxy by its viper configuration.
-// This enables the ability to watch the config file to update
-// the proxy accordingly to changes.
-func (gateway *Gateway) AddProxyByViper(vpr *viper.Viper) (*Proxy, error) {
-	cfg, err := LoadProxyConfig(vpr)
-	if err != nil {
-		return nil, err
-	}
-
-	proxy, err := NewProxy(cfg)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := gateway.AddProxy(proxy); err != nil {
-		return proxy, err
-	}
-
-	vpr.WatchConfig()
-	vpr.OnConfigChange(gateway.onConfigChange(proxy, vpr))
-	return proxy, nil
-}
-
-func (gateway *Gateway) AddProxy(proxy *Proxy) error {
-	gate, ok := gateway.gates[proxy.listenTo]
-	if ok {
-		return gate.AddProxy(proxy)
-	}
-
-	gate, err := NewGate(proxy.listenTo)
-	if err != nil {
-		return err
-	}
-
-	if err := gateway.AddGate(gate); err != nil {
-		return err
-	}
-
-	if err := gate.AddProxy(proxy); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// RemoveProxy closes the proxy and then removes it from it's gate.
-// If the proxy does not exist, RemoveProxy is a no-op.
-func (gateway *Gateway) RemoveProxy(addr, domainName string) {
-	gate, ok := gateway.gates[addr]
-	if !ok {
-		return
-	}
-
-	gate.RemoveProxy(domainName)
-}
-
-// ListenAndServe starts all gates
-func (gateway *Gateway) ListenAndServe() error {
-	gateway.logger.Info().Msgf("Starting gateway")
-
-	if len(gateway.gates) <= 0 {
-		return ErrNoGateInGateway
-	}
-
-	gateway.running = true
-
-	for _, gate := range gateway.gates {
-		loopGate := *gate
-		gateway.wg.Add(1)
 		go func() {
-			if err := loopGate.ListenAndServe(); err != nil {
-				gateway.logger.Err(err)
+			log.Printf("[>] Incoming %s on listener %s", conn.RemoteAddr(), addr)
+			if err := gateway.serve(conn, addr); err != nil {
+				log.Printf("[x] %s closed connection with %s; error: %s", conn.RemoteAddr(), addr, err)
+				return
 			}
-			delete(gateway.gates, loopGate.listenTo)
-			gateway.wg.Done()
+			log.Printf("[x] %s closed connection with %s", conn.RemoteAddr(), addr)
+			conn.Close()
 		}()
 	}
-
-	gateway.wg.Wait()
-	gateway.running = false
-	return nil
 }
 
-// Close closes all gates
-func (gateway *Gateway) Close() {
-	for _, gate := range gateway.gates {
-		gate.Close()
-	}
-}
-
-func (gateway *Gateway) onConfigChange(proxy *Proxy, vpr *viper.Viper) func(fsnotify.Event) {
-	return func(in fsnotify.Event) {
-		if in.Op != fsnotify.Write {
-			return
-		}
-
-		logger := gateway.logger.With().Str("path", in.Name).Logger()
-		logger.Info().Msg("Configuration changed")
-
-		cfg, err := LoadProxyConfig(vpr)
-		if err != nil {
-			logger.Err(err).Msg("Failed to load configuration")
-			return
-		}
-
-		if err := gateway.UpdateProxy(proxy, cfg); err != nil {
-			logger.Err(err)
-		}
-	}
-}
-
-func (gateway *Gateway) UpdateProxy(proxy *Proxy, cfg ProxyConfig) error {
-	if cfg.ListenTo == proxy.listenTo {
-		gate, ok := gateway.gates[proxy.listenTo]
-		if !ok {
-			return ErrGateDoesNotExist
-		}
-
-		return gate.UpdateProxy(proxy, cfg)
+func (gateway *Gateway) serve(conn plasma.Conn, addr string) error {
+	pk, err := conn.PeekPacket()
+	if err != nil {
+		return err
 	}
 
-	gate, ok := gateway.gates[cfg.ListenTo]
+	hs, err := handshaking.UnmarshalServerBoundHandshake(pk)
+	if err != nil {
+		return err
+	}
+
+	proxyUID := proxyUID(hs.ParseServerAddress(), addr)
+
+	log.Printf("[i] %s requests proxy with UID %s", conn.RemoteAddr(), proxyUID)
+	v, ok := gateway.proxies.Load(proxyUID)
 	if !ok {
-		oldAddr := proxy.listenTo
-		oldDomainName := proxy.domainName
-
-		if err := proxy.updateConfig(cfg); err != nil {
-			return err
-		}
-
-		if err := gateway.AddProxy(proxy); err != nil {
-			return err
-		}
-
-		gateway.RemoveProxy(oldAddr, oldDomainName)
-		return nil
+		// Client send an invalid address/port; we don't have a v for that address
+		return errors.New("no proxy with uid " + proxyUID)
 	}
+	proxy := v.(*Proxy)
 
-	if err := proxy.updateConfig(cfg); err != nil {
+	if err := proxy.handleConn(conn); err != nil {
+		proxy.CallbackLogger().LogEvent(callback.ErrorEvent{
+			Error:    err.Error(),
+			ProxyUID: proxyUID,
+		})
 		return err
 	}
-
-	if err := gate.AddProxy(proxy); err != nil {
-		return err
-	}
-
-	gate.RemoveProxy(proxy.domainName)
 	return nil
 }

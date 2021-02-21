@@ -2,9 +2,6 @@
    <img width="300" height="auto" src="https://i.imgur.com/sD8cjJc.png">
  </p>
 
-
-
-
 # Infrared
 
 An ultra lightweight Minecraft reverse proxy and idle placeholder:
@@ -19,8 +16,7 @@ It works similar to Nginx for those of you who are familiar.
 - [x] Display Placeholder Server
 - [x] Autostart Server when pinged
 - [x] Logger Callback URLs
-- [ ] JSON Endpoint for logs
-- [ ] gRPC API for live data
+- [ ] REST API
 
 ## Deploy
 
@@ -44,101 +40,150 @@ $ docker build --no-cache -t haveachin/infrared:latest https://github.com/haveac
 
 **Info**: Command-line flags override environment variables.
 
-`INFRARED_DEBUG` enables debug logs [default: `false`]  
-`INFRARED_COLOR` enables colorful logs [default: `true`]  
 `INFRARED_CONFIG_PATH` is the path to all your server configs [default: `"./configs/"`]
 
 ## Command-Line Flags
 
-`-debug` enables debug logs [default: `false`]  
-`-color` enables colorful logs [default: `true`]  
 `-config-path` specifies the path to all your server configs [default: `"./configs/"`]
 
 ### Example Usage
 
-`./infrared -debug=true -config-path="."`
+`./infrared -config-path="."`
 
-## Configs
+## Proxy Config
 
-Infrared handles configs similar to Nginx.
-Every proxy has its own config file that has to end in `.yml` or `.yaml`.
-All config options are listed below, but only the marked* fields are required for a valid config file.
+| Field Name        | Type    | Required | Default                                        | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+|-------------------|---------|----------|------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| domainName        | String  | true     | localhost                                      | Should be [fully qualified domain name](https://en.wikipedia.org/wiki/Domain_name). <br>Note: Every string is accepted. So `localhost` is also valid.                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| listenTo          | String  | true     | :25565                                         | The address (usually just the port; so short term `:port`) that the proxy should listen to for incoming connections.<br>Accepts basically every address format you throw at it. Valid examples: `:25565`, `localhost:25565`, `0.0.0.0:25565`, `127.0.0.1:25565`, `example.de:25565`                                                                                                                                                                                                                                                                                                        |
+| proxyTo           | String  | true     |                                                | The address that the proxy should send incoming connections to. Accepts Same formats as the `listenTo` field.                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| disconnectMessage | String  | false    | Sorry {{username}}, but the server is offline. | The message a client sees when he gets disconnected from Infrared due to the server on `proxyTo` won't respond. Currently available placeholders:<br>- `username` the username of player that tries to connect<br>- `now` the current server time<br>- `remoteAddress` the address of the client that tries to connect<br>- `localAddress` the local address of the server<br>- `domain` the domain of the proxy (same as `domainName`)<br>- `proxyTo` the address that the proxy proxies to (same as `proxyTo`)<br>- `listenTo` the address that Infrared listens on (same as `listenTo`) |
+| timeout           | Integer | true     | 1000                                           | The time in milliseconds for the proxy to wait for a ping response before the host (the address you proxyTo) will be declared as offline. This "online check" will be resend for every new connection.                                                                                                                                                                                                                                                                                                                                                                                     |
+| proxyProtocol     | Boolean | false    | false                                          | If Infrared should use HAProxy's Proxy Protocol for IP **forwarding**.<br>Warning: You should only ever set this to true if you now that the server you `proxyTo` is compatible.                                                                                                                                                                                                                                                                                                                                                                                                           |
+| docker            | Object  | false    | See [Docker](#Docker)                          | Optional Docker configuration to automatically start a container and stop it again if unused.  <br>Note: Infrared will not take direct connections into account. Be sure to route all traffic that connects to the container through Infrared.                                                                                                                                                                                                                                                                                                                                             |
+| onlineStatus      | Object  | false    |                                                | This is the response that Infrared will give when a client asks for the server status and the server is online.                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| offlineStatus     | Object  | false    | See [Response Status](#Response Status)        | This is the response that Infrared will give when a client asks for the server status and the server is offline.                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| callbackServer    | Object  | false    | See [Callback Server](#Callback Server)        | Optional callback server configuration to send events as a POST request to a specified URL.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 
-`DomainName`* is a [fully qualified domain name](https://en.wikipedia.org/wiki/Domain_name)  
-`ListenTo` is the address (usually just the port) that the proxy should listen to for incoming connections [default: `":25565"`]  
-`ProxyTo`* is the address that the proxy should send incoming connections to\
-`ProxyProtocol` enables HAProxy's PROXY protocol for IP forwarding (ONLY SET THIS TO TRUE IF THE SERVER YOU `ProxyTo` IS COMPATIBLE)\
-`Timeout` is the [time](https://golang.org/pkg/time/#ParseDuration) to wait before shutting down the server after all players have left [default: `5m`]  
+### Docker
 
-`Docker`* is a data object that represents a docker interface
-- `DNSServer` is the address of the DNS that resolves container names [default: `"127.0.0.11"`]
-- `ContainerName`* is the Name of the container that contains the Minecraft server
-- `Portainer` is a data object that represents a Portainer interface that is only needed
-if you are using [Portainer](https://www.portainer.io/) for user privilege management
-  - `Address`* is the address of the Portainer instance
-  - `EndpointID`* is the id of the docker endpoint
-  - `Username`* is the username for the Portainer user
-  - `Password`* is the password for the Portainer user
+| Field Name    | Type   | Required | Default    | Description                                                                 |
+|---------------|--------|----------|------------|-----------------------------------------------------------------------------|
+| dnsServer     | String | false    | 127.0.0.11 | The address of the DNS that resolves the container names.                   |
+| containerName | String | true     |            | The name of the container that should be automatically started/stopped.     |
+| portainer     | Object | false    |            | Optional [Portainer](#Portainer) configuration for authorization management.|
 
-`Server` is a data object that represents an [SLP response](https://wiki.vg/Server_List_Ping)
-from a vanilla Minecraft server
-- `DisconnectMessage` is the text that gets displayed as the reason for the disconnect
-(use $username when you want to use their username) [default: `"Hey §e$username§r! The server was sleeping but it is starting now."`]  
-- `Version` is the Minecraft version displayed with the placeholder [default: `"Infrared 1.15.2"`]
-- `Protocol` is the [version number](https://wiki.vg/Protocol_version_numbers) of the protocol that is used [default: `578`]
-- `Icon` is the path to the icon image that is displayed on the client side
-- `Motd` is the Motd of a Minecraft server [default: `"Powered by Infrared"`]
-- `MaxPlayers` is the maximum of players that can join the Minecraft server [default: `20`]
-- `PlayersOnline` is the amount of players that are currently online on the server [default: `0`]
-- `Players` is an array of players that is shown on the client side as the user hovers over the player count
-    - `Name` is the player name displayed
-    - `ID` is the UUID of the player (important for the player head next to the name)
+#### Portainer
 
-`CallbackLog` is a data object that represents a callback log writer
-- `URL` is the URL for the callback log server (logs are sent as JSON via POST-Method)
-- `Events` specify the logs that are sent to the callback URL (all logs are sent if this is empty or nonexistent)
-  - `Error` will send error logs
-  - `PlayerJoin` will send player joins
-  - `PlayerLeave` will send player leaves
-  - `ContainerStart` will send container starts
-  - `ContainerStop` will send container stops
-  - `ContainerTimeout` will send container shutdown timer starts (when the last player has left the server)
+More info on [Portainer](https://www.portainer.io/).
 
-## Example Config for a Vanilla Server
+| Field Name | Type   | Required | Default | Description                                                                   |
+|------------|--------|----------|---------|-------------------------------------------------------------------------------|
+| address    | String | true     |         | URL of the Portainer instance.                                                |
+| endpointId | String | true     |         | The ID typically an integer of the docker endpoint in the portainer instance. |
+| username   | String | true     |         | Username for the Portainer user.                                              |
+| password   | String | true     |         | Password for the Portainer user.                                              |
 
-`mc.example.com.yml`
+### Response Status
 
-```yaml
-DomainName: "mc.example.com"
-ProxyTo: ":8080"
-ProxyProtocol: false
-Timeout: "13m37s"
-Docker:
-  DNSServer: "127.0.0.11"
-  ContainerName: "mc"
-  Portainer:
-    Address: "localhost:9000"
-    EndpointID: "1"
-    Username: "admin"
-    Password: "foobar"
-Server:
-  DisconnectMessage: "Sorry §e$username§r, but the server is §osleeping§r right now."
-  Version: "1.14.4"
-  Protocol: 498
-  Icon: "/path/to/icon.png"
-  Motd: "Server is currently sleeping"
-  MaxPlayers: 20
-  PlayersOnline: 2
-  Players:
-    - Name: "Steve"
-      ID: "8667ba71-b85a-4004-af54-457a9734eed7"
-    - Name: "Alex"
-      ID: "ec561538-f3fd-461d-aff5-086b22154bce"
-CallbackLog:
-  URL: "http://localhost:8080/logs"
-  Events:
-    - "Error"
-    - "PlayerJoin"
-    - "PlayerLeave"
-    - "ContainerStart"
+| Field Name     | Type    | Required | Default         | Description                                                                                                                                          |
+|----------------|---------|----------|-----------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
+| versionName    | String  | false    | Infrared 1.16.5 | The version name of the Minecraft Server.                                                                                                            |
+| protocolNumber | Integer | true     | 754             | The protocol version number.                                                                                                                         |
+| maxPlayers     | Integer | false    | 20              | The maximum number of players that can join the server.<br>Note: Infrared will not limit more players from joining. This number is just for display. |
+| playersOnline  | Integer | false    | 0               | The number of online players.<br>Note: Infrared will not that this number is also just for display.                                                  |
+| playerSamples  | Array   | false    |                 | An array of player samples. See [Player Sample](#Player Sample).                                                                                     |
+| iconPath       | String  | false    |                 | The path to the server icon.                                                                                                                         |
+| motd           | String  | false    |                 | The motto of the day, short MOTD.                                                                                                                    |
+
+#### Player Sample
+
+| Field Name | Type   | Required | Default | Description             |
+|------------|--------|----------|---------|-------------------------|
+| Name       | String | true     |         | Username of the player. |
+| uuid       | String | false    |         | UUID of the player.     |
+
+### Callback Server
+
+| Field Name | Type   | Required | Default | Description                                                                                                                                                                                                                                                                             |
+|------------|--------|----------|---------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| url        | String | true     |         | URL of the callback server URL.                                                                                                                                                                                                                                                         |
+| events     | Array  | true     |         | A string array of event names. Currently available event names are:<br>- `Error` will send error logs<br>- `PlayerJoin` will send player joins<br>- `PlayerLeave` will send player leaves<br>- `ContainerStart` will send container starts<br>- `ContainerStop` will send container stops |
+
+
+### Examples
+
+#### Minimal Config
+
+<details>
+<summary>min.example.com</summary>
+
+```json
+{
+  "proxyTo": ":8080"
+}
 ```
+
+</details>
+
+#### Full Config
+
+<details>
+<summary>full.example.com</summary>
+
+```json
+{
+  "domainName": "mc.example.com",
+  "listenTo": ":25565",
+  "proxyTo": ":8080",
+  "timeout": 1000,
+  "disconnectMessage": "Username: {{username}}\nNow: {{now}}\nRemoteAddress: {{remoteAddress}}\nLocalAddress: {{localAddress}}\nDomain: {{domain}}\nProxyTo: {{proxyTo}}\nListenTo: {{listenTo}}",
+  "docker": {
+    "dnsServer": "127.0.0.11",
+    "containerName": "mc",
+    "timeout": 30000,
+    "portainer": {
+      "address": "localhost:9000",
+      "endpointId": "1",
+      "username": "admin",
+      "password": "foobar"
+    }
+  },
+  "onlineStatus": {
+    "versionName": "1.16.5",
+    "protocolNumber": 754,
+    "maxPlayers": 20,
+    "playersOnline": 2,
+    "playerSamples": [
+      {
+        "name": "Steve",
+        "uuid": "8667ba71-b85a-4004-af54-457a9734eed7"
+      },
+      {
+        "name": "Alex",
+        "uuid": "ec561538-f3fd-461d-aff5-086b22154bce"
+      }
+    ],
+    "motd": "Join us!"
+  },
+  "offlineStatus": {
+    "versionName": "1.16.5",
+    "protocolNumber": 754,
+    "maxPlayers": 20,
+    "playersOnline": 0,
+    "motd": "Server is currently offline"
+  },
+  "callbackServer": {
+    "url": "https://mc.example.com/callback",
+    "events": [
+      "Error",
+      "PlayerJoin",
+      "PlayerLeave",
+      "ContainerStart",
+      "ContainerStop"
+    ]
+  }
+}
+```
+
+</details>
