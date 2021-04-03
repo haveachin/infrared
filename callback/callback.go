@@ -3,46 +3,81 @@ package callback
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"time"
 )
 
+// HTTPClient represents an interface for the Logger to log events with.
+type HTTPClient interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
+// EventLog
+type EventLog struct {
+	Event     string      `json:"event"`
+	Timestamp time.Time   `json:"timestamp"`
+	Payload   interface{} `json:"payload"`
+}
+
+func newEventLog(event Event) EventLog {
+	return EventLog{
+		Event:     event.EventType(),
+		Timestamp: time.Now(),
+		Payload:   event,
+	}
+}
+
+// Logger can post events to an http endpoint
 type Logger struct {
+	client HTTPClient
+
 	URL    string
 	Events []string
 }
 
-func (w Logger) LogEvent(event Event) {
-	if w.URL == "" || len(w.Events) < 0 {
-		return
-	}
+func (logger Logger) isValid() bool {
+	return logger.URL != "" && len(logger.Events) > 0
+}
 
+// hasEvent checks if Logger.Events contain the given event's type.
+func (logger Logger) hasEvent(event Event) bool {
 	hasEvent := false
-	for _, e := range w.Events {
+	for _, e := range logger.Events {
 		if e == event.EventType() {
 			hasEvent = true
 			break
 		}
 	}
+	return hasEvent
+}
 
-	if !hasEvent {
-		return
+// LogEvent posts the given event to an http endpoint if the Logger
+// holds a valid URL and the Logger.Events contains given event's type.
+func (logger Logger) LogEvent(event Event) (*EventLog, error) {
+	if !logger.isValid() {
+		return nil, errors.New("invalid logger")
 	}
 
-	eventLog := struct {
-		Event     string      `json:"event"`
-		Timestamp time.Time   `json:"timestamp"`
-		Payload   interface{} `json:"payload"`
-	}{
-		Event:     event.EventType(),
-		Timestamp: time.Now(),
-		Payload:   event,
+	if !logger.hasEvent(event) {
+		return nil, errors.New("event not logged")
 	}
 
+	eventLog := newEventLog(event)
 	bb, err := json.Marshal(eventLog)
 	if err != nil {
-		return
+		return nil, err
 	}
 
-	_, _ = http.Post(w.URL, "application/json", bytes.NewReader(bb))
+	request, err := http.NewRequest(http.MethodPost, logger.URL, bytes.NewReader(bb))
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = logger.client.Do(request)
+	if err != nil {
+		return nil, err
+	}
+
+	return &eventLog, nil
 }
