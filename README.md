@@ -2,6 +2,8 @@
    <img width="300" height="auto" src="https://i.imgur.com/sD8cjJc.png">
  </p>
 
+### [Join Our Discord](https://discord.gg/r98YPRsZAx)
+
 # Infrared
 
 An ultra lightweight Minecraft reverse proxy and idle placeholder:
