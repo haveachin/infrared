@@ -20,7 +20,6 @@ require (
 	github.com/opencontainers/image-spec v1.0.1 // indirect
 	github.com/pires/go-proxyproto v0.4.2
 	github.com/sirupsen/logrus v1.7.0 // indirect
-	github.com/specspace/plasma v0.0.0-20210204183653-02301d38bb1a
 	golang.org/x/net v0.0.0-20210119194325-5f4716e94777
 	golang.org/x/sys v0.0.0-20210124154548-22da62e12c0c // indirect
 	golang.org/x/time v0.0.0-20201208040808-7e3f01d25324 // indirect

@@ -4,12 +4,10 @@ import (
 	"fmt"
 	"github.com/haveachin/infrared/callback"
 	"github.com/haveachin/infrared/process"
+	"github.com/haveachin/infrared/protocol"
+	"github.com/haveachin/infrared/protocol/handshaking"
+	"github.com/haveachin/infrared/protocol/login"
 	"github.com/pires/go-proxyproto"
-	"github.com/specspace/plasma"
-	"github.com/specspace/plasma/protocol"
-	"github.com/specspace/plasma/protocol/packets/handshaking"
-	"github.com/specspace/plasma/protocol/packets/login"
-	"github.com/specspace/plasma/protocol/packets/status"
 	"log"
 	"strings"
 	"sync"
@@ -24,7 +22,7 @@ type Proxy struct {
 	Config *ProxyConfig
 
 	cancelTimeoutFunc func()
-	players           map[plasma.Conn]string
+	players           map[Conn]string
 	mu                sync.Mutex
 }
 
@@ -96,39 +94,13 @@ func (proxy *Proxy) IsOnlineStatusConfigured() bool {
 func (proxy *Proxy) OnlineStatusPacket() (protocol.Packet, error) {
 	proxy.Config.Lock()
 	defer proxy.Config.Unlock()
-	if proxy.Config.onlineStatusPacket != nil {
-		return *proxy.Config.onlineStatusPacket, nil
-	}
-
-	bb, err := proxy.Config.OnlineStatus.StatusResponse().JSON()
-	if err != nil {
-		return protocol.Packet{}, err
-	}
-
-	pk := status.ClientBoundResponse{
-		JSONResponse: protocol.String(bb),
-	}.Marshal()
-	proxy.Config.onlineStatusPacket = &pk
-	return pk, nil
+	return proxy.Config.OnlineStatus.StatusResponsePacket()
 }
 
 func (proxy *Proxy) OfflineStatusPacket() (protocol.Packet, error) {
 	proxy.Config.Lock()
 	defer proxy.Config.Unlock()
-	if proxy.Config.offlineStatusPacket != nil {
-		return *proxy.Config.offlineStatusPacket, nil
-	}
-
-	bb, err := proxy.Config.OfflineStatus.StatusResponse().JSON()
-	if err != nil {
-		return protocol.Packet{}, err
-	}
-
-	pk := status.ClientBoundResponse{
-		JSONResponse: protocol.String(bb),
-	}.Marshal()
-	proxy.Config.offlineStatusPacket = &pk
-	return pk, nil
+	return proxy.Config.OfflineStatus.StatusResponsePacket()
 }
 
 func (proxy *Proxy) Timeout() time.Duration {
@@ -162,27 +134,27 @@ func (proxy *Proxy) UID() string {
 	return proxyUID(proxy.DomainName(), proxy.ListenTo())
 }
 
-func (proxy *Proxy) addPlayer(conn plasma.Conn, username string) {
+func (proxy *Proxy) addPlayer(conn Conn, username string) {
 	proxy.mu.Lock()
 	defer proxy.mu.Unlock()
 	if proxy.players == nil {
-		proxy.players = map[plasma.Conn]string{}
+		proxy.players = map[Conn]string{}
 	}
 	proxy.players[conn] = username
 }
 
-func (proxy *Proxy) removePlayer(conn plasma.Conn) int {
+func (proxy *Proxy) removePlayer(conn Conn) int {
 	proxy.mu.Lock()
 	defer proxy.mu.Unlock()
 	if proxy.players == nil {
-		proxy.players = map[plasma.Conn]string{}
+		proxy.players = map[Conn]string{}
 		return 0
 	}
 	delete(proxy.players, conn)
 	return len(proxy.players)
 }
 
-func (proxy *Proxy) handleConn(conn plasma.Conn) error {
+func (proxy *Proxy) handleConn(conn Conn) error {
 	pk, err := conn.ReadPacket()
 	if err != nil {
 		return err
@@ -195,7 +167,7 @@ func (proxy *Proxy) handleConn(conn plasma.Conn) error {
 
 	proxyTo := proxy.ProxyTo()
 	proxyUID := proxy.UID()
-	rconn, err := plasma.DialTimeout(proxyTo, proxy.Timeout())
+	rconn, err := DialTimeout(proxyTo, proxy.Timeout())
 	if err != nil {
 		log.Printf("[i] %s did not respond to ping; is the target offline?", proxyTo)
 		if hs.IsStatusRequest() {
@@ -264,7 +236,7 @@ func (proxy *Proxy) handleConn(conn plasma.Conn) error {
 	return nil
 }
 
-func pipe(src, dst plasma.Conn) {
+func pipe(src, dst Conn) {
 	buffer := make([]byte, 0xffff)
 
 	for {
@@ -337,7 +309,7 @@ func (proxy *Proxy) cancelProcessTimeout() {
 	proxy.cancelTimeoutFunc = nil
 }
 
-func (proxy *Proxy) sniffUsername(conn, rconn plasma.Conn) (string, error) {
+func (proxy *Proxy) sniffUsername(conn, rconn Conn) (string, error) {
 	pk, err := conn.ReadPacket()
 	if err != nil {
 		return "", err
@@ -352,7 +324,7 @@ func (proxy *Proxy) sniffUsername(conn, rconn plasma.Conn) (string, error) {
 	return string(ls.Name), nil
 }
 
-func (proxy *Proxy) handleLoginRequest(conn plasma.Conn) error {
+func (proxy *Proxy) handleLoginRequest(conn Conn) error {
 	packet, err := conn.ReadPacket()
 	if err != nil {
 		return err
@@ -383,7 +355,7 @@ func (proxy *Proxy) handleLoginRequest(conn plasma.Conn) error {
 	}.Marshal())
 }
 
-func (proxy *Proxy) handleStatusRequest(conn plasma.Conn, online bool) error {
+func (proxy *Proxy) handleStatusRequest(conn Conn, online bool) error {
 	// Read the request packet and send status response back
 	_, err := conn.ReadPacket()
 	if err != nil {
