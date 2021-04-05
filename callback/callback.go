@@ -3,7 +3,6 @@ package callback
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"net/http"
 	"time"
 )
@@ -55,12 +54,16 @@ func (logger Logger) hasEvent(event Event) bool {
 // LogEvent posts the given event to an http endpoint if the Logger
 // holds a valid URL and the Logger.Events contains given event's type.
 func (logger Logger) LogEvent(event Event) (*EventLog, error) {
+	if logger.client == nil {
+		logger.client = http.DefaultClient
+	}
+
 	if !logger.isValid() {
-		return nil, errors.New("invalid logger")
+		return nil, nil
 	}
 
 	if !logger.hasEvent(event) {
-		return nil, errors.New("event not logged")
+		return nil, nil
 	}
 
 	eventLog := newEventLog(event)
