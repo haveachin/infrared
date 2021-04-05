@@ -2,7 +2,7 @@
    <img width="300" height="auto" src="https://i.imgur.com/sD8cjJc.png">
  </p>
 
-### [Join Our Discord](https://discord.gg/r98YPRsZAx)
+[<img src="https://discord.com/assets/e4923594e694a21542a489471ecffa50.svg" height="80px">](https://discord.gg/r98YPRsZAx)
 
 # Infrared
 
