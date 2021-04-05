@@ -30,6 +30,7 @@ type ProxyConfig struct {
 	ListenTo          string               `json:"listenTo"`
 	ProxyTo           string               `json:"proxyTo"`
 	ProxyProtocol     bool                 `json:"proxyProtocol"`
+	RealIP            bool                 `json:"realIp"`
 	Timeout           int                  `json:"timeout"`
 	DisconnectMessage string               `json:"disconnectMessage"`
 	Docker            DockerConfig         `json:"docker"`

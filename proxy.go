@@ -85,6 +85,7 @@ func (proxy *Proxy) DisconnectMessage() string {
 	defer proxy.Config.RUnlock()
 	return proxy.Config.DisconnectMessage
 }
+
 func (proxy *Proxy) IsOnlineStatusConfigured() bool {
 	proxy.Config.Lock()
 	defer proxy.Config.Unlock()
@@ -119,6 +120,12 @@ func (proxy *Proxy) ProxyProtocol() bool {
 	proxy.Config.RLock()
 	defer proxy.Config.RUnlock()
 	return proxy.Config.ProxyProtocol
+}
+
+func (proxy *Proxy) RealIP() bool {
+	proxy.Config.RLock()
+	defer proxy.Config.RUnlock()
+	return proxy.Config.RealIP
 }
 
 func (proxy *Proxy) CallbackLogger() callback.Logger {
@@ -198,6 +205,13 @@ func (proxy *Proxy) handleConn(conn Conn) error {
 			return err
 		}
 	}
+
+	if proxy.RealIP() {
+		hs.UpgradeToRealIP(conn.RemoteAddr())
+		pk = hs.Marshal()
+	}
+
+	log.Println(hs.ServerAddress)
 
 	if err := rconn.WritePacket(pk); err != nil {
 		return err
