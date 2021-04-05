@@ -1,11 +1,14 @@
 package infrared
 
 import (
+	"bufio"
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"github.com/fsnotify/fsnotify"
 	"github.com/haveachin/infrared/process"
-	"github.com/specspace/plasma"
-	"github.com/specspace/plasma/protocol"
+	"github.com/haveachin/infrared/protocol"
+	"github.com/haveachin/infrared/protocol/status"
 	"io/ioutil"
 	"log"
 	"os"
@@ -19,16 +22,15 @@ type ProxyConfig struct {
 	sync.RWMutex
 	watcher *fsnotify.Watcher
 
-	removeCallback      func()
-	changeCallback      func()
-	process             process.Process
-	onlineStatusPacket  *protocol.Packet
-	offlineStatusPacket *protocol.Packet
+	removeCallback func()
+	changeCallback func()
+	process        process.Process
 
 	DomainName        string               `json:"domainName"`
 	ListenTo          string               `json:"listenTo"`
 	ProxyTo           string               `json:"proxyTo"`
 	ProxyProtocol     bool                 `json:"proxyProtocol"`
+	RealIP            bool                 `json:"realIp"`
 	Timeout           int                  `json:"timeout"`
 	DisconnectMessage string               `json:"disconnectMessage"`
 	Docker            DockerConfig         `json:"docker"`
@@ -60,6 +62,8 @@ func (docker DockerConfig) IsPortainer() bool {
 }
 
 type StatusConfig struct {
+	cachedPacket *protocol.Packet
+
 	VersionName    string `json:"versionName"`
 	ProtocolNumber int    `json:"protocolNumber"`
 	MaxPlayers     int    `json:"maxPlayers"`
@@ -72,28 +76,79 @@ type StatusConfig struct {
 	MOTD     string `json:"motd"`
 }
 
-func (status StatusConfig) StatusResponse() plasma.StatusResponse {
-	var players []plasma.PlayerInfo
-	for _, sample := range status.PlayerSamples {
-		players = append(players, plasma.PlayerInfo{
+func (cfg StatusConfig) StatusResponsePacket() (protocol.Packet, error) {
+	if cfg.cachedPacket != nil {
+		return *cfg.cachedPacket, nil
+	}
+
+	var samples []status.PlayerSampleJSON
+	for _, sample := range cfg.PlayerSamples {
+		samples = append(samples, status.PlayerSampleJSON{
 			Name: sample.Name,
-			UUID: sample.UUID,
+			ID:   sample.UUID,
 		})
 	}
 
-	return plasma.StatusResponse{
-		Version: plasma.Version{
-			Name:           status.VersionName,
-			ProtocolNumber: status.ProtocolNumber,
+	responseJSON := status.ResponseJSON{
+		Version: status.VersionJSON{
+			Name:     cfg.VersionName,
+			Protocol: cfg.ProtocolNumber,
 		},
-		PlayersInfo: plasma.PlayersInfo{
-			MaxPlayers:    status.MaxPlayers,
-			PlayersOnline: status.PlayersOnline,
-			Players:       players,
+		Players: status.PlayersJSON{
+			Max:    cfg.MaxPlayers,
+			Online: cfg.PlayersOnline,
+			Sample: samples,
 		},
-		IconPath: status.IconPath,
-		MOTD:     status.MOTD,
+		Description: status.DescriptionJSON{
+			Text: cfg.MOTD,
+		},
 	}
+
+	if cfg.IconPath != "" {
+		img64, err := loadImageAndEncodeToBase64String(cfg.IconPath)
+		if err != nil {
+			return protocol.Packet{}, err
+		}
+		responseJSON.Favicon = fmt.Sprintf("data:image/png;base64,%s", img64)
+	}
+
+	bb, err := json.Marshal(responseJSON)
+	if err != nil {
+		return protocol.Packet{}, err
+	}
+
+	packet := status.ClientBoundResponse{
+		JSONResponse: protocol.String(bb),
+	}.Marshal()
+
+	cfg.cachedPacket = &packet
+	return packet, nil
+}
+
+func loadImageAndEncodeToBase64String(path string) (string, error) {
+	if path == "" {
+		return "", nil
+	}
+
+	imgFile, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer imgFile.Close()
+
+	fileInfo, err := imgFile.Stat()
+	if err != nil {
+		return "", err
+	}
+
+	buffer := make([]byte, fileInfo.Size())
+	fileReader := bufio.NewReader(imgFile)
+	_, err = fileReader.Read(buffer)
+	if err != nil {
+		return "", nil
+	}
+
+	return base64.StdEncoding.EncodeToString(buffer), nil
 }
 
 type CallbackServerConfig struct {
@@ -254,8 +309,8 @@ func (cfg *ProxyConfig) onConfigWrite(event fsnotify.Event) {
 		log.Printf("Failed update on %s; error %s", event.Name, err)
 		return
 	}
-	cfg.onlineStatusPacket = nil
-	cfg.offlineStatusPacket = nil
+	cfg.OnlineStatus.cachedPacket = nil
+	cfg.OfflineStatus.cachedPacket = nil
 	cfg.process = nil
 	cfg.changeCallback()
 }

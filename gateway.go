@@ -3,8 +3,7 @@ package infrared
 import (
 	"errors"
 	"github.com/haveachin/infrared/callback"
-	"github.com/specspace/plasma"
-	"github.com/specspace/plasma/protocol/packets/handshaking"
+	"github.com/haveachin/infrared/protocol/handshaking"
 	"log"
 	"sync"
 )
@@ -39,7 +38,7 @@ func (gateway *Gateway) ListenAndServe(proxies []*Proxy) error {
 func (gateway *Gateway) Close() {
 	gateway.listeners.Range(func(k, v interface{}) bool {
 		gateway.closed <- true
-		v.(plasma.Listener).Close()
+		_ = v.(Listener).Close()
 		return false
 	})
 }
@@ -70,7 +69,7 @@ func (gateway *Gateway) CloseProxy(proxyUID string) {
 	if !ok {
 		return
 	}
-	v.(plasma.Listener).Close()
+	v.(Listener).Close()
 }
 
 func (gateway *Gateway) RegisterProxy(proxy *Proxy) error {
@@ -100,7 +99,7 @@ func (gateway *Gateway) RegisterProxy(proxy *Proxy) error {
 	}
 
 	log.Println("Creating listener on", addr)
-	listener, err := plasma.Listen(addr)
+	listener, err := Listen(addr)
 	if err != nil {
 		return err
 	}
@@ -115,12 +114,13 @@ func (gateway *Gateway) RegisterProxy(proxy *Proxy) error {
 	return nil
 }
 
-func (gateway *Gateway) listenAndServe(listener plasma.Listener, addr string) error {
+func (gateway *Gateway) listenAndServe(listener Listener, addr string) error {
 	defer gateway.wg.Done()
 
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
+			// TODO: Refactor this; it feels hacky
 			if err.Error() == "use of closed network connection" {
 				log.Println("Closing listener on", addr)
 				gateway.listeners.Delete(addr)
@@ -142,7 +142,7 @@ func (gateway *Gateway) listenAndServe(listener plasma.Listener, addr string) er
 	}
 }
 
-func (gateway *Gateway) serve(conn plasma.Conn, addr string) error {
+func (gateway *Gateway) serve(conn Conn, addr string) error {
 	pk, err := conn.PeekPacket()
 	if err != nil {
 		return err
