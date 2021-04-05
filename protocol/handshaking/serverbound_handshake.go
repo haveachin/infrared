@@ -1,8 +1,11 @@
 package handshaking
 
 import (
+	"fmt"
 	"github.com/haveachin/infrared/protocol"
+	"net"
 	"strings"
+	"time"
 )
 
 const (
@@ -11,8 +14,8 @@ const (
 	ServerBoundHandshakeStatusState = protocol.Byte(1)
 	ServerBoundHandshakeLoginState  = protocol.Byte(2)
 
-	ForgeAddressSuffix  = "\x00FML\x00"
-	Forge2AddressSuffix = "\x00FML2\x00"
+	ForgeSeparator  = "\x00"
+	RealIPSeparator = "///"
 )
 
 type ServerBoundHandshake struct {
@@ -61,22 +64,36 @@ func (pk ServerBoundHandshake) IsLoginRequest() bool {
 
 func (pk ServerBoundHandshake) IsForgeAddress() bool {
 	addr := string(pk.ServerAddress)
+	return len(strings.Split(addr, ForgeSeparator)) > 1
+}
 
-	if strings.HasSuffix(addr, ForgeAddressSuffix) {
-		return true
-	}
-
-	if strings.HasSuffix(addr, Forge2AddressSuffix) {
-		return true
-	}
-
-	return false
+func (pk ServerBoundHandshake) IsRealIPAddress() bool {
+	addr := string(pk.ServerAddress)
+	return len(strings.Split(addr, RealIPSeparator)) > 1
 }
 
 func (pk ServerBoundHandshake) ParseServerAddress() string {
 	addr := string(pk.ServerAddress)
-	addr = strings.TrimSuffix(addr, ForgeAddressSuffix)
-	addr = strings.TrimSuffix(addr, Forge2AddressSuffix)
+	addr = strings.Split(addr, ForgeSeparator)[0]
+	addr = strings.Split(addr, RealIPSeparator)[0]
+	// Resolves an issue with some proxies
 	addr = strings.Trim(addr, ".")
 	return addr
+}
+
+func (pk *ServerBoundHandshake) UpgradeToRealIP(clientAddr net.Addr) {
+	if pk.IsRealIPAddress() {
+		return
+	}
+
+	addr := string(pk.ServerAddress)
+	addrWithForge := strings.SplitAfter(addr, ForgeSeparator)
+
+	addr = fmt.Sprintf("%s///%s///%d", addrWithForge[0], clientAddr.String(), time.Now().Unix())
+
+	if len(addrWithForge) > 1 {
+		addr = fmt.Sprintf("%s\x00%s\x00", addr, addrWithForge[1])
+	}
+
+	pk.ServerAddress = protocol.String(addr)
 }
