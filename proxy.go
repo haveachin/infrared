@@ -161,6 +161,12 @@ func (proxy *Proxy) removePlayer(conn Conn) int {
 	return len(proxy.players)
 }
 
+func (proxy *Proxy) logEvent(event callback.Event) {
+	if _, err := proxy.CallbackLogger().LogEvent(event); err != nil {
+		log.Println("[w] Failed callback logging; error:", err)
+	}
+}
+
 func (proxy *Proxy) handleConn(conn Conn) error {
 	pk, err := conn.ReadPacket()
 	if err != nil {
@@ -211,8 +217,6 @@ func (proxy *Proxy) handleConn(conn Conn) error {
 		pk = hs.Marshal()
 	}
 
-	log.Println(hs.ServerAddress)
-
 	if err := rconn.WritePacket(pk); err != nil {
 		return err
 	}
@@ -225,7 +229,7 @@ func (proxy *Proxy) handleConn(conn Conn) error {
 			return err
 		}
 		proxy.addPlayer(conn, username)
-		proxy.CallbackLogger().LogEvent(callback.PlayerJoinEvent{
+		proxy.logEvent(callback.PlayerJoinEvent{
 			Username:      username,
 			RemoteAddress: conn.RemoteAddr().String(),
 			TargetAddress: proxyTo,
@@ -236,7 +240,7 @@ func (proxy *Proxy) handleConn(conn Conn) error {
 	go pipe(rconn, conn)
 	pipe(conn, rconn)
 
-	proxy.CallbackLogger().LogEvent(callback.PlayerLeaveEvent{
+	proxy.logEvent(callback.PlayerLeaveEvent{
 		Username:      username,
 		RemoteAddress: conn.RemoteAddr().String(),
 		TargetAddress: proxyTo,
@@ -283,7 +287,7 @@ func (proxy *Proxy) startProcessIfNotRunning() error {
 	}
 
 	log.Println("[i] Starting container for", proxy.UID())
-	proxy.CallbackLogger().LogEvent(callback.ContainerStartEvent{ProxyUID: proxy.UID()})
+	proxy.logEvent(callback.ContainerStartEvent{ProxyUID: proxy.UID()})
 	return proxy.Process().Start()
 }
 
@@ -301,7 +305,7 @@ func (proxy *Proxy) timeoutProcess() {
 	log.Printf("[i] Starting container timeout %s on %s", proxy.DockerTimeout(), proxy.UID())
 	timer := time.AfterFunc(proxy.DockerTimeout(), func() {
 		log.Println("[i] Stopping container on", proxy.UID())
-		proxy.CallbackLogger().LogEvent(callback.ContainerStopEvent{ProxyUID: proxy.UID()})
+		proxy.logEvent(callback.ContainerStopEvent{ProxyUID: proxy.UID()})
 		if err := proxy.Process().Stop(); err != nil {
 			log.Printf("[w] Failed to stop the container for %s; error: %s", proxy.UID(), err)
 		}
