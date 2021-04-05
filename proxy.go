@@ -211,8 +211,6 @@ func (proxy *Proxy) handleConn(conn Conn) error {
 		pk = hs.Marshal()
 	}
 
-	log.Println(hs.ServerAddress)
-
 	if err := rconn.WritePacket(pk); err != nil {
 		return err
 	}
