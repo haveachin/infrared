@@ -207,7 +207,7 @@ func (proxy *Proxy) handleConn(conn Conn) error {
 			DestinationAddr:   rconn.RemoteAddr(),
 		}
 
-		if _, err = header.WriteTo(conn); err != nil {
+		if _, err = header.WriteTo(rconn); err != nil {
 			return err
 		}
 	}
