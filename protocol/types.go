@@ -60,15 +60,16 @@ type (
 )
 
 // ReadNBytes read N bytes from bytes.Reader
-func ReadNBytes(r DecodeReader, n int) (bs []byte, err error) {
-	bs = make([]byte, n)
+func ReadNBytes(r DecodeReader, n int) ([]byte, error) {
+	bb := make([]byte, n)
+	var err error
 	for i := 0; i < n; i++ {
-		bs[i], err = r.ReadByte()
+		bb[i], err = r.ReadByte()
 		if err != nil {
-			return
+			return nil, err
 		}
 	}
-	return
+	return bb, nil
 }
 
 // Encode a Boolean
@@ -91,11 +92,12 @@ func (b *Boolean) Decode(r DecodeReader) error {
 }
 
 // Encode a String
-func (s String) Encode() (p []byte) {
+func (s String) Encode() []byte {
 	byteString := []byte(s)
-	p = append(p, VarInt(len(byteString)).Encode()...) // len
-	p = append(p, byteString...)                       // data
-	return
+	var bb []byte
+	bb = append(bb, VarInt(len(byteString)).Encode()...) // len
+	bb = append(bb, byteString...)                       // data
+	return bb
 }
 
 // Decode a String
@@ -105,12 +107,12 @@ func (s *String) Decode(r DecodeReader) error {
 		return err
 	}
 
-	bs, err := ReadNBytes(r, int(l))
+	bb, err := ReadNBytes(r, int(l))
 	if err != nil {
 		return err
 	}
 
-	*s = String(bs)
+	*s = String(bb)
 	return nil
 }
 
@@ -140,12 +142,12 @@ func (us UnsignedShort) Encode() []byte {
 
 // Decode a UnsignedShort
 func (us *UnsignedShort) Decode(r DecodeReader) error {
-	bs, err := ReadNBytes(r, 2)
+	bb, err := ReadNBytes(r, 2)
 	if err != nil {
 		return err
 	}
 
-	*us = UnsignedShort(int16(bs[0])<<8 | int16(bs[1]))
+	*us = UnsignedShort(int16(bb[0])<<8 | int16(bb[1]))
 	return nil
 }
 
@@ -160,31 +162,32 @@ func (l Long) Encode() []byte {
 
 // Decode a Long
 func (l *Long) Decode(r DecodeReader) error {
-	bs, err := ReadNBytes(r, 8)
+	bb, err := ReadNBytes(r, 8)
 	if err != nil {
 		return err
 	}
 
-	*l = Long(int64(bs[0])<<56 | int64(bs[1])<<48 | int64(bs[2])<<40 | int64(bs[3])<<32 |
-		int64(bs[4])<<24 | int64(bs[5])<<16 | int64(bs[6])<<8 | int64(bs[7]))
+	*l = Long(int64(bb[0])<<56 | int64(bb[1])<<48 | int64(bb[2])<<40 | int64(bb[3])<<32 |
+		int64(bb[4])<<24 | int64(bb[5])<<16 | int64(bb[6])<<8 | int64(bb[7]))
 	return nil
 }
 
 // Encode a VarInt
-func (v VarInt) Encode() (vi []byte) {
+func (v VarInt) Encode() []byte {
 	num := uint32(v)
+	var bb []byte
 	for {
 		b := num & 0x7F
 		num >>= 7
 		if num != 0 {
 			b |= 0x80
 		}
-		vi = append(vi, byte(b))
+		bb = append(bb, byte(b))
 		if num == 0 {
 			break
 		}
 	}
-	return
+	return bb
 }
 
 // Decode a VarInt
@@ -243,11 +246,11 @@ func (b OptionalByteArray) Encode() []byte {
 
 // Decode a OptionalByteArray
 func (b *OptionalByteArray) Decode(r DecodeReader) error {
-	br := bytes.NewBuffer([]byte{})
-	_, err := br.ReadFrom(r)
+	buf := bytes.NewBuffer([]byte{})
+	_, err := buf.ReadFrom(r)
 	if err != nil {
 		return err
 	}
-	*b = br.Bytes()
+	*b = buf.Bytes()
 	return nil
 }
