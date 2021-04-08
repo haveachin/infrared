@@ -3,10 +3,11 @@ package infrared
 import (
 	"bufio"
 	"crypto/cipher"
-	"github.com/haveachin/infrared/protocol"
 	"io"
 	"net"
 	"time"
+
+	"github.com/haveachin/infrared/protocol"
 )
 
 type PacketWriter interface {
@@ -58,7 +59,7 @@ type Conn interface {
 	Threshold() int
 }
 
-// wrapConn warp an net.Conn to plasma.Conn
+// wrapConn warp an net.Conn to infared.conn
 func wrapConn(c net.Conn) *conn {
 	return &conn{
 		Conn:      c,
