@@ -99,7 +99,7 @@ func TestProxyProtocol(t *testing.T) {
 }
 
 func startProxyProtoListen(portEnd int, shareCh chan<- string) *testError {
-	listenAddr := portToAddr(listenPort(portEnd))
+	listenAddr := listenAddr(portEnd)
 	listener, err := Listen(listenAddr)
 	if err != nil {
 		return &testError{err, fmt.Sprintf("Can't listen to %v", listenAddr)}
@@ -121,17 +121,15 @@ func startProxyProtoListen(portEnd int, shareCh chan<- string) *testError {
 
 func startProxyProtoDial(portEnd int, shareCh <-chan string, validator func(ip1, ip2 string) bool) (bool, *testError) {
 	time.Sleep(dialWait) // Startup time for gateway
-	gatewayPort := gatewayPort(portEnd)
-	gatewayAddr := portToAddr(gatewayPort)
+	gatewayAddr := gatewayAddr(portEnd)
 	conn, err := createConnWithFakeIP(gatewayAddr)
 	if err != nil {
 		return false, &testError{err, "Can't create connection"}
 	}
 	defer conn.Close()
 
-	pk := createStatusHankshake(portEnd)
-	if err := conn.WritePacket(pk); err != nil {
-		return false, &testError{err, "Can't write packet on connection"}
+	if err := sendHandshake(conn, portEnd); err != nil {
+		return false, err
 	}
 
 	usedIp := getIpFromAddr(conn.LocalAddr())

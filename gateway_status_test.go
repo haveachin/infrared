@@ -14,6 +14,11 @@ import (
 var serverAddr string = "infrared.gateway"
 var dialWait time.Duration = time.Duration(5 * time.Millisecond) // Startup time for gateway
 
+type testError struct {
+	Error   error
+	Message string
+}
+
 func listenPort(portEnd int) int {
 	return 20000 + portEnd
 }
@@ -22,13 +27,21 @@ func gatewayPort(portEnd int) int {
 	return 30000 + portEnd
 }
 
+func gatewayAddr(portEnd int) string {
+	return portToAddr(gatewayPort(portEnd))
+}
+
+func listenAddr(portEnd int) string {
+	return portToAddr(listenPort(portEnd))
+}
+
 func portToAddr(port int) string {
 	return fmt.Sprintf(":%d", port)
 }
 
 func createBasicProxyConfig(portEnd int) *ProxyConfig {
-	listenAddr := portToAddr(listenPort(portEnd))
-	gatewayAddr := portToAddr(gatewayPort(portEnd))
+	listenAddr := listenAddr(portEnd)
+	gatewayAddr := gatewayAddr(portEnd)
 
 	return &ProxyConfig{
 		DomainName: serverAddr,
@@ -64,6 +77,14 @@ func startGatewayProxies(proxies []*Proxy) *testError {
 	return nil
 }
 
+func sendHandshake(conn Conn, portEnd int) *testError {
+	pk := createStatusHankshake(portEnd)
+	if err := conn.WritePacket(pk); err != nil {
+		return &testError{err, "Can't write handshake"}
+	}
+	return nil
+}
+
 var serverVersionName string = "Infrared-test-online"
 var samples []PlayerSample = make([]PlayerSample, 0)
 var statusConfig StatusConfig = StatusConfig{VersionName: serverVersionName, ProtocolNumber: 754,
@@ -83,11 +104,6 @@ var offlineStatus StatusConfig = StatusConfig{
 	MOTD:           "Powered by Infrared",
 }
 
-type testError struct {
-	Error   error
-	Message string
-}
-
 func TestStatusRequest(t *testing.T) {
 	tt := []struct {
 		name            string
@@ -100,16 +116,12 @@ func TestStatusRequest(t *testing.T) {
 		{
 			name:            "ServerOnlineWithoutConfig",
 			portEnd:         570,
-			onlineStatus:    StatusConfig{},
-			offlineStatus:   StatusConfig{},
 			activeServer:    true,
 			expectedVersion: serverVersionName,
 		},
 		{
 			name:            "ServerOfflineWithoutConfig",
 			portEnd:         571,
-			onlineStatus:    StatusConfig{},
-			offlineStatus:   StatusConfig{},
 			activeServer:    false,
 			expectedVersion: "",
 		},
@@ -175,7 +187,7 @@ func TestStatusRequest(t *testing.T) {
 }
 
 func startStatusListen(portEnd int) *testError {
-	listenAddr := portToAddr(listenPort(portEnd))
+	listenAddr := listenAddr(portEnd)
 	listener, err := Listen(listenAddr)
 	if err != nil {
 		return &testError{err, fmt.Sprintf("Can't listen to %v", listenAddr)}
@@ -200,20 +212,18 @@ func startStatusListen(portEnd int) *testError {
 
 func startStatusDial(portEnd int, expectedName string) (bool, *testError) {
 	time.Sleep(dialWait) // Startup time for gateway
-	gatewayPort := gatewayPort(portEnd)
-	gatewayAddr := portToAddr(gatewayPort)
+	gatewayAddr := gatewayAddr(portEnd)
 	conn, err := Dial(gatewayAddr)
 	if err != nil {
 		return false, &testError{err, "Can't make a connection with gateway"}
 	}
 	defer conn.Close()
 
-	hsPk := createStatusHankshake(portEnd)
-	statusPk := status.ServerBoundRequest{}.Marshal()
-
-	if err := conn.WritePacket(hsPk); err != nil {
-		return false, &testError{err, "Can't write handshake"}
+	if err := sendHandshake(conn, portEnd); err != nil {
+		return false, err
 	}
+
+	statusPk := status.ServerBoundRequest{}.Marshal()
 	if err := conn.WritePacket(statusPk); err != nil {
 		return false, &testError{err, "Can't write status request packet"}
 	}
