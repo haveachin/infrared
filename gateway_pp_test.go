@@ -1,6 +1,7 @@
 package infrared
 
 import (
+	"fmt"
 	"net"
 	"strings"
 	"testing"
@@ -9,7 +10,7 @@ import (
 	"github.com/pires/go-proxyproto"
 )
 
-var serverAddr string = "infrared.gateway"
+type matchIp func(ip1, ip2 string) bool
 
 func getIpFromAddr(addr net.Addr) string {
 	return strings.Split(addr.String(), ":")[0]
@@ -26,7 +27,11 @@ func createConnWithFakeIP(gatewayAddr string) (Conn, error) {
 	return wrapConn(netConn), nil
 }
 
-type matchIp func(ip1, ip2 string) bool
+func createProxyProtocolConfig(portEnd int, proxyproto bool) *ProxyConfig {
+	config := createBasicProxyConfig(portEnd)
+	config.ProxyProtocol = proxyproto
+	return config
+}
 
 func TestProxyProtocol(t *testing.T) {
 	tt := []struct {
@@ -55,26 +60,35 @@ func TestProxyProtocol(t *testing.T) {
 
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
-			cDial := make(chan error)
-			cListen := make(chan error)
-			cGateway := make(chan error)
-			cResult := make(chan bool)
-			cInfo := make(chan string)
+			errorCh := make(chan *testError)
+			resultCh := make(chan bool)
+			shareCh := make(chan string)
 
-			config := createProxyProtocolConfig(tc.portEnd, tc.proxyproto)
-			startGatewayWithConfig(config, cGateway)
+			go func() {
+				config := createProxyProtocolConfig(tc.portEnd, tc.proxyproto)
+				if err := startGatewayWithConfig(config); err != nil {
+					errorCh <- err
+				}
+			}()
 
-			startProxyProtoListen(tc.portEnd, cListen, cInfo)
-			startProxyProtoDial(tc.portEnd, cListen, cResult, cInfo, tc.validator)
+			go func() {
+				if err := startProxyProtoListen(tc.portEnd, shareCh); err != nil {
+					errorCh <- err
+				}
+			}()
+
+			go func() {
+				same, err := startProxyProtoDial(tc.portEnd, shareCh, tc.validator)
+				if err != nil {
+					errorCh <- err
+				}
+				resultCh <- same
+			}()
 
 			select {
-			case d := <-cDial:
-				t.Fatalf("Unexpected Error in dial, this probably means that the test is bad: %v", d)
-			case l := <-cListen:
-				t.Fatalf("Unexpected Error in server, this probably means that the test is bad or the 'server' cant process the sent packet: %v", l)
-			case g := <-cGateway:
-				t.Fatalf("Unexpected Error in gateway: %v", g)
-			case r := <-cResult:
+			case err := <-errorCh:
+				t.Fatalf("Unexpected Error in test: %s\n%v", err.Message, err.Error)
+			case r := <-resultCh:
 				if !r {
 					t.Fail()
 				}
@@ -84,56 +98,44 @@ func TestProxyProtocol(t *testing.T) {
 	}
 }
 
-func createProxyProtocolConfig(portEnd int, proxyproto bool) *ProxyConfig {
-	config := createBasicProxyConfig(portEnd)
-	config.ProxyProtocol = proxyproto
-	return config
+func startProxyProtoListen(portEnd int, shareCh chan<- string) *testError {
+	listenAddr := portToAddr(listenPort(portEnd))
+	listener, err := Listen(listenAddr)
+	if err != nil {
+		return &testError{err, fmt.Sprintf("Can't listen to %v", listenAddr)}
+	}
+	defer listener.Close()
+
+	proxyListener := &proxyproto.Listener{Listener: listener.Listener}
+	defer proxyListener.Close()
+
+	conn, err := proxyListener.Accept()
+	if err != nil {
+		return &testError{err, "Can't accept connection on listener"}
+	}
+	defer conn.Close()
+	ip := getIpFromAddr(conn.RemoteAddr())
+	shareCh <- ip
+	return nil
 }
 
-func startProxyProtoListen(portEnd int, errCh chan<- error, shareCh chan<- string) {
-	go func() {
-		listenAddr := portToAddr(listenPort(portEnd))
-		listener, err := Listen(listenAddr)
-		if err != nil {
-			errCh <- err
-			return
-		}
-		defer listener.Close()
+func startProxyProtoDial(portEnd int, shareCh <-chan string, validator func(ip1, ip2 string) bool) (bool, *testError) {
+	time.Sleep(dialWait) // Startup time for gateway
+	gatewayPort := gatewayPort(portEnd)
+	gatewayAddr := portToAddr(gatewayPort)
+	conn, err := createConnWithFakeIP(gatewayAddr)
+	if err != nil {
+		return false, &testError{err, "Can't create connection"}
+	}
+	defer conn.Close()
 
-		proxyListener := &proxyproto.Listener{Listener: listener.Listener}
-		defer proxyListener.Close()
+	pk := createStatusHankshake(portEnd)
+	if err := conn.WritePacket(pk); err != nil {
+		return false, &testError{err, "Can't write packet on connection"}
+	}
 
-		conn, err := proxyListener.Accept()
-		if err != nil {
-			errCh <- err
-			return
-		}
-		defer conn.Close()
-		ip := getIpFromAddr(conn.RemoteAddr())
-		shareCh <- ip
-	}()
-}
+	usedIp := getIpFromAddr(conn.LocalAddr())
+	receivedIp := <-shareCh
 
-func startProxyProtoDial(portEnd int, errCh chan<- error, resultCh chan<- bool, shareCh <-chan string, validator func(ip1, ip2 string) bool) {
-	go func() {
-
-		time.Sleep(dialWait) // Startup time for gateway
-		gatewayPort := gatewayPort(portEnd)
-		gatewayAddr := portToAddr(gatewayPort)
-		conn, err := createConnWithFakeIP(gatewayAddr)
-		if err != nil {
-			errCh <- err
-			return
-		}
-		defer conn.Close()
-		pk := createStatusHankshake(portEnd)
-		if err := conn.WritePacket(pk); err != nil {
-			errCh <- err
-			return
-		}
-		usedIp := getIpFromAddr(conn.LocalAddr())
-		receivedIp := <-shareCh
-
-		resultCh <- validator(usedIp, receivedIp)
-	}()
+	return validator(usedIp, receivedIp), nil
 }

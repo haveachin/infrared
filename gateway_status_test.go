@@ -11,6 +11,7 @@ import (
 	"github.com/haveachin/infrared/protocol/status"
 )
 
+var serverAddr string = "infrared.gateway"
 var dialWait time.Duration = time.Duration(5 * time.Millisecond) // Startup time for gateway
 
 func listenPort(portEnd int) int {
@@ -47,22 +48,20 @@ func createStatusHankshake(portEnd int) protocol.Packet {
 	return hs.Marshal()
 }
 
-func startGatewayWithConfig(config *ProxyConfig, errCh chan<- error) {
+func startGatewayWithConfig(config *ProxyConfig) *testError {
 	var proxies []*Proxy
 	proxy := &Proxy{Config: config}
 	proxies = append(proxies, proxy)
 
-	startGatewayProxies(proxies, errCh)
+	return startGatewayProxies(proxies)
 }
 
-func startGatewayProxies(proxies []*Proxy, errCh chan<- error) {
-	go func() {
-		gateway := Gateway{}
-		if err := gateway.ListenAndServe(proxies); err != nil {
-			errCh <- err
-			return
-		}
-	}()
+func startGatewayProxies(proxies []*Proxy) *testError {
+	gateway := Gateway{}
+	if err := gateway.ListenAndServe(proxies); err != nil {
+		return &testError{err, "Can't start gateway"}
+	}
+	return nil
 }
 
 var serverVersionName string = "Infrared-test-online"
@@ -82,6 +81,11 @@ var offlineStatus StatusConfig = StatusConfig{
 	ProtocolNumber: 754,
 	MaxPlayers:     20,
 	MOTD:           "Powered by Infrared",
+}
+
+type testError struct {
+	Error   error
+	Message string
 }
 
 func TestStatusRequest(t *testing.T) {
@@ -129,31 +133,39 @@ func TestStatusRequest(t *testing.T) {
 
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
-			cDial := make(chan error)
-			cListen := make(chan error)
-			cGateway := make(chan error)
-			cResult := make(chan bool)
+			errorCh := make(chan *testError)
+			resultCh := make(chan bool)
 
-			config := createBasicProxyConfig(tc.portEnd)
-			config.OnlineStatus = tc.onlineStatus
-			config.OfflineStatus = tc.offlineStatus
+			go func() {
+				config := createBasicProxyConfig(tc.portEnd)
+				config.OnlineStatus = tc.onlineStatus
+				config.OfflineStatus = tc.offlineStatus
 
-			startGatewayWithConfig(config, cGateway)
+				if err := startGatewayWithConfig(config); err != nil {
+					errorCh <- err
+				}
+			}()
 
 			if tc.activeServer {
-				startStatusListen(tc.portEnd, cListen)
+				go func() {
+					if err := startStatusListen(tc.portEnd); err != nil {
+						errorCh <- err
+					}
+				}()
 			}
 
-			startStatusDial(tc.portEnd, cDial, cResult, tc.expectedVersion)
+			go func() {
+				same, err := startStatusDial(tc.portEnd, tc.expectedVersion)
+				if err != nil {
+					errorCh <- err
+				}
+				resultCh <- same
+			}()
 
 			select {
-			case d := <-cDial:
-				t.Fatalf("Unexpected Error in dial, this probably means that the test is bad: %v", d)
-			case l := <-cListen:
-				t.Fatalf("Unexpected Error in server, this probably means that the test is bad or the 'server' cant process the sent packet: %v", l)
-			case g := <-cGateway:
-				t.Fatalf("Unexpected Error in gateway: %v", g)
-			case r := <-cResult:
+			case err := <-errorCh:
+				t.Fatalf("Unexpected Error in test: %s\n%v", err.Message, err.Error)
+			case r := <-resultCh:
 				if !r {
 					t.Fail()
 				}
@@ -162,67 +174,61 @@ func TestStatusRequest(t *testing.T) {
 	}
 }
 
-func startStatusListen(portEnd int, errCh chan<- error) {
-	go func() {
-		listenAddr := portToAddr(listenPort(portEnd))
-		listener, err := Listen(listenAddr)
-		// if err != nil {
-		// 	errCh <- err
-		// 	return
-		// }
-		defer listener.Close()
+func startStatusListen(portEnd int) *testError {
+	listenAddr := portToAddr(listenPort(portEnd))
+	listener, err := Listen(listenAddr)
+	if err != nil {
+		return &testError{err, fmt.Sprintf("Can't listen to %v", listenAddr)}
+	}
+	defer listener.Close()
 
-		conn, err := listener.Accept()
-		if err != nil {
-			errCh <- err
-			return
-		}
-		defer conn.Close()
+	conn, err := listener.Accept()
+	if err != nil {
+		return &testError{err, "Can't accept connection on listener"}
+	}
+	defer conn.Close()
 
-		pk, err := statusConfig.StatusResponsePacket()
-		if err != nil {
-			errCh <- err
-			return
-		}
-		conn.WritePacket(pk)
-	}()
+	pk, err := statusConfig.StatusResponsePacket()
+	if err != nil {
+		return &testError{err, "Can't create status response packet"}
+	}
+	if err := conn.WritePacket(pk); err != nil {
+		return &testError{err, "Can't write status response packet on connection"}
+	}
+	return nil
 }
 
-func startStatusDial(portEnd int, errCh chan<- error, resultCh chan<- bool, expectedName string) {
-	go func() {
-		time.Sleep(dialWait) // Startup time for gateway
-		gatewayPort := gatewayPort(portEnd)
-		gatewayAddr := portToAddr(gatewayPort)
-		conn, _ := Dial(gatewayAddr)
-		defer conn.Close()
+func startStatusDial(portEnd int, expectedName string) (bool, *testError) {
+	time.Sleep(dialWait) // Startup time for gateway
+	gatewayPort := gatewayPort(portEnd)
+	gatewayAddr := portToAddr(gatewayPort)
+	conn, err := Dial(gatewayAddr)
+	if err != nil {
+		return false, &testError{err, "Can't make a connection with gateway"}
+	}
+	defer conn.Close()
 
-		hsPk := createStatusHankshake(portEnd)
-		statusPk := status.ServerBoundRequest{}.Marshal()
+	hsPk := createStatusHankshake(portEnd)
+	statusPk := status.ServerBoundRequest{}.Marshal()
 
-		if err := conn.WritePacket(hsPk); err != nil {
-			errCh <- err
-			return
-		}
+	if err := conn.WritePacket(hsPk); err != nil {
+		return false, &testError{err, "Can't write handshake"}
+	}
+	if err := conn.WritePacket(statusPk); err != nil {
+		return false, &testError{err, "Can't write status request packet"}
+	}
 
-		if err := conn.WritePacket(statusPk); err != nil {
-			errCh <- err
-			return
-		}
+	receivedPk, err := conn.ReadPacket()
+	if err != nil {
+		return false, &testError{err, "Can't read status reponse packet"}
+	}
 
-		receivedPk, err := conn.ReadPacket()
-		if err != nil {
-			errCh <- err
-			return
-		}
+	response, err := status.UnmarshalClientBoundResponse(receivedPk)
+	if err != nil {
+		return false, &testError{err, "Can't unmarshal status reponse packet"}
+	}
 
-		response, err := status.UnmarshalClientBoundResponse(receivedPk)
-		if err != nil {
-			errCh <- err
-			return
-		}
-
-		res := &status.ResponseJSON{}
-		json.Unmarshal([]byte(response.JSONResponse), &res)
-		resultCh <- expectedName == res.Version.Name
-	}()
+	res := &status.ResponseJSON{}
+	json.Unmarshal([]byte(response.JSONResponse), &res)
+	return expectedName == res.Version.Name, nil
 }
