@@ -56,8 +56,8 @@ func TestConnWithGatewayInBetween(t *testing.T) {
 		}
 		defer conn.Close()
 
-		receivedPk, _ := conn.PeekPacket()
-		hs, _ := handshaking.UnmarshalServerBoundHandshake(receivedPk)
+		pk, _ := conn.PeekPacket()
+		hs, _ := handshaking.UnmarshalServerBoundHandshake(pk)
 		givenServerAddr := hs.ParseServerAddress()
 
 		cResult <- givenServerAddr == serverAddr
@@ -151,14 +151,14 @@ func TestStatusRequest_Online_WithoutConfig(t *testing.T) {
 		}
 		defer conn.Close()
 
-		statusPk, err := statusConf.StatusResponsePacket()
+		pk, err := statusConf.StatusResponsePacket()
 
 		if err != nil {
 			cListen <- err
 			return
 		}
 
-		conn.WritePacket(statusPk)
+		conn.WritePacket(pk)
 	}()
 
 	go func() {
@@ -170,17 +170,17 @@ func TestStatusRequest_Online_WithoutConfig(t *testing.T) {
 		}
 		defer conn.Close()
 
-		isHandshakePk := handshaking.ServerBoundHandshake{
+		hs := handshaking.ServerBoundHandshake{
 			ProtocolVersion: 754,
 			ServerAddress:   "infrared.gateway",
 			ServerPort:      25570,
 			NextState:       1,
 		}
 
-		handshakePk := isHandshakePk.Marshal()
+		hsPk := hs.Marshal()
 		statusPk := status.ServerBoundRequest{}.Marshal()
 
-		if err := conn.WritePacket(handshakePk); err != nil {
+		if err := conn.WritePacket(hsPk); err != nil {
 			cDial <- err
 			return
 		}
@@ -297,17 +297,17 @@ func TestStatusRequest_Online_WithConfig(t *testing.T) {
 		}
 		defer conn.Close()
 
-		isHandshakePk := handshaking.ServerBoundHandshake{
+		hs := handshaking.ServerBoundHandshake{
 			ProtocolVersion: 754,
 			ServerAddress:   protocol.String(serverAddr),
 			ServerPort:      protocol.UnsignedShort(gatewayPort),
 			NextState:       1,
 		}
 
-		handshakePk := isHandshakePk.Marshal()
+		hsPk := hs.Marshal()
 		statusPk := status.ServerBoundRequest{}.Marshal()
 
-		if err := conn.WritePacket(handshakePk); err != nil {
+		if err := conn.WritePacket(hsPk); err != nil {
 			cDial <- err
 			return
 		}

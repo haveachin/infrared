@@ -92,16 +92,16 @@ func TestProxyProtocolOn(t *testing.T) {
 		}
 		defer conn.Close()
 
-		isHandshakePk := handshaking.ServerBoundHandshake{
+		hs := handshaking.ServerBoundHandshake{
 			ProtocolVersion: 754,
 			ServerAddress:   protocol.String(serverAddr),
 			ServerPort:      protocol.UnsignedShort(gatewayPort),
 			NextState:       1,
 		}
 
-		handshakePk := isHandshakePk.Marshal()
+		pk := hs.Marshal()
 
-		if err := conn.WritePacket(handshakePk); err != nil {
+		if err := conn.WritePacket(pk); err != nil {
 			cDial <- err
 			return
 		}
@@ -191,16 +191,16 @@ func TestProxyProtocolOff(t *testing.T) {
 		}
 		defer conn.Close()
 
-		isHandshakePk := handshaking.ServerBoundHandshake{
+		hs := handshaking.ServerBoundHandshake{
 			ProtocolVersion: 754,
 			ServerAddress:   protocol.String(serverAddr),
 			ServerPort:      protocol.UnsignedShort(gatewayPort),
 			NextState:       1,
 		}
 
-		handshakePk := isHandshakePk.Marshal()
+		pk := hs.Marshal()
 
-		if err := conn.WritePacket(handshakePk); err != nil {
+		if err := conn.WritePacket(pk); err != nil {
 			cDial <- err
 			return
 		}
