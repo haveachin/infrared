@@ -12,7 +12,8 @@ import (
 	"github.com/pires/go-proxyproto"
 )
 
-// Checking or proxy is working by checking or the remoteAddr's port is different from the port the client is using
+var serverAddr string = "infrared.gateway"
+
 func getIpFromAddr(addr net.Addr) string {
 	return strings.Split(addr.String(), ":")[0]
 }
@@ -28,140 +29,112 @@ func createConnWithFakeIP(gatewayAddr string) (Conn, error) {
 	return wrapConn(netConn), nil
 }
 
-func TestProxyProtocolOn(t *testing.T) {
-	serverAddr := "infrared.gateway"
-	listenAddr := ":26572"
-	gatewayPort := 25572
-	gatewayAddr := fmt.Sprintf(":%d", gatewayPort)
+type matchIp func(ip1, ip2 string) bool
 
-	cDial := make(chan error)
-	cListen := make(chan error)
-	cGateway := make(chan error)
-	cResult := make(chan bool)
-	cInfo := make(chan string)
-
-	go func() {
-		config := &ProxyConfig{
-			DomainName:    serverAddr,
-			ListenTo:      gatewayAddr,
-			ProxyTo:       listenAddr,
-			ProxyProtocol: true,
-		}
-
-		var proxies []*Proxy
-		proxy := &Proxy{Config: config}
-		proxies = append(proxies, proxy)
-		gateway := Gateway{}
-
-		if err := gateway.ListenAndServe(proxies); err != nil {
-			cGateway <- err
-			return
-		}
-	}()
-
-	go func() {
-		listener, err := Listen(listenAddr)
-		if err != nil {
-			cListen <- err
-			return
-		}
-		defer listener.Close()
-
-		proxyListener := &proxyproto.Listener{Listener: listener.Listener}
-		defer proxyListener.Close()
-
-		conn, err := proxyListener.Accept()
-		if err != nil {
-			cListen <- err
-			return
-		}
-		defer conn.Close()
-
-		ip := getIpFromAddr(conn.RemoteAddr())
-
-		cInfo <- ip
-
-	}()
-
-	go func() {
-		time.Sleep(time.Second * 1) // Startup time for gateway
-		conn, err := createConnWithFakeIP(gatewayAddr)
-		if err != nil {
-			cDial <- err
-			return
-		}
-		defer conn.Close()
-
-		hs := handshaking.ServerBoundHandshake{
-			ProtocolVersion: 754,
-			ServerAddress:   protocol.String(serverAddr),
-			ServerPort:      protocol.UnsignedShort(gatewayPort),
-			NextState:       1,
-		}
-
-		pk := hs.Marshal()
-
-		if err := conn.WritePacket(pk); err != nil {
-			cDial <- err
-			return
-		}
-
-		usedIp := getIpFromAddr(conn.LocalAddr())
-		receivedIp := <-cInfo
-
-		cResult <- receivedIp == usedIp
-
-	}()
-
-	select {
-	case d := <-cDial:
-		t.Fatalf("Unexpected Error in dial, this probably means that the test is bad: %v", d)
-	case l := <-cListen:
-		t.Fatalf("Unexpected Error in server, this probably means that the test is bad or the 'server' cant process the sent packet: %v", l)
-	case g := <-cGateway:
-		t.Fatalf("Unexpected Error in gateway: %v", g)
-	case r := <-cResult:
-		if !r {
-			t.Fail()
-		}
+func TestProxyProtocol(t *testing.T) {
+	tt := []struct {
+		name       string
+		proxyproto bool
+		portEnd    int
+		validator  matchIp
+	}{
+		{
+			name:       "ProxyProtocolOn",
+			proxyproto: true,
+			portEnd:    572,
+			validator: func(ip1, ip2 string) bool {
+				return ip1 == ip2
+			},
+		},
+		{
+			name:       "ProxyProtocolOff",
+			proxyproto: false,
+			portEnd:    573,
+			validator: func(ip1, ip2 string) bool {
+				return ip1 != ip2
+			},
+		},
 	}
 
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			cDial := make(chan error)
+			cListen := make(chan error)
+			cGateway := make(chan error)
+			cResult := make(chan bool)
+			cInfo := make(chan string)
+
+			config := createProxyConfig(tc.portEnd, tc.proxyproto)
+			startProxyProtoGateway(config, cGateway)
+
+			startProxyProtoListen(tc.portEnd, cListen, cInfo)
+			startProxyProtoDial(tc.portEnd, cListen, cResult, cInfo, tc.validator)
+
+			select {
+			case d := <-cDial:
+				t.Fatalf("Unexpected Error in dial, this probably means that the test is bad: %v", d)
+			case l := <-cListen:
+				t.Fatalf("Unexpected Error in server, this probably means that the test is bad or the 'server' cant process the sent packet: %v", l)
+			case g := <-cGateway:
+				t.Fatalf("Unexpected Error in gateway: %v", g)
+			case r := <-cResult:
+				if !r {
+					t.Fail()
+				}
+			}
+
+		})
+	}
 }
 
-func TestProxyProtocolOff(t *testing.T) {
-	serverAddr := "infrared.gateway"
-	listenAddr := ":26573"
-	gatewayPort := 25573
-	gatewayAddr := fmt.Sprintf(":%d", gatewayPort)
+func listenPort(portEnd int) int {
+	return 20000 + portEnd
+}
 
-	cDial := make(chan error)
-	cListen := make(chan error)
-	cGateway := make(chan error)
-	cResult := make(chan bool)
-	cInfo := make(chan string)
+func gatewayPort(portEnd int) int {
+	return 30000 + portEnd
+}
 
+func portToAddr(port int) string {
+	return fmt.Sprintf(":%d", port)
+}
+
+func createProxyConfig(portEnd int, proxyproto bool) *ProxyConfig {
+	listenAddr := portToAddr(listenPort(portEnd))
+	gatewayAddr := portToAddr(gatewayPort(portEnd))
+
+	return &ProxyConfig{
+		DomainName:    serverAddr,
+		ListenTo:      gatewayAddr,
+		ProxyTo:       listenAddr,
+		ProxyProtocol: proxyproto,
+	}
+}
+
+func startProxyProtoGateway(config *ProxyConfig, errCh chan<- error) {
+	var proxies []*Proxy
+	proxy := &Proxy{Config: config}
+	proxies = append(proxies, proxy)
+
+	startTestGateway(proxies, errCh)
+}
+
+func startTestGateway(proxies []*Proxy, errCh chan<- error) {
 	go func() {
-		config := &ProxyConfig{
-			DomainName: serverAddr,
-			ListenTo:   gatewayAddr,
-			ProxyTo:    listenAddr,
-		}
-
-		var proxies []*Proxy
-		proxy := &Proxy{Config: config}
-		proxies = append(proxies, proxy)
 		gateway := Gateway{}
-
 		if err := gateway.ListenAndServe(proxies); err != nil {
-			cGateway <- err
+			errCh <- err
 			return
 		}
 	}()
+}
 
+func startProxyProtoListen(portEnd int, errCh chan<- error, shareCh chan<- string) {
 	go func() {
+		listenAddr := portToAddr(listenPort(portEnd))
 		listener, err := Listen(listenAddr)
 		if err != nil {
-			cListen <- err
+			errCh <- err
 			return
 		}
 		defer listener.Close()
@@ -171,22 +144,24 @@ func TestProxyProtocolOff(t *testing.T) {
 
 		conn, err := proxyListener.Accept()
 		if err != nil {
-			cListen <- err
+			errCh <- err
 			return
 		}
 		defer conn.Close()
-
 		ip := getIpFromAddr(conn.RemoteAddr())
-
-		cInfo <- ip
-
+		shareCh <- ip
 	}()
+}
 
+func startProxyProtoDial(portEnd int, errCh chan<- error, resultCh chan<- bool, shareCh <-chan string, validator func(ip1, ip2 string) bool) {
 	go func() {
+
 		time.Sleep(time.Second * 1) // Startup time for gateway
+		gatewayPort := gatewayPort(portEnd)
+		gatewayAddr := portToAddr(gatewayPort)
 		conn, err := createConnWithFakeIP(gatewayAddr)
 		if err != nil {
-			cDial <- err
+			errCh <- err
 			return
 		}
 		defer conn.Close()
@@ -197,32 +172,14 @@ func TestProxyProtocolOff(t *testing.T) {
 			ServerPort:      protocol.UnsignedShort(gatewayPort),
 			NextState:       1,
 		}
-
 		pk := hs.Marshal()
-
 		if err := conn.WritePacket(pk); err != nil {
-			cDial <- err
+			errCh <- err
 			return
 		}
-
 		usedIp := getIpFromAddr(conn.LocalAddr())
-		receivedIp := <-cInfo
+		receivedIp := <-shareCh
 
-		cResult <- receivedIp != usedIp
-
+		resultCh <- validator(usedIp, receivedIp)
 	}()
-
-	select {
-	case d := <-cDial:
-		t.Fatalf("Unexpected Error in dial, this probably means that the test is bad: %v", d)
-	case l := <-cListen:
-		t.Fatalf("Unexpected Error in server, this probably means that the test is bad or the 'server' cant process the sent packet: %v", l)
-	case g := <-cGateway:
-		t.Fatalf("Unexpected Error in gateway: %v", g)
-	case r := <-cResult:
-		if !r {
-			t.Fail()
-		}
-	}
-
 }
