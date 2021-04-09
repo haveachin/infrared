@@ -64,8 +64,8 @@ func TestProxyProtocol(t *testing.T) {
 			cResult := make(chan bool)
 			cInfo := make(chan string)
 
-			config := createProxyConfig(tc.portEnd, tc.proxyproto)
-			startProxyProtoGateway(config, cGateway)
+			config := createProxyProtocolConfig(tc.portEnd, tc.proxyproto)
+			startGatewayWithConfig(config, cGateway)
 
 			startProxyProtoListen(tc.portEnd, cListen, cInfo)
 			startProxyProtoDial(tc.portEnd, cListen, cResult, cInfo, tc.validator)
@@ -99,27 +99,21 @@ func portToAddr(port int) string {
 	return fmt.Sprintf(":%d", port)
 }
 
-func createProxyConfig(portEnd int, proxyproto bool) *ProxyConfig {
-	listenAddr := portToAddr(listenPort(portEnd))
-	gatewayAddr := portToAddr(gatewayPort(portEnd))
-
-	return &ProxyConfig{
-		DomainName:    serverAddr,
-		ListenTo:      gatewayAddr,
-		ProxyTo:       listenAddr,
-		ProxyProtocol: proxyproto,
-	}
+func createProxyProtocolConfig(portEnd int, proxyproto bool) *ProxyConfig {
+	config := createBasicProxyConfig(portEnd)
+	config.ProxyProtocol = proxyproto
+	return config
 }
 
-func startProxyProtoGateway(config *ProxyConfig, errCh chan<- error) {
+func startGatewayWithConfig(config *ProxyConfig, errCh chan<- error) {
 	var proxies []*Proxy
 	proxy := &Proxy{Config: config}
 	proxies = append(proxies, proxy)
 
-	startTestGateway(proxies, errCh)
+	startGatewayProxies(proxies, errCh)
 }
 
-func startTestGateway(proxies []*Proxy, errCh chan<- error) {
+func startGatewayProxies(proxies []*Proxy, errCh chan<- error) {
 	go func() {
 		gateway := Gateway{}
 		if err := gateway.ListenAndServe(proxies); err != nil {
@@ -156,7 +150,7 @@ func startProxyProtoListen(portEnd int, errCh chan<- error, shareCh chan<- strin
 func startProxyProtoDial(portEnd int, errCh chan<- error, resultCh chan<- bool, shareCh <-chan string, validator func(ip1, ip2 string) bool) {
 	go func() {
 
-		time.Sleep(time.Second * 1) // Startup time for gateway
+		time.Sleep(dialWait) // Startup time for gateway
 		gatewayPort := gatewayPort(portEnd)
 		gatewayAddr := portToAddr(gatewayPort)
 		conn, err := createConnWithFakeIP(gatewayAddr)
