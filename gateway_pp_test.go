@@ -1,14 +1,11 @@
 package infrared
 
 import (
-	"fmt"
 	"net"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/haveachin/infrared/protocol"
-	"github.com/haveachin/infrared/protocol/handshaking"
 	"github.com/pires/go-proxyproto"
 )
 
@@ -41,7 +38,7 @@ func TestProxyProtocol(t *testing.T) {
 		{
 			name:       "ProxyProtocolOn",
 			proxyproto: true,
-			portEnd:    572,
+			portEnd:    581,
 			validator: func(ip1, ip2 string) bool {
 				return ip1 == ip2
 			},
@@ -49,7 +46,7 @@ func TestProxyProtocol(t *testing.T) {
 		{
 			name:       "ProxyProtocolOff",
 			proxyproto: false,
-			portEnd:    573,
+			portEnd:    582,
 			validator: func(ip1, ip2 string) bool {
 				return ip1 != ip2
 			},
@@ -87,40 +84,10 @@ func TestProxyProtocol(t *testing.T) {
 	}
 }
 
-func listenPort(portEnd int) int {
-	return 20000 + portEnd
-}
-
-func gatewayPort(portEnd int) int {
-	return 30000 + portEnd
-}
-
-func portToAddr(port int) string {
-	return fmt.Sprintf(":%d", port)
-}
-
 func createProxyProtocolConfig(portEnd int, proxyproto bool) *ProxyConfig {
 	config := createBasicProxyConfig(portEnd)
 	config.ProxyProtocol = proxyproto
 	return config
-}
-
-func startGatewayWithConfig(config *ProxyConfig, errCh chan<- error) {
-	var proxies []*Proxy
-	proxy := &Proxy{Config: config}
-	proxies = append(proxies, proxy)
-
-	startGatewayProxies(proxies, errCh)
-}
-
-func startGatewayProxies(proxies []*Proxy, errCh chan<- error) {
-	go func() {
-		gateway := Gateway{}
-		if err := gateway.ListenAndServe(proxies); err != nil {
-			errCh <- err
-			return
-		}
-	}()
 }
 
 func startProxyProtoListen(portEnd int, errCh chan<- error, shareCh chan<- string) {
@@ -159,14 +126,7 @@ func startProxyProtoDial(portEnd int, errCh chan<- error, resultCh chan<- bool, 
 			return
 		}
 		defer conn.Close()
-
-		hs := handshaking.ServerBoundHandshake{
-			ProtocolVersion: 754,
-			ServerAddress:   protocol.String(serverAddr),
-			ServerPort:      protocol.UnsignedShort(gatewayPort),
-			NextState:       1,
-		}
-		pk := hs.Marshal()
+		pk := createStatusHankshake(portEnd)
 		if err := conn.WritePacket(pk); err != nil {
 			errCh <- err
 			return
