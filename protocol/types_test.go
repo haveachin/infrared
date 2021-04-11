@@ -338,3 +338,40 @@ func TestByteArray_Decode(t *testing.T) {
 		}
 	}
 }
+
+var optionalByteArrayTestTable = []struct {
+	decoded OptionalByteArray
+	encoded []byte
+}{
+	{
+		decoded: OptionalByteArray([]byte{}),
+		encoded: []byte{},
+	},
+	{
+		decoded: OptionalByteArray([]byte{0x00}),
+		encoded: []byte{0x00},
+	},
+}
+
+func TestOptionalByteArray_Encode(t *testing.T) {
+	for _, tc := range optionalByteArrayTestTable {
+		if !bytes.Equal(tc.decoded.Encode(), tc.encoded) {
+			t.Errorf("encoding: got: %v; want: %v", tc.decoded.Encode(), tc.encoded)
+		}
+	}
+}
+
+func TestOptionalByteArray_Decode(t *testing.T) {
+	for _, tc := range optionalByteArrayTestTable {
+		actualDecoded := OptionalByteArray([]byte{})
+		if err := actualDecoded.Decode(bytes.NewReader(tc.encoded)); err != nil {
+			if err != io.EOF {
+				t.Errorf("decoding: %s", err)
+			}
+		}
+
+		if !bytes.Equal(actualDecoded, tc.decoded) {
+			t.Errorf("decoding: got %v; want: %v", actualDecoded, tc.decoded)
+		}
+	}
+}
