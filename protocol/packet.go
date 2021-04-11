@@ -6,18 +6,18 @@ import (
 	"io"
 )
 
-// A Packet is the raw representation of message that is send between the client and the server
+// Packet is the raw representation of message that is send between the client and the server
 type Packet struct {
 	ID   byte
 	Data []byte
 }
 
-// ScanFields decodes and copies the Packet data into the fields
+// Scan decodes and copies the Packet data into the fields
 func (pk Packet) Scan(fields ...FieldDecoder) error {
 	return ScanFields(bytes.NewReader(pk.Data), fields...)
 }
 
-// MarshalPacket encodes the packet and compresses it if it is larger then the given threshold
+// Marshal encodes the packet and all it's fields
 func (pk *Packet) Marshal() ([]byte, error) {
 	var packedData []byte
 	data := []byte{pk.ID}
