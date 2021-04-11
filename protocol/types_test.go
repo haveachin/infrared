@@ -167,3 +167,38 @@ func TestString_Decode(t *testing.T) {
 		}
 	}
 }
+
+var byteTestTable = []struct {
+	decoded Byte
+	encoded []byte
+}{
+	{
+		decoded: Byte(0x00),
+		encoded: []byte{0x00},
+	},
+	{
+		decoded: Byte(0x0f),
+		encoded: []byte{0x0f},
+	},
+}
+
+func TestByte_Encode(t *testing.T) {
+	for _, tc := range byteTestTable {
+		if !bytes.Equal(tc.decoded.Encode(), tc.encoded) {
+			t.Errorf("encoding: got: %v; want: %v", tc.decoded.Encode(), tc.encoded)
+		}
+	}
+}
+
+func TestByte_Decode(t *testing.T) {
+	for _, tc := range byteTestTable {
+		var actualDecoded Byte
+		if err := actualDecoded.Decode(bytes.NewReader(tc.encoded)); err != nil {
+			t.Errorf("decoding: %s", err)
+		}
+
+		if actualDecoded != tc.decoded {
+			t.Errorf("decoding: got %v; want: %v", actualDecoded, tc.decoded)
+		}
+	}
+}
