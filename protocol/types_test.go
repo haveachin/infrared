@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"bytes"
+	"github.com/gofrs/uuid"
 	"io"
 	"testing"
 )
@@ -371,6 +372,43 @@ func TestOptionalByteArray_Decode(t *testing.T) {
 		}
 
 		if !bytes.Equal(actualDecoded, tc.decoded) {
+			t.Errorf("decoding: got %v; want: %v", actualDecoded, tc.decoded)
+		}
+	}
+}
+
+var uuidTestTable = []struct {
+	decoded UUID
+	encoded []byte
+}{
+	{
+		decoded: UUID(uuid.UUID{}),
+		encoded: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+	},
+	{
+		decoded: UUID(uuid.UUID{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08}),
+		encoded: []byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08},
+	},
+}
+
+func TestUUID_Encode(t *testing.T) {
+	for _, tc := range uuidTestTable {
+		if !bytes.Equal(tc.decoded.Encode(), tc.encoded) {
+			t.Errorf("encoding: got: %v; want: %v", tc.decoded.Encode(), tc.encoded)
+		}
+	}
+}
+
+func TestUUID_Decode(t *testing.T) {
+	for _, tc := range uuidTestTable {
+		var actualDecoded UUID
+		if err := actualDecoded.Decode(bytes.NewReader(tc.encoded)); err != nil {
+			if err != io.EOF {
+				t.Errorf("decoding: %s", err)
+			}
+		}
+
+		if actualDecoded != tc.decoded {
 			t.Errorf("decoding: got %v; want: %v", actualDecoded, tc.decoded)
 		}
 	}
