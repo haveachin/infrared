@@ -124,3 +124,46 @@ func TestVarInt_Decode(t *testing.T) {
 		}
 	}
 }
+
+var stringTestTable = []struct {
+	decoded String
+	encoded []byte
+}{
+	{
+		decoded: String(""),
+		encoded: []byte{0x00},
+	},
+	{
+		decoded: String("Hello, World!"),
+		encoded: []byte{0x0d, 0x48, 0x65, 0x6c, 0x6c, 0x6f, 0x2c, 0x20, 0x57, 0x6f, 0x72, 0x6c, 0x64, 0x21},
+	},
+	{
+		decoded: String("Minecraft"),
+		encoded: []byte{0x09, 0x4d, 0x69, 0x6e, 0x65, 0x63, 0x72, 0x61, 0x66, 0x74},
+	},
+	{
+		decoded: String("♥"),
+		encoded: []byte{0x03, 0xe2, 0x99, 0xa5},
+	},
+}
+
+func TestString_Encode(t *testing.T) {
+	for _, tc := range stringTestTable {
+		if !bytes.Equal(tc.decoded.Encode(), tc.encoded) {
+			t.Errorf("encoding: got: %v; want: %v", tc.decoded.Encode(), tc.encoded)
+		}
+	}
+}
+
+func TestString_Decode(t *testing.T) {
+	for _, tc := range stringTestTable {
+		var actualDecoded String
+		if err := actualDecoded.Decode(bytes.NewReader(tc.encoded)); err != nil {
+			t.Errorf("decoding: %s", err)
+		}
+
+		if actualDecoded != tc.decoded {
+			t.Errorf("decoding: got %v; want: %v", actualDecoded, tc.decoded)
+		}
+	}
+}
