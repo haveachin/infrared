@@ -202,3 +202,54 @@ func TestByte_Decode(t *testing.T) {
 		}
 	}
 }
+
+var unsignedShortTestTable = []struct {
+	decoded UnsignedShort
+	encoded []byte
+}{
+	{
+		decoded: UnsignedShort(0),
+		encoded: []byte{0x00, 0x00},
+	},
+	{
+		decoded: UnsignedShort(15),
+		encoded: []byte{0x00, 0x0f},
+	},
+	{
+		decoded: UnsignedShort(16),
+		encoded: []byte{0x00, 0x10},
+	},
+	{
+		decoded: UnsignedShort(255),
+		encoded: []byte{0x00, 0xff},
+	},
+	{
+		decoded: UnsignedShort(256),
+		encoded: []byte{0x01, 0x00},
+	},
+	{
+		decoded: UnsignedShort(65535),
+		encoded: []byte{0xff, 0xff},
+	},
+}
+
+func TestUnsignedShort_Encode(t *testing.T) {
+	for _, tc := range unsignedShortTestTable {
+		if !bytes.Equal(tc.decoded.Encode(), tc.encoded) {
+			t.Errorf("encoding: got: %v; want: %v", tc.decoded.Encode(), tc.encoded)
+		}
+	}
+}
+
+func TestUnsignedShort_Decode(t *testing.T) {
+	for _, tc := range unsignedShortTestTable {
+		var actualDecoded UnsignedShort
+		if err := actualDecoded.Decode(bytes.NewReader(tc.encoded)); err != nil {
+			t.Errorf("decoding: %s", err)
+		}
+
+		if actualDecoded != tc.decoded {
+			t.Errorf("decoding: got %v; want: %v", actualDecoded, tc.decoded)
+		}
+	}
+}
