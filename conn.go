@@ -24,9 +24,8 @@ type PacketPeeker interface {
 type conn struct {
 	net.Conn
 
-	r     *bufio.Reader
-	w     io.Writer
-	state protocol.State
+	r *bufio.Reader
+	w io.Writer
 }
 
 type Listener struct {
@@ -81,10 +80,6 @@ func DialTimeout(addr string, timeout time.Duration) (Conn, error) {
 	}
 
 	return wrapConn(conn), nil
-}
-
-func (c conn) State() protocol.State {
-	return c.state
 }
 
 func (c *conn) Read(b []byte) (int, error) {
