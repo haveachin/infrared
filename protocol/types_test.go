@@ -253,3 +253,50 @@ func TestUnsignedShort_Decode(t *testing.T) {
 		}
 	}
 }
+
+var longTestTable = []struct {
+	decoded Long
+	encoded []byte
+}{
+	{
+		decoded: Long(-9223372036854775808),
+		encoded: []byte{0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+	},
+	{
+		decoded: Long(0),
+		encoded: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
+	},
+	{
+		decoded: Long(15),
+		encoded: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x0f},
+	},
+	{
+		decoded: Long(16),
+		encoded: []byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10},
+	},
+	{
+		decoded: Long(9223372036854775807),
+		encoded: []byte{0x7f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff},
+	},
+}
+
+func TestLong_Encode(t *testing.T) {
+	for _, tc := range longTestTable {
+		if !bytes.Equal(tc.decoded.Encode(), tc.encoded) {
+			t.Errorf("encoding: got: %v; want: %v", tc.decoded.Encode(), tc.encoded)
+		}
+	}
+}
+
+func TestLong_Decode(t *testing.T) {
+	for _, tc := range longTestTable {
+		var actualDecoded Long
+		if err := actualDecoded.Decode(bytes.NewReader(tc.encoded)); err != nil {
+			t.Errorf("decoding: %s", err)
+		}
+
+		if actualDecoded != tc.decoded {
+			t.Errorf("decoding: got %v; want: %v", actualDecoded, tc.decoded)
+		}
+	}
+}
