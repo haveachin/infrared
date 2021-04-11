@@ -14,133 +14,113 @@ func TestReadNBytes(t *testing.T) {
 	for _, tc := range tt {
 		bb, err := ReadNBytes(bytes.NewBuffer(tc), len(tc))
 		if err != nil {
-			t.Error(err)
+			t.Errorf("reading bytes: %s", err)
 		}
 
 		if !bytes.Equal(bb, tc) {
-			t.Fail()
+			t.Errorf("got %v; want: %v", bb, tc)
 		}
 	}
 }
 
-func TestBoolean_Encode(t *testing.T) {
-	tt := []struct {
-		given    Boolean
-		expected []byte
-	}{
-		{
-			given:    Boolean(false),
-			expected: []byte{0x00},
-		},
-		{
-			given:    Boolean(true),
-			expected: []byte{0x01},
-		},
-	}
+var booleanTestTable = []struct {
+	decoded Boolean
+	encoded []byte
+}{
+	{
+		decoded: Boolean(false),
+		encoded: []byte{0x00},
+	},
+	{
+		decoded: Boolean(true),
+		encoded: []byte{0x01},
+	},
+}
 
-	for _, tc := range tt {
-		if !bytes.Equal(tc.given.Encode(), tc.expected) {
-			t.Fail()
+func TestBoolean_Encode(t *testing.T) {
+	for _, tc := range booleanTestTable {
+		if !bytes.Equal(tc.decoded.Encode(), tc.encoded) {
+			t.Errorf("encoding: got: %v; want: %v", tc.decoded.Encode(), tc.encoded)
 		}
 	}
 }
 
 func TestBoolean_Decode(t *testing.T) {
-	tt := []struct {
-		given    []byte
-		expected Boolean
-	}{
-		{
-			given:    []byte{0x00},
-			expected: Boolean(false),
-		},
-		{
-			given:    []byte{0x01},
-			expected: Boolean(true),
-		},
-	}
-
-	for _, tc := range tt {
-		var actual Boolean
-		if err := actual.Decode(bytes.NewReader(tc.given)); err != nil {
-			t.Error(err)
+	for _, tc := range booleanTestTable {
+		var actualDecoded Boolean
+		if err := actualDecoded.Decode(bytes.NewReader(tc.encoded)); err != nil {
+			t.Errorf("decoding: %s", err)
 		}
 
-		if actual != tc.expected {
-			t.Fail()
+		if actualDecoded != tc.decoded {
+			t.Errorf("decoding: got %v; want: %v", actualDecoded, tc.decoded)
 		}
 	}
 }
 
-func TestVarInt_Encode(t *testing.T) {
-	tt := []struct {
-		given    VarInt
-		expected []byte
-	}{
-		{
-			given:    VarInt(0),
-			expected: []byte{0x00},
-		},
-		{
-			given:    VarInt(127),
-			expected: []byte{0x7f},
-		},
-		{
-			given:    VarInt(128),
-			expected: []byte{0x80, 0x01},
-		},
-		{
-			given:    VarInt(2097151),
-			expected: []byte{0xff, 0xff, 0x7f},
-		},
-		{
-			given:    VarInt(-1),
-			expected: []byte{0xff, 0xff, 0xff, 0xff, 0x0f},
-		},
-	}
+var varIntTestTable = []struct {
+	decoded VarInt
+	encoded []byte
+}{
+	{
+		decoded: VarInt(0),
+		encoded: []byte{0x00},
+	},
+	{
+		decoded: VarInt(1),
+		encoded: []byte{0x01},
+	},
+	{
+		decoded: VarInt(2),
+		encoded: []byte{0x02},
+	},
+	{
+		decoded: VarInt(127),
+		encoded: []byte{0x7f},
+	},
+	{
+		decoded: VarInt(128),
+		encoded: []byte{0x80, 0x01},
+	},
+	{
+		decoded: VarInt(255),
+		encoded: []byte{0xff, 0x01},
+	},
+	{
+		decoded: VarInt(2097151),
+		encoded: []byte{0xff, 0xff, 0x7f},
+	},
+	{
+		decoded: VarInt(2147483647),
+		encoded: []byte{0xff, 0xff, 0xff, 0xff, 0x07},
+	},
+	{
+		decoded: VarInt(-1),
+		encoded: []byte{0xff, 0xff, 0xff, 0xff, 0x0f},
+	},
+	{
+		decoded: VarInt(-2147483648),
+		encoded: []byte{0x80, 0x80, 0x80, 0x80, 0x08},
+	},
+}
 
-	for _, tc := range tt {
-		if !bytes.Equal(tc.given.Encode(), tc.expected) {
-			t.Fail()
+func TestVarInt_Encode(t *testing.T) {
+	for _, tc := range varIntTestTable {
+		if !bytes.Equal(tc.decoded.Encode(), tc.encoded) {
+			t.Errorf("encoding: got: %v; want: %v", tc.decoded.Encode(), tc.encoded)
 		}
 	}
 }
 
 func TestVarInt_Decode(t *testing.T) {
-	tt := []struct {
-		given    []byte
-		expected VarInt
-	}{
-		{
-			given:    []byte{0x00},
-			expected: VarInt(0),
-		},
-		{
-			given:    []byte{0x7f},
-			expected: VarInt(127),
-		},
-		{
-			given:    []byte{0x80, 0x01},
-			expected: VarInt(128),
-		},
-		{
-			given:    []byte{0xff, 0xff, 0x7f},
-			expected: VarInt(2097151),
-		},
-		{
-			given:    []byte{0xff, 0xff, 0xff, 0xff, 0x0f},
-			expected: VarInt(-1),
-		},
-	}
-
-	for _, tc := range tt {
-		var actual VarInt
-		if err := actual.Decode(bytes.NewReader(tc.given)); err != nil {
-			t.Error(err)
+	for _, tc := range varIntTestTable {
+		var actualDecoded VarInt
+		if err := actualDecoded.Decode(bytes.NewReader(tc.encoded)); err != nil {
+			t.Errorf("decoding: %s", err)
 		}
 
-		if actual != tc.expected {
-			t.Fail()
+		if actualDecoded != tc.decoded {
+			t.Errorf("decoding: got %v; want: %v", actualDecoded, tc.decoded)
 		}
 	}
 }
