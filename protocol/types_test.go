@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"bytes"
+	"io"
 	"testing"
 )
 
@@ -296,6 +297,43 @@ func TestLong_Decode(t *testing.T) {
 		}
 
 		if actualDecoded != tc.decoded {
+			t.Errorf("decoding: got %v; want: %v", actualDecoded, tc.decoded)
+		}
+	}
+}
+
+var byteArrayTestTable = []struct {
+	decoded ByteArray
+	encoded []byte
+}{
+	{
+		decoded: ByteArray([]byte{}),
+		encoded: []byte{0x00},
+	},
+	{
+		decoded: ByteArray([]byte{0x00}),
+		encoded: []byte{0x01, 0x00},
+	},
+}
+
+func TestByteArray_Encode(t *testing.T) {
+	for _, tc := range byteArrayTestTable {
+		if !bytes.Equal(tc.decoded.Encode(), tc.encoded) {
+			t.Errorf("encoding: got: %v; want: %v", tc.decoded.Encode(), tc.encoded)
+		}
+	}
+}
+
+func TestByteArray_Decode(t *testing.T) {
+	for _, tc := range byteArrayTestTable {
+		actualDecoded := ByteArray([]byte{})
+		if err := actualDecoded.Decode(bytes.NewReader(tc.encoded)); err != nil {
+			if err != io.EOF {
+				t.Errorf("decoding: %s", err)
+			}
+		}
+
+		if !bytes.Equal(actualDecoded, tc.decoded) {
 			t.Errorf("decoding: got %v; want: %v", actualDecoded, tc.decoded)
 		}
 	}
