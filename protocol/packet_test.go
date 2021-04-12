@@ -7,9 +7,8 @@ import (
 
 func TestPacket_Marshal(t *testing.T) {
 	tt := []struct {
-		packet    Packet
-		expected  []byte
-		threshold int
+		packet   Packet
+		expected []byte
 	}{
 		{
 			packet: Packet{
