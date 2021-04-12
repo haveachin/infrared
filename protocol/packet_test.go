@@ -172,7 +172,8 @@ func TestReadPacket(t *testing.T) {
 	}
 
 	for _, tc := range tt {
-		pk, err := ReadPacket(bytes.NewReader(tc.data))
+		buf := bytes.NewBuffer(tc.data)
+		pk, err := ReadPacket(buf)
 		if err != nil {
 			t.Error(err)
 		}
@@ -185,7 +186,7 @@ func TestReadPacket(t *testing.T) {
 			t.Errorf("packet data: got: %v; want: %v", pk.Data, tc.packet.Data)
 		}
 
-		if !bytes.Equal(tc.data, tc.dataAfterRead) {
+		if !bytes.Equal(buf.Bytes(), tc.dataAfterRead) {
 			t.Errorf("data after read: got: %v; want: %v", tc.data, tc.dataAfterRead)
 		}
 	}
