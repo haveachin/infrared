@@ -16,19 +16,3 @@ func (pk ClientBoundDisconnect) Marshal() protocol.Packet {
 		pk.Reason,
 	)
 }
-
-func UnmarshalClientBoundDisconnect(packet protocol.Packet) (ClientBoundDisconnect, error) {
-	var pk ClientBoundDisconnect
-
-	if packet.ID != ClientBoundDisconnectPacketID {
-		return pk, protocol.ErrInvalidPacketID
-	}
-
-	if err := packet.Scan(
-		&pk.Reason,
-	); err != nil {
-		return pk, err
-	}
-
-	return pk, nil
-}

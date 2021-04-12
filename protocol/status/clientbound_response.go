@@ -17,22 +17,6 @@ func (pk ClientBoundResponse) Marshal() protocol.Packet {
 	)
 }
 
-func UnmarshalClientBoundResponse(packet protocol.Packet) (ClientBoundResponse, error) {
-	var pk ClientBoundResponse
-
-	if packet.ID != ClientBoundResponsePacketID {
-		return pk, protocol.ErrInvalidPacketID
-	}
-
-	if err := packet.Scan(
-		&pk.JSONResponse,
-	); err != nil {
-		return pk, err
-	}
-
-	return pk, nil
-}
-
 type ResponseJSON struct {
 	Version     VersionJSON     `json:"version"`
 	Players     PlayersJSON     `json:"players"`
