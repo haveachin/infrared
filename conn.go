@@ -57,6 +57,7 @@ type Conn interface {
 
 	State() protocol.State
 	Threshold() int
+	Reader() *bufio.Reader
 }
 
 // wrapConn warp an net.Conn to infared.conn
@@ -137,4 +138,8 @@ func (c *conn) SetCipher(ecoStream, decoStream cipher.Stream) {
 		S: ecoStream,
 		W: c.Conn,
 	}
+}
+
+func (c *conn) Reader() *bufio.Reader {
+	return c.r
 }
