@@ -9,6 +9,7 @@ import (
 	"github.com/haveachin/infrared/protocol/login"
 	"github.com/pires/go-proxyproto"
 	"log"
+	"net"
 	"strings"
 	"sync"
 	"time"
@@ -167,7 +168,7 @@ func (proxy *Proxy) logEvent(event callback.Event) {
 	}
 }
 
-func (proxy *Proxy) handleConn(conn Conn) error {
+func (proxy *Proxy) handleConn(conn Conn, connRemoteAddr net.Addr) error {
 	pk, err := conn.ReadPacket()
 	if err != nil {
 		return err
@@ -203,7 +204,7 @@ func (proxy *Proxy) handleConn(conn Conn) error {
 			Version:           2,
 			Command:           proxyproto.PROXY,
 			TransportProtocol: proxyproto.TCPv4,
-			SourceAddr:        conn.RemoteAddr(),
+			SourceAddr:        connRemoteAddr,
 			DestinationAddr:   rconn.RemoteAddr(),
 		}
 
@@ -213,7 +214,7 @@ func (proxy *Proxy) handleConn(conn Conn) error {
 	}
 
 	if proxy.RealIP() {
-		hs.UpgradeToRealIP(conn.RemoteAddr())
+		hs.UpgradeToRealIP(connRemoteAddr)
 		pk = hs.Marshal()
 	}
 
