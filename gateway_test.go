@@ -14,8 +14,8 @@ import (
 	"github.com/pires/go-proxyproto"
 )
 
-var serverAddr string = "infrared.gateway"
-var dialWait time.Duration = time.Duration(5 * time.Millisecond) // Startup time for gateway
+var serverAddr = "infrared.gateway"
+var dialWait = 5 * time.Millisecond // Startup time for gateway
 
 type testError struct {
 	Error   error
@@ -64,6 +64,22 @@ func createStatusHandshake(portEnd int) protocol.Packet {
 	return hs.Marshal()
 }
 
+func createProxyProtocolHeader() proxyproto.Header {
+	return proxyproto.Header{
+		Version:           2,
+		Command:           proxyproto.PROXY,
+		TransportProtocol: proxyproto.TCPv4,
+		SourceAddr: &net.TCPAddr{
+			IP:   net.ParseIP("127.0.10.1"),
+			Port: 0,
+		},
+		DestinationAddr: &net.TCPAddr{
+			IP:   net.ParseIP("127.0.20.1"),
+			Port: 0,
+		},
+	}
+}
+
 func startGatewayWithConfig(config *ProxyConfig) *testError {
 	var proxies []*Proxy
 	proxy := &Proxy{Config: config}
@@ -88,105 +104,31 @@ func sendHandshake(conn Conn, portEnd int) *testError {
 	return nil
 }
 
-var serverVersionName string = "Infrared-test-online"
-var samples []PlayerSample = make([]PlayerSample, 0)
-var statusConfig StatusConfig = StatusConfig{VersionName: serverVersionName, ProtocolNumber: 754,
+func sendProxyProtocolHeader(rconn Conn) *testError {
+	header := createProxyProtocolHeader()
+	if _, err := header.WriteTo(rconn); err != nil {
+		return &testError{err, "Can't write proxy protocol header"}
+	}
+	return nil
+}
+
+var serverVersionName = "Infrared-test-online"
+var samples = make([]PlayerSample, 0)
+var statusConfig = StatusConfig{VersionName: serverVersionName, ProtocolNumber: 754,
 	MaxPlayers: 20, PlayersOnline: 0, PlayerSamples: samples, MOTD: "Server MOTD"}
 
-var onlineStatus StatusConfig = StatusConfig{
+var onlineStatus = StatusConfig{
 	VersionName:    "Infrared 1.16.5 Online",
 	ProtocolNumber: 754,
 	MaxPlayers:     20,
 	MOTD:           "Powered by Infrared",
 }
 
-var offlineStatus StatusConfig = StatusConfig{
+var offlineStatus = StatusConfig{
 	VersionName:    "Infrared 1.16.5 Offline",
 	ProtocolNumber: 754,
 	MaxPlayers:     20,
 	MOTD:           "Powered by Infrared",
-}
-
-func TestStatusRequest(t *testing.T) {
-	tt := []struct {
-		name            string
-		portEnd         int
-		onlineStatus    StatusConfig
-		offlineStatus   StatusConfig
-		activeServer    bool
-		expectedVersion string
-	}{
-		{
-			name:            "ServerOnlineWithoutConfig",
-			portEnd:         570,
-			activeServer:    true,
-			expectedVersion: serverVersionName,
-		},
-		{
-			name:            "ServerOfflineWithoutConfig",
-			portEnd:         571,
-			activeServer:    false,
-			expectedVersion: "",
-		},
-		{
-			name:            "ServerOnlineWithConfig",
-			portEnd:         572,
-			onlineStatus:    onlineStatus,
-			offlineStatus:   offlineStatus,
-			activeServer:    true,
-			expectedVersion: onlineStatus.VersionName,
-		},
-		{
-			name:            "ServerOfflineWithConfig",
-			portEnd:         573,
-			onlineStatus:    onlineStatus,
-			offlineStatus:   offlineStatus,
-			activeServer:    false,
-			expectedVersion: offlineStatus.VersionName,
-		},
-	}
-
-	for _, tc := range tt {
-		t.Run(tc.name, func(t *testing.T) {
-			errorCh := make(chan *testError)
-			resultCh := make(chan bool)
-
-			go func() {
-				config := createBasicProxyConfig(tc.portEnd)
-				config.OnlineStatus = tc.onlineStatus
-				config.OfflineStatus = tc.offlineStatus
-
-				if err := startGatewayWithConfig(config); err != nil {
-					errorCh <- err
-				}
-			}()
-
-			if tc.activeServer {
-				go func() {
-					if err := startStatusListen(tc.portEnd); err != nil {
-						errorCh <- err
-					}
-				}()
-			}
-
-			go func() {
-				same, err := startStatusDial(tc.portEnd, tc.expectedVersion)
-				if err != nil {
-					errorCh <- err
-				}
-				resultCh <- same
-			}()
-
-			select {
-			case err := <-errorCh:
-				t.Fatalf("Unexpected Error in test: %s\n%v", err.Message, err.Error)
-			case r := <-resultCh:
-				if !r {
-					t.Fail()
-				}
-			}
-		})
-	}
 }
 
 func startStatusListen(portEnd int) *testError {
@@ -213,7 +155,7 @@ func startStatusListen(portEnd int) *testError {
 	return nil
 }
 
-func startStatusDial(portEnd int, expectedName string) (bool, *testError) {
+func startStatusDial(portEnd int, useProxyProtocolHeader bool, expectedName string) (bool, *testError) {
 	time.Sleep(dialWait) // Startup time for gateway
 	gatewayAddr := gatewayAddr(portEnd)
 	conn, err := Dial(gatewayAddr)
@@ -221,6 +163,12 @@ func startStatusDial(portEnd int, expectedName string) (bool, *testError) {
 		return false, &testError{err, "Can't make a connection with gateway"}
 	}
 	defer conn.Close()
+
+	if useProxyProtocolHeader {
+		if err := sendProxyProtocolHeader(conn); err != nil {
+			return false, err
+		}
+	}
 
 	if err := sendHandshake(conn, portEnd); err != nil {
 		return false, err
@@ -267,6 +215,133 @@ func createProxyProtocolConfig(portEnd int, proxyproto bool) *ProxyConfig {
 	config := createBasicProxyConfig(portEnd)
 	config.ProxyProtocol = proxyproto
 	return config
+}
+
+func startProxyProtoListen(portEnd int, shareCh chan<- string) *testError {
+	listenAddr := listenAddr(portEnd)
+	listener, err := Listen(listenAddr)
+	if err != nil {
+		return &testError{err, fmt.Sprintf("Can't listen to %v", listenAddr)}
+	}
+	defer listener.Close()
+
+	proxyListener := &proxyproto.Listener{Listener: listener.Listener}
+	defer proxyListener.Close()
+
+	conn, err := proxyListener.Accept()
+	if err != nil {
+		return &testError{err, "Can't accept connection on listener"}
+	}
+	defer conn.Close()
+	ip := getIpFromAddr(conn.RemoteAddr())
+	shareCh <- ip
+	return nil
+}
+
+func startProxyProtoDial(portEnd int, shareCh <-chan string, validator func(ip1, ip2 string) bool) (bool, *testError) {
+	time.Sleep(dialWait) // Startup time for gateway
+	gatewayAddr := gatewayAddr(portEnd)
+	conn, err := createConnWithFakeIP(gatewayAddr)
+	if err != nil {
+		return false, &testError{err, "Can't create connection"}
+	}
+	defer conn.Close()
+
+	if err := sendHandshake(conn, portEnd); err != nil {
+		return false, err
+	}
+
+	usedIp := getIpFromAddr(conn.LocalAddr())
+	receivedIp := <-shareCh
+
+	return validator(usedIp, receivedIp), nil
+}
+
+func TestStatusRequest(t *testing.T) {
+	tt := []struct {
+		name                   string
+		portEnd                int
+		onlineStatus           StatusConfig
+		offlineStatus          StatusConfig
+		activeServer           bool
+		expectedVersion        string
+		useProxyProtocolHeader bool
+	}{
+		{
+			name:                   "ServerOnlineWithoutConfigAndWithoutProxyProtocolHeader",
+			portEnd:                570,
+			activeServer:           true,
+			expectedVersion:        serverVersionName,
+			useProxyProtocolHeader: false,
+		},
+		{
+			name:                   "ServerOfflineWithoutConfigWithoutProxyProtocolHeader",
+			portEnd:                571,
+			activeServer:           false,
+			expectedVersion:        "",
+			useProxyProtocolHeader: false,
+		},
+		{
+			name:                   "ServerOnlineWithConfigWithoutProxyProtocolHeader",
+			portEnd:                572,
+			onlineStatus:           onlineStatus,
+			offlineStatus:          offlineStatus,
+			activeServer:           true,
+			expectedVersion:        onlineStatus.VersionName,
+			useProxyProtocolHeader: false,
+		},
+		{
+			name:                   "ServerOfflineWithConfigWithProxyProtocolHeader",
+			portEnd:                573,
+			onlineStatus:           onlineStatus,
+			offlineStatus:          offlineStatus,
+			activeServer:           false,
+			expectedVersion:        offlineStatus.VersionName,
+			useProxyProtocolHeader: true,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			errorCh := make(chan *testError)
+			resultCh := make(chan bool)
+
+			go func() {
+				config := createBasicProxyConfig(tc.portEnd)
+				config.OnlineStatus = tc.onlineStatus
+				config.OfflineStatus = tc.offlineStatus
+
+				if err := startGatewayWithConfig(config); err != nil {
+					errorCh <- err
+				}
+			}()
+
+			if tc.activeServer {
+				go func() {
+					if err := startStatusListen(tc.portEnd); err != nil {
+						errorCh <- err
+					}
+				}()
+			}
+
+			go func() {
+				same, err := startStatusDial(tc.portEnd, tc.useProxyProtocolHeader, tc.expectedVersion)
+				if err != nil {
+					errorCh <- err
+				}
+				resultCh <- same
+			}()
+
+			select {
+			case err := <-errorCh:
+				t.Fatalf("Unexpected Error in test: %s\n%v", err.Message, err.Error)
+			case r := <-resultCh:
+				if !r {
+					t.Fail()
+				}
+			}
+		})
+	}
 }
 
 func TestProxyProtocol(t *testing.T) {
@@ -332,44 +407,4 @@ func TestProxyProtocol(t *testing.T) {
 
 		})
 	}
-}
-
-func startProxyProtoListen(portEnd int, shareCh chan<- string) *testError {
-	listenAddr := listenAddr(portEnd)
-	listener, err := Listen(listenAddr)
-	if err != nil {
-		return &testError{err, fmt.Sprintf("Can't listen to %v", listenAddr)}
-	}
-	defer listener.Close()
-
-	proxyListener := &proxyproto.Listener{Listener: listener.Listener}
-	defer proxyListener.Close()
-
-	conn, err := proxyListener.Accept()
-	if err != nil {
-		return &testError{err, "Can't accept connection on listener"}
-	}
-	defer conn.Close()
-	ip := getIpFromAddr(conn.RemoteAddr())
-	shareCh <- ip
-	return nil
-}
-
-func startProxyProtoDial(portEnd int, shareCh <-chan string, validator func(ip1, ip2 string) bool) (bool, *testError) {
-	time.Sleep(dialWait) // Startup time for gateway
-	gatewayAddr := gatewayAddr(portEnd)
-	conn, err := createConnWithFakeIP(gatewayAddr)
-	if err != nil {
-		return false, &testError{err, "Can't create connection"}
-	}
-	defer conn.Close()
-
-	if err := sendHandshake(conn, portEnd); err != nil {
-		return false, err
-	}
-
-	usedIp := getIpFromAddr(conn.LocalAddr())
-	receivedIp := <-shareCh
-
-	return validator(usedIp, receivedIp), nil
 }
