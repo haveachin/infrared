@@ -7,7 +7,6 @@ import (
 	"strings"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/haveachin/infrared/protocol"
 	"github.com/haveachin/infrared/protocol/handshaking"
@@ -16,7 +15,6 @@ import (
 )
 
 var serverDomain string = "infrared.gateway"
-var dialWait time.Duration = time.Duration(5 * time.Millisecond) // Startup time for gateway
 
 type testError struct {
 	Error   error
@@ -72,14 +70,6 @@ func serverHandshake(domain string, port int) protocol.Packet {
 	return hs.Marshal()
 }
 
-func startGatewayWithConfig(config *ProxyConfig) *testError {
-	var proxies []*Proxy
-	proxy := &Proxy{Config: config}
-	proxies = append(proxies, proxy)
-
-	return startGatewayProxies(proxies)
-}
-
 func configToProxies(config *ProxyConfig) []*Proxy {
 	proxyConfigs := make([]*ProxyConfig, 0)
 	proxyConfigs = append(proxyConfigs, config)
@@ -93,23 +83,6 @@ func configsToProxies(config []*ProxyConfig) []*Proxy {
 		proxies = append(proxies, proxy)
 	}
 	return proxies
-}
-
-func startGatewayWithConfigs(config []*ProxyConfig) *testError {
-	var proxies []*Proxy
-	for _, c := range config {
-		proxy := &Proxy{Config: c}
-		proxies = append(proxies, proxy)
-	}
-	return startGatewayProxies(proxies)
-}
-
-func startGatewayProxies(proxies []*Proxy) *testError {
-	gateway := Gateway{}
-	if err := gateway.ListenAndServe(proxies); err != nil {
-		return &testError{err, "Can't start gateway"}
-	}
-	return nil
 }
 
 func sendHandshakePort(conn Conn, portEnd int) *testError {
@@ -206,15 +179,25 @@ func TestStatusRequest(t *testing.T) {
 			}(wg)
 
 			if tc.activeServer {
+				wg.Add(1)
+				serverC := statusListenerConfig{}
+				serverC.status = statusPKWithVersion(serverVersionName)
+				serverC.addr = serverAddr(tc.portEnd)
 				go func() {
-					if err := startStatusListen(tc.portEnd); err != nil {
-						errorCh <- err
-					}
+					statusListen(serverC, errorCh)
+					wg.Done()
 				}()
 			}
 
+			wg.Wait()
 			go func() {
-				same, err := startStatusDial(tc.portEnd, tc.expectedVersion)
+				pk := createStatusHandshake(tc.portEnd)
+				config := statusDialConfig{
+					pk:           pk,
+					expectedName: tc.expectedVersion,
+					gatewayAddr:  gatewayAddr(tc.portEnd),
+				}
+				same, err := statusDial(config)
 				if err != nil {
 					errorCh <- err
 				}
@@ -233,40 +216,52 @@ func TestStatusRequest(t *testing.T) {
 	}
 }
 
-func startStatusListen(portEnd int) *testError {
-	listenAddr := serverAddr(portEnd)
-	listener, err := Listen(listenAddr)
-	if err != nil {
-		return &testError{err, fmt.Sprintf("Can't listen to %v", listenAddr)}
-	}
-	defer listener.Close()
-
-	conn, err := listener.Accept()
-	if err != nil {
-		return &testError{err, "Can't accept connection on listener"}
-	}
-	defer conn.Close()
-
-	pk, err := statusPKWithVersion(serverVersionName).StatusResponsePacket()
-	if err != nil {
-		return &testError{err, "Can't create status response packet"}
-	}
-	if err := conn.WritePacket(pk); err != nil {
-		return &testError{err, "Can't write status response packet on connection"}
-	}
-	return nil
+type statusListenerConfig struct {
+	id     int
+	addr   string
+	status StatusConfig
 }
 
-func startStatusDial(portEnd int, expectedName string) (bool, *testError) {
-	time.Sleep(dialWait) // Startup time for gateway
-	gatewayAddr := gatewayAddr(portEnd)
-	conn, err := Dial(gatewayAddr)
+func statusListen(c statusListenerConfig, errorCh chan *testError) {
+	listener, err := Listen(c.addr)
+	if err != nil {
+		errorCh <- &testError{err, fmt.Sprintf("Can't listen to %v", c.addr)}
+	}
+
+	go func() {
+		defer listener.Close()
+		for {
+			conn, err := listener.Accept()
+			if err != nil {
+				errorCh <- &testError{err, "Can't accept connection on listener"}
+			}
+			pk, err := c.status.StatusResponsePacket()
+			if err != nil {
+				errorCh <- &testError{err, "Can't create status response packet"}
+			}
+			go func() {
+				if err := conn.WritePacket(pk); err != nil {
+					errorCh <- &testError{err, "Can't write status response packet on connection"}
+				}
+			}()
+		}
+	}()
+}
+
+type statusDialConfig struct {
+	pk           protocol.Packet
+	expectedName string
+	gatewayAddr  string
+}
+
+func statusDial(c statusDialConfig) (bool, *testError) {
+	conn, err := Dial(c.gatewayAddr)
 	if err != nil {
 		return false, &testError{err, "Can't make a connection with gateway"}
 	}
 	defer conn.Close()
 
-	if err := sendHandshakePort(conn, portEnd); err != nil {
+	if err := sendHandshake(conn, c.pk); err != nil {
 		return false, err
 	}
 
@@ -287,7 +282,7 @@ func startStatusDial(portEnd int, expectedName string) (bool, *testError) {
 
 	res := &status.ResponseJSON{}
 	json.Unmarshal([]byte(response.JSONResponse), &res)
-	return expectedName == res.Version.Name, nil
+	return c.expectedName == res.Version.Name, nil
 }
 
 type matchIp func(ip1, ip2 string) bool
@@ -343,8 +338,8 @@ func TestProxyProtocol(t *testing.T) {
 			errorCh := make(chan *testError)
 			resultCh := make(chan bool)
 			shareCh := make(chan string)
-
 			wg := &sync.WaitGroup{}
+
 			wg.Add(1)
 			go func(wg *sync.WaitGroup) {
 				config := createProxyProtocolConfig(tc.portEnd, tc.proxyproto)
@@ -362,7 +357,7 @@ func TestProxyProtocol(t *testing.T) {
 					errorCh <- err
 				}
 			}()
-
+			wg.Wait()
 			go func() {
 				same, err := startProxyProtoDial(tc.portEnd, shareCh, tc.validator)
 				if err != nil {
@@ -406,7 +401,6 @@ func startProxyProtoListen(portEnd int, shareCh chan<- string) *testError {
 }
 
 func startProxyProtoDial(portEnd int, shareCh <-chan string, validator func(ip1, ip2 string) bool) (bool, *testError) {
-	time.Sleep(dialWait) // Startup time for gateway
 	gatewayAddr := gatewayAddr(portEnd)
 	conn, err := createConnWithFakeIP(gatewayAddr)
 	if err != nil {
@@ -424,12 +418,6 @@ func startProxyProtoDial(portEnd int, shareCh <-chan string, validator func(ip1,
 	return validator(usedIp, receivedIp), nil
 }
 
-type serverConfig struct {
-	id     int
-	addr   string
-	status StatusConfig
-}
-
 func routeVersionName(index int) string {
 	return fmt.Sprintf("infrared.gateway-%d", index)
 }
@@ -440,7 +428,7 @@ func TestRouting(t *testing.T) {
 
 	basePort := 540
 	routingConfig := make([]*ProxyConfig, 0)
-	serverConfigs := make([]serverConfig, 0)
+	serverConfigs := make([]statusListenerConfig, 0)
 
 	servers := []struct {
 		id      int
@@ -522,7 +510,7 @@ func TestRouting(t *testing.T) {
 	for i, server := range servers {
 		port := basePort + i
 		proxyC := &ProxyConfig{}
-		serverC := serverConfig{}
+		serverC := statusListenerConfig{}
 
 		serverAddr := serverAddr(port)
 		proxyC.ListenTo = gatewayAddr(server.portEnd)
@@ -549,8 +537,8 @@ func TestRouting(t *testing.T) {
 
 	for _, c := range serverConfigs {
 		wg.Add(1)
-		go func(config serverConfig) {
-			startRoutingListen(config, errorCh)
+		go func(config statusListenerConfig) {
+			statusListen(config, errorCh)
 			wg.Done()
 		}(c)
 	}
@@ -569,13 +557,13 @@ func TestRouting(t *testing.T) {
 
 			go func() {
 				pk := serverHandshake(tc.requestDomain, tc.gatewayPortEnd)
-				config := routingDialConfig{
+				config := statusDialConfig{
 					pk:           pk,
 					expectedName: routeVersionName(tc.expectedId),
 					gatewayAddr:  gatewayAddr(tc.gatewayPortEnd),
 				}
 
-				same, err := routingDial(config)
+				same, err := statusDial(config)
 				if err != nil {
 					errorCh <- err
 				}
@@ -594,67 +582,4 @@ func TestRouting(t *testing.T) {
 			}
 		})
 	}
-}
-
-func startRoutingListen(c serverConfig, errorCh chan *testError) {
-	listener, err := Listen(c.addr)
-	if err != nil {
-		errorCh <- &testError{err, fmt.Sprintf("Can't listen to %v", c.addr)}
-	}
-
-	go func() {
-		defer listener.Close()
-		for {
-			conn, err := listener.Accept()
-			if err != nil {
-				errorCh <- &testError{err, "Can't accept connection on listener"}
-			}
-			pk, err := c.status.StatusResponsePacket()
-			if err != nil {
-				errorCh <- &testError{err, "Can't create status response packet"}
-			}
-			go func() {
-				if err := conn.WritePacket(pk); err != nil {
-					errorCh <- &testError{err, "Can't write status response packet on connection"}
-				}
-			}()
-		}
-	}()
-}
-
-type routingDialConfig struct {
-	pk           protocol.Packet
-	expectedName string
-	gatewayAddr  string
-}
-
-func routingDial(config routingDialConfig) (bool, *testError) {
-	timeout := 1 * time.Millisecond
-	conn, err := DialTimeout(config.gatewayAddr, timeout)
-	if err != nil {
-		return false, &testError{err, "Can't make a connection with gateway"}
-	}
-	defer conn.Close()
-	if err := sendHandshake(conn, config.pk); err != nil {
-		return false, err
-	}
-
-	statusPk := status.ServerBoundRequest{}.Marshal()
-	if err := conn.WritePacket(statusPk); err != nil {
-		return false, &testError{err, "Can't write status request packet"}
-	}
-
-	receivedPk, err := conn.ReadPacket()
-	if err != nil {
-		return false, &testError{err, "Can't read status reponse packet"}
-	}
-
-	response, err := status.UnmarshalClientBoundResponse(receivedPk)
-	if err != nil {
-		return false, &testError{err, "Can't unmarshal status reponse packet"}
-	}
-
-	res := &status.ResponseJSON{}
-	json.Unmarshal([]byte(response.JSONResponse), &res)
-	return config.expectedName == res.Version.Name, nil
 }
