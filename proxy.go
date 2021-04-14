@@ -225,14 +225,14 @@ func (proxy *Proxy) handleConn(conn Conn, connRemoteAddr net.Addr) error {
 	var username string
 	if hs.IsLoginRequest() {
 		proxy.cancelProcessTimeout()
-		username, err = proxy.sniffUsername(conn, rconn)
+		username, err = proxy.sniffUsername(conn, rconn, connRemoteAddr)
 		if err != nil {
 			return err
 		}
 		proxy.addPlayer(conn, username)
 		proxy.logEvent(callback.PlayerJoinEvent{
 			Username:      username,
-			RemoteAddress: conn.RemoteAddr().String(),
+			RemoteAddress: connRemoteAddr.String(),
 			TargetAddress: proxyTo,
 			ProxyUID:      proxyUID,
 		})
@@ -243,7 +243,7 @@ func (proxy *Proxy) handleConn(conn Conn, connRemoteAddr net.Addr) error {
 
 	proxy.logEvent(callback.PlayerLeaveEvent{
 		Username:      username,
-		RemoteAddress: conn.RemoteAddr().String(),
+		RemoteAddress: connRemoteAddr.String(),
 		TargetAddress: proxyTo,
 		ProxyUID:      proxyUID,
 	})
@@ -328,7 +328,7 @@ func (proxy *Proxy) cancelProcessTimeout() {
 	proxy.cancelTimeoutFunc = nil
 }
 
-func (proxy *Proxy) sniffUsername(conn, rconn Conn) (string, error) {
+func (proxy *Proxy) sniffUsername(conn, rconn Conn, connRemoteAddr net.Addr) (string, error) {
 	pk, err := conn.ReadPacket()
 	if err != nil {
 		return "", err
@@ -339,7 +339,7 @@ func (proxy *Proxy) sniffUsername(conn, rconn Conn) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	log.Printf("[i] %s with username %s connects through %s", conn.RemoteAddr(), ls.Name, proxy.UID())
+	log.Printf("[i] %s with username %s connects through %s", connRemoteAddr, ls.Name, proxy.UID())
 	return string(ls.Name), nil
 }
 

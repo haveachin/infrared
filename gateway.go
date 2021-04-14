@@ -169,7 +169,7 @@ func (gateway *Gateway) serve(conn Conn, addr string) error {
 
 	proxyUID := proxyUID(hs.ParseServerAddress(), addr)
 
-	log.Printf("[i] %s requests proxy with UID %s", conn.RemoteAddr(), proxyUID)
+	log.Printf("[i] %s requests proxy with UID %s", connRemoteAddr, proxyUID)
 	v, ok := gateway.proxies.Load(proxyUID)
 	if !ok {
 		// Client send an invalid address/port; we don't have a v for that address
