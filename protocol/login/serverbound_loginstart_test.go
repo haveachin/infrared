@@ -7,15 +7,15 @@ import (
 
 func TestUnmarshalServerBoundLoginStart(t *testing.T) {
 	tt := []struct {
-		packet            protocol.Packet
-		unmarshaledPacket ServerLoginStart
+		packet             protocol.Packet
+		unmarshalledPacket ServerLoginStart
 	}{
 		{
 			packet: protocol.Packet{
 				ID:   0x00,
 				Data: []byte{0x00},
 			},
-			unmarshaledPacket: ServerLoginStart{
+			unmarshalledPacket: ServerLoginStart{
 				Name: protocol.String(""),
 			},
 		},
@@ -24,7 +24,7 @@ func TestUnmarshalServerBoundLoginStart(t *testing.T) {
 				ID:   0x00,
 				Data: []byte{0x0d, 0x48, 0x65, 0x6c, 0x6c, 0x6f, 0x2c, 0x20, 0x57, 0x6f, 0x72, 0x6c, 0x64, 0x21},
 			},
-			unmarshaledPacket: ServerLoginStart{
+			unmarshalledPacket: ServerLoginStart{
 				Name: protocol.String("Hello, World!"),
 			},
 		},
@@ -36,8 +36,8 @@ func TestUnmarshalServerBoundLoginStart(t *testing.T) {
 			t.Error(err)
 		}
 
-		if loginStart.Name != tc.unmarshaledPacket.Name {
-			t.Errorf("got: %v, want: %v", loginStart.Name, tc.unmarshaledPacket.Name)
+		if loginStart.Name != tc.unmarshalledPacket.Name {
+			t.Errorf("got: %v, want: %v", loginStart.Name, tc.unmarshalledPacket.Name)
 		}
 	}
 }
