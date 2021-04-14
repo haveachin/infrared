@@ -5,16 +5,17 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/fsnotify/fsnotify"
-	"github.com/haveachin/infrared/process"
-	"github.com/haveachin/infrared/protocol"
-	"github.com/haveachin/infrared/protocol/status"
 	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/fsnotify/fsnotify"
+	"github.com/haveachin/infrared/process"
+	"github.com/haveachin/infrared/protocol"
+	"github.com/haveachin/infrared/protocol/status"
 )
 
 // ProxyConfig is a data representation of a Proxy configuration
@@ -61,19 +62,21 @@ func (docker DockerConfig) IsPortainer() bool {
 		docker.Portainer.EndpointID != ""
 }
 
+type PlayerSample struct {
+	Name string `json:"name"`
+	UUID string `json:"uuid"`
+}
+
 type StatusConfig struct {
 	cachedPacket *protocol.Packet
 
-	VersionName    string `json:"versionName"`
-	ProtocolNumber int    `json:"protocolNumber"`
-	MaxPlayers     int    `json:"maxPlayers"`
-	PlayersOnline  int    `json:"playersOnline"`
-	PlayerSamples  []struct {
-		Name string `json:"name"`
-		UUID string `json:"uuid"`
-	} `json:"playerSamples"`
-	IconPath string `json:"iconPath"`
-	MOTD     string `json:"motd"`
+	VersionName    string         `json:"versionName"`
+	ProtocolNumber int            `json:"protocolNumber"`
+	MaxPlayers     int            `json:"maxPlayers"`
+	PlayersOnline  int            `json:"playersOnline"`
+	PlayerSamples  []PlayerSample `json:"playerSamples"`
+	IconPath       string         `json:"iconPath"`
+	MOTD           string         `json:"motd"`
 }
 
 func (cfg StatusConfig) StatusResponsePacket() (protocol.Packet, error) {

@@ -3,10 +3,11 @@ package infrared
 import (
 	"bufio"
 	"crypto/cipher"
-	"github.com/haveachin/infrared/protocol"
 	"io"
 	"net"
 	"time"
+
+	"github.com/haveachin/infrared/protocol"
 )
 
 type PacketWriter interface {
@@ -51,9 +52,11 @@ type Conn interface {
 	PacketWriter
 	PacketReader
 	PacketPeeker
+
+	Reader() *bufio.Reader
 }
 
-// wrapConn warp an net.Conn to plasma.Conn
+// wrapConn warp an net.Conn to infared.conn
 func wrapConn(c net.Conn) *conn {
 	return &conn{
 		Conn: c,
@@ -120,4 +123,8 @@ func (c *conn) SetCipher(ecoStream, decoStream cipher.Stream) {
 		S: ecoStream,
 		W: c.Conn,
 	}
+}
+
+func (c *conn) Reader() *bufio.Reader {
+	return c.r
 }
