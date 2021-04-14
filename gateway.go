@@ -7,6 +7,7 @@ import (
 
 	"github.com/haveachin/infrared/callback"
 	"github.com/haveachin/infrared/protocol/handshaking"
+	"github.com/pires/go-proxyproto"
 )
 
 type Gateway struct {
@@ -152,9 +153,22 @@ func (gateway *Gateway) serve(conn Conn, addr string) error {
 		return err
 	}
 
+	connRemoteAddr := conn.RemoteAddr()
 	hs, err := handshaking.UnmarshalServerBoundHandshake(pk)
 	if err != nil {
-		return err
+		header, err := proxyproto.Read(conn.Reader())
+		if err != nil {
+			return err
+		}
+		connRemoteAddr = header.SourceAddr
+		pk, err := conn.PeekPacket()
+		if err != nil {
+			return err
+		}
+		hs, err = handshaking.UnmarshalServerBoundHandshake(pk)
+		if err != nil {
+			return err
+		}
 	}
 
 	proxyUID := proxyUID(hs.ParseServerAddress(), addr)
@@ -167,7 +181,7 @@ func (gateway *Gateway) serve(conn Conn, addr string) error {
 	}
 	proxy := v.(*Proxy)
 
-	if err := proxy.handleConn(conn); err != nil {
+	if err := proxy.handleConn(conn, connRemoteAddr); err != nil {
 		proxy.CallbackLogger().LogEvent(callback.ErrorEvent{
 			Error:    err.Error(),
 			ProxyUID: proxyUID,
