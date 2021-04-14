@@ -50,6 +50,52 @@ func TestServerBoundHandshake_Marshal(t *testing.T) {
 	}
 }
 
+func TestUnmarshalServerBoundHandshake(t *testing.T) {
+	tt := []struct {
+		packet             protocol.Packet
+		unmarshalledPacket ServerBoundHandshake
+	}{
+		{
+			packet: protocol.Packet{
+				ID:   0x00,
+				Data: []byte{0xC2, 0x04, 0x0B, 0x73, 0x70, 0x6F, 0x6F, 0x6B, 0x2E, 0x73, 0x70, 0x61, 0x63, 0x65, 0x63, 0xDD, 0x01},
+			},
+			unmarshalledPacket: ServerBoundHandshake{
+				ProtocolVersion: 578,
+				ServerAddress:   "spook.space",
+				ServerPort:      25565,
+				NextState:       ServerBoundHandshakeStatusState,
+			},
+		},
+		{
+			packet: protocol.Packet{
+				ID:   0x00,
+				Data: []byte{0xC2, 0x04, 0x0B, 0x65, 0x78, 0x61, 0x6D, 0x70, 0x6C, 0x65, 0x2E, 0x63, 0x6F, 0x6D, 0x05, 0x39, 0x01},
+			},
+			unmarshalledPacket: ServerBoundHandshake{
+				ProtocolVersion: 578,
+				ServerAddress:   "example.com",
+				ServerPort:      1337,
+				NextState:       ServerBoundHandshakeStatusState,
+			},
+		},
+	}
+
+	for _, tc := range tt {
+		hs, err := UnmarshalServerBoundHandshake(tc.packet)
+		if err != nil {
+			t.Error(err)
+		}
+
+		if hs.ProtocolVersion != tc.unmarshalledPacket.ProtocolVersion ||
+			hs.ServerAddress != tc.unmarshalledPacket.ServerAddress ||
+			hs.ServerPort != tc.unmarshalledPacket.ServerPort ||
+			hs.NextState != tc.unmarshalledPacket.NextState {
+			t.Errorf("got: %v, want: %v", hs, tc.unmarshalledPacket)
+		}
+	}
+}
+
 func BenchmarkHandshakingServerBoundHandshake_Marshal(b *testing.B) {
 	isHandshakePk := ServerBoundHandshake{
 		ProtocolVersion: 578,
