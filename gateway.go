@@ -2,11 +2,12 @@ package infrared
 
 import (
 	"errors"
+	"log"
+	"sync"
+
 	"github.com/haveachin/infrared/callback"
 	"github.com/haveachin/infrared/protocol/handshaking"
 	"github.com/pires/go-proxyproto"
-	"log"
-	"sync"
 )
 
 type Gateway struct {
@@ -31,8 +32,11 @@ func (gateway *Gateway) ListenAndServe(proxies []*Proxy) error {
 	}
 
 	log.Println("All proxies are online")
-	gateway.wg.Wait()
 	return nil
+}
+
+func (gateway *Gateway) KeepProcessActive() {
+	gateway.wg.Wait()
 }
 
 // Close closes all listeners
@@ -133,12 +137,12 @@ func (gateway *Gateway) listenAndServe(listener Listener, addr string) error {
 
 		go func() {
 			log.Printf("[>] Incoming %s on listener %s", conn.RemoteAddr(), addr)
+			defer conn.Close()
 			if err := gateway.serve(conn, addr); err != nil {
 				log.Printf("[x] %s closed connection with %s; error: %s", conn.RemoteAddr(), addr, err)
 				return
 			}
 			log.Printf("[x] %s closed connection with %s", conn.RemoteAddr(), addr)
-			conn.Close()
 		}()
 	}
 }
