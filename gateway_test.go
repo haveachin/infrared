@@ -226,7 +226,10 @@ func createConnWithFakeIP(gatewayAddr string) (Conn, error) {
 			Port: 0,
 		},
 	}
-	netConn, _ := dialer.Dial("tcp", gatewayAddr)
+	netConn, err := dialer.Dial("tcp", gatewayAddr)
+	if err != nil {
+		return nil, err
+	}
 	return wrapConn(netConn), nil
 }
 
