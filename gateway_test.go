@@ -37,6 +37,10 @@ func serverAddr(portEnd int) string {
 	return portToAddr(serverPort(portEnd))
 }
 
+func dialerPort(portEnd int) int {
+	return 30000 + portEnd
+}
+
 func portToAddr(port int) string {
 	return fmt.Sprintf(":%d", port)
 }
@@ -171,6 +175,7 @@ func statusListen(c statusListenerConfig, errorCh chan *testError) {
 type statusDialConfig struct {
 	pk                      protocol.Packet
 	gatewayAddr             string
+	dialerPort              int
 	sendProxyProtocolHeader bool
 	useProxyProtocol        bool
 }
@@ -179,7 +184,7 @@ func statusDial(c statusDialConfig) (string, *testError) {
 	var conn Conn
 	var err error
 	if c.useProxyProtocol {
-		conn, err = createConnWithFakeIP(c.gatewayAddr)
+		conn, err = createConnWithFakeIP(c.dialerPort, c.gatewayAddr)
 	} else {
 		conn, err = Dial(c.gatewayAddr)
 	}
@@ -219,11 +224,11 @@ func statusDial(c statusDialConfig) (string, *testError) {
 	return res.Version.Name, nil
 }
 
-func createConnWithFakeIP(gatewayAddr string) (Conn, error) {
+func createConnWithFakeIP(dialerPort int, gatewayAddr string) (Conn, error) {
 	dialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{
 			IP:   net.ParseIP("127.0.10.1"),
-			Port: 54636,
+			Port: dialerPort,
 		},
 	}
 	netConn, err := dialer.Dial("tcp", gatewayAddr)
@@ -344,6 +349,7 @@ func TestStatusRequest(t *testing.T) {
 				config := statusDialConfig{
 					pk:          pk,
 					gatewayAddr: gatewayAddr(tc.portEnd),
+					dialerPort:  dialerPort(tc.portEnd),
 				}
 				receivedVersion, err := statusDial(config)
 				if err != nil {
@@ -432,6 +438,7 @@ func TestProxyProtocol(t *testing.T) {
 				config := statusDialConfig{
 					pk:                      pk,
 					gatewayAddr:             gatewayAddr(tc.portEnd),
+					dialerPort:              dialerPort(tc.portEnd),
 					useProxyProtocol:        tc.proxyproto,
 					sendProxyProtocolHeader: tc.receiveProxyproto,
 				}
@@ -491,52 +498,52 @@ func TestRouting(t *testing.T) {
 	}
 
 	tt := []struct {
-		name           string
-		expectedId     int
-		requestDomain  string
-		gatewayPortEnd int
-		expectError    bool
-		shouldMatch    bool
+		name          string
+		expectedId    int
+		requestDomain string
+		portEnd       int
+		expectError   bool
+		shouldMatch   bool
 	}{
 		{
-			name:           "Single word domain",
-			expectedId:     0,
-			requestDomain:  "infrared",
-			gatewayPortEnd: 530,
-			expectError:    false,
-			shouldMatch:    true,
+			name:          "Single word domain",
+			expectedId:    0,
+			requestDomain: "infrared",
+			portEnd:       530,
+			expectError:   false,
+			shouldMatch:   true,
 		},
 		{
-			name:           "Single word domain but wrong id",
-			expectedId:     1,
-			requestDomain:  "infrared",
-			gatewayPortEnd: 530,
-			expectError:    false,
-			shouldMatch:    false,
+			name:          "Single word domain but wrong id",
+			expectedId:    1,
+			requestDomain: "infrared",
+			portEnd:       530,
+			expectError:   false,
+			shouldMatch:   false,
 		},
 		{
-			name:           "duplicated domain but other port",
-			expectedId:     9,
-			requestDomain:  "infrared",
-			gatewayPortEnd: 531,
-			expectError:    false,
-			shouldMatch:    true,
+			name:          "duplicated domain but other port",
+			expectedId:    9,
+			requestDomain: "infrared",
+			portEnd:       531,
+			expectError:   false,
+			shouldMatch:   true,
 		},
 		{
-			name:           "Domain with a dash",
-			expectedId:     1,
-			requestDomain:  "infrared-dash",
-			gatewayPortEnd: 530,
-			expectError:    false,
-			shouldMatch:    true,
+			name:          "Domain with a dash",
+			expectedId:    1,
+			requestDomain: "infrared-dash",
+			portEnd:       530,
+			expectError:   false,
+			shouldMatch:   true,
 		},
 		{
-			name:           "Domain with points at both ends",
-			expectedId:     2,
-			requestDomain:  ".dottedInfrared.",
-			gatewayPortEnd: 530,
-			expectError:    true,
-			shouldMatch:    false,
+			name:          "Domain with points at both ends",
+			expectedId:    2,
+			requestDomain: ".dottedInfrared.",
+			portEnd:       530,
+			expectError:   true,
+			shouldMatch:   false,
 		},
 	}
 
@@ -590,10 +597,11 @@ func TestRouting(t *testing.T) {
 
 			go func() {
 				expectedName := routeVersionName(tc.expectedId)
-				pk := serverHandshake(tc.requestDomain, tc.gatewayPortEnd)
+				pk := serverHandshake(tc.requestDomain, tc.portEnd)
 				config := statusDialConfig{
 					pk:          pk,
-					gatewayAddr: gatewayAddr(tc.gatewayPortEnd),
+					gatewayAddr: gatewayAddr(tc.portEnd),
+					dialerPort:  dialerPort(tc.portEnd),
 				}
 
 				receivedVersion, err := statusDial(config)
