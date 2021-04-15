@@ -2,11 +2,11 @@
    <img width="300" height="auto" src="https://i.imgur.com/sD8cjJc.png">
  </p>
 
-![Discord](https://img.shields.io/discord/800456341088370698?label=discord&logo=discord)
-![Docker Pulls](https://img.shields.io/docker/pulls/haveachin/infrared?logo=docker)
+[![Discord](https://img.shields.io/discord/800456341088370698?label=discord&logo=discord)](https://discord.gg/r98YPRsZAx)
+[![Docker Pulls](https://img.shields.io/docker/pulls/haveachin/infrared?logo=docker)](https://hub.docker.com/r/haveachin/infrared)
 
 ![build](https://github.com/haveachin/infrared/actions/workflows/test.yml/badge.svg)
-![GitHub](https://img.shields.io/github/license/haveachin/infrared)
+[![GitHub](https://img.shields.io/github/license/haveachin/infrared)](https://raw.githubusercontent.com/haveachin/infrared/master/LICENSE)
 
 # Infrared
 
