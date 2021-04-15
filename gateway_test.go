@@ -227,7 +227,7 @@ func statusDial(c statusDialConfig) (string, *testError) {
 func createConnWithFakeIP(dialerPort int, gatewayAddr string) (Conn, error) {
 	dialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{
-			IP:   net.ParseIP("127.0.10.1"),
+			IP:   net.ParseIP("127.0.0.1"),
 			Port: dialerPort,
 		},
 	}
