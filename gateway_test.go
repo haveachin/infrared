@@ -223,7 +223,7 @@ func createConnWithFakeIP(gatewayAddr string) (Conn, error) {
 	dialer := &net.Dialer{
 		LocalAddr: &net.TCPAddr{
 			IP:   net.ParseIP("127.0.10.1"),
-			Port: 0,
+			Port: 54636,
 		},
 	}
 	netConn, err := dialer.Dial("tcp", gatewayAddr)
