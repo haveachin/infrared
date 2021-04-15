@@ -38,7 +38,7 @@ func serverAddr(portEnd int) string {
 }
 
 func dialerPort(portEnd int) int {
-	return 30000 + portEnd
+	return 10000 + portEnd
 }
 
 func portToAddr(port int) string {
