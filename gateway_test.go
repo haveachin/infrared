@@ -244,11 +244,11 @@ func createProxyProtocolHeader() proxyproto.Header {
 		Command:           proxyproto.PROXY,
 		TransportProtocol: proxyproto.TCPv4,
 		SourceAddr: &net.TCPAddr{
-			IP:   net.ParseIP("127.0.11.1"),
+			IP:   net.ParseIP("109.226.143.210"),
 			Port: 0,
 		},
 		DestinationAddr: &net.TCPAddr{
-			IP:   net.ParseIP("127.0.20.1"),
+			IP:   net.ParseIP("210.223.216.109"),
 			Port: 0,
 		},
 	}
@@ -386,7 +386,7 @@ func TestProxyProtocol(t *testing.T) {
 			proxyproto:  true,
 			portEnd:     581,
 			shouldMatch: true,
-			expectingIp: "127.0.10.1",
+			expectingIp: "127.0.0.1",
 		},
 		{
 			name:        "ProxyProtocolOff",
@@ -401,7 +401,7 @@ func TestProxyProtocol(t *testing.T) {
 			receiveProxyproto: true,
 			portEnd:           583,
 			shouldMatch:       true,
-			expectingIp:       "127.0.11.1",
+			expectingIp:       "109.226.143.210",
 		},
 	}
 
@@ -454,7 +454,7 @@ func TestProxyProtocol(t *testing.T) {
 				t.Fatalf("Unexpected Error in test: %s\n%v", err.Message, err.Error)
 			case r := <-resultCh:
 				if r != tc.shouldMatch {
-					t.Fail()
+					t.Errorf("got: %v; want: %v", r, tc.shouldMatch)
 				}
 			}
 
