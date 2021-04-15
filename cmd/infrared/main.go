@@ -2,10 +2,11 @@ package main
 
 import (
 	"flag"
-	"github.com/haveachin/infrared"
 	"log"
 	"os"
 	"strconv"
+
+	"github.com/haveachin/infrared"
 )
 
 const (
@@ -101,4 +102,6 @@ func main() {
 	if err := gateway.ListenAndServe(proxies); err != nil {
 		log.Fatal("Gateway exited; error:", err)
 	}
+
+	gateway.KeepProcessActive()
 }
