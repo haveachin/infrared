@@ -13,13 +13,3 @@ func (pk ServerBoundRequest) Marshal() protocol.Packet {
 		ServerBoundRequestPacketID,
 	)
 }
-
-func UnmarshalServerBoundRequest(packet protocol.Packet) (ServerBoundRequest, error) {
-	var pk ServerBoundRequest
-
-	if packet.ID != ServerBoundRequestPacketID {
-		return pk, protocol.ErrInvalidPacketID
-	}
-
-	return pk, nil
-}

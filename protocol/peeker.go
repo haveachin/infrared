@@ -24,7 +24,7 @@ func (peeker *bytePeeker) Read(b []byte) (int, error) {
 
 	peeker.cursor += len(b)
 
-	return len(buf), nil
+	return len(b), nil
 }
 
 func (peeker *bytePeeker) ReadByte() (byte, error) {

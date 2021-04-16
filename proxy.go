@@ -214,7 +214,7 @@ func (proxy *Proxy) handleConn(conn Conn, connRemoteAddr net.Addr) error {
 	}
 
 	if proxy.RealIP() {
-		hs.UpgradeToRealIP(connRemoteAddr)
+		hs.UpgradeToRealIP(connRemoteAddr, time.Now())
 		pk = hs.Marshal()
 	}
 
