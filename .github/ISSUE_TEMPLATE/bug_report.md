@@ -24,4 +24,4 @@ If applicable, add screenshots to help explain your problem.
 A copy of your logs would be nice, but please be sure to censor any information that you don't want to be public.
 
 **Additional context** (Optional)
-Add any other context about the problem here.
+Add any other context of the problem here.
