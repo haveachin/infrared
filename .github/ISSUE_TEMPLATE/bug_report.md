@@ -21,7 +21,7 @@ A clear and concise description of what you expected to happen.
 
 **Screenshots** (Optional)
 If applicable, add screenshots to help explain your problem.
-A copy of your logs would be nice, but please be sure to censor any information that you don't what to be public.
+A copy of your logs would be nice, but please be sure to censor any information that you don't want to be public.
 
 **Additional context** (Optional)
 Add any other context about the problem here.
