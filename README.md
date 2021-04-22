@@ -8,7 +8,7 @@
 ![build](https://github.com/haveachin/infrared/actions/workflows/test.yml/badge.svg)
 [![GitHub](https://img.shields.io/github/license/haveachin/infrared)](https://raw.githubusercontent.com/haveachin/infrared/master/LICENSE)
 
-# Infrared a Minecraft-Proxy
+# Infrared - a Minecraft Proxy
 
 An ultra lightweight Minecraft reverse proxy and idle placeholder:
 Ever wanted to have only one exposed port on your server for multiple Minecraft servers?
