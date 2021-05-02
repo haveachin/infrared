@@ -83,7 +83,7 @@ func serverHandshake(domain string, port int) protocol.Packet {
 		ProtocolVersion: 574,
 		ServerAddress:   protocol.String(domain),
 		ServerPort:      protocol.UnsignedShort(port),
-		NextState:       1,
+		NextState:       1, //one means status
 	}
 	return hs.Marshal()
 }
@@ -172,55 +172,84 @@ func statusListen(c statusListenerConfig, errorCh chan *testError) {
 	}()
 }
 
+func statusReponseToStruct(pk protocol.Packet) (status.ResponseJSON, error) {
+	response, err := status.UnmarshalClientBoundResponse(pk)
+	if err != nil {
+		return status.ResponseJSON{}, err
+	}
+
+	res := &status.ResponseJSON{}
+	json.Unmarshal([]byte(response.JSONResponse), &res)
+	return *res, nil
+}
+
 type statusDialConfig struct {
+	conn                    Conn
 	pk                      protocol.Packet
 	gatewayAddr             string
 	dialerPort              int
 	sendProxyProtocolHeader bool
 	useProxyProtocol        bool
+	sendEndPing             bool
 }
 
-func statusDial(c statusDialConfig) (string, *testError) {
+func statusDial(c statusDialConfig) (protocol.Packet, *testError) {
 	var conn Conn
 	var err error
-	if c.useProxyProtocol {
+	if c.conn != nil {
+		conn = c.conn
+	} else if c.useProxyProtocol {
 		conn, err = createConnWithFakeIP(c.dialerPort, c.gatewayAddr)
 	} else {
 		conn, err = Dial(c.gatewayAddr)
 	}
 
 	if err != nil {
-		return "", &testError{err, "Can't make a connection with gateway"}
+		return protocol.Packet{}, &testError{err, "Can't make a connection with gateway"}
 	}
 	defer conn.Close()
 
 	if c.sendProxyProtocolHeader {
 		if err := sendProxyProtocolHeader(conn); err != nil {
-			return "", err
+			return protocol.Packet{}, err
 		}
 	}
 
 	if err := sendHandshake(conn, c.pk); err != nil {
-		return "", err
+		return protocol.Packet{}, err
 	}
 
 	statusPk := status.ServerBoundRequest{}.Marshal()
 	if err := conn.WritePacket(statusPk); err != nil {
-		return "", &testError{err, "Can't write status request packet"}
+		return protocol.Packet{}, &testError{err, "Can't write status request packet"}
 	}
 
 	receivedPk, err := conn.ReadPacket()
 	if err != nil {
-		return "", &testError{err, "Can't read status reponse packet"}
+		return protocol.Packet{}, &testError{err, "Can't read status reponse packet"}
 	}
 
-	response, err := status.UnmarshalClientBoundResponse(receivedPk)
+	if c.sendEndPing {
+		pingPk := status.ServerBoundRequest{}.Marshal()
+		if err := conn.WritePacket(pingPk); err != nil {
+			return receivedPk, &testError{err, "couldnt send packet for ping to server"}
+		}
+		conn.ReadPacket()
+	}
+
+	return receivedPk, nil
+
+}
+
+func statusDialGetVersionName(c statusDialConfig) (string, *testError) {
+	pk, err := statusDial(c)
 	if err != nil {
-		return "", &testError{err, "Can't unmarshal status reponse packet"}
+		return "", err
 	}
-
-	res := &status.ResponseJSON{}
-	json.Unmarshal([]byte(response.JSONResponse), &res)
+	res, err2 := statusReponseToStruct(pk)
+	if err2 != nil {
+		return "", &testError{err2, "Couldn't convert response to ResponseJSON struct"}
+	}
 	return res.Version.Name, nil
 }
 
@@ -351,7 +380,7 @@ func TestStatusRequest(t *testing.T) {
 					gatewayAddr: gatewayAddr(tc.portEnd),
 					dialerPort:  dialerPort(tc.portEnd),
 				}
-				receivedVersion, err := statusDial(config)
+				receivedVersion, err := statusDialGetVersionName(config)
 				if err != nil {
 					errorCh <- err
 					return
@@ -604,7 +633,7 @@ func TestRouting(t *testing.T) {
 					dialerPort:  dialerPort(tc.portEnd),
 				}
 
-				receivedVersion, err := statusDial(config)
+				receivedVersion, err := statusDialGetVersionName(config)
 				if err != nil {
 					errorCh <- err
 					return
@@ -624,4 +653,128 @@ func TestRouting(t *testing.T) {
 			}
 		})
 	}
+}
+
+func createTestConn(conn net.Conn) Conn {
+	return wrapConn(conn)
+}
+
+// func TestServe(t *testing.T) {
+// 	domain := serverDomain
+// 	proxyTo := ":25560"
+// 	c1, c2 := net.Pipe()
+// 	cServer := createTestConn(c1)
+// 	cClient := createTestConn(c2)
+
+// 	proxyConfig := &ProxyConfig{DomainName: domain, ProxyTo: proxyTo}
+// 	proxy := &Proxy{Config: proxyConfig}
+
+// 	gateway := &Gateway{}
+// 	gateway.proxies.Store(proxy.UID(), proxy)
+
+// 	go func(c Conn) {
+// 		// pk := serverHandshake(domain, 25565)
+// 		// dialConfig := statusDialConfig{
+// 		// 	conn:        c,
+// 		// 	pk:          pk,
+// 		// 	sendEndPing: true,
+// 		// }
+// 		// _, err := statusDial(dialConfig)
+// 		// if err != nil {
+// 		// 	fmt.Println(err)
+// 		// }
+
+// 		pk := serverHandshake(domain, 25565)
+// 		sendHandshake(c, pk)
+
+// 		receivedPk, err := c.ReadPacket()
+// 		if err != nil {
+// 			return
+// 		}
+
+// 		response, err := status.UnmarshalClientBoundResponse(receivedPk)
+// 		if err != nil {
+// 			return
+// 		}
+// 		fmt.Println("Done")
+
+// 		res := &status.ResponseJSON{}
+// 		json.Unmarshal([]byte(response.JSONResponse), &res)
+
+// 		//           	ID | ProtoVer. | Server Address                                                   		|Serv. Port | Nxt State
+// 		// data := []byte{0x00, 0xC2, 0x04, 0x0B, 0x65, 0x78, 0x61, 0x6D, 0x70, 0x6C, 0x65, 0x2E, 0x63, 0x6F, 0x6D, 0x05, 0x39, 0x01}
+// 		// c.Write(data)
+// 	}(cClient)
+
+// 	if err := gateway.serve(cServer, ""); err != nil {
+// 		fmt.Println("Error is not nil")
+// 		fmt.Println(err)
+// 		t.Fail()
+// 		return
+// 	}
+// 	fmt.Println("Error is nil")
+// 	t.Fail()
+// }
+
+// Proxy proto err statement
+func TestServe2(t *testing.T) {
+	domain := serverDomain
+	proxyTo := ":25560"
+	c1, c2 := net.Pipe()
+	cServer := createTestConn(c1)
+	cClient := createTestConn(c2)
+
+	proxyConfig := &ProxyConfig{DomainName: domain, ProxyTo: proxyTo}
+	proxy := &Proxy{Config: proxyConfig}
+
+	gateway := &Gateway{}
+	gateway.proxies.Store(proxy.UID(), proxy)
+
+	go func(c Conn) {
+		// pk := serverHandshake(domain, 25565)
+		// sendHandshake(c, pk)
+		data := []byte{0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01}
+		c.Write(data)
+	}(cClient)
+
+	if err := gateway.serve(cServer, ""); err != nil {
+		fmt.Println("Error is not nil")
+		fmt.Println(err) //proxyproto: proxy protocol signature not present line 161
+		// t.Fail()
+		return
+	}
+	fmt.Println("Error is nil")
+	t.Fail()
+}
+
+// First if statement coverage
+func TestServe3(t *testing.T) {
+	domain := serverDomain
+	proxyTo := ":25560"
+	c1, c2 := net.Pipe()
+	cServer := createTestConn(c1)
+	cClient := createTestConn(c2)
+
+	proxyConfig := &ProxyConfig{DomainName: domain, ProxyTo: proxyTo}
+	proxy := &Proxy{Config: proxyConfig}
+
+	gateway := &Gateway{}
+	gateway.proxies.Store(proxy.UID(), proxy)
+
+	go func(c Conn) {
+		// pk := serverHandshake(domain, 25565)
+		// sendHandshake(c, pk)
+		//           	ID | ProtoVer. | Server Address                                                   		|Serv. Port | Nxt State
+		data := []byte{0x00, 0xC2, 0x04, 0x0B, 0x65, 0x78, 0x61, 0x6D, 0x70, 0x6C, 0x65, 0x2E, 0x63, 0x6F, 0x6D, 0x05, 0x39, 0x01}
+		c.Write(data)
+	}(cClient)
+
+	if err := gateway.serve(cServer, ""); err != nil {
+		fmt.Println("Error is not nil")
+		fmt.Println(err) //packet length too short line153
+		// t.Fail()
+		return
+	}
+	fmt.Println("Error is nil")
+	t.Fail()
 }

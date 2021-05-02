@@ -2,17 +2,19 @@ package infrared
 
 import (
 	"fmt"
+	"io"
+	"log"
+	"net"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/haveachin/infrared/callback"
 	"github.com/haveachin/infrared/process"
 	"github.com/haveachin/infrared/protocol"
 	"github.com/haveachin/infrared/protocol/handshaking"
 	"github.com/haveachin/infrared/protocol/login"
 	"github.com/pires/go-proxyproto"
-	"log"
-	"net"
-	"strings"
-	"sync"
-	"time"
 )
 
 func proxyUID(domain, addr string) string {
@@ -397,9 +399,13 @@ func (proxy *Proxy) handleStatusRequest(conn Conn, online bool) error {
 	if err := conn.WritePacket(responsePk); err != nil {
 		return err
 	}
-
+	// This ping packet is optional, clients send them but scripts like bots dont have to send them
+	//  and this will return an EOF when the connections gets closed
 	pingPk, err := conn.ReadPacket()
 	if err != nil {
+		if err == io.EOF {
+			return nil
+		}
 		return err
 	}
 
