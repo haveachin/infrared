@@ -1,6 +1,7 @@
 package infrared
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -15,6 +16,12 @@ import (
 	"github.com/haveachin/infrared/protocol/handshaking"
 	"github.com/haveachin/infrared/protocol/login"
 	"github.com/pires/go-proxyproto"
+)
+
+var (
+	ErrCantReadPK = errors.New("can't peek packet")
+	ErrCantWriteToServer = errors.New("can't write to proxy target")
+	ErrCantWriteToClient = errors.New("can't write to client")
 )
 
 func proxyUID(domain, addr string) string {
@@ -173,12 +180,12 @@ func (proxy *Proxy) logEvent(event callback.Event) {
 func (proxy *Proxy) handleConn(conn Conn, connRemoteAddr net.Addr) error {
 	pk, err := conn.ReadPacket()
 	if err != nil {
-		return err
+		return ErrCantReadPK
 	}
 
 	hs, err := handshaking.UnmarshalServerBoundHandshake(pk)
 	if err != nil {
-		return err
+		return ErrCantUnMarshalPK
 	}
 
 	proxyTo := proxy.ProxyTo()
@@ -211,7 +218,7 @@ func (proxy *Proxy) handleConn(conn Conn, connRemoteAddr net.Addr) error {
 		}
 
 		if _, err = header.WriteTo(rconn); err != nil {
-			return err
+			return ErrCantWriteToServer
 		}
 	}
 
@@ -221,7 +228,7 @@ func (proxy *Proxy) handleConn(conn Conn, connRemoteAddr net.Addr) error {
 	}
 
 	if err := rconn.WritePacket(pk); err != nil {
-		return err
+		return ErrCantWriteToServer
 	}
 
 	var username string
@@ -333,13 +340,13 @@ func (proxy *Proxy) cancelProcessTimeout() {
 func (proxy *Proxy) sniffUsername(conn, rconn Conn, connRemoteAddr net.Addr) (string, error) {
 	pk, err := conn.ReadPacket()
 	if err != nil {
-		return "", err
+		return "", ErrCantReadPK
 	}
 	rconn.WritePacket(pk)
 
 	ls, err := login.UnmarshalServerBoundLoginStart(pk)
 	if err != nil {
-		return "", err
+		return "", ErrCantUnMarshalPK
 	}
 	log.Printf("[i] %s with username %s connects through %s", connRemoteAddr, ls.Name, proxy.UID())
 	return string(ls.Name), nil
@@ -348,12 +355,12 @@ func (proxy *Proxy) sniffUsername(conn, rconn Conn, connRemoteAddr net.Addr) (st
 func (proxy *Proxy) handleLoginRequest(conn Conn) error {
 	packet, err := conn.ReadPacket()
 	if err != nil {
-		return err
+		return ErrCantReadPK
 	}
 
 	loginStart, err := login.UnmarshalServerBoundLoginStart(packet)
 	if err != nil {
-		return err
+		return ErrCantUnMarshalPK
 	}
 
 	message := proxy.DisconnectMessage()
@@ -380,7 +387,7 @@ func (proxy *Proxy) handleStatusRequest(conn Conn, online bool) error {
 	// Read the request packet and send status response back
 	_, err := conn.ReadPacket()
 	if err != nil {
-		return err
+		return ErrCantReadPK
 	}
 
 	var responsePk protocol.Packet
@@ -397,7 +404,7 @@ func (proxy *Proxy) handleStatusRequest(conn Conn, online bool) error {
 	}
 
 	if err := conn.WritePacket(responsePk); err != nil {
-		return err
+		return ErrCantWriteToClient
 	}
 	// This ping packet is optional, clients send them but scripts like bots dont have to send them
 	//  and this will return an EOF when the connections gets closed
@@ -406,7 +413,7 @@ func (proxy *Proxy) handleStatusRequest(conn Conn, online bool) error {
 		if err == io.EOF {
 			return nil
 		}
-		return err
+		return ErrCantReadPK
 	}
 
 	return conn.WritePacket(pingPk)

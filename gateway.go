@@ -10,6 +10,12 @@ import (
 	"github.com/pires/go-proxyproto"
 )
 
+var (
+	ErrCantPeekPK      = errors.New("can't peek packet")
+	ErrCantUnMarshalPK = errors.New("can't unmarshal packet")
+	ErrUnknownProxy    = errors.New("not a proxy we know")
+)
+
 type Gateway struct {
 	listeners sync.Map
 	proxies   sync.Map
@@ -150,7 +156,7 @@ func (gateway *Gateway) listenAndServe(listener Listener, addr string) error {
 func (gateway *Gateway) serve(conn Conn, addr string) error {
 	pk, err := conn.PeekPacket()
 	if err != nil {
-		return err
+		return ErrCantPeekPK
 	}
 
 	connRemoteAddr := conn.RemoteAddr()
@@ -163,11 +169,11 @@ func (gateway *Gateway) serve(conn Conn, addr string) error {
 		connRemoteAddr = header.SourceAddr
 		pk, err := conn.PeekPacket()
 		if err != nil {
-			return err
+			return ErrCantPeekPK
 		}
 		hs, err = handshaking.UnmarshalServerBoundHandshake(pk)
 		if err != nil {
-			return err
+			return ErrCantUnMarshalPK
 		}
 	}
 
@@ -177,7 +183,7 @@ func (gateway *Gateway) serve(conn Conn, addr string) error {
 	v, ok := gateway.proxies.Load(proxyUID)
 	if !ok {
 		// Client send an invalid address/port; we don't have a v for that address
-		return errors.New("no proxy with uid " + proxyUID)
+		return ErrUnknownProxy
 	}
 	proxy := v.(*Proxy)
 

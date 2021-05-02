@@ -486,7 +486,6 @@ func TestProxyProtocol(t *testing.T) {
 					t.Errorf("got: %v; want: %v", r, tc.shouldMatch)
 				}
 			}
-			t.Fail()
 		})
 	}
 }
@@ -694,9 +693,6 @@ func createTestConn(conn net.Conn) Conn {
 // 	fmt.Println("Error is nil")
 // 	t.Fail()
 // }
-
-
-
 
 // func TestServe(t *testing.T) {
 // 	domain := serverDomain
