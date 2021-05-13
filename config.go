@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"os"
 	"path/filepath"
 	"sync"
@@ -25,11 +26,13 @@ type ProxyConfig struct {
 
 	removeCallback func()
 	changeCallback func()
+	dialer         *Dialer
 	process        process.Process
 
 	DomainName        string               `json:"domainName"`
 	ListenTo          string               `json:"listenTo"`
 	ProxyTo           string               `json:"proxyTo"`
+	ProxyBind         string               `json:"proxyBind"`
 	ProxyProtocol     bool                 `json:"proxyProtocol"`
 	RealIP            bool                 `json:"realIp"`
 	Timeout           int                  `json:"timeout"`
@@ -38,6 +41,22 @@ type ProxyConfig struct {
 	OnlineStatus      StatusConfig         `json:"onlineStatus"`
 	OfflineStatus     StatusConfig         `json:"offlineStatus"`
 	CallbackServer    CallbackServerConfig `json:"callbackServer"`
+}
+
+func (cfg *ProxyConfig) Dialer() (*Dialer, error) {
+	if cfg.dialer != nil {
+		return cfg.dialer, nil
+	}
+
+	cfg.dialer = &Dialer{
+		Dialer: net.Dialer{
+			Timeout: time.Millisecond * time.Duration(cfg.Timeout),
+			LocalAddr: &net.TCPAddr{
+				IP: net.ParseIP(cfg.ProxyBind),
+			},
+		},
+	}
+	return cfg.dialer, nil
 }
 
 type DockerConfig struct {
@@ -314,6 +333,7 @@ func (cfg *ProxyConfig) onConfigWrite(event fsnotify.Event) {
 	}
 	cfg.OnlineStatus.cachedPacket = nil
 	cfg.OfflineStatus.cachedPacket = nil
+	cfg.dialer = nil
 	cfg.process = nil
 	cfg.changeCallback()
 }
