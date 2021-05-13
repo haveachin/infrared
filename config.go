@@ -10,7 +10,6 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"strconv"
 	"sync"
 	"time"
 
@@ -52,28 +51,11 @@ func (cfg *ProxyConfig) Dialer() (*Dialer, error) {
 	cfg.dialer = &Dialer{
 		Dialer: net.Dialer{
 			Timeout: time.Millisecond * time.Duration(cfg.Timeout),
+			LocalAddr: &net.TCPAddr{
+				IP: net.ParseIP(cfg.ProxyBind),
+			},
 		},
 	}
-
-	if cfg.ProxyBind == "" {
-		return cfg.dialer, nil
-	}
-
-	ip, portString, err := net.SplitHostPort(cfg.ProxyBind)
-	if err != nil {
-		return nil, err
-	}
-
-	port, err := strconv.Atoi(portString)
-	if err != nil {
-		return nil, err
-	}
-
-	cfg.dialer.Dialer.LocalAddr = &net.TCPAddr{
-		IP:   net.ParseIP(ip),
-		Port: port,
-	}
-
 	return cfg.dialer, nil
 }
 
