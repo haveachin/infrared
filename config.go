@@ -45,10 +45,17 @@ type ProxyConfig struct {
 }
 
 func (cfg *ProxyConfig) Dialer() (*Dialer, error) {
-	cfg.Lock()
-	defer cfg.Unlock()
-
 	if cfg.dialer != nil {
+		return cfg.dialer, nil
+	}
+
+	cfg.dialer = &Dialer{
+		Dialer: net.Dialer{
+			Timeout: time.Millisecond * time.Duration(cfg.Timeout),
+		},
+	}
+
+	if cfg.ProxyBind == "" {
 		return cfg.dialer, nil
 	}
 
@@ -62,17 +69,12 @@ func (cfg *ProxyConfig) Dialer() (*Dialer, error) {
 		return nil, err
 	}
 
-	dialer := &Dialer{
-		Dialer: net.Dialer{
-			Timeout: time.Millisecond * time.Duration(cfg.Timeout),
-			LocalAddr: &net.TCPAddr{
-				IP:   net.ParseIP(ip),
-				Port: port,
-			},
-		},
+	cfg.dialer.Dialer.LocalAddr = &net.TCPAddr{
+		IP:   net.ParseIP(ip),
+		Port: port,
 	}
-	cfg.dialer = dialer
-	return dialer, nil
+
+	return cfg.dialer, nil
 }
 
 type DockerConfig struct {
