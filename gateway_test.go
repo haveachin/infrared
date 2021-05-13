@@ -334,11 +334,11 @@ func TestStatusRequest(t *testing.T) {
 
 			if tc.activeServer {
 				wg.Add(1)
-				serverC := statusListenerConfig{}
-				serverC.status = statusPKWithVersion(serverVersionName)
-				serverC.addr = serverAddr(tc.portEnd)
+				serverCfg := statusListenerConfig{}
+				serverCfg.status = statusPKWithVersion(serverVersionName)
+				serverCfg.addr = serverAddr(tc.portEnd)
 				go func() {
-					statusListen(serverC, errorCh)
+					statusListen(serverCfg, errorCh)
 					wg.Done()
 				}()
 			}
