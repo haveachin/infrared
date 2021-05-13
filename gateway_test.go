@@ -625,3 +625,7 @@ func TestRouting(t *testing.T) {
 		})
 	}
 }
+
+func TestProxyBind(t *testing.T) {
+	// TODO: Figure out a way to test this
+}
