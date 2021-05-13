@@ -186,7 +186,7 @@ func statusDial(c statusDialConfig) (string, *testError) {
 	if c.useProxyProtocol {
 		conn, err = createConnWithFakeIP(c.dialerPort, c.gatewayAddr)
 	} else {
-		conn, err = Dial(c.gatewayAddr)
+		conn, err = Dialer{}.Dial(c.gatewayAddr)
 	}
 
 	if err != nil {

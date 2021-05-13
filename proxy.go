@@ -81,6 +81,12 @@ func (proxy *Proxy) ProxyTo() string {
 	return proxy.Config.ProxyTo
 }
 
+func (proxy *Proxy) Dialer() (*Dialer, error) {
+	proxy.Config.RLock()
+	defer proxy.Config.RUnlock()
+	return proxy.Config.Dialer()
+}
+
 func (proxy *Proxy) DisconnectMessage() string {
 	proxy.Config.RLock()
 	defer proxy.Config.RUnlock()
@@ -181,7 +187,13 @@ func (proxy *Proxy) handleConn(conn Conn, connRemoteAddr net.Addr) error {
 
 	proxyTo := proxy.ProxyTo()
 	proxyUID := proxy.UID()
-	rconn, err := DialTimeout(proxyTo, proxy.Timeout())
+
+	dialer, err := proxy.Dialer()
+	if err != nil {
+		return err
+	}
+
+	rconn, err := dialer.Dial(proxyTo)
 	if err != nil {
 		log.Printf("[i] %s did not respond to ping; is the target offline?", proxyTo)
 		if hs.IsStatusRequest() {

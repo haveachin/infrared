@@ -27,6 +27,7 @@ type ProxyConfig struct {
 
 	removeCallback func()
 	changeCallback func()
+	dialer         *Dialer
 	process        process.Process
 
 	DomainName        string               `json:"domainName"`
@@ -41,6 +42,37 @@ type ProxyConfig struct {
 	OnlineStatus      StatusConfig         `json:"onlineStatus"`
 	OfflineStatus     StatusConfig         `json:"offlineStatus"`
 	CallbackServer    CallbackServerConfig `json:"callbackServer"`
+}
+
+func (cfg *ProxyConfig) Dialer() (*Dialer, error) {
+	cfg.Lock()
+	defer cfg.Unlock()
+
+	if cfg.dialer != nil {
+		return cfg.dialer, nil
+	}
+
+	ip, portString, err := net.SplitHostPort(cfg.ProxyBind)
+	if err != nil {
+		return nil, err
+	}
+
+	port, err := strconv.Atoi(portString)
+	if err != nil {
+		return nil, err
+	}
+
+	dialer := &Dialer{
+		Dialer: net.Dialer{
+			Timeout: time.Millisecond * time.Duration(cfg.Timeout),
+			LocalAddr: &net.TCPAddr{
+				IP:   net.ParseIP(ip),
+				Port: port,
+			},
+		},
+	}
+	cfg.dialer = dialer
+	return dialer, nil
 }
 
 type DockerConfig struct {
