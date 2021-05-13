@@ -2,6 +2,7 @@ package infrared
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -184,20 +185,21 @@ func statusReponseToStruct(pk protocol.Packet) (status.ResponseJSON, error) {
 }
 
 type statusDialConfig struct {
-	conn                    Conn
+	conn                    *Conn
 	pk                      protocol.Packet
 	gatewayAddr             string
 	dialerPort              int
 	sendProxyProtocolHeader bool
 	useProxyProtocol        bool
 	sendEndPing             bool
+	sendNonPacketData       bool
 }
 
 func statusDial(c statusDialConfig) (protocol.Packet, *testError) {
 	var conn Conn
 	var err error
 	if c.conn != nil {
-		conn = c.conn
+		conn = *c.conn
 	} else if c.useProxyProtocol {
 		conn, err = createConnWithFakeIP(c.dialerPort, c.gatewayAddr)
 	} else {
@@ -213,6 +215,14 @@ func statusDial(c statusDialConfig) (protocol.Packet, *testError) {
 		if err := sendProxyProtocolHeader(conn); err != nil {
 			return protocol.Packet{}, err
 		}
+	}
+
+	if c.sendNonPacketData {
+		//           	ID | ProtoVer. | Server Address                                                   		|Serv. Port | Nxt State
+		// data := []byte{0x00, 0xC2, 0x04, 0x0B, 0x65, 0x78, 0x61, 0x6D, 0x70, 0x6C, 0x65, 0x2E, 0x63, 0x6F, 0x6D, 0x05, 0x39, 0x01}
+		data := []byte{0, 1, 2, 3, 0xFF}
+		conn.Write(data)
+		return protocol.Packet{}, nil
 	}
 
 	if err := sendHandshake(conn, c.pk); err != nil {
@@ -658,6 +668,101 @@ func createTestConn(conn net.Conn) Conn {
 	return wrapConn(conn)
 }
 
+func TestPacketHandling(t *testing.T) {
+	//Bc its necessary for every proxy to have this
+	domain := serverDomain
+	proxyTo := ":25560"
+	tt := []struct {
+		name                    string
+		expectError             error
+		sendProxyProtocolHeader bool
+		sendCorruptedPacket     bool
+		sendNonPacketData       bool
+		isProxyProtocolServer   bool
+		emulateMCServer         bool
+	}{
+		{
+			name: "offline server without errors",
+		},
+		{
+			name:                "send incorrect packet",
+			sendCorruptedPacket: true,
+			expectError:         proxyproto.ErrNoProxyProtocol,
+		},
+		{
+			name:                    "send proxyprotocol with normal packet",
+			sendProxyProtocolHeader: true,
+		},
+		{
+			name:                    "send proxyprotocol with incorrect packet",
+			sendProxyProtocolHeader: true,
+			sendCorruptedPacket:     true,
+			expectError:             ErrCantUnMarshalPK,
+		},
+		{
+			name:              "Send data different than a packet",
+			sendNonPacketData: true,
+			expectError:       ErrCantPeekPK,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			c1, c2 := net.Pipe()
+			cServer := createTestConn(c1)
+			cClient := createTestConn(c2)
+
+			proxyConfig := &ProxyConfig{DomainName: domain, ProxyTo: proxyTo}
+
+			if tc.isProxyProtocolServer {
+				proxyConfig.ProxyProtocol = tc.isProxyProtocolServer
+			}
+
+			proxy := &Proxy{Config: proxyConfig}
+
+			gateway := &Gateway{}
+			gateway.proxies.Store(proxy.UID(), proxy)
+
+			go func(c Conn) {
+				pk := serverHandshake(domain, 25565)
+
+				if tc.sendCorruptedPacket {
+					corruptedData := pk.Data[1:12]
+					pk.Data = corruptedData
+					t.Log(pk)
+				}
+
+				dialConfig := statusDialConfig{
+					conn:                    &c,
+					pk:                      pk,
+					sendProxyProtocolHeader: tc.sendProxyProtocolHeader,
+					sendEndPing:             true,
+				}
+
+				t.Log(dialConfig)
+				_, err := statusDial(dialConfig)
+				if err != nil {
+					fmt.Println(err)
+				}
+			}(cClient)
+
+			if err := gateway.serve(cServer, ""); err != nil {
+				if tc.expectError == nil {
+					t.Errorf("didnt expect an error but got %v", err)
+				}
+				if errors.Is(err, tc.expectError) {
+					return
+				}
+				t.Errorf("got different error than expected, got: %v\n expected: %v", err, tc.expectError)
+				return
+			}
+			if tc.expectError != nil {
+				t.Errorf("Expected an error but didnt got any, expected error: %v", tc.expectError)
+			}
+		})
+	}
+}
+
 // func TestServe_Without_Errors(t *testing.T) {
 // 	domain := serverDomain
 // 	proxyTo := ":25560"
@@ -795,8 +900,8 @@ func createTestConn(conn net.Conn) Conn {
 // 	t.Fail()
 // }
 
-// First if statement coverage
-// func TestServe3(t *testing.T) {
+// //packet length too short
+// func TestServe_NonPacketData(t *testing.T) {
 // 	domain := serverDomain
 // 	proxyTo := ":25560"
 // 	c1, c2 := net.Pipe()
@@ -810,19 +915,17 @@ func createTestConn(conn net.Conn) Conn {
 // 	gateway.proxies.Store(proxy.UID(), proxy)
 
 // 	go func(c Conn) {
-// 		// pk := serverHandshake(domain, 25565)
-// 		// sendHandshake(c, pk)
 // 		//           	ID | ProtoVer. | Server Address                                                   		|Serv. Port | Nxt State
 // 		data := []byte{0x00, 0xC2, 0x04, 0x0B, 0x65, 0x78, 0x61, 0x6D, 0x70, 0x6C, 0x65, 0x2E, 0x63, 0x6F, 0x6D, 0x05, 0x39, 0x01}
 // 		c.Write(data)
 // 	}(cClient)
 
 // 	if err := gateway.serve(cServer, ""); err != nil {
-// 		fmt.Println("Error is not nil")
-// 		fmt.Println(err) //packet length too short line153
-// 		// t.Fail()
-// 		return
+// 		fmt.Println(err)
+// 		t.Fail()
+
+// 		if errors.Is(err, ErrCantPeekPK) {
+// 			return
+// 		}
 // 	}
-// 	fmt.Println("Error is nil")
-// 	t.Fail()
 // }
