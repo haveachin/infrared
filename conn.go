@@ -3,11 +3,9 @@ package infrared
 import (
 	"bufio"
 	"crypto/cipher"
+	"github.com/haveachin/infrared/protocol"
 	"io"
 	"net"
-	"time"
-
-	"github.com/haveachin/infrared/protocol"
 )
 
 type PacketWriter interface {
@@ -65,19 +63,13 @@ func wrapConn(c net.Conn) *conn {
 	}
 }
 
-// Dial create a Minecraft connection
-func Dial(addr string) (Conn, error) {
-	conn, err := net.Dial("tcp", addr)
-	if err != nil {
-		return nil, err
-	}
-
-	return wrapConn(conn), nil
+type Dialer struct {
+	net.Dialer
 }
 
-// DialTimeout acts like DialMC but takes a timeout.
-func DialTimeout(addr string, timeout time.Duration) (Conn, error) {
-	conn, err := net.DialTimeout("tcp", addr, timeout)
+// Dial create a Minecraft connection
+func (d Dialer) Dial(addr string) (Conn, error) {
+	conn, err := d.Dialer.Dial("tcp", addr)
 	if err != nil {
 		return nil, err
 	}

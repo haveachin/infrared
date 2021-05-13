@@ -186,7 +186,7 @@ func statusDial(c statusDialConfig) (string, *testError) {
 	if c.useProxyProtocol {
 		conn, err = createConnWithFakeIP(c.dialerPort, c.gatewayAddr)
 	} else {
-		conn, err = Dial(c.gatewayAddr)
+		conn, err = Dialer{}.Dial(c.gatewayAddr)
 	}
 
 	if err != nil {
@@ -334,11 +334,11 @@ func TestStatusRequest(t *testing.T) {
 
 			if tc.activeServer {
 				wg.Add(1)
-				serverC := statusListenerConfig{}
-				serverC.status = statusPKWithVersion(serverVersionName)
-				serverC.addr = serverAddr(tc.portEnd)
+				serverCfg := statusListenerConfig{}
+				serverCfg.status = statusPKWithVersion(serverVersionName)
+				serverCfg.addr = serverAddr(tc.portEnd)
 				go func() {
-					statusListen(serverC, errorCh)
+					statusListen(serverCfg, errorCh)
 					wg.Done()
 				}()
 			}
@@ -624,4 +624,8 @@ func TestRouting(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestProxyBind(t *testing.T) {
+	// TODO: Figure out a way to test this
 }
