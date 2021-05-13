@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
@@ -30,6 +32,7 @@ type ProxyConfig struct {
 	DomainName        string               `json:"domainName"`
 	ListenTo          string               `json:"listenTo"`
 	ProxyTo           string               `json:"proxyTo"`
+	ProxyBind         string               `json:"proxyBind"`
 	ProxyProtocol     bool                 `json:"proxyProtocol"`
 	RealIP            bool                 `json:"realIp"`
 	Timeout           int                  `json:"timeout"`
@@ -314,6 +317,7 @@ func (cfg *ProxyConfig) onConfigWrite(event fsnotify.Event) {
 	}
 	cfg.OnlineStatus.cachedPacket = nil
 	cfg.OfflineStatus.cachedPacket = nil
+	cfg.dialer = nil
 	cfg.process = nil
 	cfg.changeCallback()
 }
