@@ -49,14 +49,16 @@ $ docker build --no-cache -t haveachin/infrared:latest https://github.com/haveac
 **Info**: Command-line flags override environment variables.
 
 `INFRARED_CONFIG_PATH` is the path to all your server configs [default: `"./configs/"`]
+`INFRARED_RECEIVE_PROXY_PROTOCOL` if Infrared should be able to receive proxy protocol [default: `"false"`]
 
 ## Command-Line Flags
 
 `-config-path` specifies the path to all your server configs [default: `"./configs/"`]
+`-receive-proxy-protocol` if Infrared should be able to receive proxy protocol [default: `false`]
 
 ### Example Usage
 
-`./infrared -config-path="."`
+`./infrared -config-path="." -receive-proxy-protocol=true`
 
 ## Proxy Config
 
