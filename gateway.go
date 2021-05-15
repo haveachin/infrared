@@ -11,10 +11,11 @@ import (
 )
 
 type Gateway struct {
-	listeners sync.Map
-	proxies   sync.Map
-	closed    chan bool
-	wg        sync.WaitGroup
+	listeners            sync.Map
+	proxies              sync.Map
+	closed               chan bool
+	wg                   sync.WaitGroup
+	receiveProxyProtocol bool
 }
 
 func (gateway *Gateway) ListenAndServe(proxies []*Proxy) error {
@@ -148,27 +149,23 @@ func (gateway *Gateway) listenAndServe(listener Listener, addr string) error {
 }
 
 func (gateway *Gateway) serve(conn Conn, addr string) error {
-	pk, err := conn.PeekPacket()
-	if err != nil {
-		return err
-	}
-
 	connRemoteAddr := conn.RemoteAddr()
-	hs, err := handshaking.UnmarshalServerBoundHandshake(pk)
-	if err != nil {
+	if gateway.receiveProxyProtocol {
 		header, err := proxyproto.Read(conn.Reader())
 		if err != nil {
 			return err
 		}
 		connRemoteAddr = header.SourceAddr
-		pk, err := conn.PeekPacket()
-		if err != nil {
-			return err
-		}
-		hs, err = handshaking.UnmarshalServerBoundHandshake(pk)
-		if err != nil {
-			return err
-		}
+	}
+
+	pk, err := conn.PeekPacket()
+	if err != nil {
+		return err
+	}
+
+	hs, err := handshaking.UnmarshalServerBoundHandshake(pk)
+	if err != nil {
+		return err
 	}
 
 	proxyUID := proxyUID(hs.ParseServerAddress(), addr)
