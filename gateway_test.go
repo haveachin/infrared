@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/haveachin/infrared/protocol"
 	"github.com/haveachin/infrared/protocol/handshaking"
@@ -97,11 +98,26 @@ func configToProxies(config *ProxyConfig) []*Proxy {
 
 func configsToProxies(config []*ProxyConfig) []*Proxy {
 	var proxies []*Proxy
+
+	factory := createTestFactory()
+
 	for _, c := range config {
 		proxy := &Proxy{Config: c}
+		proxy.ServerFactory = factory
 		proxies = append(proxies, proxy)
 	}
 	return proxies
+}
+
+func createTestFactory() func(p *Proxy) MCServer {
+	return func(p *Proxy) MCServer {
+		timeout := p.Timeout()
+		serverAddr := p.ProxyTo()
+		return &e2eTestServer{
+			ServerAddr: serverAddr,
+			Timeout:    timeout,
+		}
+	}
 }
 
 func sendHandshake(conn Conn, pk protocol.Packet) *testError {
@@ -189,8 +205,8 @@ type statusDialConfig struct {
 	pk                      protocol.Packet
 	gatewayAddr             string
 	dialerPort              int
-	sendProxyProtocolHeader bool
 	useProxyProtocol        bool
+	sendProxyProtocolHeader bool
 	sendEndPing             bool
 	sendNonPacketData       bool
 }
@@ -312,6 +328,22 @@ func proxyProtoListen(portEnd int) (string, *testError) {
 	return getIpFromAddr(conn.RemoteAddr()), nil
 }
 
+type e2eTestServer struct {
+	connection Conn
+	ServerAddr string
+	Timeout    time.Duration
+}
+
+func (s *e2eTestServer) CanConnect() bool {
+	var err error
+	s.connection, err = DialTimeout(s.ServerAddr, s.Timeout)
+	return err == nil
+}
+
+func (s *e2eTestServer) Connection() (Conn, error) {
+	return s.connection, nil
+}
+
 func TestStatusRequest(t *testing.T) {
 	tt := []struct {
 		name            string
@@ -388,7 +420,6 @@ func TestStatusRequest(t *testing.T) {
 				config := statusDialConfig{
 					pk:          pk,
 					gatewayAddr: gatewayAddr(tc.portEnd),
-					dialerPort:  dialerPort(tc.portEnd),
 				}
 				receivedVersion, err := statusDialGetVersionName(config)
 				if err != nil {
@@ -481,6 +512,18 @@ func TestProxyProtocol(t *testing.T) {
 					useProxyProtocol:        tc.proxyproto,
 					sendProxyProtocolHeader: tc.receiveProxyproto,
 				}
+
+				// if tc.proxyproto {
+
+				// 	dialer := &net.Dialer{
+				// 		LocalAddr: &net.TCPAddr{
+				// 			IP:   net.ParseIP("127.0.10.1"),
+				// 			Port: dialerPort(tc.portEnd),
+				// 		},
+				// 	}
+				// 	netConn, _ := dialer.Dial("tcp", gatewayAddr(tc.portEnd))
+				// 	config.conn = createTestConn(netConn)
+				// }
 
 				_, err := statusDial(config)
 				if err != nil {
@@ -668,6 +711,29 @@ func createTestConn(conn net.Conn) Conn {
 	return wrapConn(conn)
 }
 
+type alwaysOnlineServer struct {
+	conn Conn
+}
+
+func (s *alwaysOnlineServer) CanConnect() bool {
+	return true
+}
+
+func (s *alwaysOnlineServer) Connection() (Conn, error) {
+	return s.conn, nil
+}
+
+type alwaysOfflineServer struct {
+}
+
+func (s *alwaysOfflineServer) CanConnect() bool {
+	return false
+}
+
+func (s *alwaysOfflineServer) Connection() (Conn, error) {
+	return nil, nil
+}
+
 func TestPacketHandling(t *testing.T) {
 	//Bc its necessary for every proxy to have this
 	domain := serverDomain
@@ -679,7 +745,7 @@ func TestPacketHandling(t *testing.T) {
 		sendCorruptedPacket     bool
 		sendNonPacketData       bool
 		isProxyProtocolServer   bool
-		emulateMCServer         bool
+		onlineServer            bool
 	}{
 		{
 			name: "offline server without errors",
@@ -699,11 +765,6 @@ func TestPacketHandling(t *testing.T) {
 			sendCorruptedPacket:     true,
 			expectError:             ErrCantUnMarshalPK,
 		},
-		{
-			name:              "Send data different than a packet",
-			sendNonPacketData: true,
-			expectError:       ErrCantPeekPK,
-		},
 	}
 
 	for _, tc := range tt {
@@ -718,7 +779,17 @@ func TestPacketHandling(t *testing.T) {
 				proxyConfig.ProxyProtocol = tc.isProxyProtocolServer
 			}
 
+			factory := func(p *Proxy) MCServer {
+				return &alwaysOfflineServer{}
+			}
+			if tc.onlineServer {
+				factory = func(p *Proxy) MCServer {
+					return &alwaysOnlineServer{nil}
+				}
+			}
+
 			proxy := &Proxy{Config: proxyConfig}
+			proxy.ServerFactory = factory
 
 			gateway := &Gateway{}
 			gateway.proxies.Store(proxy.UID(), proxy)
@@ -762,170 +833,3 @@ func TestPacketHandling(t *testing.T) {
 		})
 	}
 }
-
-// func TestServe_Without_Errors(t *testing.T) {
-// 	domain := serverDomain
-// 	proxyTo := ":25560"
-// 	c1, c2 := net.Pipe()
-// 	cServer := createTestConn(c1)
-// 	cClient := createTestConn(c2)
-
-// 	proxyConfig := &ProxyConfig{DomainName: domain, ProxyTo: proxyTo}
-// 	proxy := &Proxy{Config: proxyConfig}
-
-// 	gateway := &Gateway{}
-// 	gateway.proxies.Store(proxy.UID(), proxy)
-
-// 	go func(c Conn) {
-// 		pk := serverHandshake(domain, 25565)
-// 		dialConfig := statusDialConfig{
-// 			conn:        c,
-// 			pk:          pk,
-// 			sendEndPing: true,
-// 		}
-// 		_, err := statusDial(dialConfig)
-// 		if err != nil {
-// 			fmt.Println(err)
-// 		}
-// 	}(cClient)
-
-// 	if err := gateway.serve(cServer, ""); err != nil {
-// 		fmt.Println("Error is not nil")
-// 		fmt.Println(err)
-// 		t.Fail()
-// 		return
-// 	}
-// 	fmt.Println("Error is nil")
-// 	t.Fail()
-// }
-
-// func TestServe(t *testing.T) {
-// 	domain := serverDomain
-// 	proxyTo := ":25560"
-// 	c1, c2 := net.Pipe()
-// 	cServer := createTestConn(c1)
-// 	cClient := createTestConn(c2)
-
-// 	proxyConfig := &ProxyConfig{DomainName: domain, ProxyTo: proxyTo}
-// 	proxy := &Proxy{Config: proxyConfig}
-
-// 	gateway := &Gateway{}
-// 	gateway.proxies.Store(proxy.UID(), proxy)
-
-// 	go func(c Conn) {
-// 		// pk := serverHandshake(domain, 25565)
-
-// 		// dialConfig := statusDialConfig{
-// 		// 	conn:        c,
-// 		// 	pk:          pk,
-// 		// 	sendEndPing: true,
-// 		// }
-// 		// _, err := statusDial(dialConfig)
-// 		// if err != nil {
-// 		// 	fmt.Println(err)
-// 		// }
-
-// 		if err := sendProxyProtocolHeader(c); err != nil {
-// 			return
-// 		}
-// 		pk := serverHandshake(domain, 25565)
-
-// 		sendingData := pk.Data
-// 		fmt.Println("before")
-// 		fmt.Println(pk)
-// 		pk.Data = sendingData[1:10]
-// 		fmt.Println("after")
-// 		fmt.Println(pk)
-// 		sendHandshake(c, pk)
-
-// 		// receivedPk, err := c.ReadPacket()
-// 		// if err != nil {
-// 		// 	return
-// 		// }
-
-// 		// response, err := status.UnmarshalClientBoundResponse(receivedPk)
-// 		// if err != nil {
-// 		// 	return
-// 		// }
-// 		// fmt.Println("Done")
-
-// 		// res := &status.ResponseJSON{}
-// 		// json.Unmarshal([]byte(response.JSONResponse), &res)
-
-// 		//           	ID | ProtoVer. | Server Address                                                   		|Serv. Port | Nxt State
-// 		// data := []byte{0x00, 0xC2, 0x04, 0x0B, 0x65, 0x78, 0x61, 0x6D, 0x70, 0x6C, 0x65, 0x2E, 0x63, 0x6F, 0x6D, 0x05, 0x39, 0x01}
-// 		//    data := []byte{0, 190, 4, 16, 105, 110, 102, 114, 97, 114, 101, 100, 46, 103, 97, 116, 101, 119, 97, 121, 99, 221, 1}
-
-// 		// c.Write(data)
-// 	}(cClient)
-
-// 	if err := gateway.serve(cServer, ""); err != nil {
-// 		fmt.Println("Error is not nil")
-// 		fmt.Println(err)
-// 		t.Fail()
-// 		return
-// 	}
-// 	fmt.Println("Error is nil")
-// 	t.Fail()
-// }
-
-// Proxy proto err statement
-// func TestServe2(t *testing.T) {
-// 	domain := serverDomain
-// 	proxyTo := ":25560"
-// 	c1, c2 := net.Pipe()
-// 	cServer := createTestConn(c1)
-// 	cClient := createTestConn(c2)
-
-// 	proxyConfig := &ProxyConfig{DomainName: domain, ProxyTo: proxyTo}
-// 	proxy := &Proxy{Config: proxyConfig}
-
-// 	gateway := &Gateway{}
-// 	gateway.proxies.Store(proxy.UID(), proxy)
-
-// 	go func(c Conn) {
-// 		// pk := serverHandshake(domain, 25565)
-// 		// sendHandshake(c, pk)
-// 		data := []byte{0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01}
-// 		c.Write(data)
-// 	}(cClient)
-
-// 	if err := gateway.serve(cServer, ""); err != nil {
-// 		fmt.Println("Error is not nil")
-// 		fmt.Println(err) //proxyproto: proxy protocol signature not present line 161
-// 		// t.Fail()
-// 		return
-// 	}
-// 	fmt.Println("Error is nil")
-// 	t.Fail()
-// }
-
-// //packet length too short
-// func TestServe_NonPacketData(t *testing.T) {
-// 	domain := serverDomain
-// 	proxyTo := ":25560"
-// 	c1, c2 := net.Pipe()
-// 	cServer := createTestConn(c1)
-// 	cClient := createTestConn(c2)
-
-// 	proxyConfig := &ProxyConfig{DomainName: domain, ProxyTo: proxyTo}
-// 	proxy := &Proxy{Config: proxyConfig}
-
-// 	gateway := &Gateway{}
-// 	gateway.proxies.Store(proxy.UID(), proxy)
-
-// 	go func(c Conn) {
-// 		//           	ID | ProtoVer. | Server Address                                                   		|Serv. Port | Nxt State
-// 		data := []byte{0x00, 0xC2, 0x04, 0x0B, 0x65, 0x78, 0x61, 0x6D, 0x70, 0x6C, 0x65, 0x2E, 0x63, 0x6F, 0x6D, 0x05, 0x39, 0x01}
-// 		c.Write(data)
-// 	}(cClient)
-
-// 	if err := gateway.serve(cServer, ""); err != nil {
-// 		fmt.Println(err)
-// 		t.Fail()
-
-// 		if errors.Is(err, ErrCantPeekPK) {
-// 			return
-// 		}
-// 	}
-// }

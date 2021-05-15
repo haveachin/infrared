@@ -19,9 +19,10 @@ import (
 )
 
 var (
-	ErrCantReadPK = errors.New("can't peek packet")
-	ErrCantWriteToServer = errors.New("can't write to proxy target")
-	ErrCantWriteToClient = errors.New("can't write to client")
+	ErrCantReadPK            = errors.New("can't peek packet")
+	ErrCantWriteToServer     = errors.New("can't write to proxy target")
+	ErrCantWriteToClient     = errors.New("can't write to client")
+	ErrCantConnectWithServer = errors.New("can't create connection with server")
 )
 
 func proxyUID(domain, addr string) string {
@@ -34,6 +35,8 @@ type Proxy struct {
 	cancelTimeoutFunc func()
 	players           map[Conn]string
 	mu                sync.Mutex
+	ServerFactory     func(*Proxy) MCServer
+	server            MCServer
 }
 
 func (proxy *Proxy) Process() process.Process {
@@ -190,8 +193,13 @@ func (proxy *Proxy) handleConn(conn Conn, connRemoteAddr net.Addr) error {
 
 	proxyTo := proxy.ProxyTo()
 	proxyUID := proxy.UID()
-	rconn, err := DialTimeout(proxyTo, proxy.Timeout())
-	if err != nil {
+	// rconn, err := DialTimeout(proxyTo, proxy.Timeout())
+	// if err != nil {
+	if proxy.server == nil {
+		proxy.server = proxy.ServerFactory(proxy)
+	}
+
+	if !proxy.server.CanConnect() {
 		log.Printf("[i] %s did not respond to ping; is the target offline?", proxyTo)
 		if hs.IsStatusRequest() {
 			return proxy.handleStatusRequest(conn, false)
@@ -202,11 +210,16 @@ func (proxy *Proxy) handleConn(conn Conn, connRemoteAddr net.Addr) error {
 		proxy.timeoutProcess()
 		return proxy.handleLoginRequest(conn)
 	}
-	defer rconn.Close()
 
 	if hs.IsStatusRequest() && proxy.IsOnlineStatusConfigured() {
 		return proxy.handleStatusRequest(conn, true)
 	}
+
+	rconn, err := proxy.server.Connection()
+	if err != nil {
+		return ErrCantConnectWithServer
+	}
+	defer rconn.Close()
 
 	if proxy.ProxyProtocol() {
 		header := &proxyproto.Header{
@@ -417,4 +430,48 @@ func (proxy *Proxy) handleStatusRequest(conn Conn, online bool) error {
 	}
 
 	return conn.WritePacket(pingPk)
+}
+
+func sniffUsername(conn Connection, rconn Conn) (string, error) {
+	pk, err := conn.Conn().ReadPacket()
+	if err != nil {
+		return "", ErrCantReadPK
+	}
+	rconn.WritePacket(pk)
+
+	ls, err := login.UnmarshalServerBoundLoginStart(pk)
+	if err != nil {
+		return "", ErrCantUnMarshalPK
+	}
+	uid, _ := conn.proxyUID()
+	log.Printf("[i] %s with username %s connects through %s", conn.remoteAddr(), ls.Name, uid)
+	return string(ls.Name), nil
+}
+
+type MCServer interface {
+	CanConnect() bool
+	Connection() (Conn, error)
+}
+
+type BasicServer struct {
+	ServerAddr string
+	Timeout    time.Duration
+	conn       Conn
+}
+
+func (s *BasicServer) CanConnect() bool {
+	// May seem stupid and redundent for now but this makes it possible to easier test
+	//  And to do some sort of caching or some toggle to turn it off and on with an api/config for example
+	var err error
+	s.conn, err = DialTimeout(s.ServerAddr, s.Timeout)
+	if err != nil {
+		log.Printf("[i] %s did not respond to ping; is the target offline?", s.ServerAddr)
+		return false
+	}
+	return true
+}
+
+// return error is added for when canConnect implements some caching but couldnt make connection with serveraddr after all
+func (s *BasicServer) Connection() (Conn, error) {
+	return s.conn, nil
 }

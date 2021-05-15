@@ -92,6 +92,14 @@ func main() {
 			}
 
 			proxy := &infrared.Proxy{Config: cfg}
+			proxy.ServerFactory = func (p *infrared.Proxy) infrared.MCServer {
+				timeout := p.Timeout()
+				serverAddr := p.ProxyTo()
+				return &infrared.BasicServer{
+					ServerAddr: serverAddr,
+					Timeout: timeout,
+				}
+			}
 			if err := gateway.RegisterProxy(proxy); err != nil {
 				log.Println("Failed registering proxy; error:", err)
 			}
