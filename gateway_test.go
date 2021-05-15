@@ -382,18 +382,20 @@ func TestProxyProtocol(t *testing.T) {
 		expectingIp       string
 	}{
 		{
-			name:        "ProxyProtocolOn",
-			proxyproto:  true,
-			portEnd:     581,
-			shouldMatch: true,
-			expectingIp: "127.0.0.1",
+			name:              "ProxyProtocolOn",
+			proxyproto:        true,
+			receiveProxyproto: false,
+			portEnd:           581,
+			shouldMatch:       true,
+			expectingIp:       "127.0.0.1",
 		},
 		{
-			name:        "ProxyProtocolOff",
-			proxyproto:  false,
-			portEnd:     582,
-			shouldMatch: true,
-			expectingIp: "127.0.0.1",
+			name:              "ProxyProtocolOff",
+			proxyproto:        false,
+			receiveProxyproto: false,
+			portEnd:           582,
+			shouldMatch:       true,
+			expectingIp:       "127.0.0.1",
 		},
 		{
 			name:              "ProxyProtocol Receive",
@@ -414,7 +416,9 @@ func TestProxyProtocol(t *testing.T) {
 			wg.Add(1)
 			go func(wg *sync.WaitGroup) {
 				config := createProxyProtocolConfig(tc.portEnd, tc.proxyproto)
-				gateway := Gateway{}
+				gateway := Gateway{
+					receiveProxyProtocol: tc.receiveProxyproto,
+				}
 				proxies := configToProxies(config)
 				if err := gateway.ListenAndServe(proxies); err != nil {
 					errorCh <- &testError{err, "Can't start gateway"}

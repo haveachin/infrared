@@ -10,16 +10,19 @@ import (
 )
 
 const (
-	envPrefix     = "INFRARED_"
-	envConfigPath = envPrefix + "CONFIG_PATH"
+	envPrefix               = "INFRARED_"
+	envConfigPath           = envPrefix + "CONFIG_PATH"
+	envReceiveProxyProtocol = envPrefix + "RECEIVE_PROXY_PROTOCOL"
 )
 
 const (
-	clfConfigPath = "config-path"
+	clfConfigPath           = "config-path"
+	clfReceiveProxyProtocol = "receive-proxy-protocol"
 )
 
 var (
-	configPath = "./configs"
+	configPath           = "./configs"
+	receiveProxyProtocol = false
 )
 
 func envBool(name string, value bool) bool {
@@ -47,10 +50,12 @@ func envString(name string, value string) string {
 
 func initEnv() {
 	configPath = envString(envConfigPath, configPath)
+	receiveProxyProtocol = envBool(envReceiveProxyProtocol, receiveProxyProtocol)
 }
 
 func initFlags() {
 	flag.StringVar(&configPath, clfConfigPath, configPath, "path of all proxy configs")
+	flag.BoolVar(&receiveProxyProtocol, clfReceiveProxyProtocol, receiveProxyProtocol, "should accept proxy protocol")
 	flag.Parse()
 }
 
