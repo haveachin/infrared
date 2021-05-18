@@ -2,6 +2,7 @@ package connection_test
 
 import (
 	"bytes"
+	"net"
 	"testing"
 
 	"github.com/haveachin/infrared"
@@ -9,13 +10,15 @@ import (
 	"github.com/haveachin/infrared/protocol"
 )
 
-//cant import from server_test.go, so made new one
 var (
 	testLoginHSID  byte = 5
 	testLoginID    byte = 6
 	testStatusHSID byte = 10
 
 	testUnboundID byte = 31
+
+	testSendID    byte = 41
+	testReceiveID byte = 42
 )
 
 // Should implement connection.Connect
@@ -79,8 +82,14 @@ func checkReceivedPk(t *testing.T, fn func() (protocol.Packet, error), expectedP
 		t.Errorf("got error: %v", err)
 	}
 
-	if !samePK(expectedPK, pk) {
-		t.Errorf("Packets are different\nexpected:\t%v\ngot:\t\t%v", expectedPK, pk)
+	testSamePK(t, expectedPK, pk)
+}
+
+func testSamePK(t *testing.T, expected, received protocol.Packet) {
+	if !samePK(expected, received) {
+		t.Logf("expected:\t%v", expected)
+		t.Logf("got:\t\t%v", received)
+		t.Error("Received packet is different from what we expected")
 	}
 }
 
@@ -100,7 +109,7 @@ func TestBasicLoginConnection(t *testing.T) {
 
 	lConn := connection.CreateBasicLoginConn(conn)
 
-	checkReceivedPk(t, lConn.HS, expectedHS)
+	checkReceivedPk(t, lConn.HsPk, expectedHS)
 	checkReceivedPk(t, lConn.LoginStart, expecedLogin)
 
 }
@@ -129,9 +138,7 @@ func TestBasicServerConnection_Status(t *testing.T) {
 
 	receivedReq := conn.receivedPk()
 
-	if !samePK(expectedRequest, receivedReq) {
-		t.Errorf("Packets are different\nexpected:\t%v\ngot:\t\t%v", expectedRequest, receivedReq)
-	}
+	testSamePK(t, expectedRequest, receivedReq)
 
 }
 
@@ -148,8 +155,45 @@ func TestBasicServerConnection_SendPK(t *testing.T) {
 
 	receivedReq := conn.receivedPk()
 
-	if !samePK(expectedRequest, receivedReq) {
-		t.Errorf("Packets are different\nexpected:\t%v\ngot:\t\t%v", expectedRequest, receivedReq)
+	testSamePK(t, expectedRequest, receivedReq)
+
+}
+
+func TestBasicConnection(t *testing.T) {
+	c1, c2 := net.Pipe()
+	conn1 := connection.CreateBasicConnection(c1)
+	testData := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9}
+
+	pkSend := protocol.Packet{ID: testSendID, Data: testData}
+	pkReceive := protocol.Packet{ID: testReceiveID, Data: testData}
+
+	// READING AND WRITING OF PACKET SHOULD NOT DEPEND ON OTHER PROJECT CODE NO MATTER WHAT
+	// AN OVERLOOKED ERROR IN THAT COULD SNOWBALL INTO MANY PROBLEMS
+	// Testing or Reading(Receiving) packets works
+	go func() {
+		pk, _ := pkReceive.Marshal() // We arent testing here or this method works
+		c2.Write(pk)
+	}()
+	pk1, _ := conn1.ReadPacket() //Need testing for the error
+	testSamePK(t, pkReceive, pk1)
+
+	// Testing or Writing(Sending) packets works
+	go func(t *testing.T) {
+		t.Logf("sending bytes: %v", pkSend)
+		_ = conn1.WritePacket(pkSend) //Need testing for the error
+	}(t)
+
+	//pkLength + pkID + pkData
+	lengthIncommingBytes := 1 + 1 + len(testData)
+	var data []byte = make([]byte, lengthIncommingBytes)
+	c2.Read(data)
+
+	// First Byte is packet length (simplified)
+	pk2 := protocol.Packet{
+		ID:   data[1],
+		Data: data[2:],
 	}
+
+	testSamePK(t, pkSend, pk2)
 
 }

@@ -8,13 +8,9 @@ import (
 	"github.com/haveachin/infrared"
 	"github.com/haveachin/infrared/connection"
 	"github.com/haveachin/infrared/protocol"
+	"github.com/haveachin/infrared/protocol/handshaking"
 	"github.com/haveachin/infrared/server"
 )
-
-type StatusError struct {
-	expected infrared.StatusConfig
-	received infrared.StatusConfig
-}
 
 // Data types
 type testServerConn struct {
@@ -71,7 +67,11 @@ func (conn *testStatusConn) pk() protocol.Packet {
 type testLoginConn struct {
 }
 
-func (conn testLoginConn) HS() (protocol.Packet, error) {
+func (conn testLoginConn) Hs() (handshaking.ServerBoundHandshake, bool) {
+	return handshaking.ServerBoundHandshake{}, false
+}
+
+func (conn testLoginConn) HsPk() (protocol.Packet, error) {
 	return protocol.Packet{ID: testHSID}, nil
 }
 

@@ -1,16 +1,20 @@
 package connection
 
 import (
+	"bufio"
+	"net"
+
 	"github.com/haveachin/infrared"
 	"github.com/haveachin/infrared/protocol"
+	"github.com/haveachin/infrared/protocol/handshaking"
 )
 
 type RequestType int8
 
 const (
-	UnknownRequest int8 = 0
-	StatusRequest  int8 = 1
-	LoginRequest   int8 = 2
+	UnknownRequest RequestType = 0
+	StatusRequest  RequestType = 1
+	LoginRequest   RequestType = 2
 )
 
 type Connection interface {
@@ -18,15 +22,19 @@ type Connection interface {
 	infrared.PacketReader
 }
 
+type HSConnection interface {
+	Hs() (handshaking.ServerBoundHandshake, bool)
+	HsPk() (protocol.Packet, error)
+}
+
 type PlayerConnection interface {
-	// Pick one of two ways i think
-	isRequestType(requestID int8) bool
-	requestType() RequestType
+	HSConnection
+	RequestType() RequestType
 }
 
 type LoginConnection interface {
-	HS() (protocol.Packet, error)
-	LoginStart() (protocol.Packet, error)
+	HSConnection
+	LoginStart() (protocol.Packet, error) // Need more work
 }
 
 type StatusConnection interface {
@@ -48,7 +56,11 @@ type BasicLoginConn struct {
 	conn Connection
 }
 
-func (lConn *BasicLoginConn) HS() (protocol.Packet, error) {
+func (conn *BasicLoginConn) Hs() (handshaking.ServerBoundHandshake, bool) {
+	return handshaking.ServerBoundHandshake{}, false
+}
+
+func (lConn *BasicLoginConn) HsPk() (protocol.Packet, error) {
 	return lConn.readPacket()
 }
 
@@ -80,4 +92,23 @@ func (sConn *BasicServerConn) Status() (protocol.Packet, error) {
 
 func (sConn *BasicServerConn) SendPK(pk protocol.Packet) error {
 	return sConn.conn.WritePacket(pk)
+}
+
+func CreateBasicConnection(conn net.Conn) *BasicConnection {
+	return &BasicConnection{conn: conn, reader: bufio.NewReader(conn)}
+}
+
+type BasicConnection struct {
+	conn   net.Conn
+	reader protocol.DecodeReader
+}
+
+func (c *BasicConnection) WritePacket(p protocol.Packet) error {
+	pk, _ := p.Marshal() // Need test
+	_, err := c.conn.Write(pk)
+	return err
+}
+
+func (c *BasicConnection) ReadPacket() (protocol.Packet, error) {
+	return protocol.ReadPacket(c.reader)
 }
