@@ -10,6 +10,10 @@ type ServerLoginStart struct {
 	Name protocol.String
 }
 
+func (pk ServerLoginStart) Marshal() protocol.Packet {
+	return protocol.MarshalPacket(ServerBoundLoginStartPacketID, pk.Name)
+}
+
 func UnmarshalServerBoundLoginStart(packet protocol.Packet) (ServerLoginStart, error) {
 	var pk ServerLoginStart
 

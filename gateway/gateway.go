@@ -13,7 +13,7 @@ func CreateBasicGatewayWithStore(store ServerStore) BasicGateway {
 }
 
 type Gateway interface {
-	HandleConnection(conn connection.PlayerConnection)
+	HandleConnection(conn connection.HSConnection)
 }
 
 type BasicGateway struct {
@@ -26,20 +26,19 @@ func (g *BasicGateway) Start() {
 
 // In this case it will be using the same server for status&login requests
 // In another case they might want to use different servers for different types of requests
-func (g *BasicGateway) HandleConnection(conn connection.PlayerConnection) {
+func (g *BasicGateway) HandleConnection(conn connection.HSConnection) {
 	targetServer, ok := g.store.FindServer(conn)
 	if !ok {
 		// There was no server to be found
 		return
 	}
-	switch conn.RequestType() {
+	switch connection.ParseRequestType(conn) {
 	case connection.LoginRequest:
 		lConn := conn.(connection.LoginConnection)
 		server.HandleLoginRequest(lConn, targetServer)
 	case connection.StatusRequest:
 		sConn := conn.(connection.StatusConnection)
 		server.HandleStatusRequest(sConn, targetServer)
-
 	}
 
 }
@@ -61,8 +60,8 @@ type DefaultServerStore struct {
 }
 
 func (store *DefaultServerStore) FindServer(conn connection.HSConnection) (server.Server, bool) {
-	hs, ok := conn.Hs()
-	if !ok {
+	hs, err := conn.Hs()
+	if err != nil {
 		return nil, false
 	}
 	proxyUID := hs.ParseServerAddress()

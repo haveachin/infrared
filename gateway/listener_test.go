@@ -60,7 +60,7 @@ type testGateway struct {
 	handleCount int
 }
 
-func (gw *testGateway) HandleConnection(conn connection.PlayerConnection) {
+func (gw *testGateway) HandleConnection(conn connection.HSConnection) {
 	gw.handleCount++
 }
 
@@ -68,15 +68,6 @@ func (gw *testGateway) HandleConnection(conn connection.PlayerConnection) {
 
 // OuterListener Tests
 func TestBasicOuterListener(t *testing.T) {
-	listenerCreateFn := func(addr string) gateway.OuterListener {
-		return gateway.CreateBasicOuterListener(addr)
-	}
-
-	testOuterListener(t, listenerCreateFn)
-}
-
-//This is how you can easily test a second outerlistener implemenation
-func TestBasicOuterListener2(t *testing.T) {
 	listenerCreateFn := func(addr string) gateway.OuterListener {
 		return gateway.CreateBasicOuterListener(addr)
 	}
@@ -132,7 +123,7 @@ func TestBasicListener(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var outerListener gateway.OuterListener
 			hsPk := protocol.Packet{ID: testLoginHSID}
-			inConn := &testInConn{hsPk: hsPk, hasHS: true}
+			inConn := &testInConn{hsPk: hsPk}
 			outerListener = &testOutLis{conn: inConn}
 			if tc.startReturnsError {
 				outerListener = &faultyTestOutLis{}

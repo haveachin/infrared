@@ -52,7 +52,7 @@ func (l *BasicListener) Listen() error {
 		return ErrCantStartListener
 	}
 	conn := l.OutListener.Accept()
-	pConn := conn.(connection.PlayerConnection)
+	pConn := conn.(connection.HSConnection)
 	l.Gw.HandleConnection(pConn)
 	return nil
 }

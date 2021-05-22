@@ -16,7 +16,7 @@ type StatusServer interface {
 	Status(conn connection.StatusConnection) protocol.Packet
 }
 
-// Server will act as abstraction layer between connection and proxy ...? 
+// Server will act as abstraction layer between connection and proxy ...?
 type Server interface {
 	LoginServer
 	StatusServer
@@ -52,31 +52,22 @@ func (s *MCServer) Status(conn connection.StatusConnection) protocol.Packet {
 }
 
 func (s *MCServer) Login(conn connection.LoginConnection) error {
-	sConn := s.serverConn
-	if sConn == nil {
-		sConn = s.ConnFactory()
+	sConn := s.ConnFactory()
+	hs, _ := conn.HsPk()
+	sConn.SendPK(hs)
+	pk, _ := conn.LoginStart()
+	if err := sConn.SendPK(pk); err != nil {
+		return err
 	}
 
-	hs, err := conn.HsPk()
-	if err != nil {
-		return err // TODO: Needs test
-	}
+	connection.Pipe(conn, sConn)
 
-	if err = sConn.SendPK(hs); err != nil {
-		return err // TODO: Needs test
-	}
-
-	pk, err := conn.LoginStart()
-	if err != nil {
-		return err // TODO: Needs test
-	}
-
-	return sConn.SendPK(pk)
+	return nil
 }
 
 func HandleStatusRequest(conn connection.StatusConnection, server Server) error {
 	status := server.Status(conn)
-	return conn.SendStatus(status)
+	return conn.WritePacket(status)
 }
 
 func HandleLoginRequest(conn connection.LoginConnection, server Server) error {

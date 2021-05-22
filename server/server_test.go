@@ -2,7 +2,9 @@ package server_test
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"net"
 	"testing"
 
 	"github.com/haveachin/infrared"
@@ -31,6 +33,8 @@ func (conn *testServerConn) Status() (protocol.Packet, error) {
 var (
 	testHSID    byte = 5
 	testLoginID byte = 6
+
+	ErrNotImplemented = errors.New("not implemented")
 )
 
 func (conn *testServerConn) SendPK(pk protocol.Packet) error {
@@ -51,6 +55,14 @@ func (conn *testServerConn) ReceivedLoginStart() bool {
 	return conn.receivedLoginStart
 }
 
+func (c *testServerConn) Read(b []byte) (n int, err error) {
+	return 0, ErrNotImplemented
+}
+
+func (c *testServerConn) Write(b []byte) (n int, err error) {
+	return 0, ErrNotImplemented
+}
+
 type testStatusConn struct {
 	status protocol.Packet
 }
@@ -64,11 +76,39 @@ func (conn *testStatusConn) pk() protocol.Packet {
 	return conn.status
 }
 
+func (conn *testStatusConn) Hs() (handshaking.ServerBoundHandshake, error) {
+	return handshaking.ServerBoundHandshake{}, nil
+}
+
+func (conn *testStatusConn) HsPk() (protocol.Packet, error) {
+	return protocol.Packet{ID: testHSID}, nil
+}
+
+func (conn *testStatusConn) RemoteAddr() net.Addr {
+	return &net.TCPAddr{}
+}
+
+func (conn *testStatusConn) ReadPacket() (protocol.Packet, error) {
+	return protocol.Packet{}, nil
+}
+
+func (conn *testStatusConn) WritePacket(p protocol.Packet) error {
+	return nil
+}
+
+func (c *testStatusConn) Read(b []byte) (n int, err error) {
+	return 0, ErrNotImplemented
+}
+
+func (c *testStatusConn) Write(b []byte) (n int, err error) {
+	return 0, ErrNotImplemented
+}
+
 type testLoginConn struct {
 }
 
-func (conn testLoginConn) Hs() (handshaking.ServerBoundHandshake, bool) {
-	return handshaking.ServerBoundHandshake{}, false
+func (conn testLoginConn) Hs() (handshaking.ServerBoundHandshake, error) {
+	return handshaking.ServerBoundHandshake{}, nil
 }
 
 func (conn testLoginConn) HsPk() (protocol.Packet, error) {
@@ -77,6 +117,33 @@ func (conn testLoginConn) HsPk() (protocol.Packet, error) {
 
 func (conn testLoginConn) LoginStart() (protocol.Packet, error) {
 	return protocol.Packet{ID: testLoginID}, nil
+}
+
+func (conn testLoginConn) RequestType() connection.RequestType {
+	return connection.RequestType(0)
+}
+func (conn testLoginConn) RemoteAddr() net.Addr {
+	return &net.TCPAddr{}
+}
+
+func (conn testLoginConn) ReadPacket() (protocol.Packet, error) {
+	return protocol.Packet{}, nil
+}
+
+func (conn testLoginConn) WritePacket(p protocol.Packet) error {
+	return nil
+}
+
+func (conn testLoginConn) Name() (string, error) {
+	return "", nil
+}
+
+func (c testLoginConn) Read(b []byte) (n int, err error) {
+	return 0, ErrNotImplemented
+}
+
+func (c testLoginConn) Write(b []byte) (n int, err error) {
+	return 0, ErrNotImplemented
 }
 
 // Help Methods
