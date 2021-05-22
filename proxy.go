@@ -36,7 +36,6 @@ type Proxy struct {
 	players           map[Conn]string
 	mu                sync.Mutex
 	ServerFactory     func(*Proxy) MCServer
-	server            MCServer
 }
 
 func (proxy *Proxy) Process() process.Process {
@@ -195,11 +194,9 @@ func (proxy *Proxy) handleConn(conn Conn, connRemoteAddr net.Addr) error {
 	proxyUID := proxy.UID()
 	// rconn, err := DialTimeout(proxyTo, proxy.Timeout())
 	// if err != nil {
-	if proxy.server == nil {
-		proxy.server = proxy.ServerFactory(proxy)
-	}
+	server := proxy.ServerFactory(proxy)
 
-	if !proxy.server.CanConnect() {
+	if !server.CanConnect() {
 		log.Printf("[i] %s did not respond to ping; is the target offline?", proxyTo)
 		if hs.IsStatusRequest() {
 			return proxy.handleStatusRequest(conn, false)
@@ -215,7 +212,7 @@ func (proxy *Proxy) handleConn(conn Conn, connRemoteAddr net.Addr) error {
 		return proxy.handleStatusRequest(conn, true)
 	}
 
-	rconn, err := proxy.server.Connection()
+	rconn, err := server.Connection()
 	if err != nil {
 		return ErrCantConnectWithServer
 	}
@@ -430,22 +427,6 @@ func (proxy *Proxy) handleStatusRequest(conn Conn, online bool) error {
 	}
 
 	return conn.WritePacket(pingPk)
-}
-
-func sniffUsername(conn Connection, rconn Conn) (string, error) {
-	pk, err := conn.Conn().ReadPacket()
-	if err != nil {
-		return "", ErrCantReadPK
-	}
-	rconn.WritePacket(pk)
-
-	ls, err := login.UnmarshalServerBoundLoginStart(pk)
-	if err != nil {
-		return "", ErrCantUnMarshalPK
-	}
-	uid, _ := conn.proxyUID()
-	log.Printf("[i] %s with username %s connects through %s", conn.remoteAddr(), ls.Name, uid)
-	return string(ls.Name), nil
 }
 
 type MCServer interface {
