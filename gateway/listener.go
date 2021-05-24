@@ -27,9 +27,9 @@ type BasicOuterListener struct {
 }
 
 func (l *BasicOuterListener) Start() error {
-	netL, err := net.Listen("tcp", l.addr) // TODO: look into more specific error test way
+	netL, err := net.Listen("tcp", l.addr)
 	if err != nil {
-		return ErrCantStartOutListener
+		return ErrCantStartOutListener // TODO: look into ways to test this
 	}
 	l.Listener = netL
 	return nil
@@ -51,8 +51,11 @@ func (l *BasicListener) Listen() error {
 	if err != nil {
 		return ErrCantStartListener
 	}
-	conn := l.OutListener.Accept()
-	pConn := conn.(connection.HSConnection)
-	l.Gw.HandleConnection(pConn)
-	return nil
+	for {
+		conn := l.OutListener.Accept()
+		pConn := conn.(connection.HSConnection)
+		go func(conn connection.HSConnection) {
+			l.Gw.HandleConnection(conn)
+		}(pConn)
+	}
 }

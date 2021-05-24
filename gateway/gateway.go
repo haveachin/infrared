@@ -1,10 +1,16 @@
 package gateway
 
 import (
+	"errors"
 	"sync"
 
 	"github.com/haveachin/infrared/connection"
 	"github.com/haveachin/infrared/server"
+)
+
+var (
+	ErrNoServerFound     = errors.New("no server was found for this request")
+	ErrNotValidHandshake = errors.New("this connection didnt provide a valid handshake")
 )
 
 func CreateBasicGatewayWithStore(store ServerStore) BasicGateway {
@@ -13,7 +19,7 @@ func CreateBasicGatewayWithStore(store ServerStore) BasicGateway {
 }
 
 type Gateway interface {
-	HandleConnection(conn connection.HSConnection)
+	HandleConnection(conn connection.HSConnection) error
 }
 
 type BasicGateway struct {
@@ -26,12 +32,13 @@ func (g *BasicGateway) Start() {
 
 // In this case it will be using the same server for status&login requests
 // In another case they might want to use different servers for different types of requests
-func (g *BasicGateway) HandleConnection(conn connection.HSConnection) {
+func (g *BasicGateway) HandleConnection(conn connection.HSConnection) error {
 	targetServer, ok := g.store.FindServer(conn)
 	if !ok {
 		// There was no server to be found
-		return
+		return ErrNoServerFound
 	}
+
 	switch connection.ParseRequestType(conn) {
 	case connection.LoginRequest:
 		lConn := conn.(connection.LoginConnection)
@@ -39,8 +46,10 @@ func (g *BasicGateway) HandleConnection(conn connection.HSConnection) {
 	case connection.StatusRequest:
 		sConn := conn.(connection.StatusConnection)
 		server.HandleStatusRequest(sConn, targetServer)
+	default:
+		return ErrNotValidHandshake
 	}
-
+	return nil
 }
 
 type ServerStore interface {

@@ -8,6 +8,10 @@ import (
 	"github.com/haveachin/infrared/protocol"
 )
 
+var (
+	ErrCantConnectWithServer = errors.New("cant connect with server")
+)
+
 type LoginServer interface {
 	Login(conn connection.LoginConnection) error
 }
@@ -21,10 +25,6 @@ type Server interface {
 	LoginServer
 	StatusServer
 }
-
-var (
-	ErrCantConnectWithServer = errors.New("cant connect with server")
-)
 
 type MCServer struct {
 	ConnFactory         func() connection.ServerConnection //Probably needs better names, or a different code structure

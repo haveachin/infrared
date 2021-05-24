@@ -53,6 +53,8 @@ func (s *testServer) ID() string {
 
 // INcomming CONNection, not obvious? Change it!
 type testInConn struct {
+	id int
+
 	writeCount int
 	readCount  int
 
@@ -123,12 +125,14 @@ func TestHandleConnection(t *testing.T) {
 		requesteType  connection.RequestType
 		numberOfCalls int
 		canFindServer bool
+		expectedError error
 	}{
 		{
 			name:          "cant find server",
 			requesteType:  loginReq,
 			numberOfCalls: 0,
 			canFindServer: false,
+			expectedError: gateway.ErrNoServerFound,
 		},
 		{
 			name:          "valid login hs",
@@ -147,12 +151,17 @@ func TestHandleConnection(t *testing.T) {
 			requesteType:  invalidReq,
 			numberOfCalls: 0,
 			canFindServer: true,
+			expectedError: gateway.ErrNotValidHandshake,
 		},
 	}
 
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
-			conn := &testInConn{reqType: tc.requesteType}
+			t.Log(protocol.Byte(tc.requesteType))
+			hs := handshaking.ServerBoundHandshake{
+				NextState: protocol.Byte(tc.requesteType),
+			}
+			conn := &testInConn{hs: hs}
 			server := &testServer{}
 
 			serverStore := &gateway.SingleServerStore{}
@@ -160,8 +169,14 @@ func TestHandleConnection(t *testing.T) {
 				serverStore.Server = server
 			}
 
-			gateway := gateway.CreateBasicGatewayWithStore(serverStore)
-			gateway.HandleConnection(conn)
+			gw := gateway.CreateBasicGatewayWithStore(serverStore)
+			err := gw.HandleConnection(conn)
+
+			if errors.Is(err, tc.expectedError) {
+				return
+			} else if err != nil {
+				t.Errorf("got unexpected error: %v", err)
+			}
 
 			amountServerCalls := (server.loginCalled + server.statusCalled) - tc.numberOfCalls
 			if amountServerCalls != 0 {
@@ -285,7 +300,6 @@ func TestInToOutBoundry(t *testing.T) {
 	channel := make(chan struct{})
 	go func() {
 		wg.Wait()
-		t.Log("AFTER WAIT")
 		channel <- struct{}{}
 	}()
 
@@ -326,7 +340,9 @@ func TestInToOutBoundry(t *testing.T) {
 	listener := &gateway.BasicListener{Gw: &tGateway, OutListener: outerListener}
 
 	// Start Testing stuff
-	listener.Listen()
+	go func() {
+		listener.Listen()
+	}()
 
 	timeout := time.After(100 * time.Millisecond)
 	select {

@@ -25,8 +25,9 @@ var (
 	testSendID    byte = 41
 	testReceiveID byte = 42
 
-	ErrReadPacket     = errors.New("cant read packet bc of test")
-	ErrNotImplemented = errors.New("not implemented")
+	ErrReadPacket      = errors.New("cant read packet bc of test")
+	ErrNotImplemented  = errors.New("not implemented")
+	ErrOnPurposeReturn = errors.New("this error is returned on purpose")
 )
 
 // Should implement connection.Connect
@@ -547,10 +548,16 @@ type testPipeConn struct {
 	sendCount     int
 	receivedCount int
 
+	rShouldReturnErr bool
+	wShouldReturnErr bool
+
 	wg *sync.WaitGroup
 }
 
 func (c *testPipeConn) Read(b []byte) (n int, err error) {
+	if c.rShouldReturnErr {
+		return 0, ErrOnPurposeReturn
+	}
 	if len(c.sendData) == c.sendCount {
 		return 0, ErrNoMoreDataToRead
 	}
@@ -568,6 +575,9 @@ func (c *testPipeConn) Read(b []byte) (n int, err error) {
 }
 
 func (c *testPipeConn) Write(b []byte) (n int, err error) {
+	if c.wShouldReturnErr {
+		return 0, ErrOnPurposeReturn
+	}
 	if c.receivedData == nil {
 		c.receivedData = make([][]byte, 0)
 	}
@@ -575,6 +585,7 @@ func (c *testPipeConn) Write(b []byte) (n int, err error) {
 	c.receivedCount++
 	return len(b), nil
 }
+
 func (c *testPipeConn) WritePacket(p protocol.Packet) error {
 	return nil
 }
