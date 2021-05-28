@@ -24,6 +24,7 @@ It works similar to Nginx for those of you who are familiar.
 - [x] Logger Callback URLs
 - [x] HAProxy Protocol Support
 - [x] TCPShield/RealIP Protocol Support
+- [X] Prometheus Support
 - [ ] REST API
 
 ## Deploy
@@ -54,11 +55,16 @@ $ docker build --no-cache -t haveachin/infrared:latest https://github.com/haveac
 ## Command-Line Flags
 
 `-config-path` specifies the path to all your server configs [default: `"./configs/"`]
+
 `-receive-proxy-protocol` if Infrared should be able to receive proxy protocol [default: `false`]
+
+`-enable-prometheus` enables the Prometheus stats exporter [default: `false`]
+
+`-prometheus-bind` specifies what the Prometheus HTTP server should bind to [default: `:9100`]
 
 ### Example Usage
 
-`./infrared -config-path="." -receive-proxy-protocol=true`
+`./infrared -config-path="." -receive-proxy-protocol=true -enable-prometheus -prometheus-bind="localhost:9123"`
 
 ## Proxy Config
 
