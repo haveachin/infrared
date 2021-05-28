@@ -35,7 +35,6 @@ type Proxy struct {
 	cancelTimeoutFunc func()
 	players           map[Conn]string
 	mu                sync.Mutex
-	closed            bool
 }
 
 func (proxy *Proxy) Process() process.Process {
