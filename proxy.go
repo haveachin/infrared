@@ -196,7 +196,7 @@ func (proxy *Proxy) handleConn(conn Conn, connRemoteAddr net.Addr) error {
 		return err
 	}
 
-    proxyDomain := proxy.DomainName()
+	proxyDomain := proxy.DomainName()
 	proxyTo := proxy.ProxyTo()
 	proxyUID := proxy.UID()
 

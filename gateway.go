@@ -81,7 +81,7 @@ func (gateway *Gateway) CloseProxy(proxyUID string) {
 	if !ok {
 		return
 	}
-    proxiesActive.Dec()
+	proxiesActive.Dec()
 	proxy := v.(*Proxy)
 
 	closeListener := true
@@ -110,7 +110,7 @@ func (gateway *Gateway) RegisterProxy(proxy *Proxy) error {
 	proxyUID := proxy.UID()
 	log.Println("Registering proxy with UID", proxyUID)
 	gateway.proxies.Store(proxyUID, proxy)
-    proxiesActive.Inc()
+	proxiesActive.Inc()
 
 	proxy.Config.removeCallback = func() {
 		gateway.CloseProxy(proxyUID)
