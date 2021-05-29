@@ -2,6 +2,7 @@ package server
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/haveachin/infrared"
 	"github.com/haveachin/infrared/connection"
@@ -32,6 +33,8 @@ type MCServer struct {
 	OnlineConfigStatus  protocol.Packet
 	OfflineConfigStatus protocol.Packet
 	UseConfigStatus     bool
+
+	ConnCh <-chan connection.HSConnection
 }
 
 func (s *MCServer) Status(conn connection.StatusConnection) protocol.Packet {
@@ -60,16 +63,27 @@ func (s *MCServer) Login(conn connection.LoginConnection) error {
 		return err
 	}
 
-	connection.Pipe(conn, sConn)
+	go func() {
+		connection.Pipe(conn, sConn)
+	}()
 
 	return nil
 }
 
-func HandleStatusRequest(conn connection.StatusConnection, server Server) error {
-	status := server.Status(conn)
-	return conn.WritePacket(status)
+func (s *MCServer) Start() {
+	for {
+		conn := <-s.ConnCh
+		switch connection.ParseRequestType(conn) {
+		case connection.LoginRequest:
+			lConn := conn.(connection.LoginConnection)
+			s.Login(lConn)
+		case connection.StatusRequest:
+			sConn := conn.(connection.StatusConnection)
+			status := s.Status(sConn)
+			conn.WritePacket(status)
+		default:
+			fmt.Sprintln("Didnt recognize handshake id")
+		}
+	}
 }
 
-func HandleLoginRequest(conn connection.LoginConnection, server Server) error {
-	return server.Login(conn)
-}

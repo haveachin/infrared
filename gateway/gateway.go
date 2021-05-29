@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"github.com/haveachin/infrared/connection"
-	"github.com/haveachin/infrared/server"
 )
 
 var (
@@ -13,9 +12,13 @@ var (
 	ErrNotValidHandshake = errors.New("this connection didnt provide a valid handshake")
 )
 
-func CreateBasicGatewayWithStore(store ServerStore) BasicGateway {
-	return BasicGateway{store: store}
+func CreateBasicGatewayWithStore(store ServerStore, ch <-chan connection.Connection) BasicGateway {
+	return BasicGateway{store: store, inCh: ch}
 
+}
+
+type ServerData struct {
+	ConnCh chan<- connection.HSConnection
 }
 
 type Gateway interface {
@@ -24,65 +27,61 @@ type Gateway interface {
 
 type BasicGateway struct {
 	store ServerStore
+	inCh  <-chan connection.Connection
 }
 
 func (g *BasicGateway) Start() {
+
+	for {
+		conn := <-g.inCh
+		g.handleConnection(conn)
+	}
 
 }
 
 // In this case it will be using the same server for status&login requests
 // In another case they might want to use different servers for different types of requests
-func (g *BasicGateway) HandleConnection(conn connection.HSConnection) error {
-	targetServer, ok := g.store.FindServer(conn)
+func (g *BasicGateway) handleConnection(conn connection.Connection) error {
+	
+	hsConn := conn.(connection.HSConnection)
+	hs, _ := hsConn.Hs()
+
+	serverData, ok := g.store.FindServer(string(hs.ServerAddress))
 	if !ok {
 		// There was no server to be found
 		return ErrNoServerFound
 	}
+	serverData.ConnCh <- hsConn
 
-	switch connection.ParseRequestType(conn) {
-	case connection.LoginRequest:
-		lConn := conn.(connection.LoginConnection)
-		server.HandleLoginRequest(lConn, targetServer)
-	case connection.StatusRequest:
-		sConn := conn.(connection.StatusConnection)
-		server.HandleStatusRequest(sConn, targetServer)
-	default:
-		return ErrNotValidHandshake
-	}
 	return nil
 }
 
 type ServerStore interface {
-	FindServer(conn connection.HSConnection) (server.Server, bool)
+	FindServer(addr string) (ServerData, bool)
 }
 
 type SingleServerStore struct {
-	Server server.Server
+	Server ServerData
 }
 
-func (store *SingleServerStore) FindServer(conn connection.HSConnection) (server.Server, bool) {
-	return store.Server, store.Server != nil
+func (store *SingleServerStore) FindServer(addr string) (ServerData, bool) {
+	return store.Server, store.Server.ConnCh != nil
 }
 
 type DefaultServerStore struct {
 	servers sync.Map
 }
 
-func (store *DefaultServerStore) FindServer(conn connection.HSConnection) (server.Server, bool) {
-	hs, err := conn.Hs()
-	if err != nil {
-		return nil, false
-	}
-	proxyUID := hs.ParseServerAddress()
-	v, ok := store.servers.Load(proxyUID)
+func (store *DefaultServerStore) FindServer(addr string) (ServerData, bool) {
+	v, ok := store.servers.Load(addr)
 	if !ok {
 		// Client send an invalid address/port; we don't have a v for that address
-		return nil, false
+		return ServerData{}, false
 	}
-	server := v.(server.Server)
+	server := v.(ServerData)
 	return server, true
 }
 
-func (store *DefaultServerStore) AddServer(addr string, server server.Server) {
-	store.servers.Store(addr, server)
+func (store *DefaultServerStore) AddServer(addr string, serverData ServerData) {
+	store.servers.Store(addr, serverData)
 }

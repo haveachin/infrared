@@ -43,7 +43,7 @@ func (l *BasicOuterListener) Accept() connection.Connection {
 
 type BasicListener struct {
 	OutListener OuterListener
-	Gw          Gateway
+	ConnCh      chan<- connection.Connection
 }
 
 func (l *BasicListener) Listen() error {
@@ -53,9 +53,6 @@ func (l *BasicListener) Listen() error {
 	}
 	for {
 		conn := l.OutListener.Accept()
-		pConn := conn.(connection.HSConnection)
-		go func(conn connection.HSConnection) {
-			l.Gw.HandleConnection(conn)
-		}(pConn)
+		l.ConnCh <- conn
 	}
 }

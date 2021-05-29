@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/haveachin/infrared"
 	"github.com/haveachin/infrared/connection"
@@ -14,12 +16,21 @@ import (
 	"github.com/haveachin/infrared/server"
 )
 
+var (
+	testHSID    byte = 5
+	testLoginID byte = 6
+
+	ErrNotImplemented = errors.New("not implemented")
+)
+
 // Data types
 type testServerConn struct {
 	status             protocol.Packet
 	isOnline           bool
 	receivedHandshake  bool
 	receivedLoginStart bool
+
+	wg *sync.WaitGroup
 }
 
 func (conn *testServerConn) Status() (protocol.Packet, error) {
@@ -30,20 +41,14 @@ func (conn *testServerConn) Status() (protocol.Packet, error) {
 	return conn.status, server.ErrCantConnectWithServer
 }
 
-var (
-	testHSID    byte = 5
-	testLoginID byte = 6
-
-	ErrNotImplemented = errors.New("not implemented")
-)
-
 func (conn *testServerConn) SendPK(pk protocol.Packet) error {
 	switch pk.ID {
-	case testHSID:
+	case handshaking.ServerBoundHandshakePacketID:
 		conn.receivedHandshake = true
 	case testLoginID:
 		conn.receivedLoginStart = true
 	}
+	conn.wg.Done()
 	return nil
 }
 
@@ -65,6 +70,7 @@ func (c *testServerConn) Write(b []byte) (n int, err error) {
 
 type testStatusConn struct {
 	status protocol.Packet
+	wg     *sync.WaitGroup
 }
 
 func (conn *testStatusConn) SendStatus(pk protocol.Packet) error {
@@ -77,7 +83,7 @@ func (conn *testStatusConn) pk() protocol.Packet {
 }
 
 func (conn *testStatusConn) Hs() (handshaking.ServerBoundHandshake, error) {
-	return handshaking.ServerBoundHandshake{}, nil
+	return handshaking.ServerBoundHandshake{NextState: 1}, nil
 }
 
 func (conn *testStatusConn) HsPk() (protocol.Packet, error) {
@@ -93,6 +99,8 @@ func (conn *testStatusConn) ReadPacket() (protocol.Packet, error) {
 }
 
 func (conn *testStatusConn) WritePacket(p protocol.Packet) error {
+	conn.status = p
+	conn.wg.Done()
 	return nil
 }
 
@@ -105,23 +113,26 @@ func (c *testStatusConn) Write(b []byte) (n int, err error) {
 }
 
 type testLoginConn struct {
+	hs    handshaking.ServerBoundHandshake
+	loginPK protocol.Packet
 }
 
 func (conn testLoginConn) Hs() (handshaking.ServerBoundHandshake, error) {
-	return handshaking.ServerBoundHandshake{}, nil
+	return conn.hs, nil
 }
 
 func (conn testLoginConn) HsPk() (protocol.Packet, error) {
-	return protocol.Packet{ID: testHSID}, nil
+	return conn.hs.Marshal(), nil
 }
 
 func (conn testLoginConn) LoginStart() (protocol.Packet, error) {
-	return protocol.Packet{ID: testLoginID}, nil
+	return conn.loginPK, nil
 }
 
 func (conn testLoginConn) RequestType() connection.RequestType {
-	return connection.RequestType(0)
+	return connection.RequestType(conn.hs.NextState)
 }
+
 func (conn testLoginConn) RemoteAddr() net.Addr {
 	return &net.TCPAddr{}
 }
@@ -211,6 +222,8 @@ func TestHandleStatusRequest(t *testing.T) {
 	for _, tc := range tt {
 		name := fmt.Sprintf("online: %v, configStatus: %v", tc.online, tc.configStatus)
 		t.Run(name, func(t *testing.T) {
+			wg := &sync.WaitGroup{}
+			connCh := make(chan connection.HSConnection)
 			sConnMock := testServerConn{status: basicStatus, isOnline: tc.online}
 			statusFactory := func() connection.ServerConnection {
 				return &sConnMock
@@ -220,15 +233,24 @@ func TestHandleStatusRequest(t *testing.T) {
 				OnlineConfigStatus:  onlineConfigStatus,
 				OfflineConfigStatus: offlineConfigStatus,
 				UseConfigStatus:     tc.configStatus,
+				ConnCh:              connCh,
 			}
 
-			statusConn := &testStatusConn{}
+			go func() {
+				go mcServer.Start()
+			}()
 
-			err := server.HandleStatusRequest(statusConn, mcServer)
-			if err != nil {
-				t.Errorf("got error %v", err)
+			statusConn := &testStatusConn{wg: wg}
+			wg.Add(1)
+			select {
+			case connCh <- statusConn:
+				t.Log("Channel took connection")
+			case <-time.After(1 * time.Millisecond):
+				t.Log("Tasked timed out")
+				t.FailNow() // Dont check other code it didnt finish anyway
 			}
 
+			wg.Wait()
 			receivedPk := statusConn.pk()
 
 			if ok := samePK(tc.expectedStatus, receivedPk); !ok {
@@ -241,14 +263,37 @@ func TestHandleStatusRequest(t *testing.T) {
 }
 
 func TestHandleLoginRequest(t *testing.T) {
-	sConnMock := testServerConn{}
-	statusFactory := func() connection.ServerConnection {
+	hs := handshaking.ServerBoundHandshake{
+		NextState: 2,
+	}
+	loginPk := protocol.Packet{ID: testLoginID}
+
+	wg := sync.WaitGroup{}
+	connCh := make(chan connection.HSConnection)
+	sConnMock := testServerConn{wg: &wg}
+	connFactory := func() connection.ServerConnection {
 		return &sConnMock
 	}
-	loginConn := &testLoginConn{}
-	mcServer := &server.MCServer{ConnFactory: statusFactory}
+	loginConn := &testLoginConn{hs: hs, loginPK: loginPk}
+	mcServer := &server.MCServer{
+		ConnFactory: connFactory,
+		ConnCh:      connCh,
+	}
 
-	server.HandleLoginRequest(loginConn, mcServer)
+	wg.Add(2)
+	go func() {
+		go mcServer.Start()
+	}()
+
+	select {
+	case connCh <- loginConn:
+		t.Log("Channel took connection")
+	case <-time.After(1 * time.Millisecond):
+		t.Log("Tasked timed out")
+		t.FailNow() // Dont check other code it didnt finish anyway
+	}
+
+	wg.Wait()
 
 	ok := sConnMock.ReceivedHandshake()
 	if !ok {
