@@ -2,17 +2,27 @@ package infrared
 
 import (
 	"fmt"
+	"log"
+	"net"
+	"strings"
+	"sync"
+	"time"
+
 	"github.com/haveachin/infrared/callback"
 	"github.com/haveachin/infrared/process"
 	"github.com/haveachin/infrared/protocol"
 	"github.com/haveachin/infrared/protocol/handshaking"
 	"github.com/haveachin/infrared/protocol/login"
 	"github.com/pires/go-proxyproto"
-	"log"
-	"net"
-	"strings"
-	"sync"
-	"time"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+)
+
+var (
+	playersConnected = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "infrared_connected",
+		Help: "The total number of connected players",
+	}, []string{"host"})
 )
 
 func proxyUID(domain, addr string) string {
@@ -185,6 +195,7 @@ func (proxy *Proxy) handleConn(conn Conn, connRemoteAddr net.Addr) error {
 		return err
 	}
 
+	proxyDomain := proxy.DomainName()
 	proxyTo := proxy.ProxyTo()
 	proxyUID := proxy.UID()
 
@@ -235,6 +246,7 @@ func (proxy *Proxy) handleConn(conn Conn, connRemoteAddr net.Addr) error {
 	}
 
 	var username string
+	connected := false
 	if hs.IsLoginRequest() {
 		proxy.cancelProcessTimeout()
 		username, err = proxy.sniffUsername(conn, rconn, connRemoteAddr)
@@ -248,17 +260,22 @@ func (proxy *Proxy) handleConn(conn Conn, connRemoteAddr net.Addr) error {
 			TargetAddress: proxyTo,
 			ProxyUID:      proxyUID,
 		})
+		playersConnected.With(prometheus.Labels{"host": proxyDomain}).Inc()
+		connected = true
 	}
 
 	go pipe(rconn, conn)
 	pipe(conn, rconn)
 
-	proxy.logEvent(callback.PlayerLeaveEvent{
-		Username:      username,
-		RemoteAddress: connRemoteAddr.String(),
-		TargetAddress: proxyTo,
-		ProxyUID:      proxyUID,
-	})
+	if connected {
+		proxy.logEvent(callback.PlayerLeaveEvent{
+			Username:      username,
+			RemoteAddress: connRemoteAddr.String(),
+			TargetAddress: proxyTo,
+			ProxyUID:      proxyUID,
+		})
+		playersConnected.With(prometheus.Labels{"host": proxyDomain}).Dec()
+	}
 
 	remainingPlayers := proxy.removePlayer(conn)
 	if remainingPlayers <= 0 {
