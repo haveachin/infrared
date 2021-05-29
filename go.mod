@@ -26,5 +26,3 @@ require (
 	google.golang.org/grpc v1.35.0 // indirect
 	gotest.tools/v3 v3.0.3 // indirect
 )
-
-replace github.com/haveachin/infrared => ./
