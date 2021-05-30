@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"errors"
+	"log"
 	"sync"
 
 	"github.com/haveachin/infrared/connection"
@@ -12,7 +13,7 @@ var (
 	ErrNotValidHandshake = errors.New("this connection didnt provide a valid handshake")
 )
 
-func CreateBasicGatewayWithStore(store ServerStore, ch <-chan connection.Connection) BasicGateway {
+func CreateBasicGatewayWithStore(store ServerStore, ch <-chan connection.HSConnection) BasicGateway {
 	return BasicGateway{store: store, inCh: ch}
 
 }
@@ -27,10 +28,10 @@ type Gateway interface {
 
 type BasicGateway struct {
 	store ServerStore
-	inCh  <-chan connection.Connection
+	inCh  <-chan connection.HSConnection
 }
 
-func (g *BasicGateway) Start() {
+func (g *BasicGateway) Start() error {
 
 	for {
 		conn := <-g.inCh
@@ -39,19 +40,16 @@ func (g *BasicGateway) Start() {
 
 }
 
-// In this case it will be using the same server for status&login requests
-// In another case they might want to use different servers for different types of requests
-func (g *BasicGateway) handleConnection(conn connection.Connection) error {
-	
-	hsConn := conn.(connection.HSConnection)
-	hs, _ := hsConn.Hs()
-
+func (g *BasicGateway) handleConnection(conn connection.HSConnection) error {
+	log.Printf("[i] %s requests proxy", conn.RemoteAddr())
+	hs, _ := conn.Hs()
+	// log.Printf("[i] %s requests proxy for address %s", conn.RemoteAddr(), hs.ServerAddress)
 	serverData, ok := g.store.FindServer(string(hs.ServerAddress))
 	if !ok {
 		// There was no server to be found
 		return ErrNoServerFound
 	}
-	serverData.ConnCh <- hsConn
+	serverData.ConnCh <- conn
 
 	return nil
 }

@@ -33,7 +33,7 @@ type testServerConn struct {
 	wg *sync.WaitGroup
 }
 
-func (conn *testServerConn) Status() (protocol.Packet, error) {
+func (conn *testServerConn) Status(pk protocol.Packet) (protocol.Packet, error) {
 	if conn.isOnline {
 		return conn.status, nil
 	}
@@ -113,7 +113,7 @@ func (c *testStatusConn) Write(b []byte) (n int, err error) {
 }
 
 type testLoginConn struct {
-	hs    handshaking.ServerBoundHandshake
+	hs      handshaking.ServerBoundHandshake
 	loginPK protocol.Packet
 }
 
@@ -166,7 +166,7 @@ func samePK(expected, received protocol.Packet) bool {
 }
 
 // Test themselves
-func TestHandleStatusRequest(t *testing.T) {
+func TestServerStatusRequest(t *testing.T) {
 	basicStatus, _ := infrared.StatusConfig{
 		VersionName:    "Latest",
 		ProtocolNumber: 1,
@@ -225,15 +225,17 @@ func TestHandleStatusRequest(t *testing.T) {
 			wg := &sync.WaitGroup{}
 			connCh := make(chan connection.HSConnection)
 			sConnMock := testServerConn{status: basicStatus, isOnline: tc.online}
-			statusFactory := func() connection.ServerConnection {
-				return &sConnMock
+			statusFactory := func(addr string) (connection.ServerConnection, error) {
+				return &sConnMock, nil
 			}
 			mcServer := &server.MCServer{
-				ConnFactory:         statusFactory,
-				OnlineConfigStatus:  onlineConfigStatus,
-				OfflineConfigStatus: offlineConfigStatus,
-				UseConfigStatus:     tc.configStatus,
-				ConnCh:              connCh,
+				ConnFactory: statusFactory,
+				ConnCh:      connCh,
+			}
+
+			if tc.configStatus {
+				mcServer.OnlineConfigStatus = onlineConfigStatus
+				mcServer.OfflineConfigStatus = offlineConfigStatus
 			}
 
 			go func() {
@@ -262,28 +264,39 @@ func TestHandleStatusRequest(t *testing.T) {
 
 }
 
-func TestHandleLoginRequest(t *testing.T) {
+func TestMCServer_LoginRequest(t *testing.T) {
+	runServer := func(connFactory connection.ServerConnFactory) chan<- connection.HSConnection {
+		connCh := make(chan connection.HSConnection)
+
+		mcServer := &server.MCServer{
+			ConnFactory: connFactory,
+			ConnCh:      connCh,
+		}
+		go func() {
+			mcServer.Start()
+		}()
+
+		return connCh
+	}
+
+	testServerLoginRequest(t, runServer)
+}
+
+func testServerLoginRequest(t *testing.T, runServer func(connection.ServerConnFactory) chan<- connection.HSConnection) {
 	hs := handshaking.ServerBoundHandshake{
 		NextState: 2,
 	}
 	loginPk := protocol.Packet{ID: testLoginID}
 
 	wg := sync.WaitGroup{}
-	connCh := make(chan connection.HSConnection)
-	sConnMock := testServerConn{wg: &wg}
-	connFactory := func() connection.ServerConnection {
-		return &sConnMock
-	}
+	wg.Add(2)
 	loginConn := &testLoginConn{hs: hs, loginPK: loginPk}
-	mcServer := &server.MCServer{
-		ConnFactory: connFactory,
-		ConnCh:      connCh,
+	sConnMock := testServerConn{wg: &wg}
+	connFactory := func(addr string) (connection.ServerConnection, error) {
+		return &sConnMock, nil
 	}
 
-	wg.Add(2)
-	go func() {
-		go mcServer.Start()
-	}()
+	connCh := runServer(connFactory)
 
 	select {
 	case connCh <- loginConn:

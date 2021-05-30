@@ -30,8 +30,8 @@ func (l *faultyTestOutLis) Start() error {
 	return gateway.ErrCantStartOutListener
 }
 
-func (l *faultyTestOutLis) Accept() connection.Connection {
-	return nil
+func (l *faultyTestOutLis) Accept() (connection.Connection, net.Addr) {
+	return nil, nil
 }
 
 type testOutLis struct {
@@ -44,14 +44,14 @@ func (l *testOutLis) Start() error {
 	return nil
 }
 
-func (l *testOutLis) Accept() connection.Connection {
+func (l *testOutLis) Accept() (connection.Connection, net.Addr) {
 	if l.count > 0 {
 		// To block the thread while kinda acting like a real listener
 		//  aka not returning a error bc there are not more connections
 		time.Sleep(10 * time.Second)
 	}
 	l.count++
-	return l.conn
+	return l.conn, nil
 }
 
 // Help methods
@@ -121,7 +121,7 @@ func testOuterListener(t *testing.T, fn outerListenFunc) {
 		t.FailNow()
 	}
 	wg.Done()
-	conn := outerListener.Accept()
+	conn, _ := outerListener.Accept()
 	receivedPk, _ := conn.ReadPacket()
 
 	testSamePK(t, testPk, receivedPk)
@@ -153,7 +153,7 @@ func TestBasicListener(t *testing.T) {
 			if tc.returnsError {
 				outerListener = &faultyTestOutLis{}
 			}
-			connCh := make(chan connection.Connection)
+			connCh := make(chan connection.HSConnection)
 			l := gateway.BasicListener{OutListener: outerListener, ConnCh: connCh}
 
 			errChannel := make(chan error)

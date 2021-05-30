@@ -111,88 +111,13 @@ func (c *testInConn) Write(b []byte) (n int, err error) {
 	return 0, ErrNotImplemented
 }
 
+
+type GatewayRunner func(gwCh <-chan connection.HSConnection) <-chan connection.HSConnection 
 // Actual test functions
-// func TestHandleConnection(t *testing.T) {
-// 	loginReq := connection.LoginRequest
-// 	statusReq := connection.StatusRequest
-// 	invalidReq := connection.UnknownRequest
-
-// 	tt := []struct {
-// 		name          string
-// 		requesteType  connection.RequestType
-// 		numberOfCalls int
-// 		canFindServer bool
-// 	}{
-// 		{
-// 			name:          "cant find server",
-// 			requesteType:  loginReq,
-// 			numberOfCalls: 0,
-// 			canFindServer: false,
-// 		},
-// 		{
-// 			name:          "valid login hs",
-// 			requesteType:  loginReq,
-// 			numberOfCalls: 1,
-// 			canFindServer: true,
-// 		},
-// 		{
-// 			name:          "valid status hs",
-// 			requesteType:  statusReq,
-// 			numberOfCalls: 1,
-// 			canFindServer: true,
-// 		},
-// 		{
-// 			name:          "invalid hs",
-// 			requesteType:  invalidReq,
-// 			numberOfCalls: 0,
-// 			canFindServer: true,
-// 		},
-// 	}
-
-// 	for _, tc := range tt {
-// 		t.Run(tc.name, func(t *testing.T) {
-// 			connCh := make(chan connection.HSConnection)
-// 			inCh := make(chan connection.Connection)
-// 			hs := handshaking.ServerBoundHandshake{
-// 				NextState: protocol.Byte(tc.requesteType),
-// 			}
-// 			conn := &testInConn{hs: hs}
-// 			server := &testServer{}
-
-// 			serverStore := &gateway.SingleServerStore{}
-// 			serverData := gateway.ServerData{ConnCh: connCh}
-// 			if tc.canFindServer {
-// 				serverStore.Server = serverData
-// 			}
-
-// 			gw := gateway.CreateBasicGatewayWithStore(serverStore, inCh)
-
-// 			go func() {
-// 				gw.Start()
-// 			}()
-
-// 			select {
-// 			case connCh <- conn:
-// 				t.Log("Channel took connection")
-// 			case <-time.After(1 * time.Millisecond): //Be fast or fail >:)
-// 				t.Log("Tasked timed out")
-// 				t.FailNow() // Dont check other code it didnt finish anyway
-// 			}
-
-// 			amountServerCalls := (server.loginCalled + server.statusCalled) - tc.numberOfCalls
-// 			if amountServerCalls != 0 {
-// 				t.Errorf("Times method called too many (or not enough): %d", amountServerCalls)
-// 			}
-
-// 		})
-// 	}
-
-// }
-
 func TestFindMatchingServer_SingleServerStore(t *testing.T) {
 	serverAddr := "infrared-1"
 
-	gatewayRunner := func(gwCh <-chan connection.Connection) <-chan connection.HSConnection {
+	gatewayRunner := func(gwCh <-chan connection.HSConnection) <-chan connection.HSConnection {
 		connCh := make(chan connection.HSConnection)
 		serverData := gateway.ServerData{ConnCh: connCh}
 		serverStore := &gateway.SingleServerStore{Server: serverData}
@@ -216,7 +141,7 @@ func TestFindMatchingServer_SingleServerStore(t *testing.T) {
 func TestFindServer_DefaultServerStore(t *testing.T) {
 	serverAddr := "addr-1"
 
-	gatewayRunner := func(gwCh <-chan connection.Connection) <-chan connection.HSConnection {
+	gatewayRunner := func(gwCh <-chan connection.HSConnection) <-chan connection.HSConnection {
 		serverStore := &gateway.DefaultServerStore{}
 		for id := 2; id < 10; id++ {
 			serverAddr := fmt.Sprintf("addr-%d", id)
@@ -244,7 +169,7 @@ func TestFindServer_DefaultServerStore(t *testing.T) {
 }
 
 type findServerData struct {
-	runGateway func(gwCh <-chan connection.Connection) <-chan connection.HSConnection
+	runGateway GatewayRunner
 	addr       string
 	hsDepended bool
 }
@@ -281,7 +206,7 @@ func testFindServer(data findServerData, t *testing.T) {
 			hs := handshaking.ServerBoundHandshake{ServerAddress: serverAddr}
 			hsConn := &testInConn{hs: hs}
 
-			gwCh := make(chan connection.Connection)
+			gwCh := make(chan connection.HSConnection)
 			serverCh := data.runGateway(gwCh)
 
 			select {

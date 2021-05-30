@@ -116,8 +116,8 @@ func (c *serverTestConn) receivedPk() protocol.Packet {
 }
 
 // util functions
-func checkReceivedPk(t *testing.T, fn func() (protocol.Packet, error), expectedPK protocol.Packet) {
-	pk, err := fn()
+func checkReceivedPk(t *testing.T, fn func(protocol.Packet) (protocol.Packet, error), expectedPK protocol.Packet) {
+	pk, err := fn(protocol.Packet{})
 	if err != nil {
 		t.Errorf("got error: %v", err)
 	}
