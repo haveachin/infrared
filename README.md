@@ -211,12 +211,11 @@ More info on [Portainer](https://www.portainer.io/).
 </details>
 
 ## Prometheus exporter
-The built-in prometheus exporter can be used to view metrics about infrareds operation.
-When the command line flag `-enable-prometheus` is enabled it will bind to `:9100` by default, if you would like to use another port or use an application like [node_exporter](https://github.com/prometheus/node_exporter) that also uses port 9100 on the same machine you can change the port with the `-prometheus-bind` command line flag, example: `-prometheus-bind=":9070"`.
+The built-in prometheus exporter can be used to view metrics about infrareds operation.  
+When the command line flag `-enable-prometheus` is enabled it will bind to `:9100` by default, if you would like to use another port or use an application like [node_exporter](https://github.com/prometheus/node_exporter) that also uses port 9100 on the same machine you can change the port with the `-prometheus-bind` command line flag, example: `-prometheus-bind=":9070"`.  
 It is recommended to firewall the prometheus exporter with an application like *ufw* or *iptables* to make it only accessible by your own Prometheus instance.
 ### Prometheus configuration:
 Example prometheus.yml configuration:
-*Replace *infrared-exporter-hostname* with your fqdn or ip and replace *port* with your chosen port(default is 9100).
 ```yaml
 scrape_configs:
   - job_name: infrared
@@ -226,11 +225,11 @@ scrape_configs:
 
 ### Metrics:
 * infrared_connected: show the amount of connected players per instance and proxy:
-  * Example response: `infrared_connected{host="proxy.example.com",instance="vps1.example.com:9070",job="infrared"} 10`
-  * host: listenTo domain as specified in the infrared configuration.
-  * instance: what infrared instance the amount of players are connected to.
-  * job: what job was specified in the prometheus configuration.
+  * **Example response:** `infrared_connected{host="proxy.example.com",instance="vps1.example.com:9070",job="infrared"} 10`
+  * **host:** listenTo domain as specified in the infrared configuration.
+  * **instance:** what infrared instance the amount of players are connected to.
+  * **job:** what job was specified in the prometheus configuration.
 * infrared_proxies: show the amount of active infrared proxies:
-  * Example response: `infrared_proxies{instance="vps1.example.com:9070",job="infrared"} 5`
-  * instance: what infrared instance has that amount of active proxies.
-  * job: what job was specified in the prometheus configuration.
+  * **Example response:** `infrared_proxies{instance="vps1.example.com:9070",job="infrared"} 5`
+  * **instance:** what infrared instance has that amount of active proxies.
+  * **job:** what job was specified in the prometheus configuration.
