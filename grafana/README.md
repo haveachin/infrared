@@ -6,7 +6,7 @@ We provide a Grafana dashboard that visualizes the infrared prometheus exporters
 * Infrared >= 1.1.0 with `-enable-prometheus` active
 * Grafana >= 7.0.0
 * Prometheus >= 2.0.0
-* [Pie Chart plugin](https://grafana.com/grafana/plugins/grafana-piechart-panel/
+* [Pie Chart plugin](https://grafana.com/grafana/plugins/grafana-piechart-panel/)
 
 A Prometheus data source needs to be [added](https://prometheus.io/docs/visualization/grafana/#using) before installing the dashboard.
 
