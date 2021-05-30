@@ -153,7 +153,7 @@ func TestBasicListener(t *testing.T) {
 			if tc.returnsError {
 				outerListener = &faultyTestOutLis{}
 			}
-			connCh := make(chan connection.HSConnection)
+			connCh := make(chan connection.GatewayConnection)
 			l := gateway.BasicListener{OutListener: outerListener, ConnCh: connCh}
 
 			errChannel := make(chan error)
@@ -174,7 +174,8 @@ func TestBasicListener(t *testing.T) {
 			case <-time.After(1 * time.Millisecond): // err should be returned almost immediately
 				t.Log("Tasked timed out")
 				t.FailNow() // Dont check other code it didnt finish anyway
-			case conn := <-connCh:
+			case c := <-connCh:
+				conn := c.(connection.HSConnection)
 				receivePk, _ := conn.ReadPacket()
 				testSamePK(t, hsPk, receivePk)
 			}

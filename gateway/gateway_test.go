@@ -57,7 +57,6 @@ type testInConn struct {
 
 	hs      handshaking.ServerBoundHandshake
 	hsPk    protocol.Packet
-	reqType connection.RequestType
 	loginPK protocol.Packet
 }
 
@@ -77,6 +76,10 @@ func (c *testInConn) ReadPacket() (protocol.Packet, error) {
 		return protocol.Packet{}, nil
 	}
 
+}
+
+func (c *testInConn) ServerAddr() string {
+	return string(c.hs.ServerAddress)
 }
 
 func (c *testInConn) RemoteAddr() net.Addr {
@@ -111,14 +114,14 @@ func (c *testInConn) Write(b []byte) (n int, err error) {
 	return 0, ErrNotImplemented
 }
 
+type GatewayRunner func(gwCh <-chan connection.GatewayConnection) <-chan connection.GatewayConnection
 
-type GatewayRunner func(gwCh <-chan connection.HSConnection) <-chan connection.HSConnection 
 // Actual test functions
 func TestFindMatchingServer_SingleServerStore(t *testing.T) {
 	serverAddr := "infrared-1"
 
-	gatewayRunner := func(gwCh <-chan connection.HSConnection) <-chan connection.HSConnection {
-		connCh := make(chan connection.HSConnection)
+	gatewayRunner := func(gwCh <-chan connection.GatewayConnection) <-chan connection.GatewayConnection {
+		connCh := make(chan connection.GatewayConnection)
 		serverData := gateway.ServerData{ConnCh: connCh}
 		serverStore := &gateway.SingleServerStore{Server: serverData}
 
@@ -141,14 +144,14 @@ func TestFindMatchingServer_SingleServerStore(t *testing.T) {
 func TestFindServer_DefaultServerStore(t *testing.T) {
 	serverAddr := "addr-1"
 
-	gatewayRunner := func(gwCh <-chan connection.HSConnection) <-chan connection.HSConnection {
+	gatewayRunner := func(gwCh <-chan connection.GatewayConnection) <-chan connection.GatewayConnection {
 		serverStore := &gateway.DefaultServerStore{}
 		for id := 2; id < 10; id++ {
 			serverAddr := fmt.Sprintf("addr-%d", id)
-			serverData := gateway.ServerData{ConnCh: make(chan connection.HSConnection)}
+			serverData := gateway.ServerData{ConnCh: make(chan connection.GatewayConnection)}
 			serverStore.AddServer(serverAddr, serverData)
 		}
-		connCh := make(chan connection.HSConnection)
+		connCh := make(chan connection.GatewayConnection)
 		serverData := gateway.ServerData{ConnCh: connCh}
 		serverStore.AddServer(serverAddr, serverData)
 
@@ -206,7 +209,7 @@ func testFindServer(data findServerData, t *testing.T) {
 			hs := handshaking.ServerBoundHandshake{ServerAddress: serverAddr}
 			hsConn := &testInConn{hs: hs}
 
-			gwCh := make(chan connection.HSConnection)
+			gwCh := make(chan connection.GatewayConnection)
 			serverCh := data.runGateway(gwCh)
 
 			select {

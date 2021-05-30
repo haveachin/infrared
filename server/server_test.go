@@ -112,6 +112,10 @@ func (c *testStatusConn) Write(b []byte) (n int, err error) {
 	return 0, ErrNotImplemented
 }
 
+func (c *testStatusConn) ServerAddr() string {
+	return ""
+}
+
 type testLoginConn struct {
 	hs      handshaking.ServerBoundHandshake
 	loginPK protocol.Packet
@@ -155,6 +159,10 @@ func (c testLoginConn) Read(b []byte) (n int, err error) {
 
 func (c testLoginConn) Write(b []byte) (n int, err error) {
 	return 0, ErrNotImplemented
+}
+
+func (c testLoginConn) ServerAddr() string {
+	return string(c.hs.ServerAddress)
 }
 
 // Help Methods
@@ -223,7 +231,7 @@ func TestServerStatusRequest(t *testing.T) {
 		name := fmt.Sprintf("online: %v, configStatus: %v", tc.online, tc.configStatus)
 		t.Run(name, func(t *testing.T) {
 			wg := &sync.WaitGroup{}
-			connCh := make(chan connection.HSConnection)
+			connCh := make(chan connection.GatewayConnection)
 			sConnMock := testServerConn{status: basicStatus, isOnline: tc.online}
 			statusFactory := func(addr string) (connection.ServerConnection, error) {
 				return &sConnMock, nil
@@ -265,8 +273,8 @@ func TestServerStatusRequest(t *testing.T) {
 }
 
 func TestMCServer_LoginRequest(t *testing.T) {
-	runServer := func(connFactory connection.ServerConnFactory) chan<- connection.HSConnection {
-		connCh := make(chan connection.HSConnection)
+	runServer := func(connFactory connection.ServerConnFactory) chan<- connection.GatewayConnection {
+		connCh := make(chan connection.GatewayConnection)
 
 		mcServer := &server.MCServer{
 			ConnFactory: connFactory,
@@ -282,7 +290,7 @@ func TestMCServer_LoginRequest(t *testing.T) {
 	testServerLoginRequest(t, runServer)
 }
 
-func testServerLoginRequest(t *testing.T, runServer func(connection.ServerConnFactory) chan<- connection.HSConnection) {
+func testServerLoginRequest(t *testing.T, runServer func(connection.ServerConnFactory) chan<- connection.GatewayConnection) {
 	hs := handshaking.ServerBoundHandshake{
 		NextState: 2,
 	}

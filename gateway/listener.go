@@ -43,7 +43,7 @@ func (l *BasicOuterListener) Accept() (connection.Connection, net.Addr) {
 
 type BasicListener struct {
 	OutListener OuterListener
-	ConnCh      chan<- connection.HSConnection
+	ConnCh      chan<- connection.GatewayConnection
 }
 
 func (l *BasicListener) Listen() error {

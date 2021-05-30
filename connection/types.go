@@ -38,8 +38,13 @@ type Connection interface {
 
 type HSConnection interface {
 	Connection
-	Hs() (handshaking.ServerBoundHandshake, error)
+	Handshake() (handshaking.ServerBoundHandshake, error)
 	HsPk() (protocol.Packet, error)
+	RemoteAddr() net.Addr
+}
+
+type GatewayConnection interface {
+	ServerAddr() string
 	RemoteAddr() net.Addr
 }
 

@@ -368,7 +368,7 @@ func testHSConnection_Hs(t *testing.T, hsConnFactory hsConnFactory) {
 			data := hsConnData{conn: tConn, remoteAddr: remoteAddr}
 			conn := hsConnFactory(data)
 
-			receivedPK, err := conn.Hs()
+			receivedPK, err := conn.Handshake()
 			if err != nil && err == tc.expectedError {
 				// Do nothing
 			} else if err != nil && err != tc.expectedError {
@@ -401,7 +401,7 @@ func (c testHSConnection) conn() net.Conn {
 	return nil
 }
 
-func (c testHSConnection) Hs() (handshaking.ServerBoundHandshake, error) {
+func (c testHSConnection) Handshake() (handshaking.ServerBoundHandshake, error) {
 	return c.hs, nil
 }
 

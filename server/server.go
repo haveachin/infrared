@@ -34,7 +34,7 @@ type MCServer struct {
 	OnlineConfigStatus  protocol.Packet
 	OfflineConfigStatus protocol.Packet
 
-	ConnCh <-chan connection.HSConnection
+	ConnCh <-chan connection.GatewayConnection
 }
 
 func (s *MCServer) Status(clientConn connection.StatusConnection) protocol.Packet {
@@ -72,7 +72,8 @@ func (s *MCServer) Login(conn connection.LoginConnection) error {
 
 func (s *MCServer) Start() {
 	for {
-		conn := <-s.ConnCh
+		c := <-s.ConnCh
+		conn := c.(connection.HSConnection)
 		switch connection.ParseRequestType(conn) {
 		case connection.LoginRequest:
 			lConn := conn.(connection.LoginConnection)

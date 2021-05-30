@@ -9,6 +9,49 @@ import (
 	"github.com/haveachin/infrared/protocol/handshaking"
 )
 
+func ServerAddr(conn HSConnection) string {
+	hs, _ := conn.Handshake()
+	return string(hs.ServerAddress)
+}
+
+func ServerPort(conn HSConnection) int16 {
+	hs, _ := conn.Handshake()
+	return int16(hs.ServerPort)
+}
+
+func ProtocolVersion(conn HSConnection) int16 {
+	hs, _ := conn.Handshake()
+	return int16(hs.ProtocolVersion)
+}
+
+func ParseRequestType(conn HSConnection) RequestType {
+	hs, _ := conn.Handshake()
+	return RequestType(hs.NextState)
+}
+
+func Pipe(c1, c2 PipeConnection) {
+	go pipe(c1, c2)
+	pipe(c2, c1)
+}
+
+func pipe(c1, c2 PipeConnection) {
+	buffer := make([]byte, 0xffff)
+
+	for {
+		n, err := c1.Read(buffer)
+		if err != nil {
+			return
+		}
+
+		data := buffer[:n]
+
+		_, err = c2.Write(data)
+		if err != nil {
+			return
+		}
+	}
+}
+
 func CreateBasicPlayerConnection(conn Connection, remoteAddr net.Addr) *BasicPlayerConnection {
 	return &BasicPlayerConnection{conn: conn, addr: remoteAddr}
 }
@@ -24,6 +67,11 @@ type BasicPlayerConnection struct {
 
 	hasHS   bool
 	hasHSPk bool
+}
+
+func (c *BasicPlayerConnection) ServerAddr() string {
+	hs, _ := c.Handshake()
+	return string(hs.ServerAddress)
 }
 
 func (c *BasicPlayerConnection) ReadPacket() (protocol.Packet, error) {
@@ -43,7 +91,7 @@ func (c *BasicPlayerConnection) RemoteAddr() net.Addr {
 	return c.addr
 }
 
-func (c *BasicPlayerConnection) Hs() (handshaking.ServerBoundHandshake, error) {
+func (c *BasicPlayerConnection) Handshake() (handshaking.ServerBoundHandshake, error) {
 	if c.hasHS {
 		return c.hs, nil
 	}
@@ -129,7 +177,7 @@ type BasicConnection struct {
 
 func (c *BasicConnection) WritePacket(p protocol.Packet) error {
 	pk, _ := p.Marshal() // Need test for err part of this line
-	_, err := c.connection.Write(pk)
+	_, err := c.Write(pk)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -139,7 +187,6 @@ func (c *BasicConnection) WritePacket(p protocol.Packet) error {
 func (c *BasicConnection) ReadPacket() (protocol.Packet, error) {
 	pk, err := protocol.ReadPacket(c.reader)
 	if err != nil {
-		fmt.Println("error during reading of packet")
 		fmt.Println(err)
 	}
 	return pk, err
@@ -155,47 +202,4 @@ func (c *BasicConnection) Write(b []byte) (n int, err error) {
 
 func (c *BasicConnection) RemoteAddr() net.Addr {
 	return c.remoteAddr
-}
-
-func ServerAddr(conn HSConnection) string {
-	hs, _ := conn.Hs()
-	return string(hs.ServerAddress)
-}
-
-func ServerPort(conn HSConnection) int16 {
-	hs, _ := conn.Hs()
-	return int16(hs.ServerPort)
-}
-
-func ProtocolVersion(conn HSConnection) int16 {
-	hs, _ := conn.Hs()
-	return int16(hs.ProtocolVersion)
-}
-
-func ParseRequestType(conn HSConnection) RequestType {
-	hs, _ := conn.Hs()
-	return RequestType(hs.NextState)
-}
-
-func Pipe(c1, c2 PipeConnection) {
-	go pipe(c1, c2)
-	pipe(c2, c1)
-}
-
-func pipe(c1, c2 PipeConnection) {
-	buffer := make([]byte, 0xffff)
-
-	for {
-		n, err := c1.Read(buffer)
-		if err != nil {
-			return
-		}
-
-		data := buffer[:n]
-
-		_, err = c2.Write(data)
-		if err != nil {
-			return
-		}
-	}
 }

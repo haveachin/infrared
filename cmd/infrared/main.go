@@ -76,8 +76,8 @@ func main() {
 
 	//Designed for single config needs to be rewritten
 	for _, config := range cfgs {
-		gatewayCh := make(chan connection.HSConnection)
-		serverCh := make(chan connection.HSConnection)
+		gatewayCh := make(chan connection.GatewayConnection)
+		serverCh := make(chan connection.GatewayConnection)
 
 		//Listener
 		outerListener := gateway.CreateBasicOuterListener(config.ListenTo)

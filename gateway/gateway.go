@@ -13,22 +13,22 @@ var (
 	ErrNotValidHandshake = errors.New("this connection didnt provide a valid handshake")
 )
 
-func CreateBasicGatewayWithStore(store ServerStore, ch <-chan connection.HSConnection) BasicGateway {
+func CreateBasicGatewayWithStore(store ServerStore, ch <-chan connection.GatewayConnection) BasicGateway {
 	return BasicGateway{store: store, inCh: ch}
 
 }
 
 type ServerData struct {
-	ConnCh chan<- connection.HSConnection
+	ConnCh chan<- connection.GatewayConnection
 }
 
 type Gateway interface {
-	HandleConnection(conn connection.HSConnection) error
+	HandleConnection(conn connection.GatewayConnection) error
 }
 
 type BasicGateway struct {
 	store ServerStore
-	inCh  <-chan connection.HSConnection
+	inCh  <-chan connection.GatewayConnection
 }
 
 func (g *BasicGateway) Start() error {
@@ -40,11 +40,10 @@ func (g *BasicGateway) Start() error {
 
 }
 
-func (g *BasicGateway) handleConnection(conn connection.HSConnection) error {
-	log.Printf("[i] %s requests proxy", conn.RemoteAddr())
-	hs, _ := conn.Hs()
-	// log.Printf("[i] %s requests proxy for address %s", conn.RemoteAddr(), hs.ServerAddress)
-	serverData, ok := g.store.FindServer(string(hs.ServerAddress))
+func (g *BasicGateway) handleConnection(conn connection.GatewayConnection) error {
+	addr := conn.ServerAddr()
+	log.Printf("[i] %s requests proxy for address %s", conn.RemoteAddr(), addr)
+	serverData, ok := g.store.FindServer(addr)
 	if !ok {
 		// There was no server to be found
 		return ErrNoServerFound
