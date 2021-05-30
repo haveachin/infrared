@@ -29,9 +29,9 @@ func ParseRequestType(conn HSConnection) RequestType {
 	return RequestType(hs.NextState)
 }
 
-func Pipe(c1, c2 PipeConnection) {
-	go pipe(c1, c2)
-	pipe(c2, c1)
+func Pipe(client, server PipeConnection) {
+	go pipe(server, client)
+	pipe(client, server)
 }
 
 func pipe(c1, c2 PipeConnection) {
@@ -75,11 +75,6 @@ func (c *BasicPlayerConnection) ServerAddr() string {
 }
 
 func (c *BasicPlayerConnection) ReadPacket() (protocol.Packet, error) {
-	// pk, err := c.conn.ReadPacket()
-	// if err != nil {
-	// 	return protocol.Packet{}, err
-	// }
-	// return pk, nil
 	return c.conn.ReadPacket()
 }
 

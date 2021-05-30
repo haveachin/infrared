@@ -13,7 +13,69 @@ import (
 	"github.com/haveachin/infrared/connection"
 	"github.com/haveachin/infrared/protocol"
 	"github.com/haveachin/infrared/protocol/handshaking"
+	"github.com/haveachin/infrared/protocol/login"
+	"github.com/haveachin/infrared/protocol/status"
 )
+
+type loginData struct {
+	hs         handshaking.ServerBoundHandshake
+	loginStart login.ServerLoginStart
+}
+
+func loginClient(conn net.Conn, data loginData) {
+	// hs := handshaking.ServerBoundHandshake{
+	// 	ServerAddress:   "infrared",
+	// 	ServerPort:      25665,
+	// 	ProtocolVersion: 765,
+	// 	NextState:       2,
+	// }
+	// loginStart := login.ServerLoginStart{
+	// 	Name: "Drago",
+	// }
+	hsPk := data.hs.Marshal()
+	loginPk := data.loginStart.Marshal()
+
+	bytes, _ := hsPk.Marshal()
+	conn.Write(bytes)
+
+	bytes, _ = loginPk.Marshal()
+	conn.Write(bytes)
+}
+
+type statusData struct {
+	withPing bool
+	hs       handshaking.ServerBoundHandshake
+	status   status.ServerBoundRequest
+}
+
+func statusWithPingClient(conn net.Conn, data statusData) {
+	// hs := handshaking.ServerBoundHandshake{
+	// 	ServerAddress:   "infrared",
+	// 	ServerPort:      25665,
+	// 	ProtocolVersion: 765,
+	// 	NextState:       1,
+	// }
+	hsPk := data.hs.Marshal()
+
+	requestPk := data.status.Marshal()
+
+	bytes, _ := hsPk.Marshal()
+	conn.Write(bytes)
+
+	bytes, _ = requestPk.Marshal()
+	conn.Write(bytes)
+
+	responseData := make([]byte, 0xffff)
+	conn.Read(responseData)
+
+	if data.withPing {
+		pingData := make([]byte, 2)
+		conn.Read(pingData)
+
+		conn.Write(pingData)
+	}
+
+}
 
 var (
 	testLoginHSID  byte = 5
@@ -210,6 +272,22 @@ func TestBasicServerConnection_SendPK(t *testing.T) {
 	receivedReq := conn.receivedPk()
 
 	testSamePK(t, expectedRequest, receivedReq)
+
+}
+
+func TestBasicConnectionStuff(t *testing.T) {
+	tt := []struct {
+		name string
+		addr net.Addr
+		conn net.Conn
+	}{
+		{},
+	}
+	for _, tc := range tt {
+		t.Run("", func(t *testing.T) {
+			fmt.Println(tc)
+		})
+	}
 
 }
 
