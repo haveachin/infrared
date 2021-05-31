@@ -12,7 +12,7 @@ type bytePeeker struct {
 	cursor int
 }
 
-func (peeker *bytePeeker) Read(b []byte) (int, error) {
+func (peeker *bytePeeker) read(b []byte) (int, error) {
 	buf, err := peeker.Peek(len(b) + peeker.cursor)
 	if err != nil {
 		return 0, err

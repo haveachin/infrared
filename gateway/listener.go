@@ -38,7 +38,7 @@ func (l *BasicOuterListener) Start() error {
 
 func (l *BasicOuterListener) Accept() (connection.Connection, net.Addr) {
 	conn, _ := l.Listener.Accept() // Err needs test before it can be added
-	return connection.CreateBasicConnection(conn), conn.RemoteAddr()
+	return connection.createBasicConnection(conn), conn.RemoteAddr()
 }
 
 type BasicListener struct {

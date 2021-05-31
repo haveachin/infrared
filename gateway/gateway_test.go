@@ -106,11 +106,11 @@ func (c *testInConn) SendStatus(status protocol.Packet) error {
 	return ErrNotImplemented
 }
 
-func (c *testInConn) Read(b []byte) (n int, err error) {
+func (c *testInConn) read(b []byte) (n int, err error) {
 	return 0, ErrNotImplemented
 }
 
-func (c *testInConn) Write(b []byte) (n int, err error) {
+func (c *testInConn) write(b []byte) (n int, err error) {
 	return 0, ErrNotImplemented
 }
 
@@ -339,7 +339,7 @@ func testFindServer(data findServerData, t *testing.T) {
 // 	return pkToReturn, nil
 // }
 
-// func (c *bTestConnection) Read(b []byte) (n int, err error) {
+// func (c *bTestConnection) read(b []byte) (n int, err error) {
 // 	if c.readCount == len(c.pks) {
 // 		if !c.markedDone {
 // 			c.wg.Done()
@@ -358,7 +358,7 @@ func testFindServer(data findServerData, t *testing.T) {
 // 	return len(pk), nil
 // }
 
-// func (c *bTestConnection) Write(b []byte) (n int, err error) {
+// func (c *bTestConnection) write(b []byte) (n int, err error) {
 // 	pk := protocol.Packet{
 // 		ID:   b[1],
 // 		Data: b[2:],

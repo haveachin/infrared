@@ -108,7 +108,7 @@ func testOuterListener(t *testing.T, fn outerListenFunc) {
 		if err != nil {
 			t.Errorf("error was throw: %v", err)
 		}
-		bConn := connection.CreateBasicConnection(conn)
+		bConn := connection.createBasicConnection(conn)
 		err = bConn.WritePacket(testPk)
 		if err != nil {
 			t.Logf("got an error while writing the packet: %v", err)

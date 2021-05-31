@@ -2,11 +2,11 @@ package connection
 
 import (
 	"bufio"
-	"fmt"
 	"net"
 
 	"github.com/haveachin/infrared/protocol"
 	"github.com/haveachin/infrared/protocol/handshaking"
+	"github.com/haveachin/infrared/protocol/login"
 )
 
 func ServerAddr(conn HSConnection) string {
@@ -31,6 +31,7 @@ func ParseRequestType(conn HSConnection) RequestType {
 
 func Pipe(client, server PipeConnection) {
 	go pipe(server, client)
+	//use this as blocking method so that when client returns EOF the code will continue to run code
 	pipe(client, server)
 }
 
@@ -38,14 +39,14 @@ func pipe(c1, c2 PipeConnection) {
 	buffer := make([]byte, 0xffff)
 
 	for {
-		n, err := c1.Read(buffer)
+		n, err := c1.read(buffer)
 		if err != nil {
 			return
 		}
 
 		data := buffer[:n]
 
-		_, err = c2.Write(data)
+		_, err = c2.write(data)
 		if err != nil {
 			return
 		}
@@ -56,6 +57,11 @@ func CreateBasicPlayerConnection(conn Connection, remoteAddr net.Addr) *BasicPla
 	return &BasicPlayerConnection{conn: conn, addr: remoteAddr}
 }
 
+func CreateBasicPlayerConnection2(conn net.Conn, remoteAddr net.Addr) *BasicPlayerConnection {
+	c := createBasicConnection2(conn, remoteAddr)
+	return &BasicPlayerConnection{conn: c}
+}
+
 // Basic implementation of LoginConnection
 type BasicPlayerConnection struct {
 	conn Connection
@@ -64,9 +70,11 @@ type BasicPlayerConnection struct {
 	hsPk    protocol.Packet
 	loginPk protocol.Packet
 	hs      handshaking.ServerBoundHandshake
+	mcName  string
 
-	hasHS   bool
-	hasHSPk bool
+	hasHS    bool
+	hasHSPk  bool
+	hasLogin bool
 }
 
 func (c *BasicPlayerConnection) ServerAddr() string {
@@ -91,10 +99,8 @@ func (c *BasicPlayerConnection) Handshake() (handshaking.ServerBoundHandshake, e
 		return c.hs, nil
 	}
 
-	pk, err := c.HsPk()
-	if err != nil {
-		return c.hs, err
-	}
+	pk, _ := c.HsPk()
+	var err error
 	c.hs, err = handshaking.UnmarshalServerBoundHandshake(pk)
 	if err != nil {
 		return c.hs, err
@@ -117,25 +123,40 @@ func (c *BasicPlayerConnection) HsPk() (protocol.Packet, error) {
 }
 
 func (c *BasicPlayerConnection) Name() (string, error) {
-	return "", ErrNoNameYet
+	if c.mcName != "" {
+		return c.mcName, nil
+	}
+	p, _ := c.LoginStart()
+	pk, err := login.UnmarshalServerBoundLoginStart(p)
+	if err != nil {
+		return "", err
+	}
+	c.mcName = string(pk.Name)
+	return c.mcName, nil
 }
 
 func (c *BasicPlayerConnection) LoginStart() (protocol.Packet, error) {
-	pk, _ := c.ReadPacket()
+	pk, _ := c.ReadPacket() //Need tests for error handling
 	c.loginPk = pk
+	c.hasLogin = true
 	return pk, nil
 }
 
-func (c *BasicPlayerConnection) Read(b []byte) (n int, err error) {
-	return c.conn.Read(b)
+func (c *BasicPlayerConnection) read(b []byte) (n int, err error) {
+	return c.conn.read(b)
 }
 
-func (c *BasicPlayerConnection) Write(b []byte) (n int, err error) {
-	return c.conn.Write(b)
+func (c *BasicPlayerConnection) write(b []byte) (n int, err error) {
+	return c.conn.write(b)
 }
 
 func CreateBasicServerConn(conn Connection, pk protocol.Packet) ServerConnection {
 	return &BasicServerConn{conn: conn, statusPK: pk}
+}
+
+func CreateBasicServerConn2(c net.Conn) ServerConnection {
+	conn := createBasicConnection(c)
+	return &BasicServerConn{conn: conn}
 }
 
 type BasicServerConn struct {
@@ -152,16 +173,24 @@ func (c *BasicServerConn) SendPK(pk protocol.Packet) error {
 	return c.conn.WritePacket(pk)
 }
 
-func (c *BasicServerConn) Read(b []byte) (n int, err error) {
-	return c.conn.Read(b)
+func (c *BasicServerConn) read(b []byte) (n int, err error) {
+	return c.conn.read(b)
 }
 
-func (c *BasicServerConn) Write(b []byte) (n int, err error) {
-	return c.conn.Write(b)
+func (c *BasicServerConn) write(b []byte) (n int, err error) {
+	return c.conn.write(b)
 }
 
-func CreateBasicConnection(conn net.Conn) *BasicConnection {
+func createBasicConnection(conn net.Conn) *BasicConnection {
 	return &BasicConnection{connection: conn, reader: bufio.NewReader(conn)}
+}
+
+func createBasicConnection2(conn net.Conn, addr net.Addr) *BasicConnection {
+	return &BasicConnection{
+		connection: conn,
+		reader:     bufio.NewReader(conn),
+		remoteAddr: addr,
+	}
 }
 
 type BasicConnection struct {
@@ -172,26 +201,19 @@ type BasicConnection struct {
 
 func (c *BasicConnection) WritePacket(p protocol.Packet) error {
 	pk, _ := p.Marshal() // Need test for err part of this line
-	_, err := c.Write(pk)
-	if err != nil {
-		fmt.Println(err)
-	}
+	_, err := c.write(pk)
 	return err
 }
 
 func (c *BasicConnection) ReadPacket() (protocol.Packet, error) {
-	pk, err := protocol.ReadPacket(c.reader)
-	if err != nil {
-		fmt.Println(err)
-	}
-	return pk, err
+	return protocol.ReadPacket(c.reader)
 }
 
-func (c *BasicConnection) Read(b []byte) (n int, err error) {
+func (c *BasicConnection) read(b []byte) (n int, err error) {
 	return c.connection.Read(b)
 }
 
-func (c *BasicConnection) Write(b []byte) (n int, err error) {
+func (c *BasicConnection) write(b []byte) (n int, err error) {
 	return c.connection.Write(b)
 }
 

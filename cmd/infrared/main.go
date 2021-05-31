@@ -102,8 +102,7 @@ func main() {
 			if err != nil {
 				return nil, err
 			}
-			conn := connection.CreateBasicConnection(c)
-			return connection.CreateBasicServerConn(conn, protocol.Packet{}), nil
+			return connection.CreateBasicServerConn2(c), nil
 		}
 
 		onlineStatus := protocol.Packet{}  //config.OnlineStatus.StatusResponsePacket()

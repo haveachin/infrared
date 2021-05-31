@@ -85,11 +85,11 @@ func DialTimeout(addr string, timeout time.Duration) (Conn, error) {
 	return wrapConn(conn), nil
 }
 
-func (c *conn) Read(b []byte) (int, error) {
+func (c *conn) read(b []byte) (int, error) {
 	return c.r.Read(b)
 }
 
-func (c *conn) Write(b []byte) (int, error) {
+func (c *conn) write(b []byte) (int, error) {
 	return c.w.Write(b)
 }
 

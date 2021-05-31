@@ -25,9 +25,10 @@ const (
 	LoginRequest   RequestType = 2
 )
 
+// probably needs a better name since its not only used for piping the connection
 type PipeConnection interface {
-	Read(b []byte) (n int, err error)
-	Write(b []byte) (n int, err error)
+	read(b []byte) (n int, err error)
+	write(b []byte) (n int, err error)
 }
 
 type Connection interface {
@@ -44,8 +45,8 @@ type HSConnection interface {
 }
 
 type GatewayConnection interface {
-	ServerAddr() string
 	RemoteAddressConnection
+	ServerAddr() string
 }
 
 type LoginConnection interface {
