@@ -21,6 +21,21 @@ var (
 	ErrNoMoreConnections = errors.New("no more connections")
 )
 
+type LoginData struct {
+	hs         protocol.Packet
+	loginStart protocol.Packet
+}
+
+func loginClient(conn net.Conn, data LoginData) {
+	bytes, _ := data.hs.Marshal()
+	conn.Write(bytes)
+
+	bytes, _ = data.loginStart.Marshal()
+	conn.Write(bytes)
+
+	//Write something for (optional) pipe logic...?
+}
+
 type outerListenFunc func(addr string) gateway.OuterListener
 
 type faultyTestOutLis struct {
@@ -108,7 +123,7 @@ func testOuterListener(t *testing.T, fn outerListenFunc) {
 		if err != nil {
 			t.Errorf("error was throw: %v", err)
 		}
-		bConn := connection.createBasicConnection(conn)
+		bConn := connection.CreateBasicConnection(conn)
 		err = bConn.WritePacket(testPk)
 		if err != nil {
 			t.Logf("got an error while writing the packet: %v", err)
@@ -148,8 +163,18 @@ func TestBasicListener(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var outerListener gateway.OuterListener
 			hsPk := protocol.Packet{ID: testLoginHSID}
-			inConn := &testInConn{hsPk: hsPk}
-			outerListener = &testOutLis{conn: inConn}
+			c1, c2 := net.Pipe()
+			netAddr := &net.TCPAddr{IP: net.IP("192.168.0.1")}
+			loginConn := connection.CreateBasicPlayerConnection2(c1, netAddr)
+			loginData := LoginData{
+				hs: hsPk,
+			}
+
+			go func() {
+				loginClient(c2, loginData)
+			}()
+
+			outerListener = &testOutLis{conn: loginConn}
 			if tc.returnsError {
 				outerListener = &faultyTestOutLis{}
 			}

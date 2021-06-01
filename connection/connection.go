@@ -39,14 +39,14 @@ func pipe(c1, c2 PipeConnection) {
 	buffer := make([]byte, 0xffff)
 
 	for {
-		n, err := c1.read(buffer)
+		n, err := c1.Read(buffer)
 		if err != nil {
 			return
 		}
 
 		data := buffer[:n]
 
-		_, err = c2.write(data)
+		_, err = c2.Write(data)
 		if err != nil {
 			return
 		}
@@ -58,7 +58,7 @@ func CreateBasicPlayerConnection(conn Connection, remoteAddr net.Addr) *BasicPla
 }
 
 func CreateBasicPlayerConnection2(conn net.Conn, remoteAddr net.Addr) *BasicPlayerConnection {
-	c := createBasicConnection2(conn, remoteAddr)
+	c := CreateBasicConnection2(conn, remoteAddr)
 	return &BasicPlayerConnection{conn: c}
 }
 
@@ -142,12 +142,12 @@ func (c *BasicPlayerConnection) LoginStart() (protocol.Packet, error) {
 	return pk, nil
 }
 
-func (c *BasicPlayerConnection) read(b []byte) (n int, err error) {
-	return c.conn.read(b)
+func (c *BasicPlayerConnection) Read(b []byte) (n int, err error) {
+	return c.conn.Read(b)
 }
 
-func (c *BasicPlayerConnection) write(b []byte) (n int, err error) {
-	return c.conn.write(b)
+func (c *BasicPlayerConnection) Write(b []byte) (n int, err error) {
+	return c.conn.Write(b)
 }
 
 func CreateBasicServerConn(conn Connection, pk protocol.Packet) ServerConnection {
@@ -155,7 +155,7 @@ func CreateBasicServerConn(conn Connection, pk protocol.Packet) ServerConnection
 }
 
 func CreateBasicServerConn2(c net.Conn) ServerConnection {
-	conn := createBasicConnection(c)
+	conn := CreateBasicConnection(c)
 	return &BasicServerConn{conn: conn}
 }
 
@@ -173,19 +173,19 @@ func (c *BasicServerConn) SendPK(pk protocol.Packet) error {
 	return c.conn.WritePacket(pk)
 }
 
-func (c *BasicServerConn) read(b []byte) (n int, err error) {
-	return c.conn.read(b)
+func (c *BasicServerConn) Read(b []byte) (n int, err error) {
+	return c.conn.Read(b)
 }
 
-func (c *BasicServerConn) write(b []byte) (n int, err error) {
-	return c.conn.write(b)
+func (c *BasicServerConn) Write(b []byte) (n int, err error) {
+	return c.conn.Write(b)
 }
 
-func createBasicConnection(conn net.Conn) *BasicConnection {
+func CreateBasicConnection(conn net.Conn) *BasicConnection {
 	return &BasicConnection{connection: conn, reader: bufio.NewReader(conn)}
 }
 
-func createBasicConnection2(conn net.Conn, addr net.Addr) *BasicConnection {
+func CreateBasicConnection2(conn net.Conn, addr net.Addr) *BasicConnection {
 	return &BasicConnection{
 		connection: conn,
 		reader:     bufio.NewReader(conn),
@@ -201,7 +201,7 @@ type BasicConnection struct {
 
 func (c *BasicConnection) WritePacket(p protocol.Packet) error {
 	pk, _ := p.Marshal() // Need test for err part of this line
-	_, err := c.write(pk)
+	_, err := c.Write(pk)
 	return err
 }
 
@@ -209,11 +209,11 @@ func (c *BasicConnection) ReadPacket() (protocol.Packet, error) {
 	return protocol.ReadPacket(c.reader)
 }
 
-func (c *BasicConnection) read(b []byte) (n int, err error) {
+func (c *BasicConnection) Read(b []byte) (n int, err error) {
 	return c.connection.Read(b)
 }
 
-func (c *BasicConnection) write(b []byte) (n int, err error) {
+func (c *BasicConnection) Write(b []byte) (n int, err error) {
 	return c.connection.Write(b)
 }
 

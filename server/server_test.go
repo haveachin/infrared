@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"net"
 	"sync"
 	"testing"
 	"time"
@@ -21,6 +22,98 @@ var (
 
 	ErrNotImplemented = errors.New("not implemented")
 )
+
+type testServerConn struct {
+	status             protocol.Packet
+	isOnline           bool
+	receivedHandshake  bool
+	receivedLoginStart bool
+
+	wg *sync.WaitGroup
+}
+
+func (conn *testServerConn) Status(pk protocol.Packet) (protocol.Packet, error) {
+	if conn.isOnline {
+		return conn.status, nil
+	}
+	// Sending status anyway on purpose
+	return conn.status, server.ErrCantConnectWithServer
+}
+
+func (conn *testServerConn) SendPK(pk protocol.Packet) error {
+	switch pk.ID {
+	case handshaking.ServerBoundHandshakePacketID:
+		conn.receivedHandshake = true
+	case testLoginID:
+		conn.receivedLoginStart = true
+	}
+	conn.wg.Done()
+	return nil
+}
+
+func (conn *testServerConn) ReceivedHandshake() bool {
+	return conn.receivedHandshake
+}
+
+func (conn *testServerConn) ReceivedLoginStart() bool {
+	return conn.receivedLoginStart
+}
+
+func (c *testServerConn) Read(b []byte) (n int, err error) {
+	return 0, ErrNotImplemented
+}
+
+func (c *testServerConn) Write(b []byte) (n int, err error) {
+	return 0, ErrNotImplemented
+}
+
+type testStatusConn struct {
+	status protocol.Packet
+	wg     *sync.WaitGroup
+}
+
+func (conn *testStatusConn) SendStatus(pk protocol.Packet) error {
+	conn.status = pk
+	return nil
+}
+
+func (conn *testStatusConn) pk() protocol.Packet {
+	return conn.status
+}
+
+func (conn *testStatusConn) Hs() (handshaking.ServerBoundHandshake, error) {
+	return handshaking.ServerBoundHandshake{NextState: 1}, nil
+}
+
+func (conn *testStatusConn) HsPk() (protocol.Packet, error) {
+	return protocol.Packet{ID: testHSID}, nil
+}
+
+func (conn *testStatusConn) RemoteAddr() net.Addr {
+	return &net.TCPAddr{}
+}
+
+func (conn *testStatusConn) ReadPacket() (protocol.Packet, error) {
+	return protocol.Packet{}, nil
+}
+
+func (conn *testStatusConn) WritePacket(p protocol.Packet) error {
+	conn.status = p
+	conn.wg.Done()
+	return nil
+}
+
+func (c *testStatusConn) Read(b []byte) (n int, err error) {
+	return 0, ErrNotImplemented
+}
+
+func (c *testStatusConn) Write(b []byte) (n int, err error) {
+	return 0, ErrNotImplemented
+}
+
+func (c *testStatusConn) ServerAddr() string {
+	return ""
+}
 
 // Help Methods
 func samePK(expected, received protocol.Packet) bool {
@@ -147,6 +240,21 @@ func TestMCServer_LoginRequest(t *testing.T) {
 	testServerLoginRequest(t, runServer)
 }
 
+type LoginData struct {
+	hs         protocol.Packet
+	loginStart protocol.Packet
+}
+
+func loginClient(conn net.Conn, data LoginData) {
+	bytes, _ := data.hs.Marshal()
+	conn.Write(bytes)
+
+	bytes, _ = data.loginStart.Marshal()
+	conn.Write(bytes)
+
+	//Write something for (optional) pipe logic...?
+}
+
 func testServerLoginRequest(t *testing.T, runServer func(connection.ServerConnFactory) chan<- connection.GatewayConnection) {
 	hs := handshaking.ServerBoundHandshake{
 		NextState: 2,
@@ -155,7 +263,19 @@ func testServerLoginRequest(t *testing.T, runServer func(connection.ServerConnFa
 
 	wg := sync.WaitGroup{}
 	wg.Add(2)
-	loginConn := &testLoginConn{hs: hs, loginPK: loginPk}
+
+	c1, c2 := net.Pipe()
+	netAddr := &net.TCPAddr{IP: net.IP("192.168.0.1")}
+	loginConn := connection.CreateBasicPlayerConnection2(c1, netAddr)
+	loginData := LoginData{
+		hs:         hs.Marshal(),
+		loginStart: loginPk,
+	}
+
+	go func() {
+		loginClient(c2, loginData)
+	}()
+	// loginConn := &testLoginConn{hs: hs, loginPK: loginPk}
 	sConnMock := testServerConn{wg: &wg}
 	connFactory := func(addr string) (connection.ServerConnection, error) {
 		return &sConnMock, nil

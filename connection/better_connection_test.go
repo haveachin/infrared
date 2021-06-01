@@ -10,14 +10,15 @@ import (
 	"github.com/haveachin/infrared/protocol"
 	"github.com/haveachin/infrared/protocol/handshaking"
 	"github.com/haveachin/infrared/protocol/login"
+	"github.com/haveachin/infrared/protocol/status"
 )
 
-type loginData struct {
+type LoginData struct {
 	hs         protocol.Packet
 	loginStart protocol.Packet
 }
 
-func loginClient(conn net.Conn, data loginData) {
+func loginClient(conn net.Conn, data LoginData) {
 	bytes, _ := data.hs.Marshal()
 	conn.Write(bytes)
 
@@ -54,28 +55,32 @@ func statusClient(conn net.Conn, data statusData) {
 
 }
 
+type testMCServer struct {
+	receivedHSPk      []byte
+	receivedRequestPk []byte
 
+	status []byte
 
-// func statusServer(conn net.Conn) {
-// 	bytes, _ := data.hs.Marshal()
-// 	conn.Write(bytes)
+	doPing bool
+}
 
-// 	bytes, _ = data.status.Marshal()
-// 	conn.Write(bytes)
+func (s *testMCServer) statusServer(conn net.Conn) {
+	s.receivedHSPk = make([]byte, 0xffff)
+	conn.Read(s.receivedHSPk)
 
-// 	responseData := make([]byte, 0xffff)
-// 	conn.Read(responseData)
+	s.receivedRequestPk = make([]byte, 0xffff)
+	conn.Read(s.receivedRequestPk)
 
-// 	if data.withPing {
-// 		pingPacket := protocol.Packet{ID: 1}
-// 		pingBytes, _ := pingPacket.Marshal()
-// 		conn.Write(pingBytes)
+	conn.Write(s.status)
 
-// 		pingData := make([]byte, 2)
-// 		conn.Read(pingData)
-// 	}
+	if s.doPing {
+		pingData := make([]byte, 20)
+		conn.Read(pingData)
 
-// }
+		conn.Write(pingData)
+	}
+
+}
 
 func testSameHs(t *testing.T, received, expected handshaking.ServerBoundHandshake) {
 	sameAddr := received.ServerAddress == expected.ServerAddress
@@ -187,7 +192,7 @@ func testLoginConnection(factory loginConnFactory, t *testing.T) {
 
 		loginConn := factory(c1, netAddr)
 
-		loginData := loginData{
+		loginData := LoginData{
 			hs:         hs.Marshal(),
 			loginStart: tc.loginStartPacket,
 		}
@@ -278,7 +283,7 @@ func testHSConnection(factory hsConnFactory, t *testing.T) {
 
 		hsConn := factory(c1, netAddr)
 
-		loginData := loginData{
+		loginData := LoginData{
 			hs: tc.hsPacket,
 		}
 
@@ -368,7 +373,7 @@ func TestHSConnection_Utils(t *testing.T) {
 			NextState:       protocol.Byte(tc.nextState),
 		}
 
-		loginData := loginData{
+		loginData := LoginData{
 			hs: hs.Marshal(),
 		}
 
@@ -518,7 +523,6 @@ func testServerConnection(factory serverConnFactory, t *testing.T) {
 		NextState:       2,
 	}
 	validHSPacket := validLoginHs.Marshal()
-	invalidLoginHs := protocol.Packet{ID: 0x7F, Data: validHSPacket.Data}
 
 	tt := []serverConnTestCase{
 		{
@@ -531,25 +535,31 @@ func testServerConnection(factory serverConnFactory, t *testing.T) {
 
 	testServerConnFactory := func(tc serverConnTestCase) connection.ServerConnection {
 		c1, c2 := net.Pipe()
-
 		netAddr := &net.TCPAddr{IP: net.IP("192.168.0.1")}
-
 		conn := factory(c1, netAddr)
 
-		loginData := loginData{
-			hs: tc.hsPacket,
+		hsData, _ := tc.hsPacket.Marshal()
+		requestPk := status.ServerBoundRequest{}.Marshal()
+		reqestData, _ := requestPk.Marshal()
+
+		status := status.ClientBoundResponse{}.Marshal()
+		statusData, _ := status.Marshal()
+
+		server := testMCServer{
+			receivedHSPk:      hsData,
+			receivedRequestPk: reqestData,
+			status:            statusData,
+			doPing:            false,
 		}
-
 		go func() {
-			loginClient(c2, loginData)
+			server.statusServer(c2)
 		}()
-
 		return conn
 	}
 
 	func() {
 		for _, tc := range tt {
-			t.Run("Packet: "+tc.name, func(t *testing.T) {
+			t.Run("SendPk: "+tc.name, func(t *testing.T) {
 				if errors.Is(tc.expectedError, protocol.ErrInvalidPacketID) {
 					t.Skip() // Need to some either on the conn side or test side
 				}
@@ -563,23 +573,23 @@ func testServerConnection(factory serverConnFactory, t *testing.T) {
 		}
 	}()
 
-	func() {
-		tt = append(tt, serverConnTestCase{
-			name:          "invalid packet ID",
-			hsPacket:      invalidLoginHs,
-			expectedError: protocol.ErrInvalidPacketID,
-		})
-		for _, tc := range tt {
-			t.Run("SendPk: "+tc.name, func(t *testing.T) {
-				conn := testServerConnFactory(tc)
-				err := conn.SendPK()
-				if shouldStopTest(t, err, tc.expectedError) {
-					t.Skip()
-				}
+	// func() {
+	// 	tt = append(tt, serverConnTestCase{
+	// 		name:          "invalid packet ID",
+	// 		hsPacket:      invalidLoginHs,
+	// 		expectedError: protocol.ErrInvalidPacketID,
+	// 	})
+	// 	for _, tc := range tt {
+	// 		t.Run("SendPk: "+tc.name, func(t *testing.T) {
+	// 			conn := testServerConnFactory(tc)
+	// 			err := conn.SendPK()
+	// 			if shouldStopTest(t, err, tc.expectedError) {
+	// 				t.Skip()
+	// 			}
 
-				testSameHs(t, hs, tc.hs)
-			})
-		}
-	}()
+	// 			testSameHs(t, hs, tc.hs)
+	// 		})
+	// 	}
+	// }()
 
 }
