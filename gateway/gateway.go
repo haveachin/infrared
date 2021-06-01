@@ -32,12 +32,10 @@ type BasicGateway struct {
 }
 
 func (g *BasicGateway) Start() error {
-
 	for {
 		conn := <-g.inCh
 		g.handleConnection(conn)
 	}
-
 }
 
 func (g *BasicGateway) handleConnection(conn connection.GatewayConnection) error {
