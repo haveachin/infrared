@@ -42,6 +42,9 @@ func (s *MCServer) Status(clientConn connection.StatusConnection) protocol.Packe
 	hs, _ := clientConn.HsPk()
 	serverConn.SendPK(hs)
 	pk, err := serverConn.Status(protocol.Packet{})
+	if err != nil {
+		fmt.Println(err)
+	}
 	if err == nil {
 		if len(s.OnlineConfigStatus.Data) != 0 {
 			pk = s.OnlineConfigStatus
@@ -62,8 +65,7 @@ func (s *MCServer) Login(conn connection.LoginConnection) error {
 	pk, _ := conn.LoginStart()
 	sConn.SendPK(pk)
 	go func() {
-		// currently when a players leaves it doesnt send a disconnect packet to the server
-		// so the player only leaves the server when the server times out the player
+		// Disconnection might need some more attention
 		connection.Pipe(conn, sConn)
 	}()
 
@@ -80,7 +82,10 @@ func (s *MCServer) Start() {
 			s.Login(lConn)
 		case connection.StatusRequest:
 			sConn := conn.(connection.StatusConnection)
-			s.handleStatusRequest(sConn)
+			err := s.handleStatusRequest(sConn)
+			if err != nil {
+				fmt.Println(err)
+			}
 		default:
 			fmt.Sprintln("Didnt recognize handshake id")
 		}

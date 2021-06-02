@@ -2,12 +2,9 @@ package infrared
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net"
 	"strings"
-	"sync"
-	"testing"
 	"time"
 
 	"github.com/haveachin/infrared/protocol"
@@ -344,492 +341,492 @@ func (s *e2eTestServer) Connection() (Conn, error) {
 	return s.connection, nil
 }
 
-func TestStatusRequest(t *testing.T) {
-	tt := []struct {
-		name            string
-		portEnd         int
-		onlineStatus    StatusConfig
-		offlineStatus   StatusConfig
-		activeServer    bool
-		expectedVersion string
-	}{
-		{
-			name:            "ServerOnlineWithoutConfig",
-			portEnd:         570,
-			activeServer:    true,
-			expectedVersion: serverVersionName,
-		},
-		{
-			name:            "ServerOfflineWithoutConfig",
-			portEnd:         571,
-			activeServer:    false,
-			expectedVersion: "",
-		},
-		{
-			name:            "ServerOnlineWithConfig",
-			portEnd:         572,
-			onlineStatus:    onlineStatus,
-			offlineStatus:   offlineStatus,
-			activeServer:    true,
-			expectedVersion: onlineStatus.VersionName,
-		},
-		{
-			name:            "ServerOfflineWithConfig",
-			portEnd:         573,
-			onlineStatus:    onlineStatus,
-			offlineStatus:   offlineStatus,
-			activeServer:    false,
-			expectedVersion: offlineStatus.VersionName,
-		},
-	}
+// func TestStatusRequest(t *testing.T) {
+// 	tt := []struct {
+// 		name            string
+// 		portEnd         int
+// 		onlineStatus    StatusConfig
+// 		offlineStatus   StatusConfig
+// 		activeServer    bool
+// 		expectedVersion string
+// 	}{
+// 		{
+// 			name:            "ServerOnlineWithoutConfig",
+// 			portEnd:         570,
+// 			activeServer:    true,
+// 			expectedVersion: serverVersionName,
+// 		},
+// 		{
+// 			name:            "ServerOfflineWithoutConfig",
+// 			portEnd:         571,
+// 			activeServer:    false,
+// 			expectedVersion: "",
+// 		},
+// 		{
+// 			name:            "ServerOnlineWithConfig",
+// 			portEnd:         572,
+// 			onlineStatus:    onlineStatus,
+// 			offlineStatus:   offlineStatus,
+// 			activeServer:    true,
+// 			expectedVersion: onlineStatus.VersionName,
+// 		},
+// 		{
+// 			name:            "ServerOfflineWithConfig",
+// 			portEnd:         573,
+// 			onlineStatus:    onlineStatus,
+// 			offlineStatus:   offlineStatus,
+// 			activeServer:    false,
+// 			expectedVersion: offlineStatus.VersionName,
+// 		},
+// 	}
 
-	for _, tc := range tt {
-		t.Run(tc.name, func(t *testing.T) {
-			wg := &sync.WaitGroup{}
-			errorCh := make(chan *testError)
-			resultCh := make(chan bool)
-			wg.Add(1)
-			go func(wg *sync.WaitGroup) {
-				config := proxyConfigWithPortEnd(tc.portEnd)
-				config.OnlineStatus = tc.onlineStatus
-				config.OfflineStatus = tc.offlineStatus
+// 	for _, tc := range tt {
+// 		t.Run(tc.name, func(t *testing.T) {
+// 			wg := &sync.WaitGroup{}
+// 			errorCh := make(chan *testError)
+// 			resultCh := make(chan bool)
+// 			wg.Add(1)
+// 			go func(wg *sync.WaitGroup) {
+// 				config := proxyConfigWithPortEnd(tc.portEnd)
+// 				config.OnlineStatus = tc.onlineStatus
+// 				config.OfflineStatus = tc.offlineStatus
 
-				gateway := Gateway{}
-				proxies := configToProxies(config)
-				if err := gateway.ListenAndServe(proxies); err != nil {
-					errorCh <- &testError{err, "Can't start gateway"}
-				}
-				wg.Done()
-				gateway.KeepProcessActive()
-			}(wg)
+// 				gateway := Gateway{}
+// 				proxies := configToProxies(config)
+// 				if err := gateway.ListenAndServe(proxies); err != nil {
+// 					errorCh <- &testError{err, "Can't start gateway"}
+// 				}
+// 				wg.Done()
+// 				gateway.KeepProcessActive()
+// 			}(wg)
 
-			if tc.activeServer {
-				wg.Add(1)
-				serverC := statusListenerConfig{}
-				serverC.status = statusPKWithVersion(serverVersionName)
-				serverC.addr = serverAddr(tc.portEnd)
-				go func() {
-					statusListen(serverC, errorCh)
-					wg.Done()
-				}()
-			}
+// 			if tc.activeServer {
+// 				wg.Add(1)
+// 				serverC := statusListenerConfig{}
+// 				serverC.status = statusPKWithVersion(serverVersionName)
+// 				serverC.addr = serverAddr(tc.portEnd)
+// 				go func() {
+// 					statusListen(serverC, errorCh)
+// 					wg.Done()
+// 				}()
+// 			}
 
-			wg.Wait()
-			go func() {
-				pk := statusHandshakePort(tc.portEnd)
-				config := statusDialConfig{
-					pk:          pk,
-					gatewayAddr: gatewayAddr(tc.portEnd),
-				}
-				receivedVersion, err := statusDialGetVersionName(config)
-				if err != nil {
-					errorCh <- err
-					return
-				}
+// 			wg.Wait()
+// 			go func() {
+// 				pk := statusHandshakePort(tc.portEnd)
+// 				config := statusDialConfig{
+// 					pk:          pk,
+// 					gatewayAddr: gatewayAddr(tc.portEnd),
+// 				}
+// 				receivedVersion, err := statusDialGetVersionName(config)
+// 				if err != nil {
+// 					errorCh <- err
+// 					return
+// 				}
 
-				resultCh <- receivedVersion == tc.expectedVersion
-			}()
+// 				resultCh <- receivedVersion == tc.expectedVersion
+// 			}()
 
-			select {
-			case err := <-errorCh:
-				t.Fatalf("Unexpected Error in test: %s\n%v", err.Message, err.Error)
-			case r := <-resultCh:
-				if !r {
-					t.Fail()
-				}
-			}
-		})
-	}
-}
+// 			select {
+// 			case err := <-errorCh:
+// 				t.Fatalf("Unexpected Error in test: %s\n%v", err.Message, err.Error)
+// 			case r := <-resultCh:
+// 				if !r {
+// 					t.Fail()
+// 				}
+// 			}
+// 		})
+// 	}
+// }
 
-func TestProxyProtocol(t *testing.T) {
-	tt := []struct {
-		name              string
-		proxyproto        bool
-		receiveProxyproto bool
-		portEnd           int
-		shouldMatch       bool
-		expectingIp       string
-	}{
-		{
-			name:        "ProxyProtocolOn",
-			proxyproto:  true,
-			portEnd:     581,
-			shouldMatch: true,
-			expectingIp: "127.0.0.1",
-		},
-		{
-			name:        "ProxyProtocolOff",
-			proxyproto:  false,
-			portEnd:     582,
-			shouldMatch: true,
-			expectingIp: "127.0.0.1",
-		},
-		{
-			name:              "ProxyProtocol Receive",
-			proxyproto:        true,
-			receiveProxyproto: true,
-			portEnd:           583,
-			shouldMatch:       true,
-			expectingIp:       "109.226.143.210",
-		},
-	}
+// func TestProxyProtocol(t *testing.T) {
+// 	tt := []struct {
+// 		name              string
+// 		proxyproto        bool
+// 		receiveProxyproto bool
+// 		portEnd           int
+// 		shouldMatch       bool
+// 		expectingIp       string
+// 	}{
+// 		{
+// 			name:        "ProxyProtocolOn",
+// 			proxyproto:  true,
+// 			portEnd:     581,
+// 			shouldMatch: true,
+// 			expectingIp: "127.0.0.1",
+// 		},
+// 		{
+// 			name:        "ProxyProtocolOff",
+// 			proxyproto:  false,
+// 			portEnd:     582,
+// 			shouldMatch: true,
+// 			expectingIp: "127.0.0.1",
+// 		},
+// 		{
+// 			name:              "ProxyProtocol Receive",
+// 			proxyproto:        true,
+// 			receiveProxyproto: true,
+// 			portEnd:           583,
+// 			shouldMatch:       true,
+// 			expectingIp:       "109.226.143.210",
+// 		},
+// 	}
 
-	for _, tc := range tt {
-		t.Run(tc.name, func(t *testing.T) {
-			errorCh := make(chan *testError)
-			resultCh := make(chan bool)
-			wg := &sync.WaitGroup{}
+// 	for _, tc := range tt {
+// 		t.Run(tc.name, func(t *testing.T) {
+// 			errorCh := make(chan *testError)
+// 			resultCh := make(chan bool)
+// 			wg := &sync.WaitGroup{}
 
-			wg.Add(1)
-			go func(wg *sync.WaitGroup) {
-				config := createProxyProtocolConfig(tc.portEnd, tc.proxyproto)
-				gateway := Gateway{}
-				proxies := configToProxies(config)
-				if err := gateway.ListenAndServe(proxies); err != nil {
-					errorCh <- &testError{err, "Can't start gateway"}
-				}
-				wg.Done()
-				gateway.KeepProcessActive()
-			}(wg)
+// 			wg.Add(1)
+// 			go func(wg *sync.WaitGroup) {
+// 				config := createProxyProtocolConfig(tc.portEnd, tc.proxyproto)
+// 				gateway := Gateway{}
+// 				proxies := configToProxies(config)
+// 				if err := gateway.ListenAndServe(proxies); err != nil {
+// 					errorCh <- &testError{err, "Can't start gateway"}
+// 				}
+// 				wg.Done()
+// 				gateway.KeepProcessActive()
+// 			}(wg)
 
-			go func() {
-				ip, err := proxyProtoListen(tc.portEnd)
-				if err != nil {
-					errorCh <- err
-					return
-				}
-				resultCh <- ip == tc.expectingIp
-			}()
-			wg.Wait()
-			go func() {
+// 			go func() {
+// 				ip, err := proxyProtoListen(tc.portEnd)
+// 				if err != nil {
+// 					errorCh <- err
+// 					return
+// 				}
+// 				resultCh <- ip == tc.expectingIp
+// 			}()
+// 			wg.Wait()
+// 			go func() {
 
-				pk := statusHandshakePort(tc.portEnd)
-				config := statusDialConfig{
-					pk:                      pk,
-					gatewayAddr:             gatewayAddr(tc.portEnd),
-					dialerPort:              dialerPort(tc.portEnd),
-					useProxyProtocol:        tc.proxyproto,
-					sendProxyProtocolHeader: tc.receiveProxyproto,
-				}
+// 				pk := statusHandshakePort(tc.portEnd)
+// 				config := statusDialConfig{
+// 					pk:                      pk,
+// 					gatewayAddr:             gatewayAddr(tc.portEnd),
+// 					dialerPort:              dialerPort(tc.portEnd),
+// 					useProxyProtocol:        tc.proxyproto,
+// 					sendProxyProtocolHeader: tc.receiveProxyproto,
+// 				}
 
-				// if tc.proxyproto {
+// 				// if tc.proxyproto {
 
-				// 	dialer := &net.Dialer{
-				// 		LocalAddr: &net.TCPAddr{
-				// 			IP:   net.ParseIP("127.0.10.1"),
-				// 			Port: dialerPort(tc.portEnd),
-				// 		},
-				// 	}
-				// 	netConn, _ := dialer.Dial("tcp", gatewayAddr(tc.portEnd))
-				// 	config.conn = createTestConn(netConn)
-				// }
+// 				// 	dialer := &net.Dialer{
+// 				// 		LocalAddr: &net.TCPAddr{
+// 				// 			IP:   net.ParseIP("127.0.10.1"),
+// 				// 			Port: dialerPort(tc.portEnd),
+// 				// 		},
+// 				// 	}
+// 				// 	netConn, _ := dialer.Dial("tcp", gatewayAddr(tc.portEnd))
+// 				// 	config.conn = createTestConn(netConn)
+// 				// }
 
-				_, err := statusDial(config)
-				if err != nil {
-					errorCh <- err
-				}
-			}()
+// 				_, err := statusDial(config)
+// 				if err != nil {
+// 					errorCh <- err
+// 				}
+// 			}()
 
-			select {
-			case err := <-errorCh:
-				t.Fatalf("Unexpected Error in test: %s\n%v", err.Message, err.Error)
-			case r := <-resultCh:
-				if r != tc.shouldMatch {
-					t.Errorf("got: %v; want: %v", r, tc.shouldMatch)
-				}
-			}
-		})
-	}
-}
+// 			select {
+// 			case err := <-errorCh:
+// 				t.Fatalf("Unexpected Error in test: %s\n%v", err.Message, err.Error)
+// 			case r := <-resultCh:
+// 				if r != tc.shouldMatch {
+// 					t.Errorf("got: %v; want: %v", r, tc.shouldMatch)
+// 				}
+// 			}
+// 		})
+// 	}
+// }
 
-func TestRouting(t *testing.T) {
-	wg := &sync.WaitGroup{}
-	errorCh := make(chan *testError)
+// func TestRouting(t *testing.T) {
+// 	wg := &sync.WaitGroup{}
+// 	errorCh := make(chan *testError)
 
-	basePort := 540
-	routingConfig := make([]*ProxyConfig, 0)
-	serverConfigs := make([]statusListenerConfig, 0)
+// 	basePort := 540
+// 	routingConfig := make([]*ProxyConfig, 0)
+// 	serverConfigs := make([]statusListenerConfig, 0)
 
-	servers := []struct {
-		id      int
-		domain  string
-		portEnd int
-	}{
-		{
-			id:      0,
-			domain:  "infrared",
-			portEnd: 530,
-		},
-		{
-			id:      9,
-			domain:  "infrared",
-			portEnd: 531,
-		},
-		{
-			id:      1,
-			domain:  "infrared-dash",
-			portEnd: 530,
-		},
-		{
-			id:      2,
-			domain:  ".dottedInfrared.",
-			portEnd: 530,
-		},
-	}
+// 	servers := []struct {
+// 		id      int
+// 		domain  string
+// 		portEnd int
+// 	}{
+// 		{
+// 			id:      0,
+// 			domain:  "infrared",
+// 			portEnd: 530,
+// 		},
+// 		{
+// 			id:      9,
+// 			domain:  "infrared",
+// 			portEnd: 531,
+// 		},
+// 		{
+// 			id:      1,
+// 			domain:  "infrared-dash",
+// 			portEnd: 530,
+// 		},
+// 		{
+// 			id:      2,
+// 			domain:  ".dottedInfrared.",
+// 			portEnd: 530,
+// 		},
+// 	}
 
-	tt := []struct {
-		name          string
-		expectedId    int
-		requestDomain string
-		portEnd       int
-		expectError   bool
-		shouldMatch   bool
-	}{
-		{
-			name:          "Single word domain",
-			expectedId:    0,
-			requestDomain: "infrared",
-			portEnd:       530,
-			expectError:   false,
-			shouldMatch:   true,
-		},
-		{
-			name:          "Single word domain but wrong id",
-			expectedId:    1,
-			requestDomain: "infrared",
-			portEnd:       530,
-			expectError:   false,
-			shouldMatch:   false,
-		},
-		{
-			name:          "duplicated domain but other port",
-			expectedId:    9,
-			requestDomain: "infrared",
-			portEnd:       531,
-			expectError:   false,
-			shouldMatch:   true,
-		},
-		{
-			name:          "Domain with a dash",
-			expectedId:    1,
-			requestDomain: "infrared-dash",
-			portEnd:       530,
-			expectError:   false,
-			shouldMatch:   true,
-		},
-		{
-			name:          "Domain with points at both ends",
-			expectedId:    2,
-			requestDomain: ".dottedInfrared.",
-			portEnd:       530,
-			expectError:   true,
-			shouldMatch:   false,
-		},
-	}
+// 	tt := []struct {
+// 		name          string
+// 		expectedId    int
+// 		requestDomain string
+// 		portEnd       int
+// 		expectError   bool
+// 		shouldMatch   bool
+// 	}{
+// 		{
+// 			name:          "Single word domain",
+// 			expectedId:    0,
+// 			requestDomain: "infrared",
+// 			portEnd:       530,
+// 			expectError:   false,
+// 			shouldMatch:   true,
+// 		},
+// 		{
+// 			name:          "Single word domain but wrong id",
+// 			expectedId:    1,
+// 			requestDomain: "infrared",
+// 			portEnd:       530,
+// 			expectError:   false,
+// 			shouldMatch:   false,
+// 		},
+// 		{
+// 			name:          "duplicated domain but other port",
+// 			expectedId:    9,
+// 			requestDomain: "infrared",
+// 			portEnd:       531,
+// 			expectError:   false,
+// 			shouldMatch:   true,
+// 		},
+// 		{
+// 			name:          "Domain with a dash",
+// 			expectedId:    1,
+// 			requestDomain: "infrared-dash",
+// 			portEnd:       530,
+// 			expectError:   false,
+// 			shouldMatch:   true,
+// 		},
+// 		{
+// 			name:          "Domain with points at both ends",
+// 			expectedId:    2,
+// 			requestDomain: ".dottedInfrared.",
+// 			portEnd:       530,
+// 			expectError:   true,
+// 			shouldMatch:   false,
+// 		},
+// 	}
 
-	for i, server := range servers {
-		port := basePort + i
-		proxyC := &ProxyConfig{}
-		serverC := statusListenerConfig{}
+// 	for i, server := range servers {
+// 		port := basePort + i
+// 		proxyC := &ProxyConfig{}
+// 		serverC := statusListenerConfig{}
 
-		serverAddr := serverAddr(port)
-		proxyC.ListenTo = gatewayAddr(server.portEnd)
-		proxyC.ProxyTo = serverAddr
-		proxyC.DomainName = server.domain
-		routingConfig = append(routingConfig, proxyC)
+// 		serverAddr := serverAddr(port)
+// 		proxyC.ListenTo = gatewayAddr(server.portEnd)
+// 		proxyC.ProxyTo = serverAddr
+// 		proxyC.DomainName = server.domain
+// 		routingConfig = append(routingConfig, proxyC)
 
-		serverC.id = server.id
-		serverC.addr = serverAddr
-		serverC.status = statusPKWithVersion(routeVersionName(server.id))
-		serverConfigs = append(serverConfigs, serverC)
-	}
+// 		serverC.id = server.id
+// 		serverC.addr = serverAddr
+// 		serverC.status = statusPKWithVersion(routeVersionName(server.id))
+// 		serverConfigs = append(serverConfigs, serverC)
+// 	}
 
-	wg.Add(1)
-	go func() {
-		gateway := Gateway{}
-		proxies := configsToProxies(routingConfig)
-		if err := gateway.ListenAndServe(proxies); err != nil {
-			errorCh <- &testError{err, "Can't start gateway"}
-		}
-		wg.Done()
-		gateway.KeepProcessActive()
-	}()
+// 	wg.Add(1)
+// 	go func() {
+// 		gateway := Gateway{}
+// 		proxies := configsToProxies(routingConfig)
+// 		if err := gateway.ListenAndServe(proxies); err != nil {
+// 			errorCh <- &testError{err, "Can't start gateway"}
+// 		}
+// 		wg.Done()
+// 		gateway.KeepProcessActive()
+// 	}()
 
-	for _, c := range serverConfigs {
-		wg.Add(1)
-		go func(config statusListenerConfig) {
-			statusListen(config, errorCh)
-			wg.Done()
-		}(c)
-	}
+// 	for _, c := range serverConfigs {
+// 		wg.Add(1)
+// 		go func(config statusListenerConfig) {
+// 			statusListen(config, errorCh)
+// 			wg.Done()
+// 		}(c)
+// 	}
 
-	wg.Wait()
+// 	wg.Wait()
 
-	select {
-	case err := <-errorCh:
-		t.Fatalf("Unexpected Error before tests: %s\n%v", err.Message, err.Error)
-	default:
-	}
+// 	select {
+// 	case err := <-errorCh:
+// 		t.Fatalf("Unexpected Error before tests: %s\n%v", err.Message, err.Error)
+// 	default:
+// 	}
 
-	for _, tc := range tt {
-		t.Run(tc.name, func(t *testing.T) {
-			resultCh := make(chan bool)
+// 	for _, tc := range tt {
+// 		t.Run(tc.name, func(t *testing.T) {
+// 			resultCh := make(chan bool)
 
-			go func() {
-				expectedName := routeVersionName(tc.expectedId)
-				pk := serverHandshake(tc.requestDomain, tc.portEnd)
-				config := statusDialConfig{
-					pk:          pk,
-					gatewayAddr: gatewayAddr(tc.portEnd),
-					dialerPort:  dialerPort(tc.portEnd),
-				}
+// 			go func() {
+// 				expectedName := routeVersionName(tc.expectedId)
+// 				pk := serverHandshake(tc.requestDomain, tc.portEnd)
+// 				config := statusDialConfig{
+// 					pk:          pk,
+// 					gatewayAddr: gatewayAddr(tc.portEnd),
+// 					dialerPort:  dialerPort(tc.portEnd),
+// 				}
 
-				receivedVersion, err := statusDialGetVersionName(config)
-				if err != nil {
-					errorCh <- err
-					return
-				}
-				resultCh <- receivedVersion == expectedName
-			}()
+// 				receivedVersion, err := statusDialGetVersionName(config)
+// 				if err != nil {
+// 					errorCh <- err
+// 					return
+// 				}
+// 				resultCh <- receivedVersion == expectedName
+// 			}()
 
-			select {
-			case err := <-errorCh:
-				if !tc.expectError {
-					t.Fatalf("Unexpected Error in test: %s\n%v", err.Message, err.Error)
-				}
-			case r := <-resultCh:
-				if r != tc.shouldMatch {
-					t.Fail()
-				}
-			}
-		})
-	}
-}
+// 			select {
+// 			case err := <-errorCh:
+// 				if !tc.expectError {
+// 					t.Fatalf("Unexpected Error in test: %s\n%v", err.Message, err.Error)
+// 				}
+// 			case r := <-resultCh:
+// 				if r != tc.shouldMatch {
+// 					t.Fail()
+// 				}
+// 			}
+// 		})
+// 	}
+// }
 
-func createTestConn(conn net.Conn) Conn {
-	return wrapConn(conn)
-}
+// func createTestConn(conn net.Conn) Conn {
+// 	return wrapConn(conn)
+// }
 
-type alwaysOnlineServer struct {
-	conn Conn
-}
+// type alwaysOnlineServer struct {
+// 	conn Conn
+// }
 
-func (s *alwaysOnlineServer) CanConnect() bool {
-	return true
-}
+// func (s *alwaysOnlineServer) CanConnect() bool {
+// 	return true
+// }
 
-func (s *alwaysOnlineServer) Connection() (Conn, error) {
-	return s.conn, nil
-}
+// func (s *alwaysOnlineServer) Connection() (Conn, error) {
+// 	return s.conn, nil
+// }
 
-type alwaysOfflineServer struct {
-}
+// type alwaysOfflineServer struct {
+// }
 
-func (s *alwaysOfflineServer) CanConnect() bool {
-	return false
-}
+// func (s *alwaysOfflineServer) CanConnect() bool {
+// 	return false
+// }
 
-func (s *alwaysOfflineServer) Connection() (Conn, error) {
-	return nil, nil
-}
+// func (s *alwaysOfflineServer) Connection() (Conn, error) {
+// 	return nil, nil
+// }
 
-func TestPacketHandling(t *testing.T) {
-	//Bc its necessary for every proxy to have this
-	domain := serverDomain
-	proxyTo := ":25560"
-	tt := []struct {
-		name                    string
-		expectError             error
-		sendProxyProtocolHeader bool
-		sendCorruptedPacket     bool
-		sendNonPacketData       bool
-		isProxyProtocolServer   bool
-		onlineServer            bool
-	}{
-		{
-			name: "offline server without errors",
-		},
-		{
-			name:                "send incorrect packet",
-			sendCorruptedPacket: true,
-			expectError:         proxyproto.ErrNoProxyProtocol,
-		},
-		{
-			name:                    "send proxyprotocol with normal packet",
-			sendProxyProtocolHeader: true,
-		},
-		{
-			name:                    "send proxyprotocol with incorrect packet",
-			sendProxyProtocolHeader: true,
-			sendCorruptedPacket:     true,
-			expectError:             ErrCantUnMarshalPK,
-		},
-	}
+// func TestPacketHandling(t *testing.T) {
+// 	//Bc its necessary for every proxy to have this
+// 	domain := serverDomain
+// 	proxyTo := ":25560"
+// 	tt := []struct {
+// 		name                    string
+// 		expectError             error
+// 		sendProxyProtocolHeader bool
+// 		sendCorruptedPacket     bool
+// 		sendNonPacketData       bool
+// 		isProxyProtocolServer   bool
+// 		onlineServer            bool
+// 	}{
+// 		{
+// 			name: "offline server without errors",
+// 		},
+// 		{
+// 			name:                "send incorrect packet",
+// 			sendCorruptedPacket: true,
+// 			expectError:         proxyproto.ErrNoProxyProtocol,
+// 		},
+// 		{
+// 			name:                    "send proxyprotocol with normal packet",
+// 			sendProxyProtocolHeader: true,
+// 		},
+// 		{
+// 			name:                    "send proxyprotocol with incorrect packet",
+// 			sendProxyProtocolHeader: true,
+// 			sendCorruptedPacket:     true,
+// 			expectError:             ErrCantUnMarshalPK,
+// 		},
+// 	}
 
-	for _, tc := range tt {
-		t.Run(tc.name, func(t *testing.T) {
-			c1, c2 := net.Pipe()
-			cServer := createTestConn(c1)
-			cClient := createTestConn(c2)
+// 	for _, tc := range tt {
+// 		t.Run(tc.name, func(t *testing.T) {
+// 			c1, c2 := net.Pipe()
+// 			cServer := createTestConn(c1)
+// 			cClient := createTestConn(c2)
 
-			proxyConfig := &ProxyConfig{DomainName: domain, ProxyTo: proxyTo}
+// 			proxyConfig := &ProxyConfig{DomainName: domain, ProxyTo: proxyTo}
 
-			if tc.isProxyProtocolServer {
-				proxyConfig.ProxyProtocol = tc.isProxyProtocolServer
-			}
+// 			if tc.isProxyProtocolServer {
+// 				proxyConfig.ProxyProtocol = tc.isProxyProtocolServer
+// 			}
 
-			factory := func(p *Proxy) MCServer {
-				return &alwaysOfflineServer{}
-			}
-			if tc.onlineServer {
-				factory = func(p *Proxy) MCServer {
-					return &alwaysOnlineServer{nil}
-				}
-			}
+// 			factory := func(p *Proxy) MCServer {
+// 				return &alwaysOfflineServer{}
+// 			}
+// 			if tc.onlineServer {
+// 				factory = func(p *Proxy) MCServer {
+// 					return &alwaysOnlineServer{nil}
+// 				}
+// 			}
 
-			proxy := &Proxy{Config: proxyConfig}
-			proxy.ServerFactory = factory
+// 			proxy := &Proxy{Config: proxyConfig}
+// 			proxy.ServerFactory = factory
 
-			gateway := &Gateway{}
-			gateway.proxies.Store(proxy.UID(), proxy)
+// 			gateway := &Gateway{}
+// 			gateway.proxies.Store(proxy.UID(), proxy)
 
-			go func(c Conn) {
-				pk := serverHandshake(domain, 25565)
+// 			go func(c Conn) {
+// 				pk := serverHandshake(domain, 25565)
 
-				if tc.sendCorruptedPacket {
-					corruptedData := pk.Data[1:12]
-					pk.Data = corruptedData
-					t.Log(pk)
-				}
+// 				if tc.sendCorruptedPacket {
+// 					corruptedData := pk.Data[1:12]
+// 					pk.Data = corruptedData
+// 					t.Log(pk)
+// 				}
 
-				dialConfig := statusDialConfig{
-					conn:                    &c,
-					pk:                      pk,
-					sendProxyProtocolHeader: tc.sendProxyProtocolHeader,
-					sendEndPing:             true,
-				}
+// 				dialConfig := statusDialConfig{
+// 					conn:                    &c,
+// 					pk:                      pk,
+// 					sendProxyProtocolHeader: tc.sendProxyProtocolHeader,
+// 					sendEndPing:             true,
+// 				}
 
-				t.Log(dialConfig)
-				_, err := statusDial(dialConfig)
-				if err != nil {
-					fmt.Println(err)
-				}
-			}(cClient)
+// 				t.Log(dialConfig)
+// 				_, err := statusDial(dialConfig)
+// 				if err != nil {
+// 					fmt.Println(err)
+// 				}
+// 			}(cClient)
 
-			if err := gateway.serve(cServer, ""); err != nil {
-				if tc.expectError == nil {
-					t.Errorf("didnt expect an error but got %v", err)
-				}
-				if errors.Is(err, tc.expectError) {
-					return
-				}
-				t.Errorf("got different error than expected, got: %v\n expected: %v", err, tc.expectError)
-				return
-			}
-			if tc.expectError != nil {
-				t.Errorf("Expected an error but didnt got any, expected error: %v", tc.expectError)
-			}
-		})
-	}
-}
+// 			if err := gateway.serve(cServer, ""); err != nil {
+// 				if tc.expectError == nil {
+// 					t.Errorf("didnt expect an error but got %v", err)
+// 				}
+// 				if errors.Is(err, tc.expectError) {
+// 					return
+// 				}
+// 				t.Errorf("got different error than expected, got: %v\n expected: %v", err, tc.expectError)
+// 				return
+// 			}
+// 			if tc.expectError != nil {
+// 				t.Errorf("Expected an error but didnt got any, expected error: %v", tc.expectError)
+// 			}
+// 		})
+// 	}
+// }

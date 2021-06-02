@@ -165,7 +165,7 @@ type BasicServerConn struct {
 }
 
 func (c *BasicServerConn) Status(pk protocol.Packet) (protocol.Packet, error) {
-	c.conn.WritePacket(c.statusPK)
+	c.conn.WritePacket(pk)
 	return c.conn.ReadPacket()
 }
 

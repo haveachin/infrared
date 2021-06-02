@@ -569,6 +569,7 @@ func testServerConnection(factory serverConnFactory, t *testing.T) {
 				if shouldStopTest(t, err, tc.expectedError) {
 					t.Skip()
 				}
+				//Check status or it matches
 			})
 		}
 	}()
