@@ -21,6 +21,8 @@ var (
 	testLoginID byte = 6
 
 	ErrNotImplemented = errors.New("not implemented")
+
+	defaultChanTimeout = 5 * time.Millisecond
 )
 
 type LoginData struct {
@@ -190,7 +192,7 @@ func samePK(expected, received protocol.Packet) bool {
 // 			select {
 // 			case connCh <- statusConn:
 // 				t.Log("Channel took connection")
-// 			case <-time.After(1 * time.Millisecond):
+// 			case <-time.After(defaultChanTimeout):
 // 				t.Log("Tasked timed out")
 // 				t.FailNow() // Dont check other code it didnt finish anyway
 // 			}
@@ -275,7 +277,7 @@ func testServerLogin(t *testing.T, runServer runTestServer) {
 			select {
 			case connCh <- loginConn:
 				t.Log("Channel took connection")
-			case <-time.After(1 * time.Millisecond):
+			case <-time.After(defaultChanTimeout):
 				t.Log("Tasked timed out")
 				t.FailNow() // Dont check other code it didnt finish anyway
 			}
@@ -338,7 +340,7 @@ func testServerStatus_WithoutConfigStatus(t *testing.T, runServer runTestServer,
 	normalStatus := status.ClientBoundResponse{
 		JSONResponse: protocol.String(bb),
 	}.Marshal()
-	
+
 	emptyStatus := status.ClientBoundResponse{}.Marshal()
 	normalRequestPk := protocol.Packet{ID: 0x00}
 	specialRequestPk := protocol.Packet{ID: 0x12}
@@ -437,7 +439,7 @@ func testServerStatus_WithoutConfigStatus(t *testing.T, runServer runTestServer,
 			select {
 			case connCh <- statusConn:
 				t.Log("Channel took connection")
-			case <-time.After(1 * time.Millisecond):
+			case <-time.After(defaultChanTimeout):
 				t.Log("Tasked timed out")
 				t.FailNow() // Dont check other code it didnt finish anyway
 			}

@@ -22,6 +22,8 @@ var (
 
 	ErrNotImplemented = errors.New("not implemented")
 	ErrNoReadLeft     = errors.New("no packets left to read")
+
+	defaultChanTimeout = 5 * time.Millisecond 
 )
 
 type testStructWithID interface {
@@ -213,7 +215,7 @@ func testFindServer(data findServerData, t *testing.T) {
 			serverCh := data.runGateway(gwCh)
 
 			select {
-			case <-time.After(1 * time.Millisecond): //Be fast or fail >:)
+			case <-time.After(defaultChanTimeout): //Be fast or fail >:)
 				t.Log("Tasked timed out")
 				t.FailNow() // Dont check other code it didnt finish anyway
 			case gwCh <- hsConn:
@@ -221,7 +223,7 @@ func testFindServer(data findServerData, t *testing.T) {
 			}
 
 			select {
-			case <-time.After(1 * time.Millisecond): //Be fast or fail >:)
+			case <-time.After(defaultChanTimeout): //Be fast or fail >:)
 				if tc.shouldFind {
 					t.Log("Tasked timed out")
 					t.FailNow() // Dont check other code it didnt finish anyway

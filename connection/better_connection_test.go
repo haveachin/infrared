@@ -5,12 +5,17 @@ import (
 	"errors"
 	"net"
 	"testing"
+	"time"
 
 	"github.com/haveachin/infrared/connection"
 	"github.com/haveachin/infrared/protocol"
 	"github.com/haveachin/infrared/protocol/handshaking"
 	"github.com/haveachin/infrared/protocol/login"
 	"github.com/haveachin/infrared/protocol/status"
+)
+
+var (
+	defaultChanTimeout = 5 * time.Millisecond
 )
 
 type LoginData struct {

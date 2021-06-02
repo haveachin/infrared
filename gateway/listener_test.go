@@ -196,7 +196,7 @@ func TestBasicListener(t *testing.T) {
 					t.Logf("unexpected error was thrown: %v", err)
 					t.FailNow()
 				}
-			case <-time.After(1 * time.Millisecond): // err should be returned almost immediately
+			case <-time.After(defaultChanTimeout): // err should be returned almost immediately
 				t.Log("Tasked timed out")
 				t.FailNow() // Dont check other code it didnt finish anyway
 			case c := <-connCh:
@@ -316,7 +316,7 @@ func TestBasicListener(t *testing.T) {
 // 	select {
 // 	case <-channel:
 // 		t.Log("Tasked finished before timeout")
-// 	case <-time.After(100 * time.Millisecond):
+// 	case <-time.After(defaultChanTimeout):
 // 		t.Log("Tasked timed out")
 // 		t.FailNow() // Dont check other code it didnt finish anyway
 // 	}
