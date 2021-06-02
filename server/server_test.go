@@ -3,6 +3,7 @@ package server_test
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
 	"errors"
 	"net"
 	"testing"
@@ -301,16 +302,18 @@ type serverStatusTestcase struct {
 	name          string
 	expectedError error // Not sure how to error between connections
 
-	hsPk      protocol.Packet
-	requestPk protocol.Packet
-	statusPk  protocol.Packet
+	shouldNOTFinish                  bool
+	cutConnBeforeSendingServerStatus bool
+
+	hsPk             protocol.Packet
+	requestPk        protocol.Packet
+	expectedStatusPk protocol.Packet
 
 	doPing     bool
 	pingPacket protocol.Packet
 }
 
-
-// Didnt confirm or proxyPing test works, proxy request test does work. 
+// Didnt confirm or proxyPing test works, proxy request test does work.
 //  Please remove this after its confirmed that it does work
 func testServerStatus_WithoutConfigStatus(t *testing.T, runServer runTestServer, proxyRequest, proxyPing bool) {
 
@@ -321,7 +324,21 @@ func testServerStatus_WithoutConfigStatus(t *testing.T, runServer runTestServer,
 		NextState:       1,
 	}
 	hsPk := hs.Marshal()
+	responseJSON := status.ResponseJSON{
+		Version: status.VersionJSON{
+			Name:     "infrared",
+			Protocol: 754,
+		},
+		Description: status.DescriptionJSON{
+			Text: "Random status",
+		},
+	}
 
+	bb, _ := json.Marshal(responseJSON)
+	normalStatus := status.ClientBoundResponse{
+		JSONResponse: protocol.String(bb),
+	}.Marshal()
+	
 	emptyStatus := status.ClientBoundResponse{}.Marshal()
 	normalRequestPk := protocol.Packet{ID: 0x00}
 	specialRequestPk := protocol.Packet{ID: 0x12}
@@ -330,45 +347,63 @@ func testServerStatus_WithoutConfigStatus(t *testing.T, runServer runTestServer,
 	specialPingPk := protocol.Packet{ID: 0x10}
 	tt := []serverStatusTestcase{
 		{
-			name:      "normal run without ping",
-			hsPk:      hsPk,
-			requestPk: normalRequestPk,
-			statusPk:  emptyStatus,
+			name:             "normal run without ping",
+			hsPk:             hsPk,
+			requestPk:        normalRequestPk,
+			expectedStatusPk: normalStatus,
 		},
 		{
-			name:       "normal run with ping",
-			hsPk:       hsPk,
-			requestPk:  normalRequestPk,
-			statusPk:   emptyStatus,
-			doPing:     true,
-			pingPacket: normalPingPk,
+			name:             "normal run with ping",
+			hsPk:             hsPk,
+			requestPk:        normalRequestPk,
+			expectedStatusPk: normalStatus,
+			doPing:           true,
+			pingPacket:       normalPingPk,
+		},
+		{
+			name:                             "cut connection instead of sending server status without ping",
+			hsPk:                             hsPk,
+			requestPk:                        normalRequestPk,
+			expectedStatusPk:                 emptyStatus,
+			shouldNOTFinish:                  false,
+			cutConnBeforeSendingServerStatus: true,
+		},
+		{
+			name:                             "cut connection instead of sending server status with ping",
+			hsPk:                             hsPk,
+			requestPk:                        normalRequestPk,
+			expectedStatusPk:                 emptyStatus,
+			doPing:                           true,
+			pingPacket:                       normalPingPk,
+			shouldNOTFinish:                  false,
+			cutConnBeforeSendingServerStatus: true,
 		},
 	}
 
 	if proxyPing {
 		tt = append(tt, serverStatusTestcase{
-			name:       "different ping packet",
-			doPing:     true,
-			pingPacket: specialPingPk,
-			hsPk:       hsPk,
-			requestPk:  normalRequestPk,
-			statusPk:   emptyStatus,
+			name:             "different ping packet",
+			doPing:           true,
+			pingPacket:       specialPingPk,
+			hsPk:             hsPk,
+			requestPk:        normalRequestPk,
+			expectedStatusPk: emptyStatus,
 		})
 	}
 
 	if proxyRequest {
 		tt = append(tt, serverStatusTestcase{
-			name:      "different request packet without ping",
-			hsPk:      hsPk,
-			requestPk: specialRequestPk,
-			statusPk:  emptyStatus,
+			name:             "different request packet without ping",
+			hsPk:             hsPk,
+			requestPk:        specialRequestPk,
+			expectedStatusPk: emptyStatus,
 		}, serverStatusTestcase{
-			name:       "different request packet with ping",
-			hsPk:       hsPk,
-			requestPk:  specialRequestPk,
-			statusPk:   emptyStatus,
-			doPing:     true,
-			pingPacket: normalPingPk,
+			name:             "different request packet with ping",
+			hsPk:             hsPk,
+			requestPk:        specialRequestPk,
+			expectedStatusPk: emptyStatus,
+			doPing:           true,
+			pingPacket:       normalPingPk,
 		})
 	}
 
@@ -421,10 +456,14 @@ func testServerStatus_WithoutConfigStatus(t *testing.T, runServer runTestServer,
 			}
 			testSamePK(t, tc.requestPk, receivedLoginPk)
 
-			statusBytes, _ := tc.statusPk.Marshal()
-			s2.Write(statusBytes)
+			if tc.cutConnBeforeSendingServerStatus {
+				s2.Close()
+			} else {
+				statusBytes, _ := tc.expectedStatusPk.Marshal()
+				s2.Write(statusBytes)
+			}
 
-			testSamePK(t, tc.statusPk, statusData.receivedStatus)
+			testSamePK(t, tc.expectedStatusPk, statusData.receivedStatus)
 
 			if tc.doPing {
 				if proxyPing {
@@ -443,6 +482,10 @@ func testServerStatus_WithoutConfigStatus(t *testing.T, runServer runTestServer,
 					receivedPingPk := <-pingCh
 					testSamePK(t, tc.pingPacket, receivedPingPk)
 				}
+			}
+
+			if tc.shouldNOTFinish {
+				t.Error("finished with getting status but was supposed to fail")
 			}
 
 		})

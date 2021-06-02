@@ -42,9 +42,6 @@ func (s *MCServer) Status(clientConn connection.StatusConnection) protocol.Packe
 	hs, _ := clientConn.HsPk()
 	serverConn.SendPK(hs)
 	pk, err := serverConn.Status(protocol.Packet{})
-	if err != nil {
-		fmt.Println(err)
-	}
 	if err == nil {
 		if len(s.OnlineConfigStatus.Data) != 0 {
 			pk = s.OnlineConfigStatus
