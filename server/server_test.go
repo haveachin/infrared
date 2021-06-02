@@ -22,7 +22,7 @@ var (
 
 	ErrNotImplemented = errors.New("not implemented")
 
-	defaultChanTimeout = 5 * time.Millisecond
+	defaultChanTimeout = 50 * time.Millisecond
 )
 
 type LoginData struct {

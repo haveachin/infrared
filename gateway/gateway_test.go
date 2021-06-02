@@ -23,7 +23,7 @@ var (
 	ErrNotImplemented = errors.New("not implemented")
 	ErrNoReadLeft     = errors.New("no packets left to read")
 
-	defaultChanTimeout = 5 * time.Millisecond 
+	defaultChanTimeout = 50 * time.Millisecond 
 )
 
 type testStructWithID interface {
