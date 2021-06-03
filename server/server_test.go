@@ -31,10 +31,7 @@ type LoginData struct {
 }
 
 func loginClient(conn net.Conn, data LoginData) {
-	bytes, _ := data.hs.Marshal()
-	conn.Write(bytes)
-
-	bytes, _ = data.loginStart.Marshal()
+	bytes, _ := data.loginStart.Marshal()
 	conn.Write(bytes)
 
 	//Write something for (optional) pipe logic...?
@@ -45,16 +42,13 @@ type StatusData struct {
 	pingPk protocol.Packet
 	pingCh chan<- protocol.Packet
 
-	hs             protocol.Packet
+	hsPk           protocol.Packet
 	request        protocol.Packet
 	receivedStatus protocol.Packet
 }
 
 func (data *StatusData) statusClient(conn net.Conn) {
-	bytes, _ := data.hs.Marshal()
-	conn.Write(bytes)
-
-	bytes, _ = data.request.Marshal()
+	bytes, _ := data.request.Marshal()
 	conn.Write(bytes)
 
 	bufReader := bufio.NewReader(conn)
@@ -239,12 +233,14 @@ func testServerLogin(t *testing.T, runServer runTestServer) {
 	loginPk := protocol.Packet{ID: testLoginID}
 	tt := []struct {
 		name          string
+		hs            handshaking.ServerBoundHandshake
 		hsPk          protocol.Packet
 		loginPk       protocol.Packet
 		expectedError error
 	}{
 		{
 			name:          "normal run",
+			hs:            hs,
 			hsPk:          hsPk,
 			loginPk:       loginPk,
 			expectedError: nil,
@@ -260,7 +256,8 @@ func testServerLogin(t *testing.T, runServer runTestServer) {
 				hs:         tc.hsPk,
 				loginStart: tc.loginPk,
 			}
-
+			loginConn.SetHandshake(tc.hs)
+			loginConn.SetHsPk(tc.hsPk)
 			go func() {
 				loginClient(c2, loginData)
 			}()
@@ -295,7 +292,7 @@ func testServerLogin(t *testing.T, runServer runTestServer) {
 			}
 			testSamePK(t, tc.loginPk, receivedLoginPk)
 
-			// a little pipe testing?
+			// a little pipe testing here?
 		})
 	}
 }
@@ -307,6 +304,7 @@ type serverStatusTestcase struct {
 	shouldNOTFinish                  bool
 	cutConnBeforeSendingServerStatus bool
 
+	hs               handshaking.ServerBoundHandshake
 	hsPk             protocol.Packet
 	requestPk        protocol.Packet
 	expectedStatusPk protocol.Packet
@@ -350,12 +348,14 @@ func testServerStatus_WithoutConfigStatus(t *testing.T, runServer runTestServer,
 	tt := []serverStatusTestcase{
 		{
 			name:             "normal run without ping",
+			hs:               hs,
 			hsPk:             hsPk,
 			requestPk:        normalRequestPk,
 			expectedStatusPk: normalStatus,
 		},
 		{
 			name:             "normal run with ping",
+			hs:               hs,
 			hsPk:             hsPk,
 			requestPk:        normalRequestPk,
 			expectedStatusPk: normalStatus,
@@ -364,6 +364,7 @@ func testServerStatus_WithoutConfigStatus(t *testing.T, runServer runTestServer,
 		},
 		{
 			name:                             "cut connection instead of sending server status without ping",
+			hs:                               hs,
 			hsPk:                             hsPk,
 			requestPk:                        normalRequestPk,
 			expectedStatusPk:                 emptyStatus,
@@ -372,6 +373,7 @@ func testServerStatus_WithoutConfigStatus(t *testing.T, runServer runTestServer,
 		},
 		{
 			name:                             "cut connection instead of sending server status with ping",
+			hs:                               hs,
 			hsPk:                             hsPk,
 			requestPk:                        normalRequestPk,
 			expectedStatusPk:                 emptyStatus,
@@ -387,6 +389,7 @@ func testServerStatus_WithoutConfigStatus(t *testing.T, runServer runTestServer,
 			name:             "different ping packet",
 			doPing:           true,
 			pingPacket:       specialPingPk,
+			hs:               hs,
 			hsPk:             hsPk,
 			requestPk:        normalRequestPk,
 			expectedStatusPk: emptyStatus,
@@ -396,11 +399,13 @@ func testServerStatus_WithoutConfigStatus(t *testing.T, runServer runTestServer,
 	if proxyRequest {
 		tt = append(tt, serverStatusTestcase{
 			name:             "different request packet without ping",
+			hs:               hs,
 			hsPk:             hsPk,
 			requestPk:        specialRequestPk,
 			expectedStatusPk: emptyStatus,
 		}, serverStatusTestcase{
 			name:             "different request packet with ping",
+			hs:               hs,
 			hsPk:             hsPk,
 			requestPk:        specialRequestPk,
 			expectedStatusPk: emptyStatus,
@@ -419,9 +424,11 @@ func testServerStatus_WithoutConfigStatus(t *testing.T, runServer runTestServer,
 				doPing:  tc.doPing,
 				pingCh:  pingCh,
 				pingPk:  tc.pingPacket,
-				hs:      tc.hsPk,
+				hsPk:    tc.hsPk,
 				request: tc.requestPk,
 			}
+			statusConn.SetHandshake(tc.hs)
+			statusConn.SetHsPk(tc.hsPk)
 
 			go func() {
 				statusData.statusClient(c2)

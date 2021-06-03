@@ -208,12 +208,16 @@ func testFindServer(data findServerData, t *testing.T) {
 			if !tc.shouldFind {
 				serverAddr = protocol.String(unfindableServerAddr)
 			}
+			t.Log(serverAddr)
 			hs := handshaking.ServerBoundHandshake{ServerAddress: serverAddr}
-			c1, _ := net.Pipe()
+			c1, c2 := net.Pipe()
 			addr := &net.IPAddr{IP: []byte{1, 1, 1, 1}}
 			hsConn := connection.CreateBasicPlayerConnection(c1, addr)
-			hsConn.SetHandshake(hs)
-			// hsConn := &testInConn{hs: hs}
+			go func() {
+				pk := hs.Marshal()
+				bytes, _ := pk.Marshal()
+				c2.Write(bytes)
+			}()
 
 			gwCh := make(chan connection.HSConnection)
 			serverCh := data.runGateway(gwCh)
