@@ -34,14 +34,15 @@ type MCServer struct {
 	OnlineConfigStatus  protocol.Packet
 	OfflineConfigStatus protocol.Packet
 
-	ConnCh <-chan connection.GatewayConnection
+	ConnCh <-chan connection.HSConnection
 }
 
 func (s *MCServer) Status(clientConn connection.StatusConnection) protocol.Packet {
 	serverConn, _ := s.ConnFactory(s.Config.ProxyTo)
-	hs, _ := clientConn.HsPk()
-	serverConn.SendPK(hs)
-	pk, err := serverConn.Status(protocol.Packet{})
+	hs := clientConn.HsPk()
+	serverConn.WritePacket(hs)
+	serverConn.WritePacket(protocol.Packet{})
+	pk, err := serverConn.ReadPacket()
 	if err == nil {
 		if len(s.OnlineConfigStatus.Data) != 0 {
 			pk = s.OnlineConfigStatus
@@ -57,10 +58,11 @@ func (s *MCServer) Status(clientConn connection.StatusConnection) protocol.Packe
 // Error testing needed
 func (s *MCServer) Login(conn connection.LoginConnection) error {
 	sConn, _ := s.ConnFactory(s.Config.ProxyTo)
-	hs, _ := conn.HsPk()
-	sConn.SendPK(hs)
-	pk, _ := conn.LoginStart()
-	sConn.SendPK(pk)
+	hs := conn.HsPk()
+	sConn.WritePacket(hs)
+	pk, _ := conn.ReadPacket()
+	sConn.WritePacket(pk)
+
 	go func() {
 		// Disconnection might need some more attention
 		connection.Pipe(conn, sConn)

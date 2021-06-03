@@ -11,8 +11,7 @@ import (
 )
 
 var (
-	ErrCantGetHSPacket = errors.New("cant get handshake packet from caller")
-	ErrNoNameYet       = errors.New("we dont have the name of this player yet")
+	ErrNoNameYet = errors.New("we dont have the name of this player yet")
 )
 
 type ServerConnFactory func(addr string) (ServerConnection, error)
@@ -28,32 +27,33 @@ const (
 
 // probably needs a better name since its not only used for piping the connection
 type PipeConnection interface {
+	getConn() ByteConnection
+}
+
+type ByteConnection interface {
 	io.Writer
 	io.Reader
+	io.Closer
 }
 
 type Connection interface {
 	infrared.PacketWriter
 	infrared.PacketReader
-	PipeConnection
 }
 
 type HSConnection interface {
 	Connection
 	RemoteAddressConnection
-	Handshake() (handshaking.ServerBoundHandshake, error)
-	HsPk() (protocol.Packet, error)
-}
+	Handshake() handshaking.ServerBoundHandshake
+	HsPk() protocol.Packet
 
-type GatewayConnection interface {
-	RemoteAddressConnection
-	ServerAddr() string
+	SetHsPk(pk protocol.Packet)
+	SetHandshake(hs handshaking.ServerBoundHandshake)
 }
 
 type LoginConnection interface {
 	HSConnection
-	Name() (string, error)
-	LoginStart() (protocol.Packet, error) // Need more work
+	PipeConnection
 }
 
 type StatusConnection interface {
@@ -62,8 +62,7 @@ type StatusConnection interface {
 
 type ServerConnection interface {
 	PipeConnection
-	Status(pk protocol.Packet) (protocol.Packet, error)
-	SendPK(pk protocol.Packet) error
+	Connection
 }
 
 type RemoteAddressConnection interface {

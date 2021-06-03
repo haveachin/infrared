@@ -23,7 +23,7 @@ var (
 	ErrNotImplemented = errors.New("not implemented")
 	ErrNoReadLeft     = errors.New("no packets left to read")
 
-	defaultChanTimeout = 50 * time.Millisecond 
+	defaultChanTimeout = 50 * time.Millisecond
 )
 
 type testStructWithID interface {
@@ -116,14 +116,14 @@ func (c *testInConn) write(b []byte) (n int, err error) {
 	return 0, ErrNotImplemented
 }
 
-type GatewayRunner func(gwCh <-chan connection.GatewayConnection) <-chan connection.GatewayConnection
+type GatewayRunner func(gwCh <-chan connection.HSConnection) <-chan connection.HSConnection
 
 // Actual test functions
 func TestFindMatchingServer_SingleServerStore(t *testing.T) {
 	serverAddr := "infrared-1"
 
-	gatewayRunner := func(gwCh <-chan connection.GatewayConnection) <-chan connection.GatewayConnection {
-		connCh := make(chan connection.GatewayConnection)
+	gatewayRunner := func(gwCh <-chan connection.HSConnection) <-chan connection.HSConnection {
+		connCh := make(chan connection.HSConnection)
 		serverData := gateway.ServerData{ConnCh: connCh}
 		serverStore := &gateway.SingleServerStore{Server: serverData}
 
@@ -146,14 +146,14 @@ func TestFindMatchingServer_SingleServerStore(t *testing.T) {
 func TestFindServer_DefaultServerStore(t *testing.T) {
 	serverAddr := "addr-1"
 
-	gatewayRunner := func(gwCh <-chan connection.GatewayConnection) <-chan connection.GatewayConnection {
+	gatewayRunner := func(gwCh <-chan connection.HSConnection) <-chan connection.HSConnection {
 		serverStore := &gateway.DefaultServerStore{}
 		for id := 2; id < 10; id++ {
 			serverAddr := fmt.Sprintf("addr-%d", id)
-			serverData := gateway.ServerData{ConnCh: make(chan connection.GatewayConnection)}
+			serverData := gateway.ServerData{ConnCh: make(chan connection.HSConnection)}
 			serverStore.AddServer(serverAddr, serverData)
 		}
-		connCh := make(chan connection.GatewayConnection)
+		connCh := make(chan connection.HSConnection)
 		serverData := gateway.ServerData{ConnCh: connCh}
 		serverStore.AddServer(serverAddr, serverData)
 
@@ -209,9 +209,13 @@ func testFindServer(data findServerData, t *testing.T) {
 				serverAddr = protocol.String(unfindableServerAddr)
 			}
 			hs := handshaking.ServerBoundHandshake{ServerAddress: serverAddr}
-			hsConn := &testInConn{hs: hs}
+			c1, _ := net.Pipe()
+			addr := &net.IPAddr{IP: []byte{1, 1, 1, 1}}
+			hsConn := connection.CreateBasicPlayerConnection(c1, addr)
+			hsConn.SetHandshake(hs)
+			// hsConn := &testInConn{hs: hs}
 
-			gwCh := make(chan connection.GatewayConnection)
+			gwCh := make(chan connection.HSConnection)
 			serverCh := data.runGateway(gwCh)
 
 			select {

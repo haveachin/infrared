@@ -134,7 +134,7 @@ func shouldStopTest(t *testing.T, err, expectedError error) bool {
 func TestBasicPlayerConnection(t *testing.T) {
 
 	innerFactory := func(conn net.Conn, addr net.Addr) *connection.BasicPlayerConnection {
-		return connection.CreateBasicPlayerConnection2(conn, addr)
+		return connection.CreateBasicPlayerConnection(conn, addr)
 	}
 
 	loginFactory := func(conn net.Conn, addr net.Addr) connection.LoginConnection {
@@ -369,7 +369,7 @@ func TestHSConnection_Utils(t *testing.T) {
 	hsFactory := func(tc testHandshakeValues) connection.HSConnection {
 		c1, c2 := net.Pipe()
 		netAddr := &net.TCPAddr{IP: net.IP("192.168.0.1")}
-		conn := connection.CreateBasicPlayerConnection2(c1, netAddr)
+		conn := connection.CreateBasicPlayerConnection(c1, netAddr)
 
 		hs := handshaking.ServerBoundHandshake{
 			ServerAddress:   protocol.String(tc.addr),

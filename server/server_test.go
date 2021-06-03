@@ -210,8 +210,8 @@ func samePK(expected, received protocol.Packet) bool {
 // }
 
 func TestMCServer(t *testing.T) {
-	runServer := func(connFactory connection.ServerConnFactory) chan<- connection.GatewayConnection {
-		connCh := make(chan connection.GatewayConnection)
+	runServer := func(connFactory connection.ServerConnFactory) chan<- connection.HSConnection {
+		connCh := make(chan connection.HSConnection)
 
 		mcServer := &server.MCServer{
 			ConnFactory: connFactory,
@@ -229,7 +229,7 @@ func TestMCServer(t *testing.T) {
 	testServerStatus_WithoutConfigStatus(t, runServer, proxyRequest, proxyPing)
 }
 
-type runTestServer func(connection.ServerConnFactory) chan<- connection.GatewayConnection
+type runTestServer func(connection.ServerConnFactory) chan<- connection.HSConnection
 
 func testServerLogin(t *testing.T, runServer runTestServer) {
 	hs := handshaking.ServerBoundHandshake{
@@ -255,7 +255,7 @@ func testServerLogin(t *testing.T, runServer runTestServer) {
 		t.Run(tc.name, func(t *testing.T) {
 			c1, c2 := net.Pipe()
 			netAddr := &net.TCPAddr{IP: net.IP("192.168.0.1")}
-			loginConn := connection.CreateBasicPlayerConnection2(c1, netAddr)
+			loginConn := connection.CreateBasicPlayerConnection(c1, netAddr)
 			loginData := LoginData{
 				hs:         tc.hsPk,
 				loginStart: tc.loginPk,
@@ -266,7 +266,7 @@ func testServerLogin(t *testing.T, runServer runTestServer) {
 			}()
 
 			s1, s2 := net.Pipe()
-			sConn := connection.CreateBasicServerConn2(s1)
+			sConn := connection.CreateBasicServerConn(s1)
 
 			connFactory := func(addr string) (connection.ServerConnection, error) {
 				return sConn, nil
@@ -413,7 +413,7 @@ func testServerStatus_WithoutConfigStatus(t *testing.T, runServer runTestServer,
 		t.Run(tc.name, func(t *testing.T) {
 			c1, c2 := net.Pipe()
 			netAddr := &net.TCPAddr{IP: net.IP("192.168.0.1")}
-			statusConn := connection.CreateBasicPlayerConnection2(c1, netAddr)
+			statusConn := connection.CreateBasicPlayerConnection(c1, netAddr)
 			pingCh := make(chan protocol.Packet)
 			statusData := &StatusData{
 				doPing:  tc.doPing,
@@ -428,7 +428,7 @@ func testServerStatus_WithoutConfigStatus(t *testing.T, runServer runTestServer,
 			}()
 
 			s1, s2 := net.Pipe()
-			sConn := connection.CreateBasicServerConn2(s1)
+			sConn := connection.CreateBasicServerConn(s1)
 
 			connFactory := func(addr string) (connection.ServerConnection, error) {
 				return sConn, nil

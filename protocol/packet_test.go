@@ -1,25 +1,28 @@
-package protocol
+package protocol_test
 
 import (
 	"bufio"
 	"bytes"
+	"net"
 	"testing"
+
+	"github.com/haveachin/infrared/protocol"
 )
 
 func TestPacket_Marshal(t *testing.T) {
 	tt := []struct {
-		packet   Packet
+		packet   protocol.Packet
 		expected []byte
 	}{
 		{
-			packet: Packet{
+			packet: protocol.Packet{
 				ID:   0x00,
 				Data: []byte{0x00, 0xf2},
 			},
 			expected: []byte{0x03, 0x00, 0x00, 0xf2},
 		},
 		{
-			packet: Packet{
+			packet: protocol.Packet{
 				ID:   0x0f,
 				Data: []byte{0x00, 0xf2, 0x03, 0x50},
 			},
@@ -41,13 +44,13 @@ func TestPacket_Marshal(t *testing.T) {
 
 func TestPacket_Scan(t *testing.T) {
 	// Arrange
-	packet := Packet{
+	packet := protocol.Packet{
 		ID:   0x00,
 		Data: []byte{0x00, 0xf2},
 	}
 
-	var booleanField Boolean
-	var byteField Byte
+	var booleanField protocol.Boolean
+	var byteField protocol.Byte
 
 	// Act
 	err := packet.Scan(
@@ -71,16 +74,16 @@ func TestPacket_Scan(t *testing.T) {
 
 func TestScanFields(t *testing.T) {
 	// Arrange
-	packet := Packet{
+	packet := protocol.Packet{
 		ID:   0x00,
 		Data: []byte{0x00, 0xf2},
 	}
 
-	var booleanField Boolean
-	var byteField Byte
+	var booleanField protocol.Boolean
+	var byteField protocol.Byte
 
 	// Act
-	err := ScanFields(
+	err := protocol.ScanFields(
 		bytes.NewReader(packet.Data),
 		&booleanField,
 		&byteField,
@@ -103,12 +106,12 @@ func TestScanFields(t *testing.T) {
 func TestMarshalPacket(t *testing.T) {
 	// Arrange
 	packetId := byte(0x00)
-	booleanField := Boolean(false)
-	byteField := Byte(0x0f)
+	booleanField := protocol.Boolean(false)
+	byteField := protocol.Byte(0x0f)
 	packetData := []byte{0x00, 0x0f}
 
 	// Act
-	packet := MarshalPacket(packetId, booleanField, byteField)
+	packet := protocol.MarshalPacket(packetId, booleanField, byteField)
 
 	// Assert
 	if packet.ID != packetId {
@@ -136,7 +139,7 @@ func TestReadPacketBytes(t *testing.T) {
 	}
 
 	for _, tc := range tt {
-		readBytes, err := ReadPacketBytes(bytes.NewReader(tc.data))
+		readBytes, err := protocol.ReadPacketBytes(bytes.NewReader(tc.data))
 		if err != nil {
 			t.Error(err)
 		}
@@ -150,12 +153,12 @@ func TestReadPacketBytes(t *testing.T) {
 func TestReadPacket(t *testing.T) {
 	tt := []struct {
 		data          []byte
-		packet        Packet
+		packet        protocol.Packet
 		dataAfterRead []byte
 	}{
 		{
 			data: []byte{0x03, 0x00, 0x00, 0xf2, 0x05, 0x0f, 0x00, 0xf2, 0x03, 0x50},
-			packet: Packet{
+			packet: protocol.Packet{
 				ID:   0x00,
 				Data: []byte{0x00, 0xf2},
 			},
@@ -163,7 +166,7 @@ func TestReadPacket(t *testing.T) {
 		},
 		{
 			data: []byte{0x05, 0x0f, 0x00, 0xf2, 0x03, 0x50, 0x30, 0x01, 0xef, 0xaa},
-			packet: Packet{
+			packet: protocol.Packet{
 				ID:   0x0f,
 				Data: []byte{0x00, 0xf2, 0x03, 0x50},
 			},
@@ -173,7 +176,7 @@ func TestReadPacket(t *testing.T) {
 
 	for _, tc := range tt {
 		buf := bytes.NewBuffer(tc.data)
-		pk, err := ReadPacket(buf)
+		pk, err := protocol.ReadPacket(buf)
 		if err != nil {
 			t.Error(err)
 		}
@@ -195,18 +198,18 @@ func TestReadPacket(t *testing.T) {
 func TestPeekPacket(t *testing.T) {
 	tt := []struct {
 		data   []byte
-		packet Packet
+		packet protocol.Packet
 	}{
 		{
 			data: []byte{0x03, 0x00, 0x00, 0xf2, 0x05, 0x0f, 0x00, 0xf2, 0x03, 0x50},
-			packet: Packet{
+			packet: protocol.Packet{
 				ID:   0x00,
 				Data: []byte{0x00, 0xf2},
 			},
 		},
 		{
 			data: []byte{0x05, 0x0f, 0x00, 0xf2, 0x03, 0x50, 0x30, 0x01, 0xef, 0xaa},
-			packet: Packet{
+			packet: protocol.Packet{
 				ID:   0x0f,
 				Data: []byte{0x00, 0xf2, 0x03, 0x50},
 			},
@@ -217,7 +220,7 @@ func TestPeekPacket(t *testing.T) {
 		dataCopy := make([]byte, len(tc.data))
 		copy(dataCopy, tc.data)
 
-		pk, err := PeekPacket(bufio.NewReader(bytes.NewReader(dataCopy)))
+		pk, err := protocol.PeekPacket(bufio.NewReader(bytes.NewReader(dataCopy)))
 		if err != nil {
 			t.Error(err)
 		}
@@ -234,4 +237,49 @@ func TestPeekPacket(t *testing.T) {
 			t.Errorf("data after read: got: %v; want: %v", dataCopy, tc.data)
 		}
 	}
+}
+
+func benchmarkReadPacker(b *testing.B, amountBytes int) {
+	data := []byte{}
+
+	for i := 0; i < amountBytes; i++ {
+		data = append(data, 0x01)
+	}
+	pk := protocol.Packet{ID: 0x05, Data: data}
+	bytes, _ := pk.Marshal()
+	c1, c2 := net.Pipe()
+	r := bufio.NewReader(c1)
+
+	go func() {
+		for {
+			c2.Write(bytes)
+		}
+	}()
+
+	for n := 0; n < b.N; n++ {
+		if _, err := protocol.ReadPacket(r); err != nil {
+			b.Error(err)
+		}
+	}
+
+}
+
+func BenchmarkReadPacker_SingleByteVarInt(b *testing.B) {
+	size := 0b0111111
+	benchmarkReadPacker(b, size)
+}
+
+func BenchmarkReadPacker_DoubleByteVarInt(b *testing.B) {
+	size := 0b1111111_0111111
+	benchmarkReadPacker(b, size)
+}
+
+func BenchmarkReadPacker_TripleByteVarInt(b *testing.B) {
+	size := 0b1111111_1111111_0111111
+	benchmarkReadPacker(b, size)
+}
+
+func BenchmarkReadPacker_QuadrupleByteVarInt(b *testing.B) {
+	size := 0b1111111_1111111_1111111_0111111
+	benchmarkReadPacker(b, size)
 }

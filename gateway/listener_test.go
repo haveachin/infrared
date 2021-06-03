@@ -123,7 +123,7 @@ func testOuterListener(t *testing.T, fn outerListenFunc) {
 		if err != nil {
 			t.Errorf("error was throw: %v", err)
 		}
-		bConn := connection.CreateBasicConnection(conn)
+		bConn := connection.CreateBasicPlayerConnection(conn, nil)
 		err = bConn.WritePacket(testPk)
 		if err != nil {
 			t.Logf("got an error while writing the packet: %v", err)
@@ -165,7 +165,7 @@ func TestBasicListener(t *testing.T) {
 			hsPk := protocol.Packet{ID: testLoginHSID}
 			c1, c2 := net.Pipe()
 			netAddr := &net.TCPAddr{IP: net.IP("192.168.0.1")}
-			loginConn := connection.CreateBasicPlayerConnection2(c1, netAddr)
+			loginConn := connection.CreateBasicPlayerConnection(c1, netAddr)
 			loginData := LoginData{
 				hs: hsPk,
 			}
@@ -178,7 +178,7 @@ func TestBasicListener(t *testing.T) {
 			if tc.returnsError {
 				outerListener = &faultyTestOutLis{}
 			}
-			connCh := make(chan connection.GatewayConnection)
+			connCh := make(chan connection.HSConnection)
 			l := gateway.BasicListener{OutListener: outerListener, ConnCh: connCh}
 
 			errChannel := make(chan error)
