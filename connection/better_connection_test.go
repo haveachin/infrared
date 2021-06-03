@@ -3,6 +3,7 @@ package connection_test
 import (
 	"bytes"
 	"errors"
+	"io"
 	"net"
 	"testing"
 	"time"
@@ -10,8 +11,6 @@ import (
 	"github.com/haveachin/infrared/connection"
 	"github.com/haveachin/infrared/protocol"
 	"github.com/haveachin/infrared/protocol/handshaking"
-	"github.com/haveachin/infrared/protocol/login"
-	"github.com/haveachin/infrared/protocol/status"
 )
 
 var (
@@ -137,10 +136,10 @@ func TestBasicPlayerConnection(t *testing.T) {
 		return connection.CreateBasicPlayerConnection(conn, addr)
 	}
 
-	loginFactory := func(conn net.Conn, addr net.Addr) connection.LoginConnection {
-		return innerFactory(conn, addr)
-	}
-	testLoginConnection(loginFactory, t)
+	// loginFactory := func(conn net.Conn, addr net.Addr) connection.LoginConnection {
+	// 	return innerFactory(conn, addr)
+	// }
+	// testLoginConnection(loginFactory, t)
 
 	hsFactory := func(conn net.Conn, addr net.Addr) connection.HSConnection {
 		return innerFactory(conn, addr)
@@ -151,118 +150,54 @@ func TestBasicPlayerConnection(t *testing.T) {
 		return innerFactory(conn, &net.IPAddr{})
 	}
 	testPipeConnection(pipeFactory, t)
+
+	connFactory := func(conn net.Conn) connection.Connection {
+		return innerFactory(conn, &net.IPAddr{})
+	}
+	testConnection(connFactory, t)
 }
 
-type loginConnFactory func(net.Conn, net.Addr) connection.LoginConnection
+func TestServerConnection(t *testing.T) {
 
-type loginConnTestCase struct {
-	name             string
-	loginStartPacket protocol.Packet
-	expectedError    error
-	mcName           string
+	innerFactory := func(conn net.Conn) *connection.BasicServerConn {
+		return connection.CreateBasicServerConn(conn)
+	}
+
+	pipeFactory := func(conn net.Conn) connection.PipeConnection {
+		return innerFactory(conn)
+	}
+	testPipeConnection(pipeFactory, t)
+
+	connFactory := func(conn net.Conn) connection.Connection {
+		return innerFactory(conn)
+	}
+	testConnection(connFactory, t)
+
 }
 
-func testLoginConnection(factory loginConnFactory, t *testing.T) {
-	// Were arent testing handshake here thats why there only is a valid one
-	hs := handshaking.ServerBoundHandshake{
-		ServerAddress:   "infrared",
-		ServerPort:      25665,
-		ProtocolVersion: 765,
-		NextState:       2,
+func TestBasicConnection(t *testing.T) {
+	innerFactory := func(conn net.Conn) *connection.BasicConnection {
+		return connection.CreateBasicConnection(conn)
 	}
 
-	validLoginPacket := login.ServerLoginStart{Name: "Drago"}.Marshal()
-	invalidLoginPacket_ID := protocol.Packet{ID: 0x7F, Data: validLoginPacket.Data}
-	loginPacket_NameToLong := login.ServerLoginStart{Name: "12345678901234567890"}.Marshal()
-
-	tt := []loginConnTestCase{
-		{
-			name:             "no error run",
-			loginStartPacket: validLoginPacket,
-			mcName:           "Drago",
-			expectedError:    nil,
-		},
-		{
-			name:             "name too long",
-			loginStartPacket: loginPacket_NameToLong,
-			mcName:           "12345678901234567890",
-			expectedError:    nil, //Doesnt expect this to be a point but maybe in the future
-		},
+	byteFactory := func(conn net.Conn) connection.ByteConnection {
+		return innerFactory(conn)
 	}
-
-	testLoginConnFactory := func(tc loginConnTestCase) connection.LoginConnection {
-		c1, c2 := net.Pipe()
-
-		netAddr := &net.TCPAddr{IP: net.IP("192.168.0.1")}
-
-		loginConn := factory(c1, netAddr)
-
-		loginData := LoginData{
-			hs:         hs.Marshal(),
-			loginStart: tc.loginStartPacket,
-		}
-
-		go func() {
-			loginClient(c2, loginData)
-		}()
-
-		loginConn.HsPk() // make it read the handshake
-		return loginConn
-	}
-
-	func() {
-		for _, tc := range tt {
-			t.Run("Packet: "+tc.name, func(t *testing.T) {
-				if errors.Is(tc.expectedError, protocol.ErrInvalidPacketID) {
-					t.Skip() // Need to some either on the conn side or test side
-				}
-				loginConn := testLoginConnFactory(tc)
-
-				pk, err := loginConn.LoginStart()
-				if shouldStopTest(t, err, tc.expectedError) {
-					t.Skip()
-				}
-				testSamePK(t, tc.loginStartPacket, pk)
-			})
-		}
-	}()
-	func() {
-		tt = append(tt, loginConnTestCase{
-			name:             "invalid packet ID",
-			loginStartPacket: invalidLoginPacket_ID,
-			mcName:           "Drago",
-			expectedError:    protocol.ErrInvalidPacketID,
-		})
-		for _, tc := range tt {
-			t.Run("Name: "+tc.name, func(t *testing.T) {
-				loginConn := testLoginConnFactory(tc)
-				name, err := loginConn.Name()
-				if shouldStopTest(t, err, tc.expectedError) {
-					t.Skip()
-				}
-
-				if tc.mcName != name {
-					t.Logf("expected:\t%v", tc.mcName)
-					t.Logf("got:\t\t%v", name)
-					t.Error("Received packet is different from what we expected")
-				}
-			})
-		}
-	}()
+	testByteConnection(byteFactory, t)
 
 }
 
 type hsConnFactory func(net.Conn, net.Addr) connection.HSConnection
 
 type hsConnTestCase struct {
-	name          string
-	hs            handshaking.ServerBoundHandshake
-	hsPacket      protocol.Packet
-	expectedError error
+	name     string
+	hs       handshaking.ServerBoundHandshake
+	hsPacket protocol.Packet
+	addr     net.Addr
 }
 
 func testHSConnection(factory hsConnFactory, t *testing.T) {
-	// Were arent testing handshake here thats why there only is a valid one
+	defaultAddr := &net.IPAddr{IP: []byte{127, 0, 0, 1}}
 	validLoginHs := handshaking.ServerBoundHandshake{
 		ServerAddress:   "infrared",
 		ServerPort:      25665,
@@ -270,70 +205,60 @@ func testHSConnection(factory hsConnFactory, t *testing.T) {
 		NextState:       2,
 	}
 	validHSPacket := validLoginHs.Marshal()
-	invalidLoginHs := protocol.Packet{ID: 0x7F, Data: validHSPacket.Data}
-
+	validLoginHs2 := handshaking.ServerBoundHandshake{
+		ServerAddress:   "infrared",
+		ServerPort:      25665,
+		ProtocolVersion: 765,
+		NextState:       2,
+	}
+	validHSPacket2 := validLoginHs.Marshal()
 	tt := []hsConnTestCase{
 		{
-			name:          "no error run",
-			hs:            validLoginHs,
-			hsPacket:      validHSPacket,
-			expectedError: nil,
+			name:     "no error run",
+			hs:       validLoginHs,
+			hsPacket: validHSPacket,
+			addr:     &net.IPAddr{IP: []byte{1, 1, 1, 1}},
+		},
+		{
+			name:     "different hs run",
+			hs:       validLoginHs2,
+			hsPacket: validHSPacket,
+		},
+		{
+			name:     "different packet run",
+			hs:       validLoginHs,
+			hsPacket: validHSPacket2,
 		},
 	}
 
-	testHSConnFactory := func(tc hsConnTestCase) connection.HSConnection {
-		c1, c2 := net.Pipe()
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.addr == nil {
+				tc.addr = defaultAddr
+			}
 
-		netAddr := &net.TCPAddr{IP: net.IP("192.168.0.1")}
+			hsConn := factory(nil, tc.addr)
+			hsConn.SetHandshake(tc.hs)
+			hsConn.SetHsPk(tc.hsPacket)
 
-		hsConn := factory(c1, netAddr)
+			pk := hsConn.HsPk()
+			testSamePK(t, tc.hsPacket, pk)
 
-		loginData := LoginData{
-			hs: tc.hsPacket,
-		}
+			hs := hsConn.Handshake()
+			if hs != tc.hs {
+				t.Logf("expected:\t%v", tc.hs)
+				t.Logf("got:\t\t%v", hs)
+				t.Error("Received different handshake from what we expected")
+			}
 
-		go func() {
-			loginClient(c2, loginData)
-		}()
+			if hsConn.RemoteAddr().String() != tc.addr.String() {
+				t.Logf("expected:\t%v", tc.addr.String())
+				t.Logf("got:\t\t%v", hsConn.RemoteAddr().String())
+				t.Error("Received different handshake from what we expected")
+			}
 
-		return hsConn
-	}
-
-	func() {
-		for _, tc := range tt {
-			t.Run("Packet: "+tc.name, func(t *testing.T) {
-				if errors.Is(tc.expectedError, protocol.ErrInvalidPacketID) {
-					t.Skip() // Need to some either on the conn side or test side
-				}
-				hsConn := testHSConnFactory(tc)
-
-				pk, err := hsConn.HsPk()
-				if shouldStopTest(t, err, tc.expectedError) {
-					t.Skip()
-				}
-				testSamePK(t, tc.hsPacket, pk)
-			})
-		}
-	}()
-
-	func() {
-		tt = append(tt, hsConnTestCase{
-			name:          "invalid packet ID",
-			hsPacket:      invalidLoginHs,
-			expectedError: protocol.ErrInvalidPacketID,
 		})
-		for _, tc := range tt {
-			t.Run("Name: "+tc.name, func(t *testing.T) {
-				hsConn := testHSConnFactory(tc)
-				hs, err := hsConn.Handshake()
-				if shouldStopTest(t, err, tc.expectedError) {
-					t.Skip()
-				}
-
-				testSameHs(t, hs, tc.hs)
-			})
-		}
-	}()
+	}
 
 }
 
@@ -367,9 +292,7 @@ func TestHSConnection_Utils(t *testing.T) {
 	}
 
 	hsFactory := func(tc testHandshakeValues) connection.HSConnection {
-		c1, c2 := net.Pipe()
-		netAddr := &net.TCPAddr{IP: net.IP("192.168.0.1")}
-		conn := connection.CreateBasicPlayerConnection(c1, netAddr)
+		conn := connection.CreateBasicPlayerConnection(nil, nil)
 
 		hs := handshaking.ServerBoundHandshake{
 			ServerAddress:   protocol.String(tc.addr),
@@ -377,14 +300,8 @@ func TestHSConnection_Utils(t *testing.T) {
 			ProtocolVersion: protocol.VarInt(tc.version),
 			NextState:       protocol.Byte(tc.nextState),
 		}
+		conn.SetHandshake(hs)
 
-		loginData := LoginData{
-			hs: hs.Marshal(),
-		}
-
-		go func() {
-			loginClient(c2, loginData)
-		}()
 		return conn
 	}
 
@@ -423,6 +340,8 @@ func TestHSConnection_Utils(t *testing.T) {
 
 type pipeConnFactory func(net.Conn) connection.PipeConnection
 
+// Need tests when client & server close connection than it will also close the other
+//  connection and continues to run the code
 func testPipeConnection(factory pipeConnFactory, t *testing.T) {
 	createPipe := func() (net.Conn, net.Conn) {
 		client1, client2 := net.Pipe()
@@ -481,121 +400,155 @@ func testPipeConnection(factory pipeConnFactory, t *testing.T) {
 
 }
 
-// This test probably need to fake ip from dialer
-// type remoteAddrConnFactory func(net.Conn, net.Addr) connection.RemoteAddressConnection
+type byteConnFactory func(net.Conn) connection.ByteConnection
 
-// type remoteAddrConnTestCase struct {
-// 	name          string
-// 	addr          string
-// 	connAddr      string
-// 	expectedError error
-// }
+// If one of these test times out
+func testByteConnection(factory byteConnFactory, t *testing.T) {
+	dataBytes := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9}
 
-// func testremoteAddrConnection(factory remoteAddrConnFactory, t *testing.T) {
-// 	standardAddr := "192.168.0.1"
-// 	tt := []remoteAddrConnTestCase{
-// 		{
-// 			name: "normal thing should match",
-// 			addr: standardAddr,
-// 			connAddr: "",
-// 			expectedError: nil,
-// 		},
-// 	}
+	conns := func() (connection.ByteConnection, connection.ByteConnection) {
+		c1, c2 := net.Pipe()
+		client := factory(c1)
+		server := factory(c2)
+		return client, server
+	}
 
-// 	for _, tc := range tt {
-// 		t.Run(tc.name, func(t *testing.T) {
-// 			conn := net.Conn{}
+	checkNoErr := func(err error, t *testing.T) {
+		if err != nil {
+			t.Error("didnt expect an error but got one")
+			t.Log(err)
+		}
+	}
 
-// 		})
-// 	}
-// }
+	checkIOLength := func(n int, t *testing.T) {
+		if n != len(dataBytes) {
+			t.Error("Received different lengths of data")
+			t.Logf("expected:\t%v", len(dataBytes))
+			t.Logf("got:\t\t%v", n)
+		}
+	}
 
-type serverConnFactory func(net.Conn, net.Addr) connection.ServerConnection
+	checkEOFErr := func(err error, t *testing.T) {
+		if !errors.Is(io.EOF, err) {
+			t.Error("expect an EOF error but didnt got one")
+			t.Log(err)
+		}
+	}
 
-type serverConnTestCase struct {
-	name          string
-	hs            handshaking.ServerBoundHandshake
-	hsPacket      protocol.Packet
-	expectedError error
+	t.Run("Can write", func(t *testing.T) {
+		client, server := conns()
+		go func() {
+			readBytes := make([]byte, len(dataBytes))
+			server.Read(readBytes)
+		}()
+
+		n, err := client.Write(dataBytes)
+		checkNoErr(err, t)
+		checkIOLength(n, t)
+	})
+
+	t.Run("Can read", func(t *testing.T) {
+		client, server := conns()
+		go func() {
+			client.Write(dataBytes)
+		}()
+		readBytes := make([]byte, len(dataBytes))
+		n, err := server.Read(readBytes)
+		checkNoErr(err, t)
+		checkIOLength(n, t)
+
+		if !bytes.Equal(dataBytes, readBytes) {
+			t.Error("Received data is different from what we expected")
+			t.Logf("expected:\t%v", dataBytes)
+			t.Logf("got:\t\t%v", readBytes)
+		}
+	})
+
+	t.Run("Can close", func(t *testing.T) {
+		readBytes := make([]byte, len(dataBytes))
+		client, server := conns()
+		go func() {
+			client.Close()
+			// Writing data to prevent timeout if close doesnt work
+			client.Write(dataBytes)
+		}()
+		_, err := server.Read(readBytes)
+		checkEOFErr(err, t)
+	})
+
 }
 
-func testServerConnection(factory serverConnFactory, t *testing.T) {
-	// Were arent testing handshake here thats why there only is a valid one
-	validLoginHs := handshaking.ServerBoundHandshake{
-		ServerAddress:   "infrared",
-		ServerPort:      25665,
-		ProtocolVersion: 765,
-		NextState:       2,
-	}
-	validHSPacket := validLoginHs.Marshal()
+type connFactory func(net.Conn) connection.Connection
 
-	tt := []serverConnTestCase{
+type connTestCase struct {
+	name        string
+	pk          protocol.Packet
+	expecterErr error
+}
+
+func testConnection(factory connFactory, t *testing.T) {
+	normalPacket := protocol.Packet{ID: 0x15, Data: []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}}
+
+	tt := []connTestCase{
 		{
-			name:          "no error run",
-			hs:            validLoginHs,
-			hsPacket:      validHSPacket,
-			expectedError: nil,
+			name:        "no error run",
+			pk:          normalPacket,
+			expecterErr: nil,
 		},
 	}
 
-	testServerConnFactory := func(tc serverConnTestCase) connection.ServerConnection {
-		c1, c2 := net.Pipe()
-		netAddr := &net.TCPAddr{IP: net.IP("192.168.0.1")}
-		conn := factory(c1, netAddr)
+	for _, tc := range tt {
+		t.Run("", func(t *testing.T) {
+			c1, c2 := net.Pipe()
+			conn1 := factory(c1)
+			conn2 := factory(c2)
 
-		hsData, _ := tc.hsPacket.Marshal()
-		requestPk := status.ServerBoundRequest{}.Marshal()
-		reqestData, _ := requestPk.Marshal()
+			go func() {
+				conn1.WritePacket(tc.pk)
+			}()
 
-		status := status.ClientBoundResponse{}.Marshal()
-		statusData, _ := status.Marshal()
+			pk, err := conn2.ReadPacket()
+			if shouldStopTest(t, err, tc.expecterErr) {
+				t.FailNow()
+			}
 
-		server := testMCServer{
-			receivedHSPk:      hsData,
-			receivedRequestPk: reqestData,
-			status:            statusData,
-			doPing:            false,
-		}
-		go func() {
-			server.statusServer(c2)
-		}()
-		return conn
+			testSamePK(t, tc.pk, pk)
+		})
 	}
 
-	func() {
-		for _, tc := range tt {
-			t.Run("SendPk: "+tc.name, func(t *testing.T) {
-				if errors.Is(tc.expectedError, protocol.ErrInvalidPacketID) {
-					t.Skip() // Need to some either on the conn side or test side
-				}
-				conn := testServerConnFactory(tc)
+	conns := func() (connection.Connection, connection.Connection) {
+		c1, c2 := net.Pipe()
+		client := factory(c1)
+		server := factory(c2)
+		return client, server
+	}
 
-				_, err := conn.Status(tc.hsPacket)
-				if shouldStopTest(t, err, tc.expectedError) {
-					t.Skip()
-				}
-				//Check status or it matches
-			})
+	checkNoErr := func(err error, t *testing.T) {
+		if err != nil {
+			t.Error("didnt expect an error but got one")
+			t.Log(err)
 		}
-	}()
+	}
 
-	// func() {
-	// 	tt = append(tt, serverConnTestCase{
-	// 		name:          "invalid packet ID",
-	// 		hsPacket:      invalidLoginHs,
-	// 		expectedError: protocol.ErrInvalidPacketID,
-	// 	})
-	// 	for _, tc := range tt {
-	// 		t.Run("SendPk: "+tc.name, func(t *testing.T) {
-	// 			conn := testServerConnFactory(tc)
-	// 			err := conn.SendPK()
-	// 			if shouldStopTest(t, err, tc.expectedError) {
-	// 				t.Skip()
-	// 			}
+	t.Run("Can write", func(t *testing.T) {
+		conn1, conn2 := conns()
+		go func() {
+			conn1.WritePacket(normalPacket)
+		}()
 
-	// 			testSameHs(t, hs, tc.hs)
-	// 		})
-	// 	}
-	// }()
+		pk, err := conn2.ReadPacket()
+		checkNoErr(err, t)
+		testSamePK(t, normalPacket, pk)
+	})
+
+	t.Run("Can read", func(t *testing.T) {
+		conn1, conn2 := conns()
+		go func() {
+			conn2.ReadPacket()
+		}()
+
+		err := conn1.WritePacket(normalPacket)
+		checkNoErr(err, t)
+	})
 
 }

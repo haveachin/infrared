@@ -76,8 +76,8 @@ func main() {
 
 	//Designed for single config needs to be rewritten
 	for _, config := range cfgs {
-		gatewayCh := make(chan connection.GatewayConnection)
-		serverCh := make(chan connection.GatewayConnection)
+		gatewayCh := make(chan connection.HSConnection)
+		serverCh := make(chan connection.HSConnection)
 
 		//Listener
 		outerListener := gateway.CreateBasicOuterListener(config.ListenTo)
@@ -102,7 +102,7 @@ func main() {
 			if err != nil {
 				return nil, err
 			}
-			return connection.CreateBasicServerConn2(c), nil
+			return connection.CreateBasicServerConn(c), nil
 		}
 
 		onlineStatus := protocol.Packet{}  //config.OnlineStatus.StatusResponsePacket()

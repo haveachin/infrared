@@ -43,12 +43,13 @@ type Connection interface {
 
 type HSConnection interface {
 	Connection
-	RemoteAddressConnection
 	Handshake() handshaking.ServerBoundHandshake
 	HsPk() protocol.Packet
 
 	SetHsPk(pk protocol.Packet)
 	SetHandshake(hs handshaking.ServerBoundHandshake)
+
+	RemoteAddr() net.Addr
 }
 
 type LoginConnection interface {
@@ -63,8 +64,4 @@ type StatusConnection interface {
 type ServerConnection interface {
 	PipeConnection
 	Connection
-}
-
-type RemoteAddressConnection interface {
-	RemoteAddr() net.Addr
 }

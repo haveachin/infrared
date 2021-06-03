@@ -45,12 +45,12 @@ func (l *faultyTestOutLis) Start() error {
 	return gateway.ErrCantStartOutListener
 }
 
-func (l *faultyTestOutLis) Accept() (connection.Connection, net.Addr) {
+func (l *faultyTestOutLis) Accept() (net.Conn, net.Addr) {
 	return nil, nil
 }
 
 type testOutLis struct {
-	conn connection.Connection
+	conn net.Conn
 
 	count int
 }
@@ -59,7 +59,7 @@ func (l *testOutLis) Start() error {
 	return nil
 }
 
-func (l *testOutLis) Accept() (connection.Connection, net.Addr) {
+func (l *testOutLis) Accept() (net.Conn, net.Addr) {
 	if l.count > 0 {
 		// To block the thread while kinda acting like a real listener
 		//  aka not returning a error bc there are not more connections
@@ -136,7 +136,8 @@ func testOuterListener(t *testing.T, fn outerListenFunc) {
 		t.FailNow()
 	}
 	wg.Done()
-	conn, _ := outerListener.Accept()
+	cNet, _ := outerListener.Accept()
+	conn := connection.CreateBasicPlayerConnection(cNet, nil)
 	receivedPk, _ := conn.ReadPacket()
 
 	testSamePK(t, testPk, receivedPk)
@@ -164,8 +165,6 @@ func TestBasicListener(t *testing.T) {
 			var outerListener gateway.OuterListener
 			hsPk := protocol.Packet{ID: testLoginHSID}
 			c1, c2 := net.Pipe()
-			netAddr := &net.TCPAddr{IP: net.IP("192.168.0.1")}
-			loginConn := connection.CreateBasicPlayerConnection(c1, netAddr)
 			loginData := LoginData{
 				hs: hsPk,
 			}
@@ -174,7 +173,7 @@ func TestBasicListener(t *testing.T) {
 				loginClient(c2, loginData)
 			}()
 
-			outerListener = &testOutLis{conn: loginConn}
+			outerListener = &testOutLis{conn: c1}
 			if tc.returnsError {
 				outerListener = &faultyTestOutLis{}
 			}

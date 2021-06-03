@@ -243,7 +243,7 @@ func benchmarkReadPacker(b *testing.B, amountBytes int) {
 	data := []byte{}
 
 	for i := 0; i < amountBytes; i++ {
-		data = append(data, 0x01)
+		data = append(data, 1)
 	}
 	pk := protocol.Packet{ID: 0x05, Data: data}
 	bytes, _ := pk.Marshal()
@@ -265,21 +265,16 @@ func benchmarkReadPacker(b *testing.B, amountBytes int) {
 }
 
 func BenchmarkReadPacker_SingleByteVarInt(b *testing.B) {
-	size := 0b0111111
+	size := 0b0101111
 	benchmarkReadPacker(b, size)
 }
 
 func BenchmarkReadPacker_DoubleByteVarInt(b *testing.B) {
-	size := 0b1111111_0111111
+	size := 0b1111111_0101111
 	benchmarkReadPacker(b, size)
 }
 
 func BenchmarkReadPacker_TripleByteVarInt(b *testing.B) {
-	size := 0b1111111_1111111_0111111
-	benchmarkReadPacker(b, size)
-}
-
-func BenchmarkReadPacker_QuadrupleByteVarInt(b *testing.B) {
-	size := 0b1111111_1111111_1111111_0111111
+	size := 0b1111111_1111111_0101111
 	benchmarkReadPacker(b, size)
 }

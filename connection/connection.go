@@ -106,7 +106,7 @@ func (c *BasicPlayerConnection) getConn() ByteConnection {
 	return c.conn
 }
 
-func CreateBasicServerConn(c net.Conn) ServerConnection {
+func CreateBasicServerConn(c net.Conn) *BasicServerConn {
 	conn := CreateBasicConnection(c)
 	return &BasicServerConn{conn: conn, reader: bufio.NewReader(conn)}
 }
@@ -131,21 +131,21 @@ func (c *BasicServerConn) getConn() ByteConnection {
 }
 
 func CreateBasicConnection(conn net.Conn) *BasicConnection {
-	return &BasicConnection{connection: conn}
+	return &BasicConnection{conn: conn}
 }
 
 type BasicConnection struct {
-	connection ByteConnection
+	conn net.Conn
 }
 
 func (c *BasicConnection) Read(b []byte) (n int, err error) {
-	return c.connection.Read(b)
+	return c.conn.Read(b)
 }
 
 func (c *BasicConnection) Write(b []byte) (n int, err error) {
-	return c.connection.Write(b)
+	return c.conn.Write(b)
 }
 
 func (c *BasicConnection) Close() error {
-	return c.connection.Close()
+	return c.conn.Close()
 }
