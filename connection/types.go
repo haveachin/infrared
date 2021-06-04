@@ -5,7 +5,6 @@ import (
 	"io"
 	"net"
 
-	"github.com/haveachin/infrared"
 	"github.com/haveachin/infrared/protocol"
 	"github.com/haveachin/infrared/protocol/handshaking"
 )
@@ -14,8 +13,8 @@ var (
 	ErrNoNameYet = errors.New("we dont have the name of this player yet")
 )
 
-type ServerConnFactory func(addr string) (ServerConnection, error)
-type HSConnFactory func(conn Connection, remoteAddr net.Addr) (HSConnection, error)
+type ServerConnFactory func(addr string) (ServerConn, error)
+type HandshakeConnFactory func(conn Conn, remoteAddr net.Addr) (HandshakeConn, error)
 
 type RequestType int8
 
@@ -26,8 +25,8 @@ const (
 )
 
 // probably needs a better name since its not only used for piping the connection
-type PipeConnection interface {
-	getConn() ByteConnection
+type PipeConn interface {
+	conn() ByteConnection
 }
 
 type ByteConnection interface {
@@ -36,32 +35,32 @@ type ByteConnection interface {
 	io.Closer
 }
 
-type Connection interface {
-	infrared.PacketWriter
-	infrared.PacketReader
+type Conn interface {
+	WritePacket(p protocol.Packet) error
+	ReadPacket() (protocol.Packet, error)
 }
 
-type HSConnection interface {
-	Connection
+type HandshakeConn interface {
+	Conn
 	Handshake() handshaking.ServerBoundHandshake
-	HsPk() protocol.Packet
+	HandshakePacket() protocol.Packet
 
-	SetHsPk(pk protocol.Packet)
+	SetHandshakePacket(pk protocol.Packet)
 	SetHandshake(hs handshaking.ServerBoundHandshake)
 
 	RemoteAddr() net.Addr
 }
 
-type LoginConnection interface {
-	HSConnection
-	PipeConnection
+type LoginConn interface {
+	HandshakeConn
+	PipeConn
 }
 
-type StatusConnection interface {
-	HSConnection
+type StatusConn interface {
+	HandshakeConn
 }
 
-type ServerConnection interface {
-	PipeConnection
-	Connection
+type ServerConn interface {
+	PipeConn
+	Conn
 }

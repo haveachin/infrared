@@ -103,7 +103,7 @@ func samePK(expected, received protocol.Packet) bool {
 // OuterListener Tests
 func TestBasicOuterListener(t *testing.T) {
 	listenerCreateFn := func(addr string) gateway.OuterListener {
-		return gateway.CreateBasicOuterListener(addr)
+		return gateway.NewBasicOuterListener(addr)
 	}
 
 	testOuterListener(t, listenerCreateFn)
@@ -123,7 +123,7 @@ func testOuterListener(t *testing.T, fn outerListenFunc) {
 		if err != nil {
 			t.Errorf("error was throw: %v", err)
 		}
-		bConn := connection.CreateBasicPlayerConnection(conn, nil)
+		bConn := connection.NewBasicPlayerConn(conn, nil)
 		err = bConn.WritePacket(testPk)
 		if err != nil {
 			t.Logf("got an error while writing the packet: %v", err)
@@ -137,7 +137,7 @@ func testOuterListener(t *testing.T, fn outerListenFunc) {
 	}
 	wg.Done()
 	cNet, _ := outerListener.Accept()
-	conn := connection.CreateBasicPlayerConnection(cNet, nil)
+	conn := connection.NewBasicPlayerConn(cNet, nil)
 	receivedPk, _ := conn.ReadPacket()
 
 	testSamePK(t, testPk, receivedPk)
@@ -177,7 +177,7 @@ func TestBasicListener(t *testing.T) {
 			if tc.returnsError {
 				outerListener = &faultyTestOutLis{}
 			}
-			connCh := make(chan connection.HSConnection)
+			connCh := make(chan connection.HandshakeConn)
 			l := gateway.BasicListener{OutListener: outerListener, ConnCh: connCh}
 
 			errChannel := make(chan error)
@@ -199,7 +199,7 @@ func TestBasicListener(t *testing.T) {
 				t.Log("Tasked timed out")
 				t.FailNow() // Dont check other code it didnt finish anyway
 			case c := <-connCh:
-				conn := c.(connection.HSConnection)
+				conn := c.(connection.HandshakeConn)
 				receivePk, _ := conn.ReadPacket()
 				testSamePK(t, hsPk, receivePk)
 			}

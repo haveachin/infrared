@@ -132,8 +132,8 @@ func shouldStopTest(t *testing.T, err, expectedError error) bool {
 
 func TestBasicPlayerConnection(t *testing.T) {
 
-	innerFactory := func(conn net.Conn, addr net.Addr) *connection.BasicPlayerConnection {
-		return connection.CreateBasicPlayerConnection(conn, addr)
+	innerFactory := func(conn net.Conn, addr net.Addr) *connection.BasicPlayerConn {
+		return connection.NewBasicPlayerConn(conn, addr)
 	}
 
 	// loginFactory := func(conn net.Conn, addr net.Addr) connection.LoginConnection {
@@ -141,17 +141,17 @@ func TestBasicPlayerConnection(t *testing.T) {
 	// }
 	// testLoginConnection(loginFactory, t)
 
-	hsFactory := func(conn net.Conn, addr net.Addr) connection.HSConnection {
+	hsFactory := func(conn net.Conn, addr net.Addr) connection.HandshakeConn {
 		return innerFactory(conn, addr)
 	}
 	testHSConnection(hsFactory, t)
 
-	pipeFactory := func(conn net.Conn) connection.PipeConnection {
+	pipeFactory := func(conn net.Conn) connection.PipeConn {
 		return innerFactory(conn, &net.IPAddr{})
 	}
 	testPipeConnection(pipeFactory, t)
 
-	connFactory := func(conn net.Conn) connection.Connection {
+	connFactory := func(conn net.Conn) connection.Conn {
 		return innerFactory(conn, &net.IPAddr{})
 	}
 	testConnection(connFactory, t)
@@ -160,15 +160,15 @@ func TestBasicPlayerConnection(t *testing.T) {
 func TestServerConnection(t *testing.T) {
 
 	innerFactory := func(conn net.Conn) *connection.BasicServerConn {
-		return connection.CreateBasicServerConn(conn)
+		return connection.NewBasicServerConn(conn)
 	}
 
-	pipeFactory := func(conn net.Conn) connection.PipeConnection {
+	pipeFactory := func(conn net.Conn) connection.PipeConn {
 		return innerFactory(conn)
 	}
 	testPipeConnection(pipeFactory, t)
 
-	connFactory := func(conn net.Conn) connection.Connection {
+	connFactory := func(conn net.Conn) connection.Conn {
 		return innerFactory(conn)
 	}
 	testConnection(connFactory, t)
@@ -176,8 +176,8 @@ func TestServerConnection(t *testing.T) {
 }
 
 func TestBasicConnection(t *testing.T) {
-	innerFactory := func(conn net.Conn) *connection.BasicConnection {
-		return connection.CreateBasicConnection(conn)
+	innerFactory := func(conn net.Conn) *connection.BasicConn {
+		return connection.NewBasicConn(conn)
 	}
 
 	byteFactory := func(conn net.Conn) connection.ByteConnection {
@@ -187,7 +187,7 @@ func TestBasicConnection(t *testing.T) {
 
 }
 
-type hsConnFactory func(net.Conn, net.Addr) connection.HSConnection
+type hsConnFactory func(net.Conn, net.Addr) connection.HandshakeConn
 
 type hsConnTestCase struct {
 	name     string
@@ -239,9 +239,9 @@ func testHSConnection(factory hsConnFactory, t *testing.T) {
 
 			hsConn := factory(nil, tc.addr)
 			hsConn.SetHandshake(tc.hs)
-			hsConn.SetHsPk(tc.hsPacket)
+			hsConn.SetHandshakePacket(tc.hsPacket)
 
-			pk := hsConn.HsPk()
+			pk := hsConn.HandshakePacket()
 			testSamePK(t, tc.hsPacket, pk)
 
 			hs := hsConn.Handshake()
@@ -291,8 +291,8 @@ func TestHSConnection_Utils(t *testing.T) {
 		},
 	}
 
-	hsFactory := func(tc testHandshakeValues) connection.HSConnection {
-		conn := connection.CreateBasicPlayerConnection(nil, nil)
+	hsFactory := func(tc testHandshakeValues) connection.HandshakeConn {
+		conn := connection.NewBasicPlayerConn(nil, nil)
 
 		hs := handshaking.ServerBoundHandshake{
 			ServerAddress:   protocol.String(tc.addr),
@@ -338,7 +338,7 @@ func TestHSConnection_Utils(t *testing.T) {
 
 }
 
-type pipeConnFactory func(net.Conn) connection.PipeConnection
+type pipeConnFactory func(net.Conn) connection.PipeConn
 
 // Need tests when client & server close connection than it will also close the other
 //  connection and continues to run the code
@@ -478,7 +478,7 @@ func testByteConnection(factory byteConnFactory, t *testing.T) {
 
 }
 
-type connFactory func(net.Conn) connection.Connection
+type connFactory func(net.Conn) connection.Conn
 
 type connTestCase struct {
 	name        string
@@ -516,7 +516,7 @@ func testConnection(factory connFactory, t *testing.T) {
 		})
 	}
 
-	conns := func() (connection.Connection, connection.Connection) {
+	conns := func() (connection.Conn, connection.Conn) {
 		c1, c2 := net.Pipe()
 		client := factory(c1)
 		server := factory(c2)

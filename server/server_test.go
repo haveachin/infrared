@@ -204,8 +204,8 @@ func samePK(expected, received protocol.Packet) bool {
 // }
 
 func TestMCServer(t *testing.T) {
-	runServer := func(connFactory connection.ServerConnFactory) chan<- connection.HSConnection {
-		connCh := make(chan connection.HSConnection)
+	runServer := func(connFactory connection.ServerConnFactory) chan<- connection.HandshakeConn {
+		connCh := make(chan connection.HandshakeConn)
 
 		mcServer := &server.MCServer{
 			ConnFactory: connFactory,
@@ -223,7 +223,7 @@ func TestMCServer(t *testing.T) {
 	testServerStatus_WithoutConfigStatus(t, runServer, proxyRequest, proxyPing)
 }
 
-type runTestServer func(connection.ServerConnFactory) chan<- connection.HSConnection
+type runTestServer func(connection.ServerConnFactory) chan<- connection.HandshakeConn
 
 func testServerLogin(t *testing.T, runServer runTestServer) {
 	hs := handshaking.ServerBoundHandshake{
@@ -251,21 +251,21 @@ func testServerLogin(t *testing.T, runServer runTestServer) {
 		t.Run(tc.name, func(t *testing.T) {
 			c1, c2 := net.Pipe()
 			netAddr := &net.TCPAddr{IP: net.IP("192.168.0.1")}
-			loginConn := connection.CreateBasicPlayerConnection(c1, netAddr)
+			loginConn := connection.NewBasicPlayerConn(c1, netAddr)
 			loginData := LoginData{
 				hs:         tc.hsPk,
 				loginStart: tc.loginPk,
 			}
 			loginConn.SetHandshake(tc.hs)
-			loginConn.SetHsPk(tc.hsPk)
+			loginConn.SetHandshakePacket(tc.hsPk)
 			go func() {
 				loginClient(c2, loginData)
 			}()
 
 			s1, s2 := net.Pipe()
-			sConn := connection.CreateBasicServerConn(s1)
+			sConn := connection.NewBasicServerConn(s1)
 
-			connFactory := func(addr string) (connection.ServerConnection, error) {
+			connFactory := func(addr string) (connection.ServerConn, error) {
 				return sConn, nil
 			}
 
@@ -418,7 +418,7 @@ func testServerStatus_WithoutConfigStatus(t *testing.T, runServer runTestServer,
 		t.Run(tc.name, func(t *testing.T) {
 			c1, c2 := net.Pipe()
 			netAddr := &net.TCPAddr{IP: net.IP("192.168.0.1")}
-			statusConn := connection.CreateBasicPlayerConnection(c1, netAddr)
+			statusConn := connection.NewBasicPlayerConn(c1, netAddr)
 			pingCh := make(chan protocol.Packet)
 			statusData := &StatusData{
 				doPing:  tc.doPing,
@@ -428,16 +428,16 @@ func testServerStatus_WithoutConfigStatus(t *testing.T, runServer runTestServer,
 				request: tc.requestPk,
 			}
 			statusConn.SetHandshake(tc.hs)
-			statusConn.SetHsPk(tc.hsPk)
+			statusConn.SetHandshakePacket(tc.hsPk)
 
 			go func() {
 				statusData.statusClient(c2)
 			}()
 
 			s1, s2 := net.Pipe()
-			sConn := connection.CreateBasicServerConn(s1)
+			sConn := connection.NewBasicServerConn(s1)
 
-			connFactory := func(addr string) (connection.ServerConnection, error) {
+			connFactory := func(addr string) (connection.ServerConn, error) {
 				return sConn, nil
 			}
 

@@ -17,8 +17,6 @@ package connection_test
 // 	"github.com/haveachin/infrared/protocol/status"
 // )
 
-
-
 // var (
 // 	testLoginHSID  byte = 5
 // 	testLoginID    byte = 6
@@ -321,7 +319,7 @@ package connection_test
 // 			data := hsConnData{conn: tConn, remoteAddr: remoteAddr}
 // 			conn := hsConnFactory(data)
 
-// 			receivedPK, err := conn.HsPk()
+// 			receivedPK, err := conn.HandshakePacket()
 // 			if err != nil && err == tc.expectedError {
 // 				// Do nothing
 // 			} else if err != nil && err != tc.expectedError {
@@ -425,7 +423,7 @@ package connection_test
 // 	return c.hs, nil
 // }
 
-// func (c testHSConnection) HsPk() (protocol.Packet, error) {
+// func (c testHSConnection) HandshakePacket() (protocol.Packet, error) {
 // 	return protocol.Packet{}, nil
 // }
 

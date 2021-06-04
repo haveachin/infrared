@@ -17,7 +17,7 @@ type OuterListener interface {
 	Accept() (net.Conn, net.Addr)
 }
 
-func CreateBasicOuterListener(addr string) OuterListener {
+func NewBasicOuterListener(addr string) OuterListener {
 	return &BasicOuterListener{addr: addr}
 }
 
@@ -43,7 +43,7 @@ func (l *BasicOuterListener) Accept() (net.Conn, net.Addr) {
 
 type BasicListener struct {
 	OutListener OuterListener
-	ConnCh      chan<- connection.HSConnection
+	ConnCh      chan<- connection.HandshakeConn
 }
 
 func (l *BasicListener) Listen() error {
@@ -53,7 +53,7 @@ func (l *BasicListener) Listen() error {
 	}
 	for {
 		conn, remoteAddr := l.OutListener.Accept()
-		c := connection.CreateBasicPlayerConnection(conn, remoteAddr)
+		c := connection.NewBasicPlayerConn(conn, remoteAddr)
 		l.ConnCh <- c
 	}
 }
