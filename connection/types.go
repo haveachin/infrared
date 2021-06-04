@@ -26,10 +26,10 @@ const (
 
 // probably needs a better name since its not only used for piping the connection
 type PipeConn interface {
-	conn() ByteConnection
+	conn() ByteConn
 }
 
-type ByteConnection interface {
+type ByteConn interface {
 	io.Writer
 	io.Reader
 	io.Closer

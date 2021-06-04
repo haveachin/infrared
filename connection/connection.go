@@ -35,7 +35,7 @@ func Pipe(c, s PipeConn) {
 	server.Close()
 }
 
-func pipe(c1, c2 ByteConnection) {
+func pipe(c1, c2 ByteConn) {
 	buffer := make([]byte, 0xffff)
 
 	for {
@@ -64,7 +64,7 @@ func NewBasicPlayerConn(conn net.Conn, remoteAddr net.Addr) *BasicPlayerConn {
 
 // Basic implementation of LoginConnection
 type BasicPlayerConn struct {
-	byteConn  ByteConnection
+	byteConn  ByteConn
 	reader protocol.DecodeReader
 
 	addr net.Addr
@@ -102,7 +102,7 @@ func (conn *BasicPlayerConn) RemoteAddr() net.Addr {
 	return conn.addr
 }
 
-func (conn *BasicPlayerConn) conn() ByteConnection {
+func (conn *BasicPlayerConn) conn() ByteConn {
 	return conn.byteConn
 }
 
@@ -112,7 +112,7 @@ func NewBasicServerConn(c net.Conn) *BasicServerConn {
 }
 
 type BasicServerConn struct {
-	byteConn  ByteConnection
+	byteConn  ByteConn
 	reader protocol.DecodeReader
 }
 
@@ -126,7 +126,7 @@ func (c *BasicServerConn) WritePacket(p protocol.Packet) error {
 	return err
 }
 
-func (c *BasicServerConn) conn() ByteConnection {
+func (c *BasicServerConn) conn() ByteConn {
 	return c.byteConn
 }
 

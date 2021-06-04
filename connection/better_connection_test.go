@@ -130,34 +130,34 @@ func shouldStopTest(t *testing.T, err, expectedError error) bool {
 	}
 }
 
-func TestBasicPlayerConnection(t *testing.T) {
+func TestBasicPlayerConn(t *testing.T) {
 
 	innerFactory := func(conn net.Conn, addr net.Addr) *connection.BasicPlayerConn {
 		return connection.NewBasicPlayerConn(conn, addr)
 	}
 
-	// loginFactory := func(conn net.Conn, addr net.Addr) connection.LoginConnection {
+	// loginFactory := func(conn net.Conn, addr net.Addr) connection.LoginConn {
 	// 	return innerFactory(conn, addr)
 	// }
-	// testLoginConnection(loginFactory, t)
+	// testLoginConn(loginFactory, t)
 
 	hsFactory := func(conn net.Conn, addr net.Addr) connection.HandshakeConn {
 		return innerFactory(conn, addr)
 	}
-	testHSConnection(hsFactory, t)
+	testHSConn(hsFactory, t)
 
 	pipeFactory := func(conn net.Conn) connection.PipeConn {
 		return innerFactory(conn, &net.IPAddr{})
 	}
-	testPipeConnection(pipeFactory, t)
+	testPipeConn(pipeFactory, t)
 
 	connFactory := func(conn net.Conn) connection.Conn {
 		return innerFactory(conn, &net.IPAddr{})
 	}
-	testConnection(connFactory, t)
+	testConn(connFactory, t)
 }
 
-func TestServerConnection(t *testing.T) {
+func TestServerConn(t *testing.T) {
 
 	innerFactory := func(conn net.Conn) *connection.BasicServerConn {
 		return connection.NewBasicServerConn(conn)
@@ -166,24 +166,24 @@ func TestServerConnection(t *testing.T) {
 	pipeFactory := func(conn net.Conn) connection.PipeConn {
 		return innerFactory(conn)
 	}
-	testPipeConnection(pipeFactory, t)
+	testPipeConn(pipeFactory, t)
 
 	connFactory := func(conn net.Conn) connection.Conn {
 		return innerFactory(conn)
 	}
-	testConnection(connFactory, t)
+	testConn(connFactory, t)
 
 }
 
-func TestBasicConnection(t *testing.T) {
+func TestBasicConn(t *testing.T) {
 	innerFactory := func(conn net.Conn) *connection.BasicConn {
 		return connection.NewBasicConn(conn)
 	}
 
-	byteFactory := func(conn net.Conn) connection.ByteConnection {
+	byteFactory := func(conn net.Conn) connection.ByteConn {
 		return innerFactory(conn)
 	}
-	testByteConnection(byteFactory, t)
+	testByteConn(byteFactory, t)
 
 }
 
@@ -196,7 +196,7 @@ type hsConnTestCase struct {
 	addr     net.Addr
 }
 
-func testHSConnection(factory hsConnFactory, t *testing.T) {
+func testHSConn(factory hsConnFactory, t *testing.T) {
 	defaultAddr := &net.IPAddr{IP: []byte{127, 0, 0, 1}}
 	validLoginHs := handshaking.ServerBoundHandshake{
 		ServerAddress:   "infrared",
@@ -262,7 +262,7 @@ func testHSConnection(factory hsConnFactory, t *testing.T) {
 
 }
 
-func TestHSConnection_Utils(t *testing.T) {
+func TestHSConn_Utils(t *testing.T) {
 	type testHandshakeValues struct {
 		addr      string
 		port      int16
@@ -342,7 +342,7 @@ type pipeConnFactory func(net.Conn) connection.PipeConn
 
 // Need tests when client & server close connection than it will also close the other
 //  connection and continues to run the code
-func testPipeConnection(factory pipeConnFactory, t *testing.T) {
+func testPipeConn(factory pipeConnFactory, t *testing.T) {
 	createPipe := func() (net.Conn, net.Conn) {
 		client1, client2 := net.Pipe()
 		server1, server2 := net.Pipe()
@@ -400,13 +400,13 @@ func testPipeConnection(factory pipeConnFactory, t *testing.T) {
 
 }
 
-type byteConnFactory func(net.Conn) connection.ByteConnection
+type byteConnFactory func(net.Conn) connection.ByteConn
 
 // If one of these test times out
-func testByteConnection(factory byteConnFactory, t *testing.T) {
+func testByteConn(factory byteConnFactory, t *testing.T) {
 	dataBytes := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9}
 
-	conns := func() (connection.ByteConnection, connection.ByteConnection) {
+	conns := func() (connection.ByteConn, connection.ByteConn) {
 		c1, c2 := net.Pipe()
 		client := factory(c1)
 		server := factory(c2)
@@ -486,7 +486,7 @@ type connTestCase struct {
 	expecterErr error
 }
 
-func testConnection(factory connFactory, t *testing.T) {
+func testConn(factory connFactory, t *testing.T) {
 	normalPacket := protocol.Packet{ID: 0x15, Data: []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}}
 
 	tt := []connTestCase{
