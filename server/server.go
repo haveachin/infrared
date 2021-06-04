@@ -15,11 +15,11 @@ var (
 )
 
 type LoginServer interface {
-	Login(conn connection.LoginConnection) error
+	Login(conn connection.LoginConn) error
 }
 
 type StatusServer interface {
-	Status(conn connection.StatusConnection) protocol.Packet
+	Status(conn connection.StatusConn) protocol.Packet
 }
 
 // Server will act as abstraction layer between connection and proxy ...?
@@ -34,14 +34,15 @@ type MCServer struct {
 	OnlineConfigStatus  protocol.Packet
 	OfflineConfigStatus protocol.Packet
 
-	ConnCh <-chan connection.GatewayConnection
+	ConnCh <-chan connection.HandshakeConn
 }
 
-func (s *MCServer) Status(clientConn connection.StatusConnection) protocol.Packet {
+func (s *MCServer) Status(clientConn connection.StatusConn) protocol.Packet {
 	serverConn, _ := s.ConnFactory(s.Config.ProxyTo)
-	hs, _ := clientConn.HsPk()
-	serverConn.SendPK(hs)
-	pk, err := serverConn.Status(protocol.Packet{})
+	hs := clientConn.HandshakePacket()
+	serverConn.WritePacket(hs)
+	serverConn.WritePacket(protocol.Packet{})
+	pk, err := serverConn.ReadPacket()
 	if err == nil {
 		if len(s.OnlineConfigStatus.Data) != 0 {
 			pk = s.OnlineConfigStatus
@@ -55,12 +56,13 @@ func (s *MCServer) Status(clientConn connection.StatusConnection) protocol.Packe
 }
 
 // Error testing needed
-func (s *MCServer) Login(conn connection.LoginConnection) error {
+func (s *MCServer) Login(conn connection.LoginConn) error {
 	sConn, _ := s.ConnFactory(s.Config.ProxyTo)
-	hs, _ := conn.HsPk()
-	sConn.SendPK(hs)
-	pk, _ := conn.LoginStart()
-	sConn.SendPK(pk)
+	hs := conn.HandshakePacket()
+	sConn.WritePacket(hs)
+	pk, _ := conn.ReadPacket()
+	sConn.WritePacket(pk)
+
 	go func() {
 		// Disconnection might need some more attention
 		connection.Pipe(conn, sConn)
@@ -72,13 +74,13 @@ func (s *MCServer) Login(conn connection.LoginConnection) error {
 func (s *MCServer) Start() {
 	for {
 		c := <-s.ConnCh
-		conn := c.(connection.HSConnection)
+		conn := c.(connection.HandshakeConn)
 		switch connection.ParseRequestType(conn) {
 		case connection.LoginRequest:
-			lConn := conn.(connection.LoginConnection)
+			lConn := conn.(connection.LoginConn)
 			s.Login(lConn)
 		case connection.StatusRequest:
-			sConn := conn.(connection.StatusConnection)
+			sConn := conn.(connection.StatusConn)
 			err := s.handleStatusRequest(sConn)
 			if err != nil {
 				fmt.Println(err)
@@ -89,7 +91,7 @@ func (s *MCServer) Start() {
 	}
 }
 
-func (s *MCServer) handleStatusRequest(conn connection.StatusConnection) error {
+func (s *MCServer) handleStatusRequest(conn connection.StatusConn) error {
 	// Read the request packet and send status response back
 	_, err := conn.ReadPacket()
 	if err != nil {

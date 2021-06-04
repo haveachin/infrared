@@ -2,50 +2,62 @@ package gateway
 
 import (
 	"errors"
-	"log"
 	"sync"
 
 	"github.com/haveachin/infrared/connection"
+	"github.com/haveachin/infrared/protocol/handshaking"
 )
 
 var (
+	ErrCantGetHSPacket   = errors.New("cant get handshake packet from caller")
 	ErrNoServerFound     = errors.New("no server was found for this request")
 	ErrNotValidHandshake = errors.New("this connection didnt provide a valid handshake")
 )
 
-func CreateBasicGatewayWithStore(store ServerStore, ch <-chan connection.GatewayConnection) BasicGateway {
+func NewBasicGatewayWithStore(store ServerStore, ch <-chan connection.HandshakeConn) BasicGateway {
 	return BasicGateway{store: store, inCh: ch}
 
 }
 
 type ServerData struct {
-	ConnCh chan<- connection.GatewayConnection
+	ConnCh chan<- connection.HandshakeConn
 }
 
 type Gateway interface {
-	HandleConnection(conn connection.GatewayConnection) error
+	handleConn(conn connection.HandshakeConn) error
 }
 
 type BasicGateway struct {
 	store ServerStore
-	inCh  <-chan connection.GatewayConnection
+	inCh  <-chan connection.HandshakeConn
 }
 
 func (g *BasicGateway) Start() error {
 	for {
 		conn := <-g.inCh
-		g.handleConnection(conn)
+		g.handleConn(conn)
 	}
 }
 
-func (g *BasicGateway) handleConnection(conn connection.GatewayConnection) error {
-	addr := conn.ServerAddr()
-	log.Printf("[i] %s requests proxy for address %s", conn.RemoteAddr(), addr)
+func (g *BasicGateway) handleConn(conn connection.HandshakeConn) error {
+	pk, err := conn.ReadPacket()
+	if err != nil {
+		return ErrCantGetHSPacket
+	}
+
+	hs, err := handshaking.UnmarshalServerBoundHandshake(pk)
+	if err != nil {
+		return err
+	}
+	addr := string(hs.ServerAddress)
 	serverData, ok := g.store.FindServer(addr)
 	if !ok {
 		// There was no server to be found
 		return ErrNoServerFound
 	}
+	conn.SetHandshakePacket(pk)
+	conn.SetHandshake(hs)
+
 	serverData.ConnCh <- conn
 
 	return nil

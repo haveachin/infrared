@@ -72,7 +72,7 @@ func ReadPacketBytes(r DecodeReader) ([]byte, error) {
 // ReadPacket decodes and decompresses a byte stream and cuts the first Packet out
 func ReadPacket(r DecodeReader) (Packet, error) {
 	data, err := ReadPacketBytes(r)
-	// fmt.Println(data)
+
 	if err != nil {
 		return Packet{}, err
 	}

@@ -45,12 +45,12 @@ func (l *faultyTestOutLis) Start() error {
 	return gateway.ErrCantStartOutListener
 }
 
-func (l *faultyTestOutLis) Accept() (connection.Connection, net.Addr) {
+func (l *faultyTestOutLis) Accept() (net.Conn, net.Addr) {
 	return nil, nil
 }
 
 type testOutLis struct {
-	conn connection.Connection
+	conn net.Conn
 
 	count int
 }
@@ -59,7 +59,7 @@ func (l *testOutLis) Start() error {
 	return nil
 }
 
-func (l *testOutLis) Accept() (connection.Connection, net.Addr) {
+func (l *testOutLis) Accept() (net.Conn, net.Addr) {
 	if l.count > 0 {
 		// To block the thread while kinda acting like a real listener
 		//  aka not returning a error bc there are not more connections
@@ -103,7 +103,7 @@ func samePK(expected, received protocol.Packet) bool {
 // OuterListener Tests
 func TestBasicOuterListener(t *testing.T) {
 	listenerCreateFn := func(addr string) gateway.OuterListener {
-		return gateway.CreateBasicOuterListener(addr)
+		return gateway.NewBasicOuterListener(addr)
 	}
 
 	testOuterListener(t, listenerCreateFn)
@@ -123,7 +123,7 @@ func testOuterListener(t *testing.T, fn outerListenFunc) {
 		if err != nil {
 			t.Errorf("error was throw: %v", err)
 		}
-		bConn := connection.CreateBasicConnection(conn)
+		bConn := connection.NewBasicPlayerConn(conn, nil)
 		err = bConn.WritePacket(testPk)
 		if err != nil {
 			t.Logf("got an error while writing the packet: %v", err)
@@ -136,7 +136,8 @@ func testOuterListener(t *testing.T, fn outerListenFunc) {
 		t.FailNow()
 	}
 	wg.Done()
-	conn, _ := outerListener.Accept()
+	cNet, _ := outerListener.Accept()
+	conn := connection.NewBasicPlayerConn(cNet, nil)
 	receivedPk, _ := conn.ReadPacket()
 
 	testSamePK(t, testPk, receivedPk)
@@ -164,8 +165,6 @@ func TestBasicListener(t *testing.T) {
 			var outerListener gateway.OuterListener
 			hsPk := protocol.Packet{ID: testLoginHSID}
 			c1, c2 := net.Pipe()
-			netAddr := &net.TCPAddr{IP: net.IP("192.168.0.1")}
-			loginConn := connection.CreateBasicPlayerConnection2(c1, netAddr)
 			loginData := LoginData{
 				hs: hsPk,
 			}
@@ -174,11 +173,11 @@ func TestBasicListener(t *testing.T) {
 				loginClient(c2, loginData)
 			}()
 
-			outerListener = &testOutLis{conn: loginConn}
+			outerListener = &testOutLis{conn: c1}
 			if tc.returnsError {
 				outerListener = &faultyTestOutLis{}
 			}
-			connCh := make(chan connection.GatewayConnection)
+			connCh := make(chan connection.HandshakeConn)
 			l := gateway.BasicListener{OutListener: outerListener, ConnCh: connCh}
 
 			errChannel := make(chan error)
@@ -200,7 +199,7 @@ func TestBasicListener(t *testing.T) {
 				t.Log("Tasked timed out")
 				t.FailNow() // Dont check other code it didnt finish anyway
 			case c := <-connCh:
-				conn := c.(connection.HSConnection)
+				conn := c.(connection.HandshakeConn)
 				receivePk, _ := conn.ReadPacket()
 				testSamePK(t, hsPk, receivePk)
 			}

@@ -6,36 +6,36 @@ import (
 
 	"github.com/haveachin/infrared/protocol"
 	"github.com/haveachin/infrared/protocol/handshaking"
-	"github.com/haveachin/infrared/protocol/login"
 )
 
-func ServerAddr(conn HSConnection) string {
-	hs, _ := conn.Handshake()
-	return string(hs.ServerAddress)
+func ServerAddr(conn HandshakeConn) string {
+	return string(conn.Handshake().ServerAddress)
 }
 
-func ServerPort(conn HSConnection) int16 {
-	hs, _ := conn.Handshake()
-	return int16(hs.ServerPort)
+func ServerPort(conn HandshakeConn) int16 {
+	return int16(conn.Handshake().ServerPort)
 }
 
-func ProtocolVersion(conn HSConnection) int16 {
-	hs, _ := conn.Handshake()
-	return int16(hs.ProtocolVersion)
+func ProtocolVersion(conn HandshakeConn) int16 {
+	return int16(conn.Handshake().ProtocolVersion)
 }
 
-func ParseRequestType(conn HSConnection) RequestType {
-	hs, _ := conn.Handshake()
-	return RequestType(hs.NextState)
+func ParseRequestType(conn HandshakeConn) RequestType {
+	return RequestType(conn.Handshake().NextState)
 }
 
-func Pipe(client, server PipeConnection) {
-	go pipe(server, client)
-	//use this as blocking method so that when client returns EOF the code will continue to run code
+func Pipe(c, s PipeConn) {
+	client := c.conn()
+	server := s.conn()
+	go func() {
+		pipe(server, client)
+		client.Close()
+	}()
 	pipe(client, server)
+	server.Close()
 }
 
-func pipe(c1, c2 PipeConnection) {
+func pipe(c1, c2 ByteConn) {
 	buffer := make([]byte, 0xffff)
 
 	for {
@@ -53,170 +53,99 @@ func pipe(c1, c2 PipeConnection) {
 	}
 }
 
-func CreateBasicPlayerConnection(conn Connection, remoteAddr net.Addr) *BasicPlayerConnection {
-	return &BasicPlayerConnection{conn: conn, addr: remoteAddr}
-}
-
-func CreateBasicPlayerConnection2(conn net.Conn, remoteAddr net.Addr) *BasicPlayerConnection {
-	c := CreateBasicConnection2(conn, remoteAddr)
-	return &BasicPlayerConnection{conn: c}
+func NewBasicPlayerConn(conn net.Conn, remoteAddr net.Addr) *BasicPlayerConn {
+	c := NewBasicConn(conn)
+	return &BasicPlayerConn{
+		byteConn:  c,
+		reader: bufio.NewReader(conn),
+		addr:   remoteAddr,
+	}
 }
 
 // Basic implementation of LoginConnection
-type BasicPlayerConnection struct {
-	conn Connection
+type BasicPlayerConn struct {
+	byteConn  ByteConn
+	reader protocol.DecodeReader
 
-	addr    net.Addr
-	hsPk    protocol.Packet
-	loginPk protocol.Packet
-	hs      handshaking.ServerBoundHandshake
-	mcName  string
-
-	hasHS    bool
-	hasHSPk  bool
-	hasLogin bool
+	addr net.Addr
+	hsPk protocol.Packet
+	hs   handshaking.ServerBoundHandshake
 }
 
-func (c *BasicPlayerConnection) ServerAddr() string {
-	hs, _ := c.Handshake()
-	return string(hs.ServerAddress)
+func (conn *BasicPlayerConn) ReadPacket() (protocol.Packet, error) {
+	return protocol.ReadPacket(conn.reader)
 }
 
-func (c *BasicPlayerConnection) ReadPacket() (protocol.Packet, error) {
-	return c.conn.ReadPacket()
-}
-
-func (c *BasicPlayerConnection) WritePacket(p protocol.Packet) error {
-	return c.conn.WritePacket(p)
-}
-
-func (c *BasicPlayerConnection) RemoteAddr() net.Addr {
-	return c.addr
-}
-
-func (c *BasicPlayerConnection) Handshake() (handshaking.ServerBoundHandshake, error) {
-	if c.hasHS {
-		return c.hs, nil
-	}
-
-	pk, _ := c.HsPk()
-	var err error
-	c.hs, err = handshaking.UnmarshalServerBoundHandshake(pk)
-	if err != nil {
-		return c.hs, err
-	}
-	c.hasHS = true
-	return c.hs, nil
-}
-
-func (c *BasicPlayerConnection) HsPk() (protocol.Packet, error) {
-	if c.hasHSPk {
-		return c.hsPk, nil
-	}
-	pk, err := c.ReadPacket()
-	if err != nil {
-		return pk, ErrCantGetHSPacket
-	}
-	c.hsPk = pk
-	c.hasHSPk = true
-	return pk, nil
-}
-
-func (c *BasicPlayerConnection) Name() (string, error) {
-	if c.mcName != "" {
-		return c.mcName, nil
-	}
-	p, _ := c.LoginStart()
-	pk, err := login.UnmarshalServerBoundLoginStart(p)
-	if err != nil {
-		return "", err
-	}
-	c.mcName = string(pk.Name)
-	return c.mcName, nil
-}
-
-func (c *BasicPlayerConnection) LoginStart() (protocol.Packet, error) {
-	pk, _ := c.ReadPacket() //Need tests for error handling
-	c.loginPk = pk
-	c.hasLogin = true
-	return pk, nil
-}
-
-func (c *BasicPlayerConnection) Read(b []byte) (n int, err error) {
-	return c.conn.Read(b)
-}
-
-func (c *BasicPlayerConnection) Write(b []byte) (n int, err error) {
-	return c.conn.Write(b)
-}
-
-func CreateBasicServerConn(conn Connection, pk protocol.Packet) ServerConnection {
-	return &BasicServerConn{conn: conn, statusPK: pk}
-}
-
-func CreateBasicServerConn2(c net.Conn) ServerConnection {
-	conn := CreateBasicConnection(c)
-	return &BasicServerConn{conn: conn}
-}
-
-type BasicServerConn struct {
-	conn     Connection
-	statusPK protocol.Packet
-}
-
-func (c *BasicServerConn) Status(pk protocol.Packet) (protocol.Packet, error) {
-	c.conn.WritePacket(pk)
-	return c.conn.ReadPacket()
-}
-
-func (c *BasicServerConn) SendPK(pk protocol.Packet) error {
-	return c.conn.WritePacket(pk)
-}
-
-func (c *BasicServerConn) Read(b []byte) (n int, err error) {
-	return c.conn.Read(b)
-}
-
-func (c *BasicServerConn) Write(b []byte) (n int, err error) {
-	return c.conn.Write(b)
-}
-
-func CreateBasicConnection(conn net.Conn) *BasicConnection {
-	return &BasicConnection{connection: conn, reader: bufio.NewReader(conn)}
-}
-
-func CreateBasicConnection2(conn net.Conn, addr net.Addr) *BasicConnection {
-	return &BasicConnection{
-		connection: conn,
-		reader:     bufio.NewReader(conn),
-		remoteAddr: addr,
-	}
-}
-
-type BasicConnection struct {
-	connection net.Conn
-	reader     protocol.DecodeReader
-	remoteAddr net.Addr
-}
-
-func (c *BasicConnection) WritePacket(p protocol.Packet) error {
+func (conn *BasicPlayerConn) WritePacket(p protocol.Packet) error {
 	pk, _ := p.Marshal() // Need test for err part of this line
-	_, err := c.Write(pk)
+	_, err := conn.byteConn.Write(pk)
 	return err
 }
 
-func (c *BasicConnection) ReadPacket() (protocol.Packet, error) {
+func (conn *BasicPlayerConn) Handshake() handshaking.ServerBoundHandshake {
+	return conn.hs
+}
+
+func (conn *BasicPlayerConn) HandshakePacket() protocol.Packet {
+	return conn.hsPk
+}
+
+func (conn *BasicPlayerConn) SetHandshakePacket(pk protocol.Packet) {
+	conn.hsPk = pk
+}
+
+func (conn *BasicPlayerConn) SetHandshake(hs handshaking.ServerBoundHandshake) {
+	conn.hs = hs
+}
+
+func (conn *BasicPlayerConn) RemoteAddr() net.Addr {
+	return conn.addr
+}
+
+func (conn *BasicPlayerConn) conn() ByteConn {
+	return conn.byteConn
+}
+
+func NewBasicServerConn(c net.Conn) *BasicServerConn {
+	conn := NewBasicConn(c)
+	return &BasicServerConn{byteConn: conn, reader: bufio.NewReader(conn)}
+}
+
+type BasicServerConn struct {
+	byteConn  ByteConn
+	reader protocol.DecodeReader
+}
+
+func (c *BasicServerConn) ReadPacket() (protocol.Packet, error) {
 	return protocol.ReadPacket(c.reader)
 }
 
-func (c *BasicConnection) Read(b []byte) (n int, err error) {
-	return c.connection.Read(b)
+func (c *BasicServerConn) WritePacket(p protocol.Packet) error {
+	pk, _ := p.Marshal() // Need test for err part of this line
+	_, err := c.byteConn.Write(pk)
+	return err
 }
 
-func (c *BasicConnection) Write(b []byte) (n int, err error) {
-	return c.connection.Write(b)
+func (c *BasicServerConn) conn() ByteConn {
+	return c.byteConn
 }
 
-func (c *BasicConnection) RemoteAddr() net.Addr {
-	return c.remoteAddr
+func NewBasicConn(conn net.Conn) *BasicConn {
+	return &BasicConn{netConn: conn}
+}
+
+type BasicConn struct {
+	netConn net.Conn
+}
+
+func (conn *BasicConn) Read(b []byte) (n int, err error) {
+	return conn.netConn.Read(b)
+}
+
+func (conn *BasicConn) Write(b []byte) (n int, err error) {
+	return conn.netConn.Write(b)
+}
+
+func (conn *BasicConn) Close() error {
+	return conn.netConn.Close()
 }

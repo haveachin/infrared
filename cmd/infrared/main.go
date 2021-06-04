@@ -76,11 +76,11 @@ func main() {
 
 	//Designed for single config needs to be rewritten
 	for _, config := range cfgs {
-		gatewayCh := make(chan connection.GatewayConnection)
-		serverCh := make(chan connection.GatewayConnection)
+		gatewayCh := make(chan connection.HandshakeConn)
+		serverCh := make(chan connection.HandshakeConn)
 
 		//Listener
-		outerListener := gateway.CreateBasicOuterListener(config.ListenTo)
+		outerListener := gateway.NewBasicOuterListener(config.ListenTo)
 		l := gateway.BasicListener{OutListener: outerListener, ConnCh: gatewayCh}
 
 		go func() {
@@ -91,18 +91,18 @@ func main() {
 		serverData := gateway.ServerData{ConnCh: serverCh}
 		serverStore := &gateway.SingleServerStore{Server: serverData}
 
-		gw := gateway.CreateBasicGatewayWithStore(serverStore, gatewayCh)
+		gw := gateway.NewBasicGatewayWithStore(serverStore, gatewayCh)
 		go func() {
 			gw.Start()
 		}()
 
 		//Server
-		connFactory := func(addr string) (connection.ServerConnection, error) {
+		connFactory := func(addr string) (connection.ServerConn, error) {
 			c, err := net.Dial("tcp", addr)
 			if err != nil {
 				return nil, err
 			}
-			return connection.CreateBasicServerConn2(c), nil
+			return connection.NewBasicServerConn(c), nil
 		}
 
 		onlineStatus := protocol.Packet{}  //config.OnlineStatus.StatusResponsePacket()

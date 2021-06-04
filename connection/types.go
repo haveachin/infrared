@@ -5,18 +5,16 @@ import (
 	"io"
 	"net"
 
-	"github.com/haveachin/infrared"
 	"github.com/haveachin/infrared/protocol"
 	"github.com/haveachin/infrared/protocol/handshaking"
 )
 
 var (
-	ErrCantGetHSPacket = errors.New("cant get handshake packet from caller")
-	ErrNoNameYet       = errors.New("we dont have the name of this player yet")
+	ErrNoNameYet = errors.New("we dont have the name of this player yet")
 )
 
-type ServerConnFactory func(addr string) (ServerConnection, error)
-type HSConnFactory func(conn Connection, remoteAddr net.Addr) (HSConnection, error)
+type ServerConnFactory func(addr string) (ServerConn, error)
+type HandshakeConnFactory func(conn Conn, remoteAddr net.Addr) (HandshakeConn, error)
 
 type RequestType int8
 
@@ -27,45 +25,42 @@ const (
 )
 
 // probably needs a better name since its not only used for piping the connection
-type PipeConnection interface {
+type PipeConn interface {
+	conn() ByteConn
+}
+
+type ByteConn interface {
 	io.Writer
 	io.Reader
+	io.Closer
 }
 
-type Connection interface {
-	infrared.PacketWriter
-	infrared.PacketReader
-	PipeConnection
+type Conn interface {
+	WritePacket(p protocol.Packet) error
+	ReadPacket() (protocol.Packet, error)
 }
 
-type HSConnection interface {
-	Connection
-	RemoteAddressConnection
-	Handshake() (handshaking.ServerBoundHandshake, error)
-	HsPk() (protocol.Packet, error)
-}
+type HandshakeConn interface {
+	Conn
+	Handshake() handshaking.ServerBoundHandshake
+	HandshakePacket() protocol.Packet
 
-type GatewayConnection interface {
-	RemoteAddressConnection
-	ServerAddr() string
-}
+	SetHandshakePacket(pk protocol.Packet)
+	SetHandshake(hs handshaking.ServerBoundHandshake)
 
-type LoginConnection interface {
-	HSConnection
-	Name() (string, error)
-	LoginStart() (protocol.Packet, error) // Need more work
-}
-
-type StatusConnection interface {
-	HSConnection
-}
-
-type ServerConnection interface {
-	PipeConnection
-	Status(pk protocol.Packet) (protocol.Packet, error)
-	SendPK(pk protocol.Packet) error
-}
-
-type RemoteAddressConnection interface {
 	RemoteAddr() net.Addr
+}
+
+type LoginConn interface {
+	HandshakeConn
+	PipeConn
+}
+
+type StatusConn interface {
+	HandshakeConn
+}
+
+type ServerConn interface {
+	PipeConn
+	Conn
 }
