@@ -16,7 +16,6 @@ var (
 
 func NewBasicGatewayWithStore(store ServerStore, ch <-chan connection.HandshakeConn) BasicGateway {
 	return BasicGateway{store: store, inCh: ch}
-
 }
 
 type ServerData struct {
@@ -24,7 +23,7 @@ type ServerData struct {
 }
 
 type Gateway interface {
-	handleConn(conn connection.HandshakeConn) error
+	HandleConn(conn connection.HandshakeConn) error
 }
 
 type BasicGateway struct {
@@ -35,11 +34,11 @@ type BasicGateway struct {
 func (g *BasicGateway) Start() error {
 	for {
 		conn := <-g.inCh
-		g.handleConn(conn)
+		g.HandleConn(conn)
 	}
 }
 
-func (g *BasicGateway) handleConn(conn connection.HandshakeConn) error {
+func (g *BasicGateway) HandleConn(conn connection.HandshakeConn) error {
 	pk, err := conn.ReadPacket()
 	if err != nil {
 		return ErrCantGetHSPacket

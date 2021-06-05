@@ -56,16 +56,16 @@ func pipe(c1, c2 ByteConn) {
 func NewBasicPlayerConn(conn net.Conn, remoteAddr net.Addr) *BasicPlayerConn {
 	c := NewBasicConn(conn)
 	return &BasicPlayerConn{
-		byteConn:  c,
-		reader: bufio.NewReader(conn),
-		addr:   remoteAddr,
+		byteConn: c,
+		reader:   bufio.NewReader(conn),
+		addr:     remoteAddr,
 	}
 }
 
 // Basic implementation of LoginConnection
 type BasicPlayerConn struct {
-	byteConn  ByteConn
-	reader protocol.DecodeReader
+	byteConn ByteConn
+	reader   protocol.DecodeReader
 
 	addr net.Addr
 	hsPk protocol.Packet
@@ -112,8 +112,8 @@ func NewBasicServerConn(c net.Conn) *BasicServerConn {
 }
 
 type BasicServerConn struct {
-	byteConn  ByteConn
-	reader protocol.DecodeReader
+	byteConn ByteConn
+	reader   protocol.DecodeReader
 }
 
 func (c *BasicServerConn) ReadPacket() (protocol.Packet, error) {

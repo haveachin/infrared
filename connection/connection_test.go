@@ -1,613 +1,554 @@
 package connection_test
 
-// import (
-// 	"bytes"
-// 	"errors"
-// 	"fmt"
-// 	"net"
-// 	"sync"
-// 	"testing"
-// 	"time"
-
-// 	"github.com/haveachin/infrared"
-// 	"github.com/haveachin/infrared/connection"
-// 	"github.com/haveachin/infrared/protocol"
-// 	"github.com/haveachin/infrared/protocol/handshaking"
-// 	"github.com/haveachin/infrared/protocol/login"
-// 	"github.com/haveachin/infrared/protocol/status"
-// )
-
-// var (
-// 	testLoginHSID  byte = 5
-// 	testLoginID    byte = 6
-// 	testStatusHSID byte = 10
-
-// 	testUnboundID byte = 31
-
-// 	testSendID    byte = 41
-// 	testReceiveID byte = 42
-
-// 	ErrReadPacket      = errors.New("cant read packet bc of test")
-// 	ErrNotImplemented  = errors.New("not implemented")
-// 	ErrOnPurposeReturn = errors.New("this error is returned on purpose")
-// )
-
-// // Should implement connection.Connect
-// type testConnection struct {
-// 	hs         protocol.Packet
-// 	loginPK    protocol.Packet
-// 	readCount  int
-// 	writeCount int
-
-// 	returnErrors bool
-// }
-
-// func (c *testConnection) conn() net.Conn {
-// 	return nil
-// }
-
-// func (c *testConnection) WritePacket(p protocol.Packet) error {
-// 	c.writeCount++
-// 	return nil
-// }
-
-// func (c *testConnection) ReadPacket() (protocol.Packet, error) {
-// 	c.readCount++
-
-// 	var err error = nil
-// 	if c.returnErrors {
-// 		err = ErrReadPacket
-// 	}
-
-// 	switch c.readCount {
-// 	case 1:
-// 		return c.hs, err
-// 	case 2:
-// 		return c.loginPK, err
-// 	default:
-// 		return protocol.Packet{}, err
-// 	}
-// }
-
-// func (c *testConnection) read(b []byte) (n int, err error) {
-// 	return 0, ErrNotImplemented
-// }
-
-// func (c *testConnection) write(b []byte) (n int, err error) {
-// 	return 0, ErrNotImplemented
-// }
-
-// type serverTestConn struct {
-// 	status         protocol.Packet
-// 	readCount      int
-// 	writeCount     int
-// 	receivedPacket protocol.Packet
-// }
-
-// func (c *serverTestConn) conn() net.Conn {
-// 	return nil
-// }
-
-// func (c *serverTestConn) WritePacket(p protocol.Packet) error {
-// 	c.writeCount++
-// 	c.receivedPacket = p
-// 	return nil
-// }
-
-// func (c *serverTestConn) ReadPacket() (protocol.Packet, error) {
-// 	c.readCount++
-// 	switch c.readCount {
-// 	case 1:
-// 		return c.status, nil
-// 	default:
-// 		return protocol.Packet{}, nil
-// 	}
+import (
+	"bytes"
+	"errors"
+	"io"
+	"net"
+	"testing"
+	"time"
 
-// }
+	"github.com/haveachin/infrared/connection"
+	"github.com/haveachin/infrared/protocol"
+	"github.com/haveachin/infrared/protocol/handshaking"
+)
 
-// func (c *serverTestConn) read(b []byte) (n int, err error) {
-// 	return 0, ErrNotImplemented
-// }
-
-// func (c *serverTestConn) write(b []byte) (n int, err error) {
-// 	return 0, ErrNotImplemented
-// }
-
-// func (c *serverTestConn) receivedPk() protocol.Packet {
-// 	return c.receivedPacket
-// }
-
-// // util functions
-// func checkReceivedPk(t *testing.T, fn func(protocol.Packet) (protocol.Packet, error), expectedPK protocol.Packet) {
-// 	pk, err := fn(protocol.Packet{})
-// 	if err != nil {
-// 		t.Errorf("got error: %v", err)
-// 	}
-
-// 	testSamePK(t, expectedPK, pk)
-// }
-
-// func testSameHs(t *testing.T, received, expected handshaking.ServerBoundHandshake) {
-// 	sameAddr := received.ServerAddress == expected.ServerAddress
-// 	samePort := received.ServerPort == expected.ServerPort
-// 	sameNextState := received.NextState == expected.NextState
-// 	sameVersion := received.ProtocolVersion == expected.ProtocolVersion
-
-// 	sameHs := sameAddr && samePort && sameNextState && sameVersion
-
-// 	if !sameHs {
-// 		t.Logf("expected:\t%v", expected)
-// 		t.Logf("got:\t\t%v", received)
-// 		t.Error("Received packet is different from what we expected")
-// 	}
-// }
-
-// func testSamePK(t *testing.T, expected, received protocol.Packet) {
-// 	if !samePK(expected, received) {
-// 		t.Logf("expected:\t%v", expected)
-// 		t.Logf("got:\t\t%v", received)
-// 		t.Error("Received packet is different from what we expected")
-// 	}
-// }
-
-// func samePK(expected, received protocol.Packet) bool {
-// 	sameID := expected.ID == received.ID
-// 	sameData := bytes.Equal(expected.Data, received.Data)
-
-// 	return sameID && sameData
-// }
-
-// // Actual test methods
-// // func TestBasicLoginConnection(t *testing.T) {
-
-// // 	expectedHS := protocol.Packet{ID: testLoginHSID}
-// // 	expecedLogin := protocol.Packet{ID: testLoginID}
-// // 	conn := &loginTestConn{hs: expectedHS, loginPK: expecedLogin}
-
-// // 	lConn := connection.CreateBasicPlayerConnection(conn)
-
-// // 	checkReceivedPk(t, lConn.HsPk, expectedHS)
-// // 	checkReceivedPk(t, lConn.LoginStart, expecedLogin)
-// // }
-
-// func TestBasicServerConnection_Status(t *testing.T) {
-// 	expectedStatus, _ := infrared.StatusConfig{
-// 		VersionName:    "Latest",
-// 		ProtocolNumber: 1,
-// 		MaxPlayers:     999,
-// 		MOTD:           "One of a kind server!",
-// 	}.StatusResponsePacket()
-// 	expectedRequest := protocol.Packet{ID: testStatusHSID}
-
-// 	conn := &serverTestConn{status: expectedStatus}
-// 	sConn := connection.CreateBasicServerConn(conn, expectedRequest)
-
-// 	checkReceivedPk(t, sConn.Status, expectedStatus)
-
-// 	if conn.writeCount != 1 {
-// 		t.Error("there were more or less than 1 write requests to the mcServer")
-// 	}
-
-// 	if conn.readCount != 1 {
-// 		t.Error("there were more or less than 1 read requests to the mcServer")
-// 	}
-
-// 	receivedReq := conn.receivedPk()
-
-// 	testSamePK(t, expectedRequest, receivedReq)
-
-// }
-
-// func TestBasicServerConnection_SendPK(t *testing.T) {
-// 	expectedRequest := protocol.Packet{ID: testUnboundID}
-
-// 	conn := &serverTestConn{}
-// 	sConn := connection.CreateBasicServerConn(conn, expectedRequest)
-
-// 	err := sConn.SendPK(expectedRequest)
-// 	if err != nil {
-// 		t.Errorf("got unexepected error: %v", err)
-// 	}
-
-// 	receivedReq := conn.receivedPk()
-
-// 	testSamePK(t, expectedRequest, receivedReq)
-
-// }
-
-// func TestBasicConnectionStuff(t *testing.T) {
-// 	tt := []struct {
-// 		name string
-// 		addr net.Addr
-// 		conn net.Conn
-// 	}{
-// 		{},
-// 	}
-// 	for _, tc := range tt {
-// 		t.Run("", func(t *testing.T) {
-// 			fmt.Println(tc)
-// 		})
-// 	}
-
-// }
-
-// func TestBasicConnection(t *testing.T) {
-// 	c1, c2 := net.Pipe()
-// 	conn1 := connection.createBasicConnection(c1)
-// 	testData := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9}
-
-// 	pkSend := protocol.Packet{ID: testSendID, Data: testData}
-// 	pkReceive := protocol.Packet{ID: testReceiveID, Data: testData}
-
-// 	// READING AND WRITING OF PACKET SHOULD NOT DEPEND ON OTHER PROJECT CODE NO MATTER WHAT
-// 	// AN OVERLOOKED ERROR IN THAT COULD SNOWBALL INTO MANY PROBLEMS
-// 	// Testing or Reading(Receiving) packets works
-// 	go func() {
-// 		pk, _ := pkReceive.Marshal() // We arent testing here or this method works
-// 		c2.Write(pk)
-// 	}()
-// 	pk1, _ := conn1.ReadPacket() //Need testing for the error
-// 	testSamePK(t, pkReceive, pk1)
-
-// 	// Testing or Writing(Sending) packets works
-// 	go func(t *testing.T) {
-// 		t.Logf("sending bytes: %v", pkSend)
-// 		_ = conn1.WritePacket(pkSend) //Need testing for the error
-// 	}(t)
-
-// 	//pkLength + pkID + pkData
-// 	lengthIncommingBytes := 1 + 1 + len(testData)
-// 	var data []byte = make([]byte, lengthIncommingBytes)
-// 	c2.Read(data)
-
-// 	// First Byte is packet length (simplified)
-// 	pk2 := protocol.Packet{
-// 		ID:   data[1],
-// 		Data: data[2:],
-// 	}
-
-// 	testSamePK(t, pkSend, pk2)
-
-// }
-
-// func TestBasicPlayerConnection(t *testing.T) {
-// 	connFactory := func(data hsConnData) connection.HSConnection {
-// 		return connection.CreateBasicPlayerConnection(data.conn, data.remoteAddr)
-// 	}
-
-// 	testHSConnection_HsPk(t, connFactory)
-// 	testHSConnection_Hs(t, connFactory)
-// }
-
-// type hsConnData struct {
-// 	conn       connection.Connection
-// 	remoteAddr net.Addr
-// }
-
-// type hsConnFactory func(data hsConnData) connection.HSConnection
-
-// func testHSConnection_HsPk(t *testing.T, hsConnFactory hsConnFactory) {
-// 	hs := handshaking.ServerBoundHandshake{
-// 		ServerAddress:   "infrared",
-// 		ServerPort:      25565,
-// 		ProtocolVersion: 754,
-// 		NextState:       1,
-// 	}
-// 	HsPk := hs.Marshal()
-// 	remoteAddr := &net.TCPAddr{IP: []byte{111, 0, 0, 0}, Port: 25566}
-// 	tt := []struct {
-// 		name            string
-// 		pk              protocol.Packet
-// 		connReturnError bool
-// 		expectedError   error
-// 	}{
-// 		{
-// 			name: "normal test",
-// 			pk:   HsPk,
-// 		},
-// 		{
-// 			name:            "error test run - connection will always return error",
-// 			pk:              HsPk,
-// 			connReturnError: true,
-// 			expectedError:   connection.ErrCantGetHSPacket,
-// 		},
-// 	}
-
-// 	for _, tc := range tt {
-// 		t.Run("HsPk method: "+tc.name, func(t *testing.T) {
-// 			tConn := &testConnection{hs: tc.pk, returnErrors: tc.connReturnError}
-// 			data := hsConnData{conn: tConn, remoteAddr: remoteAddr}
-// 			conn := hsConnFactory(data)
-
-// 			receivedPK, err := conn.HandshakePacket()
-// 			if err != nil && err == tc.expectedError {
-// 				// Do nothing
-// 			} else if err != nil && err != tc.expectedError {
-// 				t.Logf("expected error: %v", tc.expectedError)
-// 				t.Logf("got error: %v", err)
-// 				t.Error("expected an error but got a wrong one")
-// 			} else if err == nil && tc.expectedError != nil {
-// 				t.Logf("expected error: %v", tc.expectedError)
-// 				t.Error("expected error but didnt get any")
-// 			} else {
-// 				testSamePK(t, tc.pk, receivedPK)
-
-// 				if remoteAddr.String() != conn.RemoteAddr().String() {
-// 					t.Error("remote addresses didnt match")
-// 				}
-// 			}
-
-// 		})
-
-// 	}
-// }
-
-// func testHSConnection_Hs(t *testing.T, hsConnFactory hsConnFactory) {
-// 	hs := handshaking.ServerBoundHandshake{
-// 		ServerAddress:   "infrared",
-// 		ServerPort:      25565,
-// 		ProtocolVersion: 754,
-// 		NextState:       1,
-// 	}
-// 	HsPk := hs.Marshal()
-
-// 	wrongIDHsPk := protocol.Packet{ID: 0x99, Data: []byte{0x99, 0x00}}
-// 	remoteAddr := &net.TCPAddr{IP: []byte{111, 0, 0, 0}, Port: 25566}
-// 	tt := []struct {
-// 		name            string
-// 		pk              protocol.Packet
-// 		hs              handshaking.ServerBoundHandshake
-// 		connReturnError bool
-// 		expectedError   error
-// 	}{
-// 		{
-// 			name: "normal test",
-// 			pk:   HsPk,
-// 			hs:   hs,
-// 		},
-// 		{
-// 			name:            "error test run - connection will always return error",
-// 			pk:              HsPk,
-// 			hs:              hs,
-// 			connReturnError: true,
-// 			expectedError:   connection.ErrCantGetHSPacket,
-// 		},
-// 		{
-// 			name:            "faulty ID HS packet",
-// 			pk:              wrongIDHsPk,
-// 			connReturnError: false,
-// 			expectedError:   protocol.ErrInvalidPacketID,
-// 		},
-// 	}
-
-// 	for _, tc := range tt {
-// 		t.Run("Hs method: "+tc.name, func(t *testing.T) {
-// 			tConn := &testConnection{hs: tc.pk, returnErrors: tc.connReturnError}
-// 			data := hsConnData{conn: tConn, remoteAddr: remoteAddr}
-// 			conn := hsConnFactory(data)
-
-// 			receivedPK, err := conn.Handshake()
-// 			if err != nil && err == tc.expectedError {
-// 				// Do nothing
-// 			} else if err != nil && err != tc.expectedError {
-// 				t.Logf("expected error: %v", tc.expectedError)
-// 				t.Logf("got error: %v", err)
-// 				t.Error("expected an error but got a wrong one")
-// 			} else if err == nil && tc.expectedError != nil {
-// 				t.Logf("expected error: %v", tc.expectedError)
-// 				t.Error("expected error but didnt get any")
-// 			} else {
-// 				testSameHs(t, tc.hs, receivedPK)
-// 			}
-// 		})
-// 	}
-// }
-
-// type testHSConnection struct {
-// 	hs handshaking.ServerBoundHandshake
-// }
-
-// func (c testHSConnection) WritePacket(pk protocol.Packet) error {
-// 	return nil
-// }
-
-// func (c testHSConnection) ReadPacket() (protocol.Packet, error) {
-// 	return protocol.Packet{}, nil
-// }
-
-// func (c testHSConnection) conn() net.Conn {
-// 	return nil
-// }
-
-// func (c testHSConnection) Handshake() (handshaking.ServerBoundHandshake, error) {
-// 	return c.hs, nil
-// }
-
-// func (c testHSConnection) HandshakePacket() (protocol.Packet, error) {
-// 	return protocol.Packet{}, nil
-// }
-
-// func (c testHSConnection) RemoteAddr() net.Addr {
-// 	return nil
-// }
-
-// func (c testHSConnection) read(b []byte) (n int, err error) {
-// 	return 0, ErrNotImplemented
-// }
-
-// func (c testHSConnection) write(b []byte) (n int, err error) {
-// 	return 0, ErrNotImplemented
-// }
-
-// func TestHSConnection_Utils(t *testing.T) {
-// 	tt := []struct {
-// 		addr      string
-// 		port      int16
-// 		version   int16
-// 		nextState connection.RequestType
-// 	}{
-// 		{
-// 			addr:      "infrared",
-// 			port:      25565,
-// 			version:   754,
-// 			nextState: connection.StatusRequest,
-// 		},
-// 		{
-// 			addr:      "infrared-2",
-// 			port:      25566,
-// 			version:   755,
-// 			nextState: connection.LoginRequest,
-// 		},
-// 		{
-// 			addr:      "infrared-3",
-// 			port:      25567,
-// 			version:   757,
-// 			nextState: connection.UnknownRequest,
-// 		},
-// 	}
-
-// 	for _, tc := range tt {
-// 		name := fmt.Sprintf("Handshak run: %s", tc.addr)
-// 		t.Run(name, func(t *testing.T) {
-// 			hs := handshaking.ServerBoundHandshake{
-// 				ServerAddress:   protocol.String(tc.addr),
-// 				ServerPort:      protocol.UnsignedShort(tc.port),
-// 				ProtocolVersion: protocol.VarInt(tc.version),
-// 				NextState:       protocol.Byte(tc.nextState),
-// 			}
-// 			tConn := &testHSConnection{hs: hs}
-
-// 			receivedAddr := connection.ServerAddr(tConn)
-// 			if receivedAddr != tc.addr {
-// 				t.Errorf("Expected: '%v' Got: %v", tc.addr, receivedAddr)
-// 			}
-
-// 			receivedPort := connection.ServerPort(tConn)
-// 			if receivedPort != tc.port {
-// 				t.Errorf("Expected: '%v' Got: %v", tc.port, receivedPort)
-// 			}
-
-// 			receivedVersion := connection.ProtocolVersion(tConn)
-// 			if receivedVersion != tc.version {
-// 				t.Errorf("Expected: '%v' Got: %v", tc.version, receivedVersion)
-// 			}
-
-// 			receivedType := connection.ParseRequestType(tConn)
-// 			if receivedType != tc.nextState {
-// 				t.Errorf("Expected: '%v' Got: %v", tc.nextState, receivedType)
-// 			}
-// 		})
-// 	}
-
-// }
-
-// func TestPipe(t *testing.T) {
-// 	c1Data := [][]byte{{1}, {1}, {1}, {1}, {1}, {1}}
-// 	c2Data := [][]byte{{2}, {2}, {2}, {2}, {2}, {2}}
-// 	emptyData := [][]byte{}
-
-// 	wg := sync.WaitGroup{}
-// 	c1 := &testPipeConn{wg: &wg, sendData: c1Data, receivedData: emptyData}
-// 	c2 := &testPipeConn{wg: &wg, sendData: c2Data, receivedData: emptyData}
-// 	wg.Add(2)
-// 	channel := make(chan struct{})
-// 	go func() {
-// 		wg.Wait()
-// 		channel <- struct{}{}
-// 	}()
-
-// 	connection.Pipe(c1, c2)
-
-// 	timeout := time.After(1 * time.Second)
-// 	select {
-// 	case <-channel:
-// 		t.Log("Tasked finished before timeout")
-// 	case <-timeout:
-// 		t.Log("Tasked timed out")
-// 		t.FailNow() // Dont check other code it didnt finish anyway
-// 	}
-
-// 	if len(c1.receivedData) != len(c2.sendData) {
-// 		t.Error("c1 a different write data size than c2's read data (data got lost or too much data?)")
-// 	}
-// 	if len(c2.receivedData) != len(c1.sendData) {
-// 		t.Error("c2 a different write data size than c1's read data (data got lost or too much data?)")
-// 	}
-
-// 	equalFn := func(s1, s2 [][]byte, t *testing.T) bool {
-// 		for i := 0; i < len(s1); i++ {
-// 			if !bytes.Equal(s1[i], s2[i]) {
-// 				return false
-// 			}
-// 		}
-// 		return true
-// 	}
-
-// 	if !equalFn(c1.sendData, c2.receivedData, t) {
-// 		t.Errorf("expected:\t%v", c1.sendData)
-// 		t.Errorf("got:\t%v", c2.receivedData)
-// 		t.Error("Data doesnt match")
-// 	}
-
-// 	if !equalFn(c2.sendData, c1.receivedData, t) {
-// 		t.Errorf("expected:\t%v", c1.sendData)
-// 		t.Errorf("got:\t%v", c2.receivedData)
-// 		t.Error("Data doesnt match")
-// 	}
-
-// }
-
-// var ErrNoMoreDataToRead = errors.New("no more data to read in this pipe connection")
-
-// type testPipeConn struct {
-// 	receivedData [][]byte
-// 	sendData     [][]byte
-
-// 	sendCount     int
-// 	receivedCount int
-
-// 	rShouldReturnErr bool
-// 	wShouldReturnErr bool
-
-// 	wg *sync.WaitGroup
-// }
-
-// func (c *testPipeConn) read(b []byte) (n int, err error) {
-// 	if c.rShouldReturnErr {
-// 		return 0, ErrOnPurposeReturn
-// 	}
-// 	if len(c.sendData) == c.sendCount {
-// 		return 0, ErrNoMoreDataToRead
-// 	}
-// 	data := c.sendData[c.sendCount]
-
-// 	for i := 0; i < len(data); i++ {
-// 		b[i] = data[i]
-// 	}
-// 	c.sendCount++
-
-// 	if c.sendCount == len(c.sendData) {
-// 		c.wg.Done()
-// 	}
-// 	return len(data), nil
-// }
-
-// func (c *testPipeConn) write(b []byte) (n int, err error) {
-// 	if c.wShouldReturnErr {
-// 		return 0, ErrOnPurposeReturn
-// 	}
-// 	if c.receivedData == nil {
-// 		c.receivedData = make([][]byte, 0)
-// 	}
-// 	c.receivedData = append(c.receivedData, b)
-// 	c.receivedCount++
-// 	return len(b), nil
-// }
-
-// func (c *testPipeConn) WritePacket(p protocol.Packet) error {
-// 	return nil
-// }
-
-// func (c *testPipeConn) ReadPacket() (protocol.Packet, error) {
-// 	return protocol.Packet{}, ErrNotImplemented
-// }
+var (
+	defaultChanTimeout = 5 * time.Millisecond
+)
+
+type LoginData struct {
+	hs         protocol.Packet
+	loginStart protocol.Packet
+}
+
+func loginClient(conn net.Conn, data LoginData) {
+	bytes, _ := data.hs.Marshal()
+	conn.Write(bytes)
+
+	bytes, _ = data.loginStart.Marshal()
+	conn.Write(bytes)
+
+	//Write something for (optional) pipe logic...?
+}
+
+type statusData struct {
+	withPing bool
+	hs       protocol.Packet
+	status   protocol.Packet
+}
+
+func statusClient(conn net.Conn, data statusData) {
+	bytes, _ := data.hs.Marshal()
+	conn.Write(bytes)
+
+	bytes, _ = data.status.Marshal()
+	conn.Write(bytes)
+
+	responseData := make([]byte, 0xffff)
+	conn.Read(responseData)
+
+	if data.withPing {
+		pingPacket := protocol.Packet{ID: 1}
+		pingBytes, _ := pingPacket.Marshal()
+		conn.Write(pingBytes)
+
+		pingData := make([]byte, 2)
+		conn.Read(pingData)
+	}
+
+}
+
+type testMCServer struct {
+	receivedHSPk      []byte
+	receivedRequestPk []byte
+
+	status []byte
+
+	doPing bool
+}
+
+func (s *testMCServer) statusServer(conn net.Conn) {
+	s.receivedHSPk = make([]byte, 0xffff)
+	conn.Read(s.receivedHSPk)
+
+	s.receivedRequestPk = make([]byte, 0xffff)
+	conn.Read(s.receivedRequestPk)
+
+	conn.Write(s.status)
+
+	if s.doPing {
+		pingData := make([]byte, 20)
+		conn.Read(pingData)
+
+		conn.Write(pingData)
+	}
+
+}
+
+func testSameHs(t *testing.T, received, expected handshaking.ServerBoundHandshake) {
+	sameAddr := received.ServerAddress == expected.ServerAddress
+	samePort := received.ServerPort == expected.ServerPort
+	sameNextState := received.NextState == expected.NextState
+	sameVersion := received.ProtocolVersion == expected.ProtocolVersion
+
+	sameHs := sameAddr && samePort && sameNextState && sameVersion
+
+	if !sameHs {
+		t.Logf("expected:\t%v", expected)
+		t.Logf("got:\t\t%v", received)
+		t.Error("Received packet is different from what we expected")
+	}
+}
+
+func testSamePK(t *testing.T, expected, received protocol.Packet) {
+	sameID := expected.ID == received.ID
+	sameData := bytes.Equal(expected.Data, received.Data)
+
+	if !sameID && sameData {
+		t.Logf("expected:\t%v", expected)
+		t.Logf("got:\t\t%v", received)
+		t.Error("Received packet is different from what we expected")
+	}
+}
+
+func shouldStopTest(t *testing.T, err, expectedError error) bool {
+	if err != nil && errors.Is(err, expectedError) {
+		t.Log("error matched expected error")
+		return true
+	} else if err != nil {
+		t.Log("error didnt match expected error")
+		t.Log(err)
+		return true
+	} else if err == nil && expectedError != nil {
+		t.Error("expected an error but didnt got any")
+		t.Logf("expected:\t%v", expectedError)
+		t.Logf("got:\t\t%v", err)
+		return true
+	} else {
+		return false
+	}
+}
+
+func TestBasicPlayerConn(t *testing.T) {
+
+	innerFactory := func(conn net.Conn, addr net.Addr) *connection.BasicPlayerConn {
+		return connection.NewBasicPlayerConn(conn, addr)
+	}
+
+	// loginFactory := func(conn net.Conn, addr net.Addr) conn.LoginConn {
+	// 	return innerFactory(conn, addr)
+	// }
+	// testLoginConn(loginFactory, t)
+
+	hsFactory := func(conn net.Conn, addr net.Addr) connection.HandshakeConn {
+		return innerFactory(conn, addr)
+	}
+	testHSConn(hsFactory, t)
+
+	pipeFactory := func(conn net.Conn) connection.PipeConn {
+		return innerFactory(conn, &net.IPAddr{})
+	}
+	testPipeConn(pipeFactory, t)
+
+	connFactory := func(conn net.Conn) connection.Conn {
+		return innerFactory(conn, &net.IPAddr{})
+	}
+	testConn(connFactory, t)
+}
+
+func TestServerConn(t *testing.T) {
+
+	innerFactory := func(conn net.Conn) *connection.BasicServerConn {
+		return connection.NewBasicServerConn(conn)
+	}
+
+	pipeFactory := func(conn net.Conn) connection.PipeConn {
+		return innerFactory(conn)
+	}
+	testPipeConn(pipeFactory, t)
+
+	connFactory := func(conn net.Conn) connection.Conn {
+		return innerFactory(conn)
+	}
+	testConn(connFactory, t)
+
+}
+
+func TestBasicConn(t *testing.T) {
+	innerFactory := func(conn net.Conn) *connection.BasicConn {
+		return connection.NewBasicConn(conn)
+	}
+
+	byteFactory := func(conn net.Conn) connection.ByteConn {
+		return innerFactory(conn)
+	}
+	testByteConn(byteFactory, t)
+
+}
+
+type hsConnFactory func(net.Conn, net.Addr) connection.HandshakeConn
+
+type hsConnTestCase struct {
+	name     string
+	hs       handshaking.ServerBoundHandshake
+	hsPacket protocol.Packet
+	addr     net.Addr
+}
+
+func testHSConn(factory hsConnFactory, t *testing.T) {
+	defaultAddr := &net.IPAddr{IP: []byte{127, 0, 0, 1}}
+	validLoginHs := handshaking.ServerBoundHandshake{
+		ServerAddress:   "infrared",
+		ServerPort:      25665,
+		ProtocolVersion: 765,
+		NextState:       2,
+	}
+	validHSPacket := validLoginHs.Marshal()
+	validLoginHs2 := handshaking.ServerBoundHandshake{
+		ServerAddress:   "infrared",
+		ServerPort:      25665,
+		ProtocolVersion: 765,
+		NextState:       2,
+	}
+	validHSPacket2 := validLoginHs.Marshal()
+	tt := []hsConnTestCase{
+		{
+			name:     "no error run",
+			hs:       validLoginHs,
+			hsPacket: validHSPacket,
+			addr:     &net.IPAddr{IP: []byte{1, 1, 1, 1}},
+		},
+		{
+			name:     "different hs run",
+			hs:       validLoginHs2,
+			hsPacket: validHSPacket,
+		},
+		{
+			name:     "different packet run",
+			hs:       validLoginHs,
+			hsPacket: validHSPacket2,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.addr == nil {
+				tc.addr = defaultAddr
+			}
+
+			hsConn := factory(nil, tc.addr)
+			hsConn.SetHandshake(tc.hs)
+			hsConn.SetHandshakePacket(tc.hsPacket)
+
+			pk := hsConn.HandshakePacket()
+			testSamePK(t, tc.hsPacket, pk)
+
+			hs := hsConn.Handshake()
+			if hs != tc.hs {
+				t.Logf("expected:\t%v", tc.hs)
+				t.Logf("got:\t\t%v", hs)
+				t.Error("Received different handshake from what we expected")
+			}
+
+			if hsConn.RemoteAddr().String() != tc.addr.String() {
+				t.Logf("expected:\t%v", tc.addr.String())
+				t.Logf("got:\t\t%v", hsConn.RemoteAddr().String())
+				t.Error("Received different handshake from what we expected")
+			}
+
+		})
+	}
+
+}
+
+func TestHSConn_Utils(t *testing.T) {
+	type testHandshakeValues struct {
+		addr      string
+		port      int16
+		version   int16
+		nextState connection.RequestType
+	}
+
+	tt := []testHandshakeValues{
+		{
+			addr:      "infrared",
+			port:      25565,
+			version:   754,
+			nextState: connection.StatusRequest,
+		},
+		{
+			addr:      "infrared-2",
+			port:      25566,
+			version:   755,
+			nextState: connection.LoginRequest,
+		},
+		{
+			addr:      "infrared-3",
+			port:      25567,
+			version:   757,
+			nextState: connection.UnknownRequest,
+		},
+	}
+
+	hsFactory := func(tc testHandshakeValues) connection.HandshakeConn {
+		conn := connection.NewBasicPlayerConn(nil, nil)
+
+		hs := handshaking.ServerBoundHandshake{
+			ServerAddress:   protocol.String(tc.addr),
+			ServerPort:      protocol.UnsignedShort(tc.port),
+			ProtocolVersion: protocol.VarInt(tc.version),
+			NextState:       protocol.Byte(tc.nextState),
+		}
+		conn.SetHandshake(hs)
+
+		return conn
+	}
+
+	for _, tc := range tt {
+		t.Run("Server-Addr", func(t *testing.T) {
+			tConn := hsFactory(tc)
+			receivedAddr := connection.ServerAddr(tConn)
+			if receivedAddr != tc.addr {
+				t.Errorf("Expected: '%v' Got: %v", tc.addr, receivedAddr)
+			}
+		})
+		t.Run("Server-Port", func(t *testing.T) {
+			tConn := hsFactory(tc)
+			receivedPort := connection.ServerPort(tConn)
+			if receivedPort != tc.port {
+				t.Errorf("Expected: '%v' Got: %v", tc.port, receivedPort)
+			}
+		})
+		t.Run("Protocol-Version", func(t *testing.T) {
+			tConn := hsFactory(tc)
+			receivedVersion := connection.ProtocolVersion(tConn)
+			if receivedVersion != tc.version {
+				t.Errorf("Expected: '%v' Got: %v", tc.version, receivedVersion)
+			}
+		})
+		t.Run("Request-Type", func(t *testing.T) {
+			tConn := hsFactory(tc)
+			receivedType := connection.ParseRequestType(tConn)
+			if receivedType != tc.nextState {
+				t.Errorf("Expected: '%v' Got: %v", tc.nextState, receivedType)
+			}
+		})
+	}
+
+}
+
+type pipeConnFactory func(net.Conn) connection.PipeConn
+
+// Need tests when client & server close connection than it will also close the other
+//  connection and continues to run the code
+func testPipeConn(factory pipeConnFactory, t *testing.T) {
+	createPipe := func() (net.Conn, net.Conn) {
+		client1, client2 := net.Pipe()
+		server1, server2 := net.Pipe()
+
+		c1 := factory(client2)
+		c2 := factory(server2)
+
+		go func() {
+			connection.Pipe(c1, c2)
+		}()
+
+		return client1, server1
+	}
+
+	t.Run("Can read and write a single time", func(t *testing.T) {
+		writingData := []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
+		client, server := createPipe()
+		readData := make([]byte, len(writingData))
+
+		client.Write(writingData)
+		server.Read(readData)
+
+		if !bytes.Equal(readData, writingData) {
+			t.Error("Received data is different from what we expected")
+			t.Logf("expected:\t%v", writingData)
+			t.Logf("got:\t\t%v", readData)
+		}
+	})
+
+	t.Run("Can read and write twice after eachother", func(t *testing.T) {
+		writingData := []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}
+		writingData2 := []byte{9, 8, 7, 6, 5, 4, 3, 2, 1, 0}
+		client, server := createPipe()
+		readData := make([]byte, len(writingData))
+		readData2 := make([]byte, len(writingData2))
+
+		client.Write(writingData)
+		server.Read(readData)
+
+		client.Write(writingData2)
+		server.Read(readData2)
+
+		if !bytes.Equal(readData, writingData) {
+			t.Error("Received data is different from what we expected")
+			t.Logf("expected:\t%v", writingData)
+			t.Logf("got:\t\t%v", readData)
+		}
+
+		if !bytes.Equal(readData2, writingData2) {
+			t.Error("Received data is different from what we expected")
+			t.Logf("expected:\t%v", writingData2)
+			t.Logf("got:\t\t%v", readData2)
+		}
+	})
+
+}
+
+type byteConnFactory func(net.Conn) connection.ByteConn
+
+// If one of these test times out
+func testByteConn(factory byteConnFactory, t *testing.T) {
+	dataBytes := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9}
+
+	conns := func() (connection.ByteConn, connection.ByteConn) {
+		c1, c2 := net.Pipe()
+		client := factory(c1)
+		server := factory(c2)
+		return client, server
+	}
+
+	checkNoErr := func(err error, t *testing.T) {
+		if err != nil {
+			t.Error("didnt expect an error but got one")
+			t.Log(err)
+		}
+	}
+
+	checkIOLength := func(n int, t *testing.T) {
+		if n != len(dataBytes) {
+			t.Error("Received different lengths of data")
+			t.Logf("expected:\t%v", len(dataBytes))
+			t.Logf("got:\t\t%v", n)
+		}
+	}
+
+	checkEOFErr := func(err error, t *testing.T) {
+		if !errors.Is(io.EOF, err) {
+			t.Error("expect an EOF error but didnt got one")
+			t.Log(err)
+		}
+	}
+
+	t.Run("Can write", func(t *testing.T) {
+		client, server := conns()
+		go func() {
+			readBytes := make([]byte, len(dataBytes))
+			server.Read(readBytes)
+		}()
+
+		n, err := client.Write(dataBytes)
+		checkNoErr(err, t)
+		checkIOLength(n, t)
+	})
+
+	t.Run("Can read", func(t *testing.T) {
+		client, server := conns()
+		go func() {
+			client.Write(dataBytes)
+		}()
+		readBytes := make([]byte, len(dataBytes))
+		n, err := server.Read(readBytes)
+		checkNoErr(err, t)
+		checkIOLength(n, t)
+
+		if !bytes.Equal(dataBytes, readBytes) {
+			t.Error("Received data is different from what we expected")
+			t.Logf("expected:\t%v", dataBytes)
+			t.Logf("got:\t\t%v", readBytes)
+		}
+	})
+
+	t.Run("Can close", func(t *testing.T) {
+		readBytes := make([]byte, len(dataBytes))
+		client, server := conns()
+		go func() {
+			client.Close()
+			// Writing data to prevent timeout if close doesnt work
+			client.Write(dataBytes)
+		}()
+		_, err := server.Read(readBytes)
+		checkEOFErr(err, t)
+	})
+
+}
+
+type connFactory func(net.Conn) connection.Conn
+
+type connTestCase struct {
+	name        string
+	pk          protocol.Packet
+	expecterErr error
+}
+
+func testConn(factory connFactory, t *testing.T) {
+	normalPacket := protocol.Packet{ID: 0x15, Data: []byte{0, 1, 2, 3, 4, 5, 6, 7, 8, 9}}
+
+	tt := []connTestCase{
+		{
+			name:        "no error run",
+			pk:          normalPacket,
+			expecterErr: nil,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run("", func(t *testing.T) {
+			c1, c2 := net.Pipe()
+			conn1 := factory(c1)
+			conn2 := factory(c2)
+
+			go func() {
+				conn1.WritePacket(tc.pk)
+			}()
+
+			pk, err := conn2.ReadPacket()
+			if shouldStopTest(t, err, tc.expecterErr) {
+				t.FailNow()
+			}
+
+			testSamePK(t, tc.pk, pk)
+		})
+	}
+
+	conns := func() (connection.Conn, connection.Conn) {
+		c1, c2 := net.Pipe()
+		client := factory(c1)
+		server := factory(c2)
+		return client, server
+	}
+
+	checkNoErr := func(err error, t *testing.T) {
+		if err != nil {
+			t.Error("didnt expect an error but got one")
+			t.Log(err)
+		}
+	}
+
+	t.Run("Can write", func(t *testing.T) {
+		conn1, conn2 := conns()
+		go func() {
+			conn1.WritePacket(normalPacket)
+		}()
+
+		pk, err := conn2.ReadPacket()
+		checkNoErr(err, t)
+		testSamePK(t, normalPacket, pk)
+	})
+
+	t.Run("Can read", func(t *testing.T) {
+		conn1, conn2 := conns()
+		go func() {
+			conn2.ReadPacket()
+		}()
+
+		err := conn1.WritePacket(normalPacket)
+		checkNoErr(err, t)
+	})
+
+}
