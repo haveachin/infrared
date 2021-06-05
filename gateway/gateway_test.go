@@ -14,9 +14,7 @@ import (
 )
 
 var (
-	testLoginHSID  byte = 5
-	testLoginID    byte = 6
-	testStatusHSID byte = 10
+	testLoginHSID byte = 5
 
 	testUnboundID byte = 31
 
@@ -25,96 +23,6 @@ var (
 
 	defaultChanTimeout = 50 * time.Millisecond
 )
-
-type testStructWithID interface {
-	ID() string
-}
-
-type testServer struct {
-	id           string
-	loginCalled  int
-	statusCalled int
-}
-
-func (s *testServer) Status(conn connection.StatusConn) protocol.Packet {
-	s.statusCalled++
-	return protocol.Packet{}
-}
-
-func (s *testServer) Login(conn connection.LoginConn) error {
-	s.loginCalled++
-	return nil
-}
-
-func (s *testServer) ID() string {
-	return s.id
-}
-
-// INcomming CONNection, not obvious? Change it!
-type testInConn struct {
-	id int
-
-	writeCount int
-	readCount  int
-
-	hs      handshaking.ServerBoundHandshake
-	hsPk    protocol.Packet
-	loginPK protocol.Packet
-}
-
-func (c *testInConn) WritePacket(p protocol.Packet) error {
-	c.writeCount++
-	return nil
-}
-
-func (c *testInConn) ReadPacket() (protocol.Packet, error) {
-	c.readCount++
-	switch c.readCount {
-	case 1:
-		return c.hsPk, nil
-	case 2:
-		return c.loginPK, nil
-	default:
-		return protocol.Packet{}, nil
-	}
-
-}
-
-func (c *testInConn) ServerAddr() string {
-	return string(c.hs.ServerAddress)
-}
-
-func (c *testInConn) RemoteAddr() net.Addr {
-	return &net.TCPAddr{}
-}
-
-func (c *testInConn) Name() (string, error) {
-	return "", ErrNotImplemented
-}
-
-func (c *testInConn) HandshakePacket() (protocol.Packet, error) {
-	return c.hsPk, nil
-}
-
-func (c *testInConn) Hs() (handshaking.ServerBoundHandshake, error) {
-	return c.hs, nil // Always returning hs so we can really test the code or it depends on the boolean return
-}
-
-func (c *testInConn) LoginStart() (protocol.Packet, error) {
-	return protocol.Packet{}, ErrNotImplemented
-}
-
-func (c *testInConn) SendStatus(status protocol.Packet) error {
-	return ErrNotImplemented
-}
-
-func (c *testInConn) read(b []byte) (n int, err error) {
-	return 0, ErrNotImplemented
-}
-
-func (c *testInConn) write(b []byte) (n int, err error) {
-	return 0, ErrNotImplemented
-}
 
 type GatewayRunner func(gwCh <-chan connection.HandshakeConn) <-chan connection.HandshakeConn
 
@@ -277,7 +185,7 @@ func testFindServer(data findServerData, t *testing.T) {
 
 // 	// Setup server stuff
 // 	serverConnFactory := func() connection.ServerConnection {
-// 		return connection.CreateBasicServerConn(tOutConn, protocol.Packet{})
+// 		return conn.CreateBasicServerConn(tOutConn, protocol.Packet{})
 // 	}
 
 // 	mcServer := &server.MCServer{
@@ -289,7 +197,7 @@ func testFindServer(data findServerData, t *testing.T) {
 // 	tGateway := gateway.CreateBasicGatewayWithStore(store, nil)
 
 // 	ipAddr := &net.TCPAddr{IP: []byte{101, 12, 23, 85}, Port: 50674}
-// 	playerConn := connection.CreateBasicPlayerConnection(tInConn, ipAddr)
+// 	playerConn := conn.CreateBasicPlayerConnection(tInConn, ipAddr)
 // 	outerListener := &testOutLis{conn: playerConn}
 
 // 	listener := &gateway.BasicListener{Gw: &tGateway, OutListener: outerListener}

@@ -5,10 +5,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net"
 	"testing"
 	"time"
 
+	"github.com/haveachin/infrared"
 	"github.com/haveachin/infrared/connection"
 	"github.com/haveachin/infrared/protocol"
 	"github.com/haveachin/infrared/protocol/handshaking"
@@ -17,7 +19,6 @@ import (
 )
 
 var (
-	testHSID    byte = 5
 	testLoginID byte = 6
 
 	ErrNotImplemented = errors.New("not implemented")
@@ -105,103 +106,64 @@ func samePK(expected, received protocol.Packet) bool {
 }
 
 // Test themselves
-// func TestServerStatusRequest(t *testing.T) {
-// 	basicStatus, _ := infrared.StatusConfig{
-// 		VersionName:    "Latest",
-// 		ProtocolNumber: 1,
-// 		MaxPlayers:     999,
-// 		MOTD:           "One of a kind server!",
-// 	}.StatusResponsePacket()
-// 	onlineConfigStatus, _ := infrared.StatusConfig{
-// 		VersionName:    "Online",
-// 		ProtocolNumber: 2,
-// 		MaxPlayers:     998,
-// 		MOTD:           "Two of a kind server!",
-// 	}.StatusResponsePacket()
-// 	offlineConfigStatus, _ := infrared.StatusConfig{
-// 		VersionName:    "Offline",
-// 		ProtocolNumber: 2,
-// 		MaxPlayers:     998,
-// 		MOTD:           "Two of a kind server!",
-// 	}.StatusResponsePacket()
 
-// 	// TestCase statuses
-// 	onlineServerStatus := basicStatus
-// 	offlineServerStatus, _ := infrared.StatusConfig{}.StatusResponsePacket()
-// 	onlineConfigServerStats := onlineConfigStatus
-// 	offlineConfigServerStats := offlineConfigStatus
+type serverStatusRequestData struct {
+	expectedOnlineStatus  protocol.Packet
+	expectedOfflineStatus protocol.Packet
+	serverStatusResponse  protocol.Packet
 
-// 	tt := []struct {
-// 		online         bool
-// 		configStatus   bool
-// 		expectedStatus protocol.Packet
-// 	}{
-// 		{
-// 			online:         true,
-// 			configStatus:   false,
-// 			expectedStatus: onlineServerStatus,
-// 		},
-// 		{
-// 			online:         false,
-// 			configStatus:   false,
-// 			expectedStatus: offlineServerStatus,
-// 		},
-// 		{
-// 			online:         true,
-// 			configStatus:   true,
-// 			expectedStatus: onlineConfigServerStats,
-// 		},
-// 		{
-// 			online:         false,
-// 			configStatus:   true,
-// 			expectedStatus: offlineConfigServerStats,
-// 		},
-// 	}
+	server func(net.Conn) server.StatusServer
+}
 
-// 	for _, tc := range tt {
-// 		name := fmt.Sprintf("online: %v, configStatus: %v", tc.online, tc.configStatus)
-// 		t.Run(name, func(t *testing.T) {
-// 			wg := &sync.WaitGroup{}
-// 			connCh := make(chan connection.GatewayConnection)
-// 			sConnMock := testServerConn{status: basicStatus, isOnline: tc.online}
-// 			statusFactory := func(addr string) (connection.ServerConnection, error) {
-// 				return &sConnMock, nil
-// 			}
-// 			mcServer := &server.MCServer{
-// 				ConnFactory: statusFactory,
-// 				ConnCh:      connCh,
-// 			}
+func testServerStatusRequest(t *testing.T, testData serverStatusRequestData) {
+	tt := []struct {
+		online         bool
+		configStatus   bool
+		expectedStatus protocol.Packet
+	}{
+		{
+			online:         true,
+			expectedStatus: testData.expectedOnlineStatus,
+		},
+		{
+			online:         false,
+			expectedStatus: testData.expectedOfflineStatus,
+		},
+	}
 
-// 			if tc.configStatus {
-// 				mcServer.OnlineConfigStatus = onlineConfigStatus
-// 				mcServer.OfflineConfigStatus = offlineConfigStatus
-// 			}
+	for _, tc := range tt {
+		name := fmt.Sprintf("online: %v, configStatus: %v", tc.online, tc.configStatus)
+		t.Run(name, func(t *testing.T) {
+			s1, s2 := net.Pipe()
+			mcServer := testData.server(s1)
 
-// 			go func() {
-// 				go mcServer.Start()
-// 			}()
+			go func() {
+				if !tc.online {
+					s2.Close()
+					return
+				}
+				serverConn2 := connection.NewBasicServerConn(s2)
+				serverConn2.ReadPacket()
+				serverConn2.ReadPacket()
+				serverConn2.WritePacket(testData.serverStatusResponse)
+			}()
 
-// 			statusConn := &testStatusConn{wg: wg}
-// 			wg.Add(1)
-// 			select {
-// 			case connCh <- statusConn:
-// 				t.Log("Channel took connection")
-// 			case <-time.After(defaultChanTimeout):
-// 				t.Log("Tasked timed out")
-// 				t.FailNow() // Dont check other code it didnt finish anyway
-// 			}
+			hs := handshaking.ServerBoundHandshake{}
+			hsPk := hs.Marshal()
+			statusConn := connection.BasicPlayerConn{}
+			statusConn.SetHandshakePacket(hsPk)
 
-// 			wg.Wait()
-// 			receivedPk := statusConn.pk()
+			receivedPk := mcServer.Status(&statusConn)
 
-// 			if ok := samePK(tc.expectedStatus, receivedPk); !ok {
-// 				t.Errorf("Packets are different\nexpected:\t%v\ngot:\t\t%v", tc.expectedStatus, receivedPk)
-// 			}
+			if ok := samePK(tc.expectedStatus, receivedPk); !ok {
+				t.Logf("expected:\t%v", tc.expectedStatus)
+				t.Logf("got:\t\t%v", receivedPk)
+				t.Error("Received packet is different from what we expected")
+			}
+		})
+	}
 
-// 		})
-// 	}
-
-// }
+}
 
 func TestMCServer(t *testing.T) {
 	runServer := func(connFactory connection.ServerConnFactory) chan<- connection.HandshakeConn {
@@ -221,6 +183,69 @@ func TestMCServer(t *testing.T) {
 	proxyPing := false
 	testServerLogin(t, runServer)
 	testServerStatus_WithoutConfigStatus(t, runServer, proxyRequest, proxyPing)
+
+	basicStatus, _ := infrared.StatusConfig{
+		VersionName:    "Latest",
+		ProtocolNumber: 1,
+		MaxPlayers:     999,
+		MOTD:           "One of a kind server!",
+	}.StatusResponsePacket()
+	onlineConfigStatus, _ := infrared.StatusConfig{
+		VersionName:    "Online",
+		ProtocolNumber: 2,
+		MaxPlayers:     998,
+		MOTD:           "Two of a kind server!",
+	}.StatusResponsePacket()
+	offlineConfigStatus, _ := infrared.StatusConfig{
+		VersionName:    "Offline",
+		ProtocolNumber: 2,
+		MaxPlayers:     998,
+		MOTD:           "Two of a kind server!",
+	}.StatusResponsePacket()
+
+	onlineServerStatus := basicStatus
+	offlineServerStatus, _ := infrared.StatusConfig{}.StatusResponsePacket()
+
+	statusFactory := func(conn net.Conn) server.StatusServer {
+		serverConn := connection.NewBasicServerConn(conn)
+		statusFactory := func(addr string) (connection.ServerConn, error) {
+			return serverConn, nil
+		}
+
+		mcServer := &server.MCServer{
+			ConnFactory: statusFactory,
+		}
+		return mcServer
+	}
+	statusServerData := serverStatusRequestData{
+		expectedOnlineStatus:  onlineServerStatus,
+		expectedOfflineStatus: offlineServerStatus,
+		serverStatusResponse:  basicStatus,
+		server:                statusFactory,
+	}
+	testServerStatusRequest(t, statusServerData)
+
+	statusConfigFactory := func(conn net.Conn) server.StatusServer {
+		serverConn := connection.NewBasicServerConn(conn)
+		statusFactory := func(addr string) (connection.ServerConn, error) {
+			return serverConn, nil
+		}
+
+		mcServer := &server.MCServer{
+			ConnFactory:         statusFactory,
+			OnlineConfigStatus:  onlineConfigStatus,
+			OfflineConfigStatus: offlineConfigStatus,
+		}
+		return mcServer
+	}
+	statusServerData_Config := serverStatusRequestData{
+		expectedOnlineStatus:  onlineConfigStatus,
+		expectedOfflineStatus: offlineConfigStatus,
+		serverStatusResponse:  basicStatus,
+		server:                statusConfigFactory,
+	}
+	testServerStatusRequest(t, statusServerData_Config)
+
 }
 
 type runTestServer func(connection.ServerConnFactory) chan<- connection.HandshakeConn

@@ -63,10 +63,11 @@ func (s *MCServer) Login(conn connection.LoginConn) error {
 	pk, _ := conn.ReadPacket()
 	sConn.WritePacket(pk)
 
-	go func() {
-		// Disconnection might need some more attention
-		connection.Pipe(conn, sConn)
-	}()
+	// Doing it like this should prevent weird behavior with can be causes by closujers combined with goroutines
+	go func(client, server connection.PipeConn) {
+		// closing connections on disconnect happen in the Pipe function
+		connection.Pipe(client, server)
+	}(conn, sConn)
 
 	return nil
 }
