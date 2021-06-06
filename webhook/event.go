@@ -1,4 +1,4 @@
-package callback
+package webhook
 
 const (
 	EventTypeError          string = "Error"

@@ -5,8 +5,8 @@ import (
 	"log"
 	"sync"
 
-	"github.com/haveachin/infrared/callback"
 	"github.com/haveachin/infrared/protocol/handshaking"
+	"github.com/haveachin/infrared/webhook"
 	"github.com/pires/go-proxyproto"
 )
 
@@ -189,7 +189,7 @@ func (gateway *Gateway) serve(conn Conn, addr string) error {
 	proxy := v.(*Proxy)
 
 	if err := proxy.handleConn(conn, connRemoteAddr); err != nil {
-		proxy.CallbackLogger().LogEvent(callback.ErrorEvent{
+		proxy.CallbackLogger().SendEvent(webhook.ErrorEvent{
 			Error:    err.Error(),
 			ProxyUID: proxyUID,
 		})

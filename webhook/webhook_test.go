@@ -1,4 +1,4 @@
-package callback
+package webhook
 
 import (
 	"bytes"
@@ -7,65 +7,21 @@ import (
 	"testing"
 )
 
-func TestLogger_IsValid(t *testing.T) {
-	tt := []struct {
-		logger Logger
-		result bool
-	}{
-		{
-			logger: Logger{
-				URL:    "something",
-				Events: []string{EventTypeError, EventTypePlayerJoin, EventTypeContainerStart},
-			},
-			result: true,
-		},
-		{
-			logger: Logger{
-				URL:    "something",
-				Events: []string{EventTypeError},
-			},
-			result: true,
-		},
-		{
-			logger: Logger{
-				URL: "something",
-			},
-			result: false,
-		},
-		{
-			logger: Logger{
-				Events: []string{EventTypeError},
-			},
-			result: false,
-		},
-		{
-			logger: Logger{},
-			result: false,
-		},
-	}
-
-	for _, tc := range tt {
-		if tc.logger.isValid() != tc.result {
-			t.Fail()
-		}
-	}
-}
-
 func TestLogger_HasEvent(t *testing.T) {
 	tt := []struct {
-		logger Logger
-		event  Event
-		result bool
+		webhook Webhook
+		event   Event
+		result  bool
 	}{
 		{
-			logger: Logger{
+			webhook: Webhook{
 				Events: []string{EventTypeError, EventTypePlayerJoin, EventTypeContainerStart},
 			},
 			event:  PlayerJoinEvent{},
 			result: true,
 		},
 		{
-			logger: Logger{
+			webhook: Webhook{
 				Events: []string{EventTypeError},
 			},
 			event:  PlayerJoinEvent{},
@@ -74,7 +30,7 @@ func TestLogger_HasEvent(t *testing.T) {
 	}
 
 	for _, tc := range tt {
-		if tc.logger.hasEvent(tc.event) != tc.result {
+		if tc.webhook.hasEvent(tc.event) != tc.result {
 			t.Fail()
 		}
 	}
@@ -106,11 +62,11 @@ func (mock *mockHTTPClient) Do(req *http.Request) (*http.Response, error) {
 
 func TestLogger_LogEvent(t *testing.T) {
 	tt := []struct {
-		logger Logger
-		event  Event
+		webhook Webhook
+		event   Event
 	}{
 		{
-			logger: Logger{
+			webhook: Webhook{
 				URL:    "https://example.com",
 				Events: []string{EventTypeError},
 			},
@@ -120,7 +76,7 @@ func TestLogger_LogEvent(t *testing.T) {
 			},
 		},
 		{
-			logger: Logger{
+			webhook: Webhook{
 				URL:    "https://example.com",
 				Events: []string{EventTypePlayerJoin, EventTypePlayerLeave},
 			},
@@ -135,14 +91,14 @@ func TestLogger_LogEvent(t *testing.T) {
 
 	for _, tc := range tt {
 		body := bytes.Buffer{}
-		tc.logger.client = &mockHTTPClient{
+		tc.webhook.HTTPClient = &mockHTTPClient{
 			T:      t,
 			method: http.MethodPost,
-			url:    tc.logger.URL,
+			url:    tc.webhook.URL,
 			body:   &body,
 		}
 
-		eventLog, err := tc.logger.LogEvent(tc.event)
+		eventLog, err := tc.webhook.SendEvent(tc.event)
 		if err != nil {
 			t.Error(err)
 		}
