@@ -22,7 +22,7 @@ type EventLog struct {
 
 // Webhook can send a Event via POST Request to a specified URL.
 // There are two ways to use a Webhook. You can directly call
-// SendEvent or Start to attach a channel to the Webhook.
+// DispatchEvent or Start to attach a channel to the Webhook.
 type Webhook struct {
 	HTTPClient HTTPClient
 
@@ -41,20 +41,20 @@ func (webhook Webhook) hasEvent(event Event) bool {
 }
 
 // Start is a blocking function that will listen to the given channel for
-// an incoming Event. This Event will then be send via Webhook.SendEvent.
+// an incoming Event. This Event will then be send via Webhook.DispatchEvent.
 func (webhook Webhook) Start(ch <-chan Event) {
 	for {
 		event := <-ch
-		eventLog, err := webhook.SendEvent(event)
+		eventLog, err := webhook.DispatchEvent(event)
 		if err != nil {
 			log.Printf("Could not send %v", *eventLog)
 		}
 	}
 }
 
-// SendEvent wraps the given Event in an EventLog and marshals it into JSON
+// DispatchEvent wraps the given Event in an EventLog and marshals it into JSON
 // before sending it in a POST Request to the Webhook.URL.
-func (webhook Webhook) SendEvent(event Event) (*EventLog, error) {
+func (webhook Webhook) DispatchEvent(event Event) (*EventLog, error) {
 	if !webhook.hasEvent(event) {
 		return nil, nil
 	}

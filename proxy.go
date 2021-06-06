@@ -174,7 +174,7 @@ func (proxy *Proxy) removePlayer(conn Conn) int {
 }
 
 func (proxy *Proxy) logEvent(event webhook.Event) {
-	if _, err := proxy.CallbackLogger().SendEvent(event); err != nil {
+	if _, err := proxy.CallbackLogger().DispatchEvent(event); err != nil {
 		log.Println("[w] Failed webhook logging; error:", err)
 	}
 }

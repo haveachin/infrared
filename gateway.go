@@ -189,7 +189,7 @@ func (gateway *Gateway) serve(conn Conn, addr string) error {
 	proxy := v.(*Proxy)
 
 	if err := proxy.handleConn(conn, connRemoteAddr); err != nil {
-		proxy.CallbackLogger().SendEvent(webhook.ErrorEvent{
+		proxy.CallbackLogger().DispatchEvent(webhook.ErrorEvent{
 			Error:    err.Error(),
 			ProxyUID: proxyUID,
 		})

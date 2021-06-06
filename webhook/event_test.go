@@ -1,31 +1,34 @@
-package webhook
+package webhook_test
 
-import "testing"
+import (
+	"github.com/haveachin/infrared/webhook"
+	"testing"
+)
 
 func TestErrorEvent_EventType(t *testing.T) {
 	tt := []struct {
-		event     Event
+		event     webhook.Event
 		eventType string
 	}{
 		{
-			event:     ErrorEvent{},
-			eventType: EventTypeError,
+			event:     webhook.ErrorEvent{},
+			eventType: webhook.EventTypeError,
 		},
 		{
-			event:     PlayerJoinEvent{},
-			eventType: EventTypePlayerJoin,
+			event:     webhook.PlayerJoinEvent{},
+			eventType: webhook.EventTypePlayerJoin,
 		},
 		{
-			event:     PlayerLeaveEvent{},
-			eventType: EventTypePlayerLeave,
+			event:     webhook.PlayerLeaveEvent{},
+			eventType: webhook.EventTypePlayerLeave,
 		},
 		{
-			event:     ContainerStartEvent{},
-			eventType: EventTypeContainerStart,
+			event:     webhook.ContainerStartEvent{},
+			eventType: webhook.EventTypeContainerStart,
 		},
 		{
-			event:     ContainerStopEvent{},
-			eventType: EventTypeContainerStop,
+			event:     webhook.ContainerStopEvent{},
+			eventType: webhook.EventTypeContainerStop,
 		},
 	}
 

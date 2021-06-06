@@ -1,40 +1,12 @@
-package webhook
+package webhook_test
 
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/haveachin/infrared/webhook"
 	"net/http"
 	"testing"
 )
-
-func TestLogger_HasEvent(t *testing.T) {
-	tt := []struct {
-		webhook Webhook
-		event   Event
-		result  bool
-	}{
-		{
-			webhook: Webhook{
-				Events: []string{EventTypeError, EventTypePlayerJoin, EventTypeContainerStart},
-			},
-			event:  PlayerJoinEvent{},
-			result: true,
-		},
-		{
-			webhook: Webhook{
-				Events: []string{EventTypeError},
-			},
-			event:  PlayerJoinEvent{},
-			result: false,
-		},
-	}
-
-	for _, tc := range tt {
-		if tc.webhook.hasEvent(tc.event) != tc.result {
-			t.Fail()
-		}
-	}
-}
 
 type mockHTTPClient struct {
 	*testing.T
@@ -60,27 +32,27 @@ func (mock *mockHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	return nil, nil
 }
 
-func TestLogger_LogEvent(t *testing.T) {
+func TestWebhook_DispatchEvent(t *testing.T) {
 	tt := []struct {
-		webhook Webhook
-		event   Event
+		webhook webhook.Webhook
+		event   webhook.Event
 	}{
 		{
-			webhook: Webhook{
+			webhook: webhook.Webhook{
 				URL:    "https://example.com",
-				Events: []string{EventTypeError},
+				Events: []string{webhook.EventTypeError},
 			},
-			event: ErrorEvent{
+			event: webhook.ErrorEvent{
 				Error:    "my error message",
 				ProxyUID: "example.com@1.2.3.4:25565",
 			},
 		},
 		{
-			webhook: Webhook{
+			webhook: webhook.Webhook{
 				URL:    "https://example.com",
-				Events: []string{EventTypePlayerJoin, EventTypePlayerLeave},
+				Events: []string{webhook.EventTypePlayerJoin, webhook.EventTypePlayerLeave},
 			},
-			event: PlayerJoinEvent{
+			event: webhook.PlayerJoinEvent{
 				Username:      "notch",
 				RemoteAddress: "1.2.3.4",
 				TargetAddress: "1.2.3.4",
@@ -98,7 +70,7 @@ func TestLogger_LogEvent(t *testing.T) {
 			body:   &body,
 		}
 
-		eventLog, err := tc.webhook.SendEvent(tc.event)
+		eventLog, err := tc.webhook.DispatchEvent(tc.event)
 		if err != nil {
 			t.Error(err)
 		}
