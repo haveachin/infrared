@@ -2,6 +2,7 @@ package connection
 
 import (
 	"bufio"
+	"fmt"
 	"net"
 
 	"github.com/haveachin/infrared/protocol"
@@ -77,8 +78,8 @@ func (conn *BasicPlayerConn) ReadPacket() (protocol.Packet, error) {
 }
 
 func (conn *BasicPlayerConn) WritePacket(p protocol.Packet) error {
-	pk, _ := p.Marshal() // Need test for err part of this line
-	_, err := conn.byteConn.Write(pk)
+	pk, err := p.Marshal() // Need test for err part of this line
+	_, err = conn.byteConn.Write(pk)
 	return err
 }
 

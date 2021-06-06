@@ -2,16 +2,13 @@ package main
 
 import (
 	"flag"
-	"log"
-	"net"
+	"fmt"
 	"os"
 	"strconv"
 	"sync"
 
 	"github.com/haveachin/infrared"
-	"github.com/haveachin/infrared/connection"
-	"github.com/haveachin/infrared/gateway"
-	"github.com/haveachin/infrared/protocol"
+	"github.com/haveachin/infrared/proxy"
 	"github.com/haveachin/infrared/server"
 )
 
@@ -66,60 +63,37 @@ func init() {
 }
 
 func main() {
-	log.Println("Loading proxy configs")
-
-	cfgs, err := infrared.LoadProxyConfigsFromPath(configPath, false)
-	if err != nil {
-		log.Printf("Failed loading proxy configs from %s; error: %s", configPath, err)
-		return
+	fmt.Println("starting going to setup proxylane")
+	serverCfgs := []server.ServerConfig{
+		{
+			NumberOfInstances: 1,
+			DomainName:        "localhost",
+			ProxyTo:           "192.168.1.15:25560",
+			RealIP:            false,
+			OnlineStatus:      infrared.StatusConfig{},
+			OfflineStatus:     infrared.StatusConfig{},
+		},
+		// {
+		// 	NumberOfInstances: 2,
+		// 	DomainName:        "127.0.0.1",
+		// 	ProxyTo:           "192.168.1.15:25560",
+		// 	RealIP:            false,
+		// 	OnlineStatus:      infrared.StatusConfig{},
+		// 	OfflineStatus:     infrared.StatusConfig{},
+		// },
+	}
+	proxyCfg := proxy.ProxyLaneConfig{
+		NumberOfListeners: 2,
+		NumberOfGateways:  4,
+		Timeout:           250,
+		ListenTo:          ":25565",
+		Servers:           serverCfgs,
 	}
 
-	//Designed for single config needs to be rewritten
-	for _, config := range cfgs {
-		gatewayCh := make(chan connection.HandshakeConn)
-		serverCh := make(chan connection.HandshakeConn)
+	proxyLane := proxy.ProxyLane{Config: proxyCfg}
+	proxyLane.StartupProxy()
 
-		//Listener
-		outerListener := gateway.NewBasicOuterListener(config.ListenTo)
-		l := gateway.BasicListener{OutListener: outerListener, ConnCh: gatewayCh}
-
-		go func() {
-			l.Listen()
-		}()
-
-		//Gateway
-		serverData := gateway.ServerData{ConnCh: serverCh}
-		serverStore := &gateway.SingleServerStore{Server: serverData}
-
-		gw := gateway.NewBasicGatewayWithStore(serverStore, gatewayCh)
-		go func() {
-			gw.Start()
-		}()
-
-		//Server
-		connFactory := func(addr string) (connection.ServerConn, error) {
-			c, err := net.Dial("tcp", addr)
-			if err != nil {
-				return nil, err
-			}
-			return connection.NewBasicServerConn(c), nil
-		}
-
-		onlineStatus := protocol.Packet{}  //config.OnlineStatus.StatusResponsePacket()
-		offlineStatus := protocol.Packet{} // config.OfflineStatus.StatusResponsePacket()
-
-		mcServer := &server.MCServer{
-			Config:              *config,
-			ConnFactory:         connFactory,
-			OnlineConfigStatus:  onlineStatus,
-			OfflineConfigStatus: offlineStatus,
-			ConnCh:              serverCh,
-		}
-
-		go func() {
-			mcServer.Start()
-		}()
-	}
+	fmt.Println("finished setting up proxylane")
 
 	wg := sync.WaitGroup{}
 	wg.Add(1)

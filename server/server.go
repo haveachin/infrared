@@ -14,6 +14,18 @@ var (
 	ErrCantConnectWithServer = errors.New("cant connect with server")
 )
 
+type ServerConfig struct {
+	NumberOfInstances int    `json:"numberOfInstances"`
+	DomainName        string `json:"domainName"`
+	ProxyTo           string `json:"proxyTo"`
+	RealIP            bool   `json:"realIp"`
+
+	//Need different statusconfig struct
+	OnlineStatus infrared.StatusConfig `json:"onlineStatus"`
+	//Need different statusconfig struct
+	OfflineStatus infrared.StatusConfig `json:"offlineStatus"`
+}
+
 type LoginServer interface {
 	Login(conn connection.LoginConn) error
 }
@@ -26,10 +38,11 @@ type StatusServer interface {
 type Server interface {
 	LoginServer
 	StatusServer
+	Start()
 }
 
 type MCServer struct {
-	Config              infrared.ProxyConfig
+	Config              ServerConfig
 	ConnFactory         connection.ServerConnFactory
 	OnlineConfigStatus  protocol.Packet
 	OfflineConfigStatus protocol.Packet
@@ -108,11 +121,11 @@ func (s *MCServer) handleStatusRequest(conn connection.StatusConn) error {
 	//  and this will return an EOF when the connections gets closed
 	pingPk, err := conn.ReadPacket()
 	if err != nil {
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return nil
 		}
+		fmt.Println(err)
 		return err
 	}
-
 	return conn.WritePacket(pingPk)
 }
