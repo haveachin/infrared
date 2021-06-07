@@ -2,8 +2,6 @@ package gateway
 
 import (
 	"errors"
-	"fmt"
-	"sync"
 
 	"github.com/haveachin/infrared/connection"
 	"github.com/haveachin/infrared/protocol/handshaking"
@@ -76,19 +74,24 @@ func (store *SingleServerStore) FindServer(addr string) (ServerData, bool) {
 }
 
 type DefaultServerStore struct {
-	servers sync.Map
+	servers map[string]ServerData
 }
 
 func (store *DefaultServerStore) FindServer(addr string) (ServerData, bool) {
-	v, ok := store.servers.Load(addr)
+	server, ok := store.servers[addr]
 	if !ok {
 		// Client send an invalid address/port; we don't have a v for that address
 		return ServerData{}, false
 	}
-	server := v.(ServerData)
 	return server, true
 }
 
 func (store *DefaultServerStore) AddServer(addr string, serverData ServerData) {
-	store.servers.Store(addr, serverData)
+	store.servers[addr] = serverData
+}
+
+func CreateDefaultServerStore() DefaultServerStore {
+	store := DefaultServerStore{}
+	store.servers = make(map[string]ServerData)
+	return store
 }

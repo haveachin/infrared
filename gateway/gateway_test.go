@@ -55,7 +55,7 @@ func TestFindServer_DefaultServerStore(t *testing.T) {
 	serverAddr := "addr-1"
 
 	gatewayRunner := func(gwCh <-chan connection.HandshakeConn) <-chan connection.HandshakeConn {
-		serverStore := &gateway.DefaultServerStore{}
+		serverStore := gateway.CreateDefaultServerStore()
 		for id := 2; id < 10; id++ {
 			serverAddr := fmt.Sprintf("addr-%d", id)
 			serverData := gateway.ServerData{ConnCh: make(chan connection.HandshakeConn)}
@@ -63,9 +63,10 @@ func TestFindServer_DefaultServerStore(t *testing.T) {
 		}
 		connCh := make(chan connection.HandshakeConn)
 		serverData := gateway.ServerData{ConnCh: connCh}
+
 		serverStore.AddServer(serverAddr, serverData)
 
-		gw := gateway.NewBasicGatewayWithStore(serverStore, gwCh)
+		gw := gateway.NewBasicGatewayWithStore(&serverStore, gwCh)
 		go func() {
 			gw.Start()
 		}()
@@ -131,7 +132,7 @@ func testFindServer(data findServerData, t *testing.T) {
 			serverCh := data.runGateway(gwCh)
 
 			select {
-			case <-time.After(defaultChanTimeout): //Be fast or fail >:)
+			case <-time.After(defaultChanTimeout):
 				t.Log("Tasked timed out")
 				t.FailNow() // Dont check other code it didnt finish anyway
 			case gwCh <- hsConn:

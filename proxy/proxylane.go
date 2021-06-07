@@ -1,102 +1,121 @@
 package proxy
 
 import (
-	"net"
 	"time"
 
 	"github.com/haveachin/infrared/connection"
 	"github.com/haveachin/infrared/gateway"
+	"github.com/haveachin/infrared/protocol"
 	"github.com/haveachin/infrared/server"
 )
 
 type ProxyLaneConfig struct {
 	NumberOfListeners int `json:"numberOfListeners"`
 	NumberOfGateways  int `json:"numberOfGateways"`
+
 	// ProxyProtocol     bool   `json:"proxyProtocol"`
 	Timeout  int    `json:"timeout"`
 	ListenTo string `json:"listenTo"`
 
-	Servers []server.ServerConfig
+	Servers []server.ServerConfig `json:"servers"`
+
+	// Seperate this so we can test without making actual network calls
+	ServerConnFactory    connection.NewServerConnFactory
+	OuterListenerFactory gateway.OuterListanerFactory
 }
 
 type ProxyLane struct {
 	Config ProxyLaneConfig
 
+	connFactory connection.ServerConnFactory
+
 	toGatewayChan chan connection.HandshakeConn
-	toServerChan  map[string]chan connection.HandshakeConn
+	toServerChans map[string]chan connection.HandshakeConn
 }
 
 func (proxy *ProxyLane) StartupProxy() {
 	proxy.toGatewayChan = make(chan connection.HandshakeConn)
-	proxy.toServerChan = make(map[string]chan connection.HandshakeConn)
+	proxy.toServerChans = make(map[string]chan connection.HandshakeConn)
 
-	serverStore := &gateway.DefaultServerStore{}
-	for i := 0; i < len(proxy.Config.Servers); i++ {
-		domainName := proxy.Config.Servers[i].DomainName
+	servers := proxy.Config.Servers
 
-		serverCh := make(chan connection.HandshakeConn)
-		serverData := gateway.ServerData{ConnCh: serverCh}
-		serverStore.AddServer(domainName, serverData)
-		proxy.toServerChan[domainName] = serverCh
+
+	timeout := time.Duration(proxy.Config.Timeout) * time.Millisecond
+	proxy.connFactory, _ = proxy.Config.ServerConnFactory(timeout)
+
+	proxy.LoadServers(servers)
+	proxy.HandleGateways(proxy.toGatewayChan)
+	proxy.HandleListeners(proxy.toGatewayChan)
+
+	for _, server := range servers {
+		proxy.HandleServer(server)
 	}
 
-	//Listener
-	outerListener := gateway.NewBasicOuterListener(proxy.Config.ListenTo)
+}
+
+func (proxy *ProxyLane) HandleListeners(gatewayCh chan connection.HandshakeConn) {
+	outerListener := proxy.Config.OuterListenerFactory(proxy.Config.ListenTo)
 	for i := 0; i < proxy.Config.NumberOfListeners; i++ {
-		l := gateway.BasicListener{OutListener: outerListener, ConnCh: proxy.toGatewayChan}
+		l := gateway.BasicListener{OutListener: outerListener, ConnCh: gatewayCh}
 
 		go func() {
 			l.Listen()
 		}()
 	}
+}
 
-	//Gateway
+func (proxy *ProxyLane) HandleGateways(gatewayCh chan connection.HandshakeConn) {
+	serverStore := gateway.CreateDefaultServerStore()
+	for url, ch := range proxy.toServerChans {
+		serverData := gateway.ServerData{ConnCh: ch}
+		serverStore.AddServer(url, serverData)
+	}
 
 	for i := 0; i < proxy.Config.NumberOfGateways; i++ {
-		gw := gateway.NewBasicGatewayWithStore(serverStore, proxy.toGatewayChan)
+		gw := gateway.NewBasicGatewayWithStore(&serverStore, gatewayCh)
 		go func() {
 			gw.Start()
 		}()
 	}
+}
 
-	if proxy.Config.Timeout == 0 {
-		proxy.Config.Timeout = 250
-	}
-	dialTimeoutTime := time.Duration(proxy.Config.Timeout) * time.Millisecond
-
-	//Server
-	connFactory := func(addr string) (connection.ServerConn, error) {
-		c, err := net.DialTimeout("tcp", addr, dialTimeoutTime)
-		if err != nil {
-			return nil, err
-		}
-		return connection.NewBasicServerConn(c), nil
+func (proxy *ProxyLane) LoadServers(servers []server.ServerConfig) {
+	if proxy.toServerChans == nil {
+		proxy.toServerChans = make(map[string]chan connection.HandshakeConn)
 	}
 
-	for i := 0; i < len(proxy.Config.Servers); i++ {
-		cfg := proxy.Config.Servers[i]
+	for i := 0; i < len(servers); i++ {
+		domainName := servers[i].DomainName
+		serverCh := make(chan connection.HandshakeConn)
+		proxy.toServerChans[domainName] = serverCh
+	}
+}
 
-		makeServer := func(cfg server.ServerConfig, sConnFactory func(addr string) (connection.ServerConn, error)) server.MCServer {
-			onlineStatus, _ := cfg.OnlineStatus.StatusResponsePacket()
-			offlineStatus, _ := cfg.OfflineStatus.StatusResponsePacket()
-			serverCh := proxy.toServerChan[cfg.DomainName]
-			connFac := connFactory
-			return server.MCServer{
-				Config:              cfg,
-				ConnFactory:         connFac,
-				OnlineConfigStatus:  onlineStatus,
-				OfflineConfigStatus: offlineStatus,
-				ConnCh:              serverCh,
-			}
-		}
-		mcServer := makeServer(cfg, connFactory)
-		for i := 0; i < cfg.NumberOfInstances; i++ {
-			go func(server server.Server) {
-				// With this ever server should be a unique instance in the goroutine
-				server.Start()
-			}(&mcServer)
-		}
+func (proxy *ProxyLane) HandleServer(cfg server.ServerConfig) {
+	var onlineStatus, offlineStatus protocol.Packet
+	// TODO: Should look into doing this differently, this check
+	if cfg.OnlineStatus.ProtocolNumber > 0 {
+		onlineStatus, _ = cfg.OnlineStatus.StatusResponsePacket()
+	}
+	if cfg.OfflineStatus.ProtocolNumber > 0 {
+		offlineStatus, _ = cfg.OfflineStatus.StatusResponsePacket()
+	}
 
+	serverCh := proxy.toServerChans[cfg.DomainName]
+	connFac := proxy.connFactory
+	mcServer := server.MCServer{
+		Config:              cfg,
+		ConnFactory:         connFac,
+		OnlineConfigStatus:  onlineStatus,
+		OfflineConfigStatus: offlineStatus,
+		ConnCh:              serverCh,
+	}
+
+	for i := 0; i < cfg.NumberOfInstances; i++ {
+		go func(server server.Server) {
+			// With this every server will be a unique instance
+			server.Start()
+		}(&mcServer)
 	}
 
 }

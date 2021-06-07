@@ -4,6 +4,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"time"
 
 	"github.com/haveachin/infrared/protocol"
 	"github.com/haveachin/infrared/protocol/handshaking"
@@ -13,8 +14,10 @@ var (
 	ErrNoNameYet = errors.New("we dont have the name of this player yet")
 )
 
-type ServerConnFactory func(addr string) (ServerConn, error)
-type HandshakeConnFactory func(conn Conn, remoteAddr net.Addr) (HandshakeConn, error)
+type NewServerConnFactory func(timeout time.Duration) (ServerConnFactory, error)
+
+type ServerConnFactory func(string) (ServerConn, error)
+type HandshakeConnFactory func(Conn, net.Addr) (HandshakeConn, error)
 
 type RequestType int8
 

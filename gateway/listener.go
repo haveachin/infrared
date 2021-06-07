@@ -12,6 +12,8 @@ var (
 	ErrCantStartListener    = errors.New("failed to start listener")
 )
 
+type OuterListanerFactory func(addr string) OuterListener
+
 type OuterListener interface {
 	Start() error
 	Accept() (net.Conn, net.Addr)
