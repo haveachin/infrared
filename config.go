@@ -189,8 +189,8 @@ func DefaultProxyConfig() ProxyConfig {
 			Timeout:   300000,
 		},
 		OfflineStatus: StatusConfig{
-			VersionName:    "Infrared 1.16.5",
-			ProtocolNumber: 754,
+			VersionName:    "Infrared 1.17",
+			ProtocolNumber: 755,
 			MaxPlayers:     20,
 			MOTD:           "Powered by Infrared",
 		},
