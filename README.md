@@ -107,7 +107,7 @@ More info on [Portainer](https://www.portainer.io/).
 | Field Name     | Type    | Required | Default         | Description                                                                                                                                          |
 |----------------|---------|----------|-----------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
 | versionName    | String  | false    | Infrared 1.17 | The version name of the Minecraft Server.                                                                                                            |
-| protocolNumber | Integer | true     | 754             | The protocol version number.                                                                                                                         |
+| protocolNumber | Integer | true     | 755             | The protocol version number.                                                                                                                         |
 | maxPlayers     | Integer | false    | 20              | The maximum number of players that can join the server.<br>Note: Infrared will not limit more players from joining. This number is just for display. |
 | playersOnline  | Integer | false    | 0               | The number of online players.<br>Note: Infrared will not that this number is also just for display.                                                  |
 | playerSamples  | Array   | false    |                 | An array of player samples. See [Player Sample](#Player Sample).                                                                                     |
@@ -173,7 +173,7 @@ More info on [Portainer](https://www.portainer.io/).
   },
   "onlineStatus": {
     "versionName": "1.17",
-    "protocolNumber": 754,
+    "protocolNumber": 755,
     "maxPlayers": 20,
     "playersOnline": 2,
     "playerSamples": [
@@ -190,7 +190,7 @@ More info on [Portainer](https://www.portainer.io/).
   },
   "offlineStatus": {
     "versionName": "1.17",
-    "protocolNumber": 754,
+    "protocolNumber": 755,
     "maxPlayers": 20,
     "playersOnline": 0,
     "motd": "Server is currently offline"
