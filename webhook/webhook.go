@@ -3,9 +3,15 @@ package webhook
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"time"
+)
+
+var (
+	ErrAlreadyStarted = errors.New("already started")
+	ErrNotStartedYet  = errors.New("not started yet")
 )
 
 // HTTPClient represents an interface for the Webhook to send events with.
@@ -24,10 +30,11 @@ type EventLog struct {
 // There are two ways to use a Webhook. You can directly call
 // DispatchEvent or Start to attach a channel to the Webhook.
 type Webhook struct {
-	HTTPClient HTTPClient
+	stop chan bool
 
-	URL    string
-	Events []string
+	HTTPClient HTTPClient
+	URL        string
+	Events     []string
 }
 
 // hasEvent checks if Webhook.Events contain the given event's type.
@@ -42,14 +49,38 @@ func (webhook Webhook) hasEvent(event Event) bool {
 
 // Start is a blocking function that will listen to the given channel for
 // an incoming Event. This Event will then be send via Webhook.DispatchEvent.
-func (webhook Webhook) Start(ch <-chan Event) {
+// After the the Event was successfully dispatched the resulting EventLog will
+// be send into the output channel.
+// Errors will just be logged.
+func (webhook *Webhook) Start(in <-chan Event, out chan<- *EventLog) error {
+	if webhook.stop != nil {
+		return ErrAlreadyStarted
+	}
+	webhook.stop = make(chan bool, 1)
+
 	for {
-		event := <-ch
-		eventLog, err := webhook.DispatchEvent(event)
-		if err != nil {
-			log.Printf("Could not send %v", *eventLog)
+		select {
+		case event := <-in:
+			eventLog, err := webhook.DispatchEvent(event)
+			if err != nil {
+				log.Printf("[w] Could not send %v", event)
+				break
+			}
+			out <- eventLog
+		case <-webhook.stop:
+			webhook.stop = nil
+			return nil
 		}
 	}
+}
+
+func (webhook Webhook) Stop() error {
+	if webhook.stop == nil {
+		return ErrNotStartedYet
+	}
+
+	webhook.stop <- true
+	return nil
 }
 
 // DispatchEvent wraps the given Event in an EventLog and marshals it into JSON
