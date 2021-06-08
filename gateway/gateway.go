@@ -2,7 +2,6 @@ package gateway
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 
 	"github.com/haveachin/infrared/connection"

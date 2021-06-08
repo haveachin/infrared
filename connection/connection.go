@@ -2,7 +2,6 @@ package connection
 
 import (
 	"bufio"
-	"fmt"
 	"net"
 
 	"github.com/haveachin/infrared/protocol"
