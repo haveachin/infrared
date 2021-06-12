@@ -110,7 +110,7 @@ func testOuterListener(t *testing.T, fn outerListenFunc) {
 		if err != nil {
 			t.Errorf("error was throw: %v", err)
 		}
-		bConn := connection.NewBasicPlayerConn(conn, nil)
+		bConn := connection.NewHandshakeConn(conn, nil)
 		err = bConn.WritePacket(testPk)
 		if err != nil {
 			t.Logf("got an error while writing the packet: %v", err)
@@ -124,7 +124,7 @@ func testOuterListener(t *testing.T, fn outerListenFunc) {
 	}
 	wg.Done()
 	cNet, _ := outerListener.Accept()
-	conn := connection.NewBasicPlayerConn(cNet, nil)
+	conn := connection.NewHandshakeConn(cNet, nil)
 	receivedPk, _ := conn.ReadPacket()
 
 	testSamePK(t, testPk, receivedPk)
@@ -185,8 +185,7 @@ func TestBasicListener(t *testing.T) {
 			case <-time.After(defaultChanTimeout): // err should be returned almost immediately
 				t.Log("Tasked timed out")
 				t.FailNow() // Dont check other code it didnt finish anyway
-			case c := <-connCh:
-				conn := c.(connection.HandshakeConn)
+			case conn := <-connCh:
 				receivePk, _ := conn.ReadPacket()
 				testSamePK(t, hsPk, receivePk)
 			}

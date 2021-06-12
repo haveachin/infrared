@@ -2,26 +2,54 @@ package connection
 
 import (
 	"bufio"
+	"errors"
 	"net"
+	"time"
 
 	"github.com/haveachin/infrared/protocol"
 	"github.com/haveachin/infrared/protocol/handshaking"
 )
 
+var (
+	ErrNoNameYet = errors.New("we dont have the name of this player yet")
+)
+
+type NewServerConnFactory func(timeout time.Duration) (ServerConnFactory, error)
+
+type ServerConnFactory func(string) (ServerConn, error)
+type HandshakeConnFactory func(Conn, net.Addr) (HandshakeConn, error)
+
+type RequestType int8
+
+const (
+	UnknownRequest RequestType = 0
+	StatusRequest  RequestType = 1
+	LoginRequest   RequestType = 2
+)
+
+type PipeConn interface {
+	conn() net.Conn
+}
+
+type Conn interface {
+	WritePacket(p protocol.Packet) error
+	ReadPacket() (protocol.Packet, error)
+}
+
 func ServerAddr(conn HandshakeConn) string {
-	return string(conn.Handshake().ServerAddress)
+	return string(conn.Handshake.ServerAddress)
 }
 
 func ServerPort(conn HandshakeConn) int16 {
-	return int16(conn.Handshake().ServerPort)
+	return int16(conn.Handshake.ServerPort)
 }
 
 func ProtocolVersion(conn HandshakeConn) int16 {
-	return int16(conn.Handshake().ProtocolVersion)
+	return int16(conn.Handshake.ProtocolVersion)
 }
 
 func ParseRequestType(conn HandshakeConn) RequestType {
-	return RequestType(conn.Handshake().NextState)
+	return RequestType(conn.Handshake.NextState)
 }
 
 func Pipe(c, s PipeConn) {
@@ -35,7 +63,7 @@ func Pipe(c, s PipeConn) {
 	server.Close()
 }
 
-func pipe(c1, c2 ByteConn) {
+func pipe(c1, c2 net.Conn) {
 	buffer := make([]byte, 0xffff)
 
 	for {
@@ -53,99 +81,60 @@ func pipe(c1, c2 ByteConn) {
 	}
 }
 
-func NewBasicPlayerConn(conn net.Conn, remoteAddr net.Addr) *BasicPlayerConn {
-	c := NewBasicConn(conn)
-	return &BasicPlayerConn{
-		byteConn: c,
-		reader:   bufio.NewReader(conn),
-		addr:     remoteAddr,
+func NewHandshakeConn(conn net.Conn, remoteAddr net.Addr) HandshakeConn {
+	return HandshakeConn{
+		netConn: conn,
+		reader:  bufio.NewReader(conn),
+		addr:    remoteAddr,
 	}
 }
 
-// Basic implementation of LoginConnection
-type BasicPlayerConn struct {
-	byteConn ByteConn
-	reader   protocol.DecodeReader
+type HandshakeConn struct {
+	netConn net.Conn
+	reader  protocol.DecodeReader
+	addr    net.Addr
 
-	addr net.Addr
-	hsPk protocol.Packet
-	hs   handshaking.ServerBoundHandshake
+	Handshake       handshaking.ServerBoundHandshake
+	HandshakePacket protocol.Packet
 }
 
-func (conn *BasicPlayerConn) ReadPacket() (protocol.Packet, error) {
+func (hsConn HandshakeConn) RemoteAddr() net.Addr {
+	return hsConn.addr
+}
+
+func (conn HandshakeConn) conn() net.Conn {
+	return conn.netConn
+}
+
+func (conn HandshakeConn) ReadPacket() (protocol.Packet, error) {
 	return protocol.ReadPacket(conn.reader)
 }
 
-func (conn *BasicPlayerConn) WritePacket(p protocol.Packet) error {
+func (conn HandshakeConn) WritePacket(p protocol.Packet) error {
 	pk, _ := p.Marshal() // Need test for err part of this line
-	_, err := conn.byteConn.Write(pk)
+	_, err := conn.netConn.Write(pk)
 	return err
 }
 
-func (conn *BasicPlayerConn) Handshake() handshaking.ServerBoundHandshake {
-	return conn.hs
+func NewServerConn(conn net.Conn) ServerConn {
+	return ServerConn{netConn: conn, reader: bufio.NewReader(conn)}
 }
 
-func (conn *BasicPlayerConn) HandshakePacket() protocol.Packet {
-	return conn.hsPk
+type ServerConn struct {
+	netConn net.Conn
+	reader  protocol.DecodeReader
 }
 
-func (conn *BasicPlayerConn) SetHandshakePacket(pk protocol.Packet) {
-	conn.hsPk = pk
-}
-
-func (conn *BasicPlayerConn) SetHandshake(hs handshaking.ServerBoundHandshake) {
-	conn.hs = hs
-}
-
-func (conn *BasicPlayerConn) RemoteAddr() net.Addr {
-	return conn.addr
-}
-
-func (conn *BasicPlayerConn) conn() ByteConn {
-	return conn.byteConn
-}
-
-func NewBasicServerConn(c net.Conn) *BasicServerConn {
-	conn := NewBasicConn(c)
-	return &BasicServerConn{byteConn: conn, reader: bufio.NewReader(conn)}
-}
-
-type BasicServerConn struct {
-	byteConn ByteConn
-	reader   protocol.DecodeReader
-}
-
-func (c *BasicServerConn) ReadPacket() (protocol.Packet, error) {
+func (c ServerConn) ReadPacket() (protocol.Packet, error) {
 	return protocol.ReadPacket(c.reader)
 }
 
-func (c *BasicServerConn) WritePacket(p protocol.Packet) error {
+func (c ServerConn) WritePacket(p protocol.Packet) error {
 	pk, _ := p.Marshal() // Need test for err part of this line
-	_, err := c.byteConn.Write(pk)
+	_, err := c.netConn.Write(pk)
 	return err
 }
 
-func (c *BasicServerConn) conn() ByteConn {
-	return c.byteConn
-}
-
-func NewBasicConn(conn net.Conn) *BasicConn {
-	return &BasicConn{netConn: conn}
-}
-
-type BasicConn struct {
-	netConn net.Conn
-}
-
-func (conn *BasicConn) Read(b []byte) (n int, err error) {
-	return conn.netConn.Read(b)
-}
-
-func (conn *BasicConn) Write(b []byte) (n int, err error) {
-	return conn.netConn.Write(b)
-}
-
-func (conn *BasicConn) Close() error {
-	return conn.netConn.Close()
+func (c ServerConn) conn() net.Conn {
+	return c.netConn
 }

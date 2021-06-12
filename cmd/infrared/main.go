@@ -72,7 +72,7 @@ func main() {
 		{
 			NumberOfInstances: 1,
 			DomainName:        "localhost",
-			ProxyTo:           "192.168.1.15:25560",
+			ProxyTo:           ":25560",
 			RealIP:            false,
 			OnlineStatus:      infrared.StatusConfig{},
 			OfflineStatus:     infrared.StatusConfig{VersionName: "Infrared-1"},
@@ -80,21 +80,20 @@ func main() {
 		{
 			NumberOfInstances: 2,
 			DomainName:        "127.0.0.1",
-			ProxyTo:           "192.168.1.15:25560",
+			ProxyTo:           ":25560",
 			RealIP:            false,
 			OnlineStatus:      infrared.StatusConfig{},
 			OfflineStatus:     infrared.StatusConfig{VersionName: "Infrared-2"},
 		},
 	}
 
-	
 	connFactoryFactory := func(timeout time.Duration) (connection.ServerConnFactory, error) {
 		return func(addr string) (connection.ServerConn, error) {
 			c, err := net.DialTimeout("tcp", addr, timeout)
 			if err != nil {
-				return nil, err
+				return connection.ServerConn{}, err
 			}
-			return connection.NewBasicServerConn(c), nil
+			return connection.NewServerConn(c), nil
 		}, nil
 	}
 	outerListenerFactory := func(addr string) gateway.OuterListener {

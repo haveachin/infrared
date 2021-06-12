@@ -69,7 +69,7 @@ func TestProxyLane_ListenersCreation(t *testing.T) {
 func TestProxyLane_GatewayCreation(t *testing.T) {
 	numberOfGateways := 2
 	c1, _ := net.Pipe()
-	hsConn := connection.NewBasicPlayerConn(c1, nil)
+	hsConn := connection.NewHandshakeConn(c1, nil)
 
 	proxyLaneCfg := proxy.ProxyLaneConfig{
 		NumberOfGateways: numberOfGateways,
@@ -111,12 +111,12 @@ func TestProxyLane_ServerCreation(t *testing.T) {
 
 	createConn := func() connection.HandshakeConn {
 		c1, c2 := net.Pipe()
-		conn := connection.NewBasicServerConn(c1)
+		conn := connection.NewServerConn(c1)
 		go func() {
 			conn.WritePacket(hsPk)
 		}()
 
-		conn2 := connection.NewBasicPlayerConn(c2, nil)
+		conn2 := connection.NewHandshakeConn(c2, nil)
 		return conn2
 	}
 

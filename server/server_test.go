@@ -112,7 +112,7 @@ type serverStatusRequestData struct {
 	expectedOfflineStatus protocol.Packet
 	serverStatusResponse  protocol.Packet
 
-	server func(net.Conn) server.StatusServer
+	server func(net.Conn) server.MCServer
 }
 
 func testServerStatusRequest(t *testing.T, testData serverStatusRequestData) {
@@ -142,7 +142,7 @@ func testServerStatusRequest(t *testing.T, testData serverStatusRequestData) {
 					s2.Close()
 					return
 				}
-				serverConn2 := connection.NewBasicServerConn(s2)
+				serverConn2 := connection.NewServerConn(s2)
 				serverConn2.ReadPacket()
 				serverConn2.ReadPacket()
 				serverConn2.WritePacket(testData.serverStatusResponse)
@@ -150,10 +150,10 @@ func testServerStatusRequest(t *testing.T, testData serverStatusRequestData) {
 
 			hs := handshaking.ServerBoundHandshake{}
 			hsPk := hs.Marshal()
-			statusConn := connection.BasicPlayerConn{}
-			statusConn.SetHandshakePacket(hsPk)
+			statusConn := connection.HandshakeConn{}
+			statusConn.HandshakePacket = hsPk
 
-			receivedPk := mcServer.Status(&statusConn)
+			receivedPk := mcServer.Status(statusConn)
 
 			if ok := samePK(tc.expectedStatus, receivedPk); !ok {
 				t.Logf("expected:\t%v", tc.expectedStatus)
@@ -206,13 +206,13 @@ func TestMCServer(t *testing.T) {
 	onlineServerStatus := basicStatus
 	offlineServerStatus, _ := infrared.StatusConfig{}.StatusResponsePacket()
 
-	statusFactory := func(conn net.Conn) server.StatusServer {
-		serverConn := connection.NewBasicServerConn(conn)
+	statusFactory := func(conn net.Conn) server.MCServer {
+		serverConn := connection.NewServerConn(conn)
 		statusFactory := func(addr string) (connection.ServerConn, error) {
 			return serverConn, nil
 		}
 
-		mcServer := &server.MCServer{
+		mcServer := server.MCServer{
 			ConnFactory: statusFactory,
 		}
 		return mcServer
@@ -225,13 +225,13 @@ func TestMCServer(t *testing.T) {
 	}
 	testServerStatusRequest(t, statusServerData)
 
-	statusConfigFactory := func(conn net.Conn) server.StatusServer {
-		serverConn := connection.NewBasicServerConn(conn)
+	statusConfigFactory := func(conn net.Conn) server.MCServer {
+		serverConn := connection.NewServerConn(conn)
 		statusFactory := func(addr string) (connection.ServerConn, error) {
 			return serverConn, nil
 		}
 
-		mcServer := &server.MCServer{
+		mcServer := server.MCServer{
 			ConnFactory:         statusFactory,
 			OnlineConfigStatus:  onlineConfigStatus,
 			OfflineConfigStatus: offlineConfigStatus,
@@ -276,19 +276,19 @@ func testServerLogin(t *testing.T, runServer runTestServer) {
 		t.Run(tc.name, func(t *testing.T) {
 			c1, c2 := net.Pipe()
 			netAddr := &net.TCPAddr{IP: net.IP("192.168.0.1")}
-			loginConn := connection.NewBasicPlayerConn(c1, netAddr)
+			loginConn := connection.NewHandshakeConn(c1, netAddr)
 			loginData := LoginData{
 				hs:         tc.hsPk,
 				loginStart: tc.loginPk,
 			}
-			loginConn.SetHandshake(tc.hs)
-			loginConn.SetHandshakePacket(tc.hsPk)
+			loginConn.Handshake = tc.hs
+			loginConn.HandshakePacket = tc.hsPk
 			go func() {
 				loginClient(c2, loginData)
 			}()
 
 			s1, s2 := net.Pipe()
-			sConn := connection.NewBasicServerConn(s1)
+			sConn := connection.NewServerConn(s1)
 
 			connFactory := func(addr string) (connection.ServerConn, error) {
 				return sConn, nil
@@ -443,7 +443,7 @@ func testServerStatus_WithoutConfigStatus(t *testing.T, runServer runTestServer,
 		t.Run(tc.name, func(t *testing.T) {
 			c1, c2 := net.Pipe()
 			netAddr := &net.TCPAddr{IP: net.IP("192.168.0.1")}
-			statusConn := connection.NewBasicPlayerConn(c1, netAddr)
+			statusConn := connection.NewHandshakeConn(c1, netAddr)
 			pingCh := make(chan protocol.Packet)
 			statusData := &StatusData{
 				doPing:  tc.doPing,
@@ -452,15 +452,15 @@ func testServerStatus_WithoutConfigStatus(t *testing.T, runServer runTestServer,
 				hsPk:    tc.hsPk,
 				request: tc.requestPk,
 			}
-			statusConn.SetHandshake(tc.hs)
-			statusConn.SetHandshakePacket(tc.hsPk)
+			statusConn.Handshake = tc.hs
+			statusConn.HandshakePacket = tc.hsPk
 
 			go func() {
 				statusData.statusClient(c2)
 			}()
 
 			s1, s2 := net.Pipe()
-			sConn := connection.NewBasicServerConn(s1)
+			sConn := connection.NewServerConn(s1)
 
 			connFactory := func(addr string) (connection.ServerConn, error) {
 				return sConn, nil

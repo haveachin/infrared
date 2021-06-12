@@ -55,7 +55,7 @@ func (l *BasicListener) Listen() error {
 	}
 	for {
 		conn, remoteAddr := l.OutListener.Accept()
-		c := connection.NewBasicPlayerConn(conn, remoteAddr)
+		c := connection.NewHandshakeConn(conn, remoteAddr)
 		l.ConnCh <- c
 	}
 }

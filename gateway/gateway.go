@@ -21,10 +21,6 @@ type ServerData struct {
 	ConnCh chan<- connection.HandshakeConn
 }
 
-type Gateway interface {
-	HandleConn(conn connection.HandshakeConn) error
-}
-
 type BasicGateway struct {
 	store ServerStore
 	inCh  <-chan connection.HandshakeConn
@@ -53,8 +49,8 @@ func (g *BasicGateway) HandleConn(conn connection.HandshakeConn) error {
 		// There was no server to be found
 		return ErrNoServerFound
 	}
-	conn.SetHandshakePacket(pk)
-	conn.SetHandshake(hs)
+	conn.HandshakePacket = pk
+	conn.Handshake = hs
 
 	serverData.ConnCh <- conn
 

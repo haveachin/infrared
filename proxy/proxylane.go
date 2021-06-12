@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/haveachin/infrared/connection"
@@ -112,10 +113,11 @@ func (proxy *ProxyLane) HandleServer(cfg server.ServerConfig) {
 	}
 
 	for i := 0; i < cfg.NumberOfInstances; i++ {
-		go func(server server.Server) {
+		go func(server server.MCServer) {
+			fmt.Println(&server)
 			// With this every server will be a unique instance
 			server.Start()
-		}(&mcServer)
+		}(mcServer)
 	}
 
 }

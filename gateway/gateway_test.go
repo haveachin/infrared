@@ -121,7 +121,7 @@ func testFindServer(data findServerData, t *testing.T) {
 			hs := handshaking.ServerBoundHandshake{ServerAddress: serverAddr}
 			c1, c2 := net.Pipe()
 			addr := &net.IPAddr{IP: []byte{1, 1, 1, 1}}
-			hsConn := connection.NewBasicPlayerConn(c1, addr)
+			hsConn := connection.NewHandshakeConn(c1, addr)
 			go func() {
 				pk := hs.Marshal()
 				bytes, _ := pk.Marshal()
