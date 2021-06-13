@@ -82,18 +82,5 @@ func (pk ServerBoundHandshake) ParseServerAddress() string {
 }
 
 func (pk *ServerBoundHandshake) UpgradeToRealIP(clientAddr net.Addr, timestamp time.Time) {
-	if pk.IsRealIPAddress() {
-		return
-	}
-
-	addr := string(pk.ServerAddress)
-	addrWithForge := strings.SplitAfter(addr, ForgeSeparator)
-
-	addr = fmt.Sprintf("%s///%s///%d", addrWithForge[0], clientAddr.String(), timestamp.Unix())
-
-	if len(addrWithForge) > 1 {
-		addr = fmt.Sprintf("%s\x00%s\x00", addr, addrWithForge[1])
-	}
-
-	pk.ServerAddress = protocol.String(addr)
+	return
 }
