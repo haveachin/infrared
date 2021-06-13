@@ -33,7 +33,7 @@ func (mock *mockHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	return nil, nil
 }
 
-func TestWebhook_Start(t *testing.T) {
+func TestWebhook_Serve(t *testing.T) {
 	tt := []struct {
 		webhook webhook.Webhook
 		event   webhook.Event
@@ -75,7 +75,7 @@ func TestWebhook_Start(t *testing.T) {
 		eventLogCh := make(chan *webhook.EventLog)
 		hasStopped := make(chan bool, 1)
 		go func() {
-			if err := tc.webhook.Start(eventCh, eventLogCh); err != nil {
+			if err := tc.webhook.Serve(eventCh, eventLogCh); err != nil {
 				t.Error(err)
 			}
 			hasStopped <- true
@@ -92,9 +92,7 @@ func TestWebhook_Start(t *testing.T) {
 			t.Fail()
 		}
 
-		if err := tc.webhook.Stop(); err != nil {
-			t.Error(err)
-		}
+		tc.webhook.Stop()
 
 		select {
 		case <-hasStopped:

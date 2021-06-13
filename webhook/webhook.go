@@ -11,7 +11,6 @@ import (
 
 var (
 	ErrAlreadyStarted = errors.New("already started")
-	ErrNotStartedYet  = errors.New("not started yet")
 )
 
 // HTTPClient represents an interface for the Webhook to send events with.
@@ -28,7 +27,7 @@ type EventLog struct {
 
 // Webhook can send a Event via POST Request to a specified URL.
 // There are two ways to use a Webhook. You can directly call
-// DispatchEvent or Start to attach a channel to the Webhook.
+// DispatchEvent or Serve to attach a channel to the Webhook.
 type Webhook struct {
 	stop chan bool
 
@@ -47,12 +46,12 @@ func (webhook Webhook) hasEvent(event Event) bool {
 	return false
 }
 
-// Start is a blocking function that will listen to the given channel for
-// an incoming Event. This Event will then be send via Webhook.DispatchEvent.
+// Serve is a blocking function that will listen to the given channel for
+// an incoming Event. This Event will then be send via the DispatchEvent function.
 // After the the Event was successfully dispatched the resulting EventLog will
-// be send into the output channel.
-// Errors will just be logged.
-func (webhook *Webhook) Start(in <-chan Event, out chan<- *EventLog) error {
+// be passed into the output channel. When the Event channel is closed then this returns nil.
+// Errors that happen while calling DispatchEvent will be logged.
+func (webhook *Webhook) Serve(in <-chan Event, out chan<- *EventLog) error {
 	if webhook.stop != nil {
 		return ErrAlreadyStarted
 	}
@@ -60,7 +59,11 @@ func (webhook *Webhook) Start(in <-chan Event, out chan<- *EventLog) error {
 
 	for {
 		select {
-		case event := <-in:
+		case event, ok := <-in:
+			if !ok {
+				return nil
+			}
+
 			eventLog, err := webhook.DispatchEvent(event)
 			if err != nil {
 				log.Printf("[w] Could not send %v", event)
@@ -74,13 +77,14 @@ func (webhook *Webhook) Start(in <-chan Event, out chan<- *EventLog) error {
 	}
 }
 
-func (webhook Webhook) Stop() error {
+// Stop signals the Webhook to end serving.
+// If the Webhook wasn't serving, then this will be a no-op.
+func (webhook Webhook) Stop() {
 	if webhook.stop == nil {
-		return ErrNotStartedYet
+		return
 	}
 
 	webhook.stop <- true
-	return nil
 }
 
 // DispatchEvent wraps the given Event in an EventLog and marshals it into JSON
