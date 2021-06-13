@@ -3,7 +3,6 @@ package connection_test
 import (
 	"bytes"
 	"errors"
-	"io"
 	"net"
 	"testing"
 	"time"
@@ -130,21 +129,13 @@ func shouldStopTest(t *testing.T, err, expectedError error) bool {
 	}
 }
 
-func TestBasicPlayerConn(t *testing.T) {
+func TestHandshakeConn(t *testing.T) {
 
-	innerFactory := func(conn net.Conn, addr net.Addr) *connection.BasicPlayerConn {
-		return connection.NewBasicPlayerConn(conn, addr)
+	innerFactory := func(conn net.Conn, addr net.Addr) connection.HandshakeConn {
+		return connection.NewHandshakeConn(conn, addr)
 	}
 
-	// loginFactory := func(conn net.Conn, addr net.Addr) conn.LoginConn {
-	// 	return innerFactory(conn, addr)
-	// }
-	// testLoginConn(loginFactory, t)
-
-	hsFactory := func(conn net.Conn, addr net.Addr) connection.HandshakeConn {
-		return innerFactory(conn, addr)
-	}
-	testHSConn(hsFactory, t)
+	testHanshakeConn(innerFactory, t)
 
 	pipeFactory := func(conn net.Conn) connection.PipeConn {
 		return innerFactory(conn, &net.IPAddr{})
@@ -159,8 +150,8 @@ func TestBasicPlayerConn(t *testing.T) {
 
 func TestServerConn(t *testing.T) {
 
-	innerFactory := func(conn net.Conn) *connection.BasicServerConn {
-		return connection.NewBasicServerConn(conn)
+	innerFactory := func(conn net.Conn) connection.ServerConn {
+		return connection.NewServerConn(conn)
 	}
 
 	pipeFactory := func(conn net.Conn) connection.PipeConn {
@@ -175,18 +166,6 @@ func TestServerConn(t *testing.T) {
 
 }
 
-func TestBasicConn(t *testing.T) {
-	innerFactory := func(conn net.Conn) *connection.BasicConn {
-		return connection.NewBasicConn(conn)
-	}
-
-	byteFactory := func(conn net.Conn) connection.ByteConn {
-		return innerFactory(conn)
-	}
-	testByteConn(byteFactory, t)
-
-}
-
 type hsConnFactory func(net.Conn, net.Addr) connection.HandshakeConn
 
 type hsConnTestCase struct {
@@ -196,7 +175,7 @@ type hsConnTestCase struct {
 	addr     net.Addr
 }
 
-func testHSConn(factory hsConnFactory, t *testing.T) {
+func testHanshakeConn(factory hsConnFactory, t *testing.T) {
 	defaultAddr := &net.IPAddr{IP: []byte{127, 0, 0, 1}}
 	validLoginHs := handshaking.ServerBoundHandshake{
 		ServerAddress:   "infrared",
@@ -238,13 +217,13 @@ func testHSConn(factory hsConnFactory, t *testing.T) {
 			}
 
 			hsConn := factory(nil, tc.addr)
-			hsConn.SetHandshake(tc.hs)
-			hsConn.SetHandshakePacket(tc.hsPacket)
+			hsConn.Handshake = tc.hs
+			hsConn.HandshakePacket = tc.hsPacket
 
-			pk := hsConn.HandshakePacket()
+			pk := hsConn.HandshakePacket
 			testSamePK(t, tc.hsPacket, pk)
 
-			hs := hsConn.Handshake()
+			hs := hsConn.Handshake
 			if hs != tc.hs {
 				t.Logf("expected:\t%v", tc.hs)
 				t.Logf("got:\t\t%v", hs)
@@ -292,7 +271,7 @@ func TestHSConn_Utils(t *testing.T) {
 	}
 
 	hsFactory := func(tc testHandshakeValues) connection.HandshakeConn {
-		conn := connection.NewBasicPlayerConn(nil, nil)
+		conn := connection.NewHandshakeConn(nil, nil)
 
 		hs := handshaking.ServerBoundHandshake{
 			ServerAddress:   protocol.String(tc.addr),
@@ -300,7 +279,7 @@ func TestHSConn_Utils(t *testing.T) {
 			ProtocolVersion: protocol.VarInt(tc.version),
 			NextState:       protocol.Byte(tc.nextState),
 		}
-		conn.SetHandshake(hs)
+		conn.Handshake = hs
 
 		return conn
 	}
@@ -396,84 +375,6 @@ func testPipeConn(factory pipeConnFactory, t *testing.T) {
 			t.Logf("expected:\t%v", writingData2)
 			t.Logf("got:\t\t%v", readData2)
 		}
-	})
-
-}
-
-type byteConnFactory func(net.Conn) connection.ByteConn
-
-// If one of these test times out
-func testByteConn(factory byteConnFactory, t *testing.T) {
-	dataBytes := []byte{1, 2, 3, 4, 5, 6, 7, 8, 9}
-
-	conns := func() (connection.ByteConn, connection.ByteConn) {
-		c1, c2 := net.Pipe()
-		client := factory(c1)
-		server := factory(c2)
-		return client, server
-	}
-
-	checkNoErr := func(err error, t *testing.T) {
-		if err != nil {
-			t.Error("didnt expect an error but got one")
-			t.Log(err)
-		}
-	}
-
-	checkIOLength := func(n int, t *testing.T) {
-		if n != len(dataBytes) {
-			t.Error("Received different lengths of data")
-			t.Logf("expected:\t%v", len(dataBytes))
-			t.Logf("got:\t\t%v", n)
-		}
-	}
-
-	checkEOFErr := func(err error, t *testing.T) {
-		if !errors.Is(io.EOF, err) {
-			t.Error("expect an EOF error but didnt got one")
-			t.Log(err)
-		}
-	}
-
-	t.Run("Can write", func(t *testing.T) {
-		client, server := conns()
-		go func() {
-			readBytes := make([]byte, len(dataBytes))
-			server.Read(readBytes)
-		}()
-
-		n, err := client.Write(dataBytes)
-		checkNoErr(err, t)
-		checkIOLength(n, t)
-	})
-
-	t.Run("Can read", func(t *testing.T) {
-		client, server := conns()
-		go func() {
-			client.Write(dataBytes)
-		}()
-		readBytes := make([]byte, len(dataBytes))
-		n, err := server.Read(readBytes)
-		checkNoErr(err, t)
-		checkIOLength(n, t)
-
-		if !bytes.Equal(dataBytes, readBytes) {
-			t.Error("Received data is different from what we expected")
-			t.Logf("expected:\t%v", dataBytes)
-			t.Logf("got:\t\t%v", readBytes)
-		}
-	})
-
-	t.Run("Can close", func(t *testing.T) {
-		readBytes := make([]byte, len(dataBytes))
-		client, server := conns()
-		go func() {
-			client.Close()
-			// Writing data to prevent timeout if close doesnt work
-			client.Write(dataBytes)
-		}()
-		_, err := server.Read(readBytes)
-		checkEOFErr(err, t)
 	})
 
 }

@@ -12,6 +12,8 @@ var (
 	ErrCantStartListener    = errors.New("failed to start listener")
 )
 
+type OuterListanerFactory func(addr string) OuterListener
+
 type OuterListener interface {
 	Start() error
 	Accept() (net.Conn, net.Addr)
@@ -53,7 +55,7 @@ func (l *BasicListener) Listen() error {
 	}
 	for {
 		conn, remoteAddr := l.OutListener.Accept()
-		c := connection.NewBasicPlayerConn(conn, remoteAddr)
+		c := connection.NewHandshakeConn(conn, remoteAddr)
 		l.ConnCh <- c
 	}
 }

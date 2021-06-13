@@ -2,7 +2,6 @@ package gateway
 
 import (
 	"errors"
-	"sync"
 
 	"github.com/haveachin/infrared/connection"
 	"github.com/haveachin/infrared/protocol/handshaking"
@@ -20,10 +19,6 @@ func NewBasicGatewayWithStore(store ServerStore, ch <-chan connection.HandshakeC
 
 type ServerData struct {
 	ConnCh chan<- connection.HandshakeConn
-}
-
-type Gateway interface {
-	HandleConn(conn connection.HandshakeConn) error
 }
 
 type BasicGateway struct {
@@ -54,8 +49,8 @@ func (g *BasicGateway) HandleConn(conn connection.HandshakeConn) error {
 		// There was no server to be found
 		return ErrNoServerFound
 	}
-	conn.SetHandshakePacket(pk)
-	conn.SetHandshake(hs)
+	conn.HandshakePacket = pk
+	conn.Handshake = hs
 
 	serverData.ConnCh <- conn
 
@@ -75,19 +70,24 @@ func (store *SingleServerStore) FindServer(addr string) (ServerData, bool) {
 }
 
 type DefaultServerStore struct {
-	servers sync.Map
+	servers map[string]ServerData
 }
 
 func (store *DefaultServerStore) FindServer(addr string) (ServerData, bool) {
-	v, ok := store.servers.Load(addr)
+	server, ok := store.servers[addr]
 	if !ok {
 		// Client send an invalid address/port; we don't have a v for that address
 		return ServerData{}, false
 	}
-	server := v.(ServerData)
 	return server, true
 }
 
 func (store *DefaultServerStore) AddServer(addr string, serverData ServerData) {
-	store.servers.Store(addr, serverData)
+	store.servers[addr] = serverData
+}
+
+func CreateDefaultServerStore() DefaultServerStore {
+	store := DefaultServerStore{}
+	store.servers = make(map[string]ServerData)
+	return store
 }
