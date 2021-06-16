@@ -3,9 +3,7 @@ package gateway_test
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"net"
-	"sync"
 	"testing"
 	"time"
 
@@ -15,10 +13,8 @@ import (
 )
 
 var (
-	testOuterListenerPort = 10024
-
-	ErrStopListenerError = errors.New("use this error to stop the listener")
-	ErrNoMoreConnections = errors.New("no more connections")
+	ErrStopListenerError = &net.OpError{Op: "accept", Err: errors.New("no more connections")}
+	ErrNoConnections     = errors.New("no more connections")
 )
 
 type LoginData struct {
@@ -36,158 +32,170 @@ func loginClient(conn net.Conn, data LoginData) {
 	//Write something for (optional) pipe logic...?
 }
 
-type outerListenFunc func(addr string) gateway.OuterListener
-
-type faultyTestOutLis struct {
+type testListener struct {
+	conn              net.Conn
+	returnNewConn     bool
+	returnError       bool
+	returnClosedError bool
+	count             int
 }
 
-func (l *faultyTestOutLis) Start() error {
-	return gateway.ErrCantStartOutListener
-}
-
-func (l *faultyTestOutLis) Accept() (net.Conn, net.Addr) {
-	return nil, nil
-}
-
-type testOutLis struct {
-	conn net.Conn
-
-	count int
-}
-
-func (l *testOutLis) Start() error {
+func (l *testListener) Close() error {
 	return nil
 }
 
-func (l *testOutLis) Accept() (net.Conn, net.Addr) {
+func (l *testListener) AllowNewConn() {
+	l.returnNewConn = true
+}
+
+func (l *testListener) Addr() net.Addr {
+	return nil
+}
+
+func (l *testListener) Accept() (net.Conn, error) {
 	if l.count > 0 {
-		// To block the thread while kinda acting like a real listener
-		//  aka not returning a error bc there are not more connections
-		time.Sleep(10 * time.Second)
+		for {
+			if l.returnNewConn {
+				l.returnNewConn = false
+				break
+			}
+		}
 	}
 	l.count++
-	return l.conn, nil
-}
-
-// Help methods
-func testSamePK(t *testing.T, expected, received protocol.Packet) {
-	if !samePK(expected, received) {
-		t.Logf("expected:\t%v", expected)
-		t.Logf("got:\t\t%v", received)
-		t.Error("Received packet is different from what we expected")
+	var err error
+	if l.returnError {
+		err = ErrNoConnections
 	}
+	if l.returnClosedError {
+		err = ErrStopListenerError
+	}
+	return l.conn, err
 }
 
-func samePK(expected, received protocol.Packet) bool {
-	sameID := expected.ID == received.ID
-	sameData := bytes.Equal(expected.Data, received.Data)
-
-	return sameID && sameData
+func (l *testListener) createNewConn() net.Conn {
+	c1, c2 := net.Pipe()
+	l.conn = c1
+	return c2
 }
 
 // Actual test methods
 
-// OuterListener Tests
-func TestBasicOuterListener(t *testing.T) {
-	listenerCreateFn := func(addr string) gateway.OuterListener {
-		return gateway.NewBasicOuterListener(addr)
-	}
-
-	testOuterListener(t, listenerCreateFn)
-}
-
-func testOuterListener(t *testing.T, fn outerListenFunc) {
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	addr := fmt.Sprintf(":%d", testOuterListenerPort)
-	testOuterListenerPort++
-	testPk := protocol.Packet{ID: testUnboundID}
-	outerListener := fn(addr)
-
-	go func(t *testing.T, wg *sync.WaitGroup) {
-		wg.Wait()
-		conn, err := net.Dial("tcp", addr)
-		if err != nil {
-			t.Errorf("error was throw: %v", err)
-		}
-		bConn := connection.NewHandshakeConn(conn, nil)
-		err = bConn.WritePacket(testPk)
-		if err != nil {
-			t.Logf("got an error while writing the packet: %v", err)
-		}
-	}(t, &wg)
-
-	err := outerListener.Start()
-	if err != nil {
-		t.Errorf("Got an error while i shouldn't. Error: %v", err)
-		t.FailNow()
-	}
-	wg.Done()
-	cNet, _ := outerListener.Accept()
-	conn := connection.NewHandshakeConn(cNet, nil)
-	receivedPk, _ := conn.ReadPacket()
-
-	testSamePK(t, testPk, receivedPk)
-}
-
 // Infrared Listener Tests
 func TestBasicListener(t *testing.T) {
-	// Need changes
+	hsPk := protocol.Packet{ID: testLoginHSID}
+	loginData := LoginData{
+		hs: hsPk,
+	}
+	checkConnection := func(t *testing.T, conn connection.HandshakeConn) {
+		expectedPk := hsPk
+		receivePk, _ := conn.ReadPacket()
+		sameID := expectedPk.ID == receivePk.ID
+		sameData := bytes.Equal(expectedPk.Data, receivePk.Data)
+		if !sameID && sameData {
+			t.Helper()
+			t.Logf("expected:\t%v", expectedPk)
+			t.Logf("got:\t%v", receivePk)
+			t.Error("Received packet is different from what we expected")
+		}
+	}
+
 	tt := []struct {
-		name         string
-		returnsError bool
+		name                   string
+		returnError            bool
+		expectedError          error
+		shouldContinueToListen bool
+		returnCloseError       bool
+		withLogger             bool
 	}{
 		{
-			name:         "Test where start doesnt return error",
-			returnsError: false,
+			name:                   "Test where listening doesnt have an error",
+			returnError:            false,
+			shouldContinueToListen: true,
+			withLogger:             true,
 		},
 		{
-			name:         "Test where start return error",
-			returnsError: true,
+			name:                   "Test where listening doesnt have an error",
+			returnError:            false,
+			shouldContinueToListen: true,
+			withLogger:             false,
+		},
+		{
+			name:                   "Test where listening does have an error",
+			returnError:            true,
+			expectedError:          ErrNoConnections,
+			shouldContinueToListen: true,
+			withLogger:             true,
+		},
+		{
+			name:                   "Test where listener closes",
+			returnError:            true,
+			expectedError:          ErrStopListenerError,
+			shouldContinueToListen: false,
+			returnCloseError:       true,
+			withLogger:             true,
 		},
 	}
 
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
-			var outerListener gateway.OuterListener
-			hsPk := protocol.Packet{ID: testLoginHSID}
-			c1, c2 := net.Pipe()
-			loginData := LoginData{
-				hs: hsPk,
-			}
-
-			go func() {
-				loginClient(c2, loginData)
-			}()
-
-			outerListener = &testOutLis{conn: c1}
-			if tc.returnsError {
-				outerListener = &faultyTestOutLis{}
-			}
-			connCh := make(chan connection.HandshakeConn)
-			l := gateway.BasicListener{OutListener: outerListener, ConnCh: connCh}
 
 			errChannel := make(chan error)
+			errLogger := func(err error) {
+				t.Log(err)
+				errChannel <- err
+			}
+			listener := &testListener{
+				returnError:       tc.returnError,
+				returnClosedError: tc.returnCloseError,
+			}
+
+			conn := listener.createNewConn()
+			go func() {
+				loginClient(conn, loginData)
+			}()
+			connCh := make(chan connection.HandshakeConn)
+			l := gateway.NewBasicListener(listener, connCh, errLogger)
 
 			go func() {
-				err := l.Listen()
-				if err != nil {
-					errChannel <- err
-				}
+				l.Listen()
 			}()
 
 			select {
 			case err := <-errChannel:
-				if !errors.Is(err, gateway.ErrCantStartListener) {
+				if !errors.Is(err, tc.expectedError) {
 					t.Logf("unexpected error was thrown: %v", err)
 					t.FailNow()
 				}
-			case <-time.After(defaultChanTimeout): // err should be returned almost immediately
+			case <-time.After(defaultChanTimeout):
 				t.Log("Tasked timed out")
-				t.FailNow() // Dont check other code it didnt finish anyway
+				t.FailNow()
 			case conn := <-connCh:
-				receivePk, _ := conn.ReadPacket()
-				testSamePK(t, hsPk, receivePk)
+				if tc.returnError {
+					t.Logf("No error was thrown while it should have")
+					t.FailNow()
+				}
+				checkConnection(t, conn)
+			}
+
+			listener.returnNewConn = true
+			listener.returnError = false
+			listener.returnClosedError = false
+			conn = listener.createNewConn()
+
+			select {
+			case err := <-errChannel:
+				t.Logf("unexpected error was thrown: %v", err)
+				t.FailNow()
+			case <-time.After(defaultChanTimeout):
+				if tc.shouldContinueToListen {
+					t.Log("Tasked timed out")
+					t.FailNow()
+				}
+			case <-connCh:
+				if !tc.shouldContinueToListen {
+					t.Log("Listener should have stopped")
+					t.FailNow()
+				}
 			}
 
 		})

@@ -1,7 +1,6 @@
 package proxy
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/haveachin/infrared/connection"
@@ -21,8 +20,8 @@ type ProxyLaneConfig struct {
 	Servers []server.ServerConfig `json:"servers"`
 
 	// Seperate this so we can test without making actual network calls
-	ServerConnFactory    connection.NewServerConnFactory
-	OuterListenerFactory gateway.OuterListanerFactory
+	ServerConnFactory connection.NewServerConnFactory
+	ListenerFactory   gateway.ListanerFactory
 }
 
 type ProxyLane struct {
@@ -40,7 +39,6 @@ func (proxy *ProxyLane) StartupProxy() {
 
 	servers := proxy.Config.Servers
 
-
 	timeout := time.Duration(proxy.Config.Timeout) * time.Millisecond
 	proxy.connFactory, _ = proxy.Config.ServerConnFactory(timeout)
 
@@ -55,9 +53,9 @@ func (proxy *ProxyLane) StartupProxy() {
 }
 
 func (proxy *ProxyLane) HandleListeners(gatewayCh chan connection.HandshakeConn) {
-	outerListener := proxy.Config.OuterListenerFactory(proxy.Config.ListenTo)
+	listener, _ := proxy.Config.ListenerFactory(proxy.Config.ListenTo)
 	for i := 0; i < proxy.Config.NumberOfListeners; i++ {
-		l := gateway.BasicListener{OutListener: outerListener, ConnCh: gatewayCh}
+		l := gateway.NewBasicListener(listener, gatewayCh)
 
 		go func() {
 			l.Listen()
@@ -114,7 +112,6 @@ func (proxy *ProxyLane) HandleServer(cfg server.ServerConfig) {
 
 	for i := 0; i < cfg.NumberOfInstances; i++ {
 		go func(server server.MCServer) {
-			fmt.Println(&server)
 			// With this every server will be a unique instance
 			server.Start()
 		}(mcServer)

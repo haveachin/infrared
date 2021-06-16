@@ -1,61 +1,47 @@
 package gateway
 
 import (
-	"errors"
 	"net"
 
 	"github.com/haveachin/infrared/connection"
 )
 
-var (
-	ErrCantStartOutListener = errors.New("failed to start outer listener")
-	ErrCantStartListener    = errors.New("failed to start listener")
-)
+type ErrorLogger func(err error)
 
-type OuterListanerFactory func(addr string) OuterListener
+type ListanerFactory func(addr string) (net.Listener, error)
 
-type OuterListener interface {
-	Start() error
-	Accept() (net.Conn, net.Addr)
-}
-
-func NewBasicOuterListener(addr string) OuterListener {
-	return &BasicOuterListener{addr: addr}
-}
-
-type BasicOuterListener struct {
-	net.Listener
-	addr string
-}
-
-func (l *BasicOuterListener) Start() error {
-	netL, err := net.Listen("tcp", l.addr)
-	if err != nil {
-		return ErrCantStartOutListener // TODO: look into ways to test this
+//The last argument is being used for an optional logger only the first logger will be used
+func NewBasicListener(listener net.Listener, ch connection.HandshakeChannel, errorLogger ...ErrorLogger) BasicListener {
+	logger := func(err error) {}
+	if len(errorLogger) != 0 {
+		logger = errorLogger[0]
 	}
-	l.Listener = netL
-	return nil
-
-}
-
-func (l *BasicOuterListener) Accept() (net.Conn, net.Addr) {
-	conn, _ := l.Listener.Accept() // Err needs test before it can be added
-	return conn, conn.RemoteAddr()
+	return BasicListener{
+		listener:  listener,
+		connCh:    ch,
+		errLogger: logger,
+	}
 }
 
 type BasicListener struct {
-	OutListener OuterListener
-	ConnCh      chan<- connection.HandshakeConn
+	listener  net.Listener
+	connCh    connection.HandshakeChannel
+	errLogger ErrorLogger
 }
 
-func (l *BasicListener) Listen() error {
-	err := l.OutListener.Start()
-	if err != nil {
-		return ErrCantStartListener
-	}
+// The only way to stop this is when the listeners closes
+func (l *BasicListener) Listen() {
 	for {
-		conn, remoteAddr := l.OutListener.Accept()
+		conn, err := l.listener.Accept()
+		if err != nil {
+			l.errLogger(err)
+			if _, ok := err.(*net.OpError); ok {
+				break
+			}
+			continue // When an error is returned there is no connection returned
+		}
+		remoteAddr := conn.RemoteAddr()
 		c := connection.NewHandshakeConn(conn, remoteAddr)
-		l.ConnCh <- c
+		l.connCh <- c
 	}
 }

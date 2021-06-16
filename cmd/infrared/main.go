@@ -11,7 +11,6 @@ import (
 
 	"github.com/haveachin/infrared"
 	"github.com/haveachin/infrared/connection"
-	"github.com/haveachin/infrared/gateway"
 	"github.com/haveachin/infrared/proxy"
 	"github.com/haveachin/infrared/server"
 )
@@ -96,8 +95,8 @@ func main() {
 			return connection.NewServerConn(c), nil
 		}, nil
 	}
-	outerListenerFactory := func(addr string) gateway.OuterListener {
-		return gateway.NewBasicOuterListener(addr)
+	listenerFactory := func(addr string) (net.Listener, error) {
+		return net.Listen("tcp", addr)
 	}
 
 	proxyCfg := proxy.ProxyLaneConfig{
@@ -108,8 +107,8 @@ func main() {
 		ListenTo: ":25565",
 		Servers:  serverCfgs,
 
-		ServerConnFactory:    connFactoryFactory,
-		OuterListenerFactory: outerListenerFactory,
+		ServerConnFactory: connFactoryFactory,
+		ListenerFactory:   listenerFactory,
 	}
 
 	proxyLane := proxy.ProxyLane{Config: proxyCfg}

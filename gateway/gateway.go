@@ -87,7 +87,7 @@ func (store *DefaultServerStore) AddServer(addr string, serverData ServerData) {
 }
 
 func CreateDefaultServerStore() DefaultServerStore {
-	store := DefaultServerStore{}
-	store.servers = make(map[string]ServerData)
-	return store
+	return DefaultServerStore{
+		servers: make(map[string]ServerData),
+	}
 }

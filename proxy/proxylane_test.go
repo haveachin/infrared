@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/haveachin/infrared/connection"
-	"github.com/haveachin/infrared/gateway"
 	"github.com/haveachin/infrared/protocol/handshaking"
 	"github.com/haveachin/infrared/proxy"
 	"github.com/haveachin/infrared/server"
@@ -16,18 +15,21 @@ var (
 	defaultChanTimeout = 50 * time.Millisecond
 )
 
-type testOutLis struct {
-	conn net.Conn
-
-	count            int
+type testListener struct {
+	conn             net.Conn
 	startConnections bool
+	count            int
 }
 
-func (l *testOutLis) Start() error {
+func (l *testListener) Close() error {
 	return nil
 }
 
-func (l *testOutLis) Accept() (net.Conn, net.Addr) {
+func (l *testListener) Addr() net.Addr {
+	return nil
+}
+
+func (l *testListener) Accept() (net.Conn, error) {
 	for !l.startConnections {
 		//Not really necessary but prevents some unnecessary computations
 		time.Sleep(1 * time.Millisecond)
@@ -39,13 +41,13 @@ func (l *testOutLis) Accept() (net.Conn, net.Addr) {
 func TestProxyLane_ListenersCreation(t *testing.T) {
 	numberOfListeners := 3
 	c1, _ := net.Pipe()
-	outerListener := &testOutLis{conn: c1, startConnections: false}
-	outerListenerFactory := func(addr string) gateway.OuterListener {
-		return outerListener
+	netListener := &testListener{conn: c1, startConnections: false}
+	listenerFactory := func(addr string) (net.Listener, error) {
+		return netListener, nil
 	}
 	proxyLaneCfg := proxy.ProxyLaneConfig{
-		NumberOfListeners:    numberOfListeners,
-		OuterListenerFactory: outerListenerFactory,
+		NumberOfListeners: numberOfListeners,
+		ListenerFactory:   listenerFactory,
 	}
 	toGatewayChan := make(chan connection.HandshakeConn)
 
@@ -53,15 +55,15 @@ func TestProxyLane_ListenersCreation(t *testing.T) {
 
 	proxyLane.HandleListeners(toGatewayChan)
 
-	outerListener.startConnections = true
+	netListener.startConnections = true
 
 	// Just wait for some time
 	<-time.After(defaultChanTimeout)
 
-	if outerListener.count != numberOfListeners {
+	if netListener.count != numberOfListeners {
 		t.Error("different number of connections have been opened than we expected")
 		t.Logf("expected:\t%v", numberOfListeners)
-		t.Logf("got:\t\t%v", outerListener.count)
+		t.Logf("got:\t\t%v", netListener.count)
 	}
 
 }
