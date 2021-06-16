@@ -21,7 +21,7 @@ var (
 	ErrNotImplemented = errors.New("not implemented")
 	ErrNoReadLeft     = errors.New("no packets left to read")
 
-	defaultChanTimeout = 50 * time.Millisecond
+	defaultChanTimeout = 100 * time.Millisecond
 )
 
 type GatewayRunner func(gwCh <-chan connection.HandshakeConn) <-chan connection.HandshakeConn
