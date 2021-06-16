@@ -51,7 +51,7 @@ func (webhook Webhook) hasEvent(event Event) bool {
 // After the the Event was successfully dispatched the resulting EventLog will
 // be passed into the output channel. When the Event channel is closed then this returns nil.
 // Errors that happen while calling DispatchEvent will be logged.
-func (webhook *Webhook) Serve(in <-chan Event, out chan<- *EventLog) error {
+func (webhook *Webhook) Serve(in <-chan Event, out chan<- EventLog) error {
 	if webhook.stop != nil {
 		return ErrAlreadyStarted
 	}
@@ -89,9 +89,9 @@ func (webhook Webhook) Stop() {
 
 // DispatchEvent wraps the given Event in an EventLog and marshals it into JSON
 // before sending it in a POST Request to the Webhook.URL.
-func (webhook Webhook) DispatchEvent(event Event) (*EventLog, error) {
+func (webhook Webhook) DispatchEvent(event Event) (EventLog, error) {
 	if !webhook.hasEvent(event) {
-		return nil, nil
+		return EventLog{}, nil
 	}
 
 	eventLog := EventLog{
@@ -102,18 +102,18 @@ func (webhook Webhook) DispatchEvent(event Event) (*EventLog, error) {
 
 	bb, err := json.Marshal(eventLog)
 	if err != nil {
-		return nil, err
+		return EventLog{}, err
 	}
 
 	request, err := http.NewRequest(http.MethodPost, webhook.URL, bytes.NewReader(bb))
 	if err != nil {
-		return nil, err
+		return EventLog{}, err
 	}
 
 	_, err = webhook.HTTPClient.Do(request)
 	if err != nil {
-		return nil, err
+		return EventLog{}, err
 	}
 
-	return &eventLog, nil
+	return eventLog, nil
 }

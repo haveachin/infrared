@@ -72,7 +72,7 @@ func TestWebhook_Serve(t *testing.T) {
 		}
 
 		eventCh := make(chan webhook.Event)
-		eventLogCh := make(chan *webhook.EventLog)
+		eventLogCh := make(chan webhook.EventLog)
 		hasStopped := make(chan bool, 1)
 		go func() {
 			if err := tc.webhook.Serve(eventCh, eventLogCh); err != nil {
