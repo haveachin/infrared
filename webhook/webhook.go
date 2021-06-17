@@ -4,13 +4,12 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"log"
 	"net/http"
 	"time"
 )
 
 var (
-	ErrAlreadyStarted = errors.New("already started")
+	ErrEventNotAllowed = errors.New("event not allowed")
 )
 
 // HTTPClient represents an interface for the Webhook to send events with.
@@ -29,8 +28,6 @@ type EventLog struct {
 // There are two ways to use a Webhook. You can directly call
 // DispatchEvent or Serve to attach a channel to the Webhook.
 type Webhook struct {
-	stop chan bool
-
 	HTTPClient HTTPClient
 	URL        string
 	Events     []string
@@ -46,52 +43,11 @@ func (webhook Webhook) hasEvent(event Event) bool {
 	return false
 }
 
-// Serve is a blocking function that will listen to the given channel for
-// an incoming Event. This Event will then be send via the DispatchEvent function.
-// After the the Event was successfully dispatched the resulting EventLog will
-// be passed into the output channel. When the Event channel is closed then this returns nil.
-// Errors that happen while calling DispatchEvent will be logged.
-func (webhook *Webhook) Serve(in <-chan Event, out chan<- EventLog) error {
-	if webhook.stop != nil {
-		return ErrAlreadyStarted
-	}
-	webhook.stop = make(chan bool, 1)
-
-	for {
-		select {
-		case event, ok := <-in:
-			if !ok {
-				return nil
-			}
-
-			eventLog, err := webhook.DispatchEvent(event)
-			if err != nil {
-				log.Printf("[w] Could not send %v", event)
-				break
-			}
-			out <- eventLog
-		case <-webhook.stop:
-			webhook.stop = nil
-			return nil
-		}
-	}
-}
-
-// Stop signals the Webhook to end serving.
-// If the Webhook wasn't serving, then this will be a no-op.
-func (webhook Webhook) Stop() {
-	if webhook.stop == nil {
-		return
-	}
-
-	webhook.stop <- true
-}
-
 // DispatchEvent wraps the given Event in an EventLog and marshals it into JSON
 // before sending it in a POST Request to the Webhook.URL.
 func (webhook Webhook) DispatchEvent(event Event) (EventLog, error) {
 	if !webhook.hasEvent(event) {
-		return EventLog{}, nil
+		return EventLog{}, ErrEventNotAllowed
 	}
 
 	eventLog := EventLog{
@@ -110,9 +66,14 @@ func (webhook Webhook) DispatchEvent(event Event) (EventLog, error) {
 		return EventLog{}, err
 	}
 
-	_, err = webhook.HTTPClient.Do(request)
+	resp, err := webhook.HTTPClient.Do(request)
 	if err != nil {
 		return EventLog{}, err
+	}
+	// We don't care about the client's response, but we should still close the client's body if it exists.
+	// If not closed this will become a resource leak.
+	if resp != nil && resp.Body != nil {
+		_ = resp.Body.Close()
 	}
 
 	return eventLog, nil

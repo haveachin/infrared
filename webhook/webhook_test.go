@@ -3,29 +3,28 @@ package webhook_test
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"github.com/haveachin/infrared/webhook"
 	"net/http"
 	"testing"
-	"time"
 )
 
 type mockHTTPClient struct {
 	*testing.T
-	method string
-	url    string
-	body   *bytes.Buffer
+	targetURL    string
+	expectedBody *bytes.Buffer
 }
 
 func (mock *mockHTTPClient) Do(req *http.Request) (*http.Response, error) {
-	if req.Method != mock.method {
+	if req.Method != http.MethodPost {
 		mock.Fail()
 	}
 
-	if req.URL.String() != mock.url {
+	if req.URL.String() != mock.targetURL {
 		mock.Fail()
 	}
 
-	_, err := mock.body.ReadFrom(req.Body)
+	_, err := mock.expectedBody.ReadFrom(req.Body)
 	if err != nil {
 		mock.Error(err)
 	}
@@ -33,82 +32,15 @@ func (mock *mockHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	return nil, nil
 }
 
-func TestWebhook_Serve(t *testing.T) {
-	tt := []struct {
-		webhook webhook.Webhook
-		event   webhook.Event
-	}{
-		{
-			webhook: webhook.Webhook{
-				URL:    "https://example.com",
-				Events: []string{webhook.EventTypeError},
-			},
-			event: webhook.ErrorEvent{
-				Error:    "my error message",
-				ProxyUID: "example.com@1.2.3.4:25565",
-			},
-		},
-		{
-			webhook: webhook.Webhook{
-				URL:    "https://example.com",
-				Events: []string{webhook.EventTypePlayerJoin, webhook.EventTypePlayerLeave},
-			},
-			event: webhook.PlayerJoinEvent{
-				Username:      "notch",
-				RemoteAddress: "1.2.3.4",
-				TargetAddress: "1.2.3.4",
-				ProxyUID:      "example.com@1.2.3.4:25565",
-			},
-		},
-	}
-
-	for _, tc := range tt {
-		body := bytes.Buffer{}
-		tc.webhook.HTTPClient = &mockHTTPClient{
-			T:      t,
-			method: http.MethodPost,
-			url:    tc.webhook.URL,
-			body:   &body,
-		}
-
-		eventCh := make(chan webhook.Event)
-		eventLogCh := make(chan webhook.EventLog)
-		hasStopped := make(chan bool, 1)
-		go func() {
-			if err := tc.webhook.Serve(eventCh, eventLogCh); err != nil {
-				t.Error(err)
-			}
-			hasStopped <- true
-		}()
-		eventCh <- tc.event
-		eventLog := <-eventLogCh
-
-		bb, err := json.Marshal(eventLog)
-		if err != nil {
-			t.Error(err)
-		}
-
-		if !bytes.Equal(body.Bytes(), bb) {
-			t.Fail()
-		}
-
-		tc.webhook.Stop()
-
-		select {
-		case <-hasStopped:
-			break
-		case <-time.After(time.Second):
-			t.Fail()
-		}
-	}
-}
-
 func TestWebhook_DispatchEvent(t *testing.T) {
 	tt := []struct {
-		webhook webhook.Webhook
-		event   webhook.Event
+		name           string
+		webhook        webhook.Webhook
+		event          webhook.Event
+		shouldDispatch bool
 	}{
 		{
+			name: "WithExactlyTheAllowedEvent",
 			webhook: webhook.Webhook{
 				URL:    "https://example.com",
 				Events: []string{webhook.EventTypeError},
@@ -117,8 +49,10 @@ func TestWebhook_DispatchEvent(t *testing.T) {
 				Error:    "my error message",
 				ProxyUID: "example.com@1.2.3.4:25565",
 			},
+			shouldDispatch: true,
 		},
 		{
+			name: "WithOneOfTheAllowedEvents",
 			webhook: webhook.Webhook{
 				URL:    "https://example.com",
 				Events: []string{webhook.EventTypePlayerJoin, webhook.EventTypePlayerLeave},
@@ -129,30 +63,49 @@ func TestWebhook_DispatchEvent(t *testing.T) {
 				TargetAddress: "1.2.3.4",
 				ProxyUID:      "example.com@1.2.3.4:25565",
 			},
+			shouldDispatch: true,
+		},
+		{
+			name: "ErrorsWithOneDeniedEvent",
+			webhook: webhook.Webhook{
+				URL:    "https://example.com",
+				Events: []string{webhook.EventTypeError, webhook.EventTypePlayerLeave},
+			},
+			event: webhook.PlayerJoinEvent{
+				Username:      "notch",
+				RemoteAddress: "1.2.3.4",
+				TargetAddress: "1.2.3.4",
+				ProxyUID:      "example.com@1.2.3.4:25565",
+			},
+			shouldDispatch: false,
 		},
 	}
 
 	for _, tc := range tt {
-		body := bytes.Buffer{}
-		tc.webhook.HTTPClient = &mockHTTPClient{
-			T:      t,
-			method: http.MethodPost,
-			url:    tc.webhook.URL,
-			body:   &body,
-		}
+		t.Run(tc.name, func(t *testing.T) {
+			var body bytes.Buffer
+			tc.webhook.HTTPClient = &mockHTTPClient{
+				T:            t,
+				targetURL:    tc.webhook.URL,
+				expectedBody: &body,
+			}
 
-		eventLog, err := tc.webhook.DispatchEvent(tc.event)
-		if err != nil {
-			t.Error(err)
-		}
+			eventLog, err := tc.webhook.DispatchEvent(tc.event)
+			if err != nil {
+				if errors.Is(err, webhook.ErrEventNotAllowed) && !tc.shouldDispatch {
+					return
+				}
+				t.Error(err)
+			}
 
-		bb, err := json.Marshal(eventLog)
-		if err != nil {
-			t.Error(err)
-		}
+			bb, err := json.Marshal(eventLog)
+			if err != nil {
+				t.Error(err)
+			}
 
-		if !bytes.Equal(body.Bytes(), bb) {
-			t.Fail()
-		}
+			if !bytes.Equal(body.Bytes(), bb) {
+				t.Fail()
+			}
+		})
 	}
 }
