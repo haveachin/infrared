@@ -30,13 +30,13 @@ type EventLog struct {
 type Webhook struct {
 	HTTPClient HTTPClient
 	URL        string
-	Events     []string
+	EventTypes []string
 }
 
-// hasEvent checks if Webhook.Events contain the given event's type.
+// hasEvent checks if Webhook.EventTypes contain the given event's type.
 func (webhook Webhook) hasEvent(event Event) bool {
-	for _, e := range webhook.Events {
-		if e == event.EventType() {
+	for _, eventType := range webhook.EventTypes {
+		if eventType == event.EventType() {
 			return true
 		}
 	}

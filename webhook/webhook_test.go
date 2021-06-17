@@ -42,8 +42,8 @@ func TestWebhook_DispatchEvent(t *testing.T) {
 		{
 			name: "WithExactlyTheAllowedEvent",
 			webhook: webhook.Webhook{
-				URL:    "https://example.com",
-				Events: []string{webhook.EventTypeError},
+				URL:        "https://example.com",
+				EventTypes: []string{webhook.EventTypeError},
 			},
 			event: webhook.EventError{
 				Error:    "my error message",
@@ -54,8 +54,8 @@ func TestWebhook_DispatchEvent(t *testing.T) {
 		{
 			name: "WithOneOfTheAllowedEvents",
 			webhook: webhook.Webhook{
-				URL:    "https://example.com",
-				Events: []string{webhook.EventTypePlayerJoin, webhook.EventTypePlayerLeave},
+				URL:        "https://example.com",
+				EventTypes: []string{webhook.EventTypePlayerJoin, webhook.EventTypePlayerLeave},
 			},
 			event: webhook.EventPlayerJoin{
 				Username:      "notch",
@@ -68,8 +68,8 @@ func TestWebhook_DispatchEvent(t *testing.T) {
 		{
 			name: "ErrorsWithOneDeniedEvent",
 			webhook: webhook.Webhook{
-				URL:    "https://example.com",
-				Events: []string{webhook.EventTypeError, webhook.EventTypePlayerLeave},
+				URL:        "https://example.com",
+				EventTypes: []string{webhook.EventTypeError, webhook.EventTypePlayerLeave},
 			},
 			event: webhook.EventPlayerJoin{
 				Username:      "notch",

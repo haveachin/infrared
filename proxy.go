@@ -144,8 +144,8 @@ func (proxy *Proxy) CallbackLogger() webhook.Webhook {
 	proxy.Config.RLock()
 	defer proxy.Config.RUnlock()
 	return webhook.Webhook{
-		URL:    proxy.Config.CallbackServer.URL,
-		Events: proxy.Config.CallbackServer.Events,
+		URL:        proxy.Config.CallbackServer.URL,
+		EventTypes: proxy.Config.CallbackServer.Events,
 	}
 }
 
