@@ -249,7 +249,7 @@ func (proxy *Proxy) handleConn(conn Conn, connRemoteAddr net.Addr) error {
 			return err
 		}
 		proxy.addPlayer(conn, username)
-		proxy.logEvent(webhook.PlayerJoinEvent{
+		proxy.logEvent(webhook.EventPlayerJoin{
 			Username:      username,
 			RemoteAddress: connRemoteAddr.String(),
 			TargetAddress: proxyTo,
@@ -260,7 +260,7 @@ func (proxy *Proxy) handleConn(conn Conn, connRemoteAddr net.Addr) error {
 	go pipe(rconn, conn)
 	pipe(conn, rconn)
 
-	proxy.logEvent(webhook.PlayerLeaveEvent{
+	proxy.logEvent(webhook.EventPlayerLeave{
 		Username:      username,
 		RemoteAddress: connRemoteAddr.String(),
 		TargetAddress: proxyTo,
@@ -307,7 +307,7 @@ func (proxy *Proxy) startProcessIfNotRunning() error {
 	}
 
 	log.Println("[i] Starting container for", proxy.UID())
-	proxy.logEvent(webhook.ContainerStartEvent{ProxyUID: proxy.UID()})
+	proxy.logEvent(webhook.EventContainerStart{ProxyUID: proxy.UID()})
 	return proxy.Process().Start()
 }
 
@@ -325,7 +325,7 @@ func (proxy *Proxy) timeoutProcess() {
 	log.Printf("[i] Starting container timeout %s on %s", proxy.DockerTimeout(), proxy.UID())
 	timer := time.AfterFunc(proxy.DockerTimeout(), func() {
 		log.Println("[i] Stopping container on", proxy.UID())
-		proxy.logEvent(webhook.ContainerStopEvent{ProxyUID: proxy.UID()})
+		proxy.logEvent(webhook.EventContainerStop{ProxyUID: proxy.UID()})
 		if err := proxy.Process().Stop(); err != nil {
 			log.Printf("[w] Failed to stop the container for %s; error: %s", proxy.UID(), err)
 		}

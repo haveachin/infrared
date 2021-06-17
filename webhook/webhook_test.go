@@ -45,7 +45,7 @@ func TestWebhook_DispatchEvent(t *testing.T) {
 				URL:    "https://example.com",
 				Events: []string{webhook.EventTypeError},
 			},
-			event: webhook.ErrorEvent{
+			event: webhook.EventError{
 				Error:    "my error message",
 				ProxyUID: "example.com@1.2.3.4:25565",
 			},
@@ -57,7 +57,7 @@ func TestWebhook_DispatchEvent(t *testing.T) {
 				URL:    "https://example.com",
 				Events: []string{webhook.EventTypePlayerJoin, webhook.EventTypePlayerLeave},
 			},
-			event: webhook.PlayerJoinEvent{
+			event: webhook.EventPlayerJoin{
 				Username:      "notch",
 				RemoteAddress: "1.2.3.4",
 				TargetAddress: "1.2.3.4",
@@ -71,7 +71,7 @@ func TestWebhook_DispatchEvent(t *testing.T) {
 				URL:    "https://example.com",
 				Events: []string{webhook.EventTypeError, webhook.EventTypePlayerLeave},
 			},
-			event: webhook.PlayerJoinEvent{
+			event: webhook.EventPlayerJoin{
 				Username:      "notch",
 				RemoteAddress: "1.2.3.4",
 				TargetAddress: "1.2.3.4",

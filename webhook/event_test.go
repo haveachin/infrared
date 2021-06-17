@@ -11,23 +11,23 @@ func TestErrorEvent_EventType(t *testing.T) {
 		eventType string
 	}{
 		{
-			event:     webhook.ErrorEvent{},
+			event:     webhook.EventError{},
 			eventType: webhook.EventTypeError,
 		},
 		{
-			event:     webhook.PlayerJoinEvent{},
+			event:     webhook.EventPlayerJoin{},
 			eventType: webhook.EventTypePlayerJoin,
 		},
 		{
-			event:     webhook.PlayerLeaveEvent{},
+			event:     webhook.EventPlayerLeave{},
 			eventType: webhook.EventTypePlayerLeave,
 		},
 		{
-			event:     webhook.ContainerStartEvent{},
+			event:     webhook.EventContainerStart{},
 			eventType: webhook.EventTypeContainerStart,
 		},
 		{
-			event:     webhook.ContainerStopEvent{},
+			event:     webhook.EventContainerStop{},
 			eventType: webhook.EventTypeContainerStop,
 		},
 	}
