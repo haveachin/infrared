@@ -9,10 +9,13 @@ import (
 	"testing"
 )
 
+var errHTTPRequestFailed = errors.New("request failed")
+
 type mockHTTPClient struct {
 	*testing.T
-	targetURL    string
-	expectedBody *bytes.Buffer
+	targetURL         string
+	expectedBody      *bytes.Buffer
+	requestShouldFail bool
 }
 
 func (mock *mockHTTPClient) Do(req *http.Request) (*http.Response, error) {
@@ -29,15 +32,20 @@ func (mock *mockHTTPClient) Do(req *http.Request) (*http.Response, error) {
 		mock.Error(err)
 	}
 
+	if mock.requestShouldFail {
+		return nil, errHTTPRequestFailed
+	}
+
 	return nil, nil
 }
 
 func TestWebhook_DispatchEvent(t *testing.T) {
 	tt := []struct {
-		name           string
-		webhook        webhook.Webhook
-		event          webhook.Event
-		shouldDispatch bool
+		name                  string
+		webhook               webhook.Webhook
+		event                 webhook.Event
+		shouldDispatch        bool
+		httpRequestShouldFail bool
 	}{
 		{
 			name: "WithExactlyTheAllowedEvent",
@@ -49,7 +57,8 @@ func TestWebhook_DispatchEvent(t *testing.T) {
 				Error:    "my error message",
 				ProxyUID: "example.com@1.2.3.4:25565",
 			},
-			shouldDispatch: true,
+			shouldDispatch:        true,
+			httpRequestShouldFail: false,
 		},
 		{
 			name: "WithOneOfTheAllowedEvents",
@@ -63,7 +72,8 @@ func TestWebhook_DispatchEvent(t *testing.T) {
 				TargetAddress: "1.2.3.4",
 				ProxyUID:      "example.com@1.2.3.4:25565",
 			},
-			shouldDispatch: true,
+			shouldDispatch:        true,
+			httpRequestShouldFail: false,
 		},
 		{
 			name: "ErrorsWithOneDeniedEvent",
@@ -77,7 +87,21 @@ func TestWebhook_DispatchEvent(t *testing.T) {
 				TargetAddress: "1.2.3.4",
 				ProxyUID:      "example.com@1.2.3.4:25565",
 			},
-			shouldDispatch: false,
+			shouldDispatch:        false,
+			httpRequestShouldFail: false,
+		},
+		{
+			name: "ErrorsWithFailedHTTPRequest",
+			webhook: webhook.Webhook{
+				URL:        "https://example.com",
+				EventTypes: []string{webhook.EventTypeError},
+			},
+			event: webhook.EventError{
+				Error:    "my error message",
+				ProxyUID: "example.com@1.2.3.4:25565",
+			},
+			shouldDispatch:        true,
+			httpRequestShouldFail: true,
 		},
 	}
 
@@ -85,14 +109,16 @@ func TestWebhook_DispatchEvent(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var body bytes.Buffer
 			tc.webhook.HTTPClient = &mockHTTPClient{
-				T:            t,
-				targetURL:    tc.webhook.URL,
-				expectedBody: &body,
+				T:                 t,
+				targetURL:         tc.webhook.URL,
+				expectedBody:      &body,
+				requestShouldFail: tc.httpRequestShouldFail,
 			}
 
 			eventLog, err := tc.webhook.DispatchEvent(tc.event)
 			if err != nil {
-				if errors.Is(err, webhook.ErrEventNotAllowed) && !tc.shouldDispatch {
+				if errors.Is(err, webhook.ErrEventNotAllowed) && !tc.shouldDispatch ||
+					errors.Is(err, errHTTPRequestFailed) && tc.httpRequestShouldFail {
 					return
 				}
 				t.Error(err)
