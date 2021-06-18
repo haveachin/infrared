@@ -65,7 +65,6 @@ func TestProxyLane_ListenersCreation(t *testing.T) {
 	proxyLane := proxy.ProxyLane{Config: proxyLaneCfg}
 
 	proxyLane.HandleListeners(toGatewayChan)
-
 	netListener.startConnections = true
 
 	// Just wait for some time

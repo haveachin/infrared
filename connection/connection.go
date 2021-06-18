@@ -16,7 +16,6 @@ var (
 )
 
 type HandshakeChannel chan<- HandshakeConn
-
 type NewServerConnFactory func(timeout time.Duration) (ServerConnFactory, error)
 
 type ServerConnFactory func(string) (ServerConn, error)

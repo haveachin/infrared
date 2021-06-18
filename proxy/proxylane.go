@@ -56,7 +56,6 @@ func (proxy *ProxyLane) HandleListeners(gatewayCh chan connection.HandshakeConn)
 	listener, _ := proxy.Config.ListenerFactory(proxy.Config.ListenTo)
 	for i := 0; i < proxy.Config.NumberOfListeners; i++ {
 		l := gateway.NewBasicListener(listener, gatewayCh)
-
 		go func() {
 			l.Listen()
 		}()

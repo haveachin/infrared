@@ -6,8 +6,8 @@ import (
 	"github.com/haveachin/infrared/connection"
 )
 
-type ErrorLogger func(err error)
 
+type ErrorLogger func(err error)
 type ListanerFactory func(addr string) (net.Listener, error)
 
 //The last argument is being used for an optional logger only the first logger will be used
