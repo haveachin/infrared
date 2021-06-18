@@ -3,7 +3,7 @@ name: Test
 jobs:
   test:
     env: 
-      CHANNEL_TIMEOUT: '10ms'
+      CHANNEL_TIMEOUT: '20ms'
     strategy:
       matrix:
         go-version: [1.16.x]
