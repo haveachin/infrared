@@ -58,6 +58,9 @@ func (l *testListener) Accept() (net.Conn, error) {
 			if l.returnNewConn {
 				l.returnNewConn = false
 				break
+			} else {
+				// Just wait for some time
+				<-time.After(defaultChanTimeout)
 			}
 		}
 	}
@@ -78,9 +81,7 @@ func (l *testListener) createNewConn() net.Conn {
 	return c2
 }
 
-// Actual test methods
-
-// Infrared Listener Tests
+// Actual test method(s)
 func TestBasicListener(t *testing.T) {
 	hsPk := protocol.Packet{ID: testLoginHSID}
 	loginData := LoginData{
@@ -105,26 +106,22 @@ func TestBasicListener(t *testing.T) {
 		expectedError          error
 		shouldContinueToListen bool
 		returnCloseError       bool
-		withLogger             bool
 	}{
 		{
 			name:                   "Test where listening doesnt have an error",
 			returnError:            false,
 			shouldContinueToListen: true,
-			withLogger:             true,
 		},
 		{
 			name:                   "Test where listening doesnt have an error",
 			returnError:            false,
 			shouldContinueToListen: true,
-			withLogger:             false,
 		},
 		{
 			name:                   "Test where listening does have an error",
 			returnError:            true,
 			expectedError:          ErrNoConnections,
 			shouldContinueToListen: true,
-			withLogger:             true,
 		},
 		{
 			name:                   "Test where listener closes",
@@ -132,7 +129,6 @@ func TestBasicListener(t *testing.T) {
 			expectedError:          ErrStopListenerError,
 			shouldContinueToListen: false,
 			returnCloseError:       true,
-			withLogger:             true,
 		},
 	}
 
@@ -177,10 +173,10 @@ func TestBasicListener(t *testing.T) {
 				checkConnection(t, conn)
 			}
 
-			listener.returnNewConn = true
 			listener.returnError = false
 			listener.returnClosedError = false
 			conn = listener.createNewConn()
+			listener.returnNewConn = true
 
 			select {
 			case err := <-errChannel:
