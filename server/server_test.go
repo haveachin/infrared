@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"testing"
 	"time"
 
@@ -25,6 +26,16 @@ var (
 
 	defaultChanTimeout = 50 * time.Millisecond
 )
+
+func init() {
+	if timeStr := os.Getenv("CHANNEL_TIMEOUT"); timeStr != "" {
+		duration, err := time.ParseDuration(timeStr)
+		if err == nil {
+			defaultChanTimeout = duration
+		}
+	}
+
+}
 
 type LoginData struct {
 	hs         protocol.Packet

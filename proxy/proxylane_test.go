@@ -2,6 +2,7 @@ package proxy_test
 
 import (
 	"net"
+	"os"
 	"testing"
 	"time"
 
@@ -14,6 +15,16 @@ import (
 var (
 	defaultChanTimeout = 50 * time.Millisecond
 )
+
+func init() {
+	if timeStr := os.Getenv("CHANNEL_TIMEOUT"); timeStr != "" {
+		duration, err := time.ParseDuration(timeStr)
+		if err == nil {
+			defaultChanTimeout = duration
+		}
+	}
+
+}
 
 type testListener struct {
 	conn             net.Conn

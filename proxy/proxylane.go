@@ -71,7 +71,7 @@ func (proxy *ProxyLane) HandleGateways(gatewayCh chan connection.HandshakeConn) 
 	}
 
 	for i := 0; i < proxy.Config.NumberOfGateways; i++ {
-		gw := gateway.NewBasicGatewayWithStore(&serverStore, gatewayCh)
+		gw := gateway.NewBasicGatewayWithStore(&serverStore, gatewayCh, nil)
 		go func() {
 			gw.Start()
 		}()

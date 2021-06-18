@@ -13,8 +13,8 @@ var (
 	ErrNotValidHandshake = errors.New("this connection didnt provide a valid handshake")
 )
 
-func NewBasicGatewayWithStore(store ServerStore, ch <-chan connection.HandshakeConn) BasicGateway {
-	return BasicGateway{store: store, inCh: ch}
+func NewBasicGatewayWithStore(store ServerStore, connCh <-chan connection.HandshakeConn, closeCh <-chan struct{}) BasicGateway {
+	return BasicGateway{store: store, inCh: connCh, closeCh: closeCh}
 }
 
 type ServerData struct {
@@ -22,18 +22,25 @@ type ServerData struct {
 }
 
 type BasicGateway struct {
-	store ServerStore
-	inCh  <-chan connection.HandshakeConn
+	store   ServerStore
+	inCh    <-chan connection.HandshakeConn
+	closeCh <-chan struct{}
 }
 
 func (g *BasicGateway) Start() error {
+Forloop:
 	for {
-		conn := <-g.inCh
-		g.HandleConn(conn)
+		select {
+		case conn := <-g.inCh:
+			g.handleConn(conn)
+		case <-g.closeCh:
+			break Forloop
+		}
 	}
+	return nil
 }
 
-func (g *BasicGateway) HandleConn(conn connection.HandshakeConn) error {
+func (g *BasicGateway) handleConn(conn connection.HandshakeConn) error {
 	pk, err := conn.ReadPacket()
 	if err != nil {
 		return ErrCantGetHSPacket

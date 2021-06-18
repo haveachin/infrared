@@ -3,6 +3,7 @@ package connection
 import (
 	"bufio"
 	"errors"
+	"io"
 	"net"
 	"time"
 
@@ -58,10 +59,10 @@ func Pipe(c, s PipeConn) {
 	client := c.conn()
 	server := s.conn()
 	go func() {
-		pipe(server, client)
+		io.Copy(server, client)
 		client.Close()
 	}()
-	pipe(client, server)
+	io.Copy(client, server)
 	server.Close()
 }
 
