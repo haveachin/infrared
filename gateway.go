@@ -133,9 +133,12 @@ func (gateway *Gateway) CloseProxy(proxyUID string) {
 
 func (gateway *Gateway) RegisterProxy(proxy *Proxy) error {
 	// Register new Proxy
+	uids := proxy.UIDs()
+	for _, uid := range uids {
+		log.Println("Registering proxy with UID", uid)
+		gateway.proxies.Store(uid, proxy)
+	}
 	proxyUID := proxy.UID()
-	log.Println("Registering proxy with UID", proxyUID)
-	gateway.proxies.Store(proxyUID, proxy)
 	proxiesActive.Inc()
 
 	proxy.Config.removeCallback = func() {

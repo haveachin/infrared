@@ -73,6 +73,12 @@ func (proxy *Proxy) Process() process.Process {
 	return nil
 }
 
+func (proxy *Proxy) DomainNames() []string {
+	proxy.Config.RLock()
+	defer proxy.Config.RUnlock()
+	return proxy.Config.DomainNames
+}
+
 func (proxy *Proxy) DomainName() string {
 	proxy.Config.RLock()
 	defer proxy.Config.RUnlock()
@@ -156,6 +162,15 @@ func (proxy *Proxy) CallbackLogger() callback.Logger {
 
 func (proxy *Proxy) UID() string {
 	return proxyUID(proxy.DomainName(), proxy.ListenTo())
+}
+
+func (proxy *Proxy) UIDs() []string {
+	uids := []string{}
+	for _, domain := range(proxy.DomainNames()) {
+		uid := proxyUID(domain, proxy.ListenTo())
+		uids = append(uids, uid)
+	}
+	return uids
 }
 
 func (proxy *Proxy) addPlayer(conn Conn, username string) {
