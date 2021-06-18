@@ -138,7 +138,7 @@ More info on [Portainer](https://www.portainer.io/).
 
 ```json
 {
-  "domainName": "mc.example.com",
+  "domainNames": ["mc.example.com", "example.com"],
   "proxyTo": ":8080"
 }
 ```
@@ -152,7 +152,7 @@ More info on [Portainer](https://www.portainer.io/).
 
 ```json
 {
-  "domainName": "mc.example.com",
+  "domainNames": ["mc.example.com", "example.com"],
   "listenTo": ":25565",
   "proxyTo": ":8080",
   "proxyBind": "0.0.0.0",

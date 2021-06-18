@@ -29,7 +29,7 @@ type ProxyConfig struct {
 	dialer         *Dialer
 	process        process.Process
 
-	DomainName        string               `json:"domainName"`
+	DomainNames       []string             `json:"domainNames"`
 	ListenTo          string               `json:"listenTo"`
 	ProxyTo           string               `json:"proxyTo"`
 	ProxyBind         string               `json:"proxyBind"`
@@ -180,7 +180,7 @@ type CallbackServerConfig struct {
 
 func DefaultProxyConfig() ProxyConfig {
 	return ProxyConfig{
-		DomainName:        "localhost",
+		DomainNames:       []string{"localhost"},
 		ListenTo:          ":25565",
 		Timeout:           1000,
 		DisconnectMessage: "Sorry {{username}}, but the server is offline.",

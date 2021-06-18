@@ -76,7 +76,7 @@ func (proxy *Proxy) Process() process.Process {
 func (proxy *Proxy) DomainName() string {
 	proxy.Config.RLock()
 	defer proxy.Config.RUnlock()
-	return proxy.Config.DomainName
+	return proxy.Config.DomainNames[0]
 }
 
 func (proxy *Proxy) ListenTo() string {

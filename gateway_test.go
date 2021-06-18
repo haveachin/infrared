@@ -61,9 +61,9 @@ func proxyConfigWithPortEnd(portEnd int) *ProxyConfig {
 
 func createBasicProxyConfig(serverDomain, gatewayAddr, serverAddr string) *ProxyConfig {
 	return &ProxyConfig{
-		DomainName: serverDomain,
-		ListenTo:   gatewayAddr,
-		ProxyTo:    serverAddr,
+		DomainNames: []string{serverDomain},
+		ListenTo:    gatewayAddr,
+		ProxyTo:     serverAddr,
 	}
 }
 
@@ -559,7 +559,7 @@ func TestRouting(t *testing.T) {
 		serverAddr := serverAddr(port)
 		proxyC.ListenTo = gatewayAddr(server.portEnd)
 		proxyC.ProxyTo = serverAddr
-		proxyC.DomainName = server.domain
+		proxyC.DomainNames = []string{server.domain}
 		routingConfig = append(routingConfig, proxyC)
 
 		serverC.id = server.id
