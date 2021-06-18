@@ -1,13 +1,16 @@
 package infrared
 
 import (
+	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
 	"sync"
 
 	"github.com/haveachin/infrared/callback"
+	"github.com/haveachin/infrared/protocol"
 	"github.com/haveachin/infrared/protocol/handshaking"
+	"github.com/haveachin/infrared/protocol/status"
 	"github.com/pires/go-proxyproto"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -20,7 +23,30 @@ var (
 		Name: "infrared_proxies",
 		Help: "The total number of proxies running",
 	})
+
+	responsePk protocol.Packet
 )
+
+func init() {
+	responseJSON := status.ResponseJSON{
+		Version: status.VersionJSON{
+			Name:     "",
+			Protocol: 0,
+		},
+		Players: status.PlayersJSON{
+			Max:    0,
+			Online: 0,
+		},
+		Description: status.DescriptionJSON{
+			Text: "Powered by ...Hosting",
+		},
+	}
+	bb, _ := json.Marshal(responseJSON)
+
+	responsePk = status.ClientBoundResponse{
+		JSONResponse: protocol.String(bb),
+	}.Marshal()
+}
 
 type Gateway struct {
 	listeners            sync.Map
@@ -203,6 +229,13 @@ func (gateway *Gateway) serve(conn Conn, addr string) error {
 	log.Printf("[i] %s requests proxy with UID %s", connRemoteAddr, proxyUID)
 	v, ok := gateway.proxies.Load(proxyUID)
 	if !ok {
+		if hs.IsStatusRequest() {
+			conn.ReadPacket()
+			conn.WritePacket(responsePk)
+			pingPk, _ := conn.ReadPacket()
+			conn.WritePacket(pingPk)
+		}
+
 		// Client send an invalid address/port; we don't have a v for that address
 		return errors.New("no proxy with uid " + proxyUID)
 	}
