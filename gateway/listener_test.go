@@ -60,7 +60,7 @@ func (l *testListener) Accept() (net.Conn, error) {
 				break
 			} else {
 				// Just wait for some time
-				<-time.After(defaultChanTimeout)
+				<-time.After(2*time.Millisecond)
 			}
 		}
 	}
