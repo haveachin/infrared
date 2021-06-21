@@ -1,7 +1,6 @@
 package gateway
 
 import (
-	"fmt"
 	"net"
 
 	"github.com/haveachin/infrared/connection"
@@ -34,13 +33,10 @@ func (l *BasicListener) Listen() {
 	for {
 		conn, err := l.listener.Accept()
 		if err != nil {
-			fmt.Println("ABOVE LOGGER")
 			l.errLogger(err)
 			if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
-				fmt.Println("INSIDE IF")
 				continue
 			}
-			fmt.Println("OUTSIDE IF")
 			break
 		}
 		remoteAddr := conn.RemoteAddr()

@@ -14,23 +14,11 @@ import (
 )
 
 var (
-	testLoginHSID byte = 5
-
 	ErrNotImplemented = errors.New("not implemented")
 	ErrNoReadLeft     = errors.New("no packets left to read")
 
 	defaultChanTimeout time.Duration = 10 * time.Millisecond
 )
-
-// func init() {
-// 	if timeStr := os.Getenv("CHANNEL_TIMEOUT"); timeStr != "" {
-// 		duration, err := time.ParseDuration(timeStr)
-// 		if err == nil {
-// 			defaultChanTimeout = duration
-// 		}
-// 	}
-
-// }
 
 type GatewayRunner func(gwCh <-chan connection.HandshakeConn) <-chan connection.HandshakeConn
 
@@ -163,71 +151,62 @@ func testFindServer(data findServerData, t *testing.T) {
 
 }
 
-type testAction int
-
-const (
-	close testAction = iota
-	receive
-)
-
 func TestBasicGateway(t *testing.T) {
-	hs := handshaking.ServerBoundHandshake{ServerAddress: "infrared"}
-	c1, c2 := net.Pipe()
-	addr := &net.IPAddr{IP: []byte{1, 1, 1, 1}}
-	handshakeConn := connection.NewHandshakeConn(c1, addr)
-	go func() {
-		pk := hs.Marshal()
-		bytes, _ := pk.Marshal()
-		c2.Write(bytes)
-	}()
-	tt := []struct {
-		name   string
-		action testAction
-	}{
-		{
-			name:   "Test or gateway can accept connection",
-			action: receive,
-		},
-		{
-			name:   "Test or gateway can be closed",
-			action: close,
-		},
-	}
-	for _, tc := range tt {
-		t.Run(tc.name, func(t *testing.T) {
-			serverCh := make(chan connection.HandshakeConn)
-			serverData := gateway.ServerData{ConnCh: serverCh}
-			serverStore := &gateway.SingleServerStore{Server: serverData}
 
-			connCh := make(chan connection.HandshakeConn)
-			closeCh := make(chan struct{})
+	t.Run("Test or gateway can accept connection", func(t *testing.T) {
+		serverCh := make(chan connection.HandshakeConn)
+		serverData := gateway.ServerData{ConnCh: serverCh}
+		serverStore := &gateway.SingleServerStore{Server: serverData}
 
-			gw := gateway.NewBasicGatewayWithStore(serverStore, connCh, closeCh)
-			go func() {
-				gw.Start()
-			}()
+		connCh := make(chan connection.HandshakeConn)
+		closeCh := make(chan struct{})
 
-			switch tc.action {
-			case receive:
-				connCh <- handshakeConn
-				select {
-				case <-time.After(defaultChanTimeout):
-					t.Log("Tasked timed out")
-					t.FailNow()
-				case <-serverCh:
-					t.Log("gateway received and processed connection succesfully")
-				}
-			case close:
-				closeCh <- struct{}{}
-				select {
-				case <-time.After(defaultChanTimeout):
-					t.Log("Everything is fine the task timed out like it should have")
-				case connCh <- handshakeConn:
-					t.Log("Tasked should have timed out")
-					t.FailNow()
-				}
-			}
+		gw := gateway.NewBasicGatewayWithStore(serverStore, connCh, closeCh)
+		go func() {
+			gw.Start()
+		}()
 
-		})
-	}
+		hs := handshaking.ServerBoundHandshake{ServerAddress: "infrared"}
+		c1, c2 := net.Pipe()
+		handshakeConn := connection.NewHandshakeConn(c1, nil)
+		go func() {
+			pk := hs.Marshal()
+			bytes, _ := pk.Marshal()
+			c2.Write(bytes)
+		}()
+
+		connCh <- handshakeConn
+		select {
+		case <-time.After(defaultChanTimeout):
+			t.Log("Tasked timed out")
+			t.FailNow()
+		case <-serverCh:
+			t.Log("gateway received and processed connection succesfully")
+		}
+	})
+
+	t.Run("Test or gateway can be closed", func(t *testing.T) {
+		serverCh := make(chan connection.HandshakeConn)
+		serverData := gateway.ServerData{ConnCh: serverCh}
+		serverStore := &gateway.SingleServerStore{Server: serverData}
+
+		connCh := make(chan connection.HandshakeConn)
+		closeCh := make(chan struct{})
+
+		gw := gateway.NewBasicGatewayWithStore(serverStore, connCh, closeCh)
+		go func() {
+			gw.Start()
+		}()
+		handshakeConn := connection.NewHandshakeConn(nil, nil)
+
+		closeCh <- struct{}{}
+		select {
+		case <-time.After(defaultChanTimeout):
+			t.Log("Everything is fine the task timed out like it should have")
+		case connCh <- handshakeConn:
+			t.Log("Tasked should have timed out")
+			t.FailNow()
+		}
+	})
+
 }
