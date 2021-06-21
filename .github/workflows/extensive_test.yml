@@ -2,8 +2,6 @@ on: [pull_request]
 name: Test
 jobs:
   test:
-    env: 
-      CHANNEL_TIMEOUT: '50ms'
     strategy:
       matrix:
         go-version: [1.15.x, 1.16.x]

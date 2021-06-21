@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
 	"testing"
 	"time"
 
@@ -20,18 +19,18 @@ var (
 	ErrNotImplemented = errors.New("not implemented")
 	ErrNoReadLeft     = errors.New("no packets left to read")
 
-	defaultChanTimeout time.Duration = 100 * time.Millisecond
+	defaultChanTimeout time.Duration = 10 * time.Millisecond
 )
 
-func init() {
-	if timeStr := os.Getenv("CHANNEL_TIMEOUT"); timeStr != "" {
-		duration, err := time.ParseDuration(timeStr)
-		if err == nil {
-			defaultChanTimeout = duration
-		}
-	}
+// func init() {
+// 	if timeStr := os.Getenv("CHANNEL_TIMEOUT"); timeStr != "" {
+// 		duration, err := time.ParseDuration(timeStr)
+// 		if err == nil {
+// 			defaultChanTimeout = duration
+// 		}
+// 	}
 
-}
+// }
 
 type GatewayRunner func(gwCh <-chan connection.HandshakeConn) <-chan connection.HandshakeConn
 

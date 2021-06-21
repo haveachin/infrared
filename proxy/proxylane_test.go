@@ -2,7 +2,6 @@ package proxy_test
 
 import (
 	"net"
-	"os"
 	"testing"
 	"time"
 
@@ -13,23 +12,11 @@ import (
 )
 
 var (
-	defaultChanTimeout = 50 * time.Millisecond
+	defaultChanTimeout = 10 * time.Millisecond
 )
 
-func init() {
-	if timeStr := os.Getenv("CHANNEL_TIMEOUT"); timeStr != "" {
-		duration, err := time.ParseDuration(timeStr)
-		if err == nil {
-			defaultChanTimeout = duration
-		}
-	}
-
-}
-
 type testListener struct {
-	conn             net.Conn
-	startConnections bool
-	count            int
+	newConnChannel <-chan net.Conn
 }
 
 func (l *testListener) Close() error {
@@ -41,18 +28,14 @@ func (l *testListener) Addr() net.Addr {
 }
 
 func (l *testListener) Accept() (net.Conn, error) {
-	for !l.startConnections {
-		//Not really necessary but prevents some unnecessary computations
-		time.Sleep(1 * time.Millisecond)
-	}
-	l.count++
-	return l.conn, nil
+	conn := <- l.newConnChannel
+	return conn, nil
 }
 
 func TestProxyLane_ListenersCreation(t *testing.T) {
 	numberOfListeners := 3
-	c1, _ := net.Pipe()
-	netListener := &testListener{conn: c1, startConnections: false}
+	newConnChannel := make(chan net.Conn)
+	netListener := &testListener{newConnChannel: newConnChannel}
 	listenerFactory := func(addr string) (net.Listener, error) {
 		return netListener, nil
 	}
@@ -65,15 +48,16 @@ func TestProxyLane_ListenersCreation(t *testing.T) {
 	proxyLane := proxy.ProxyLane{Config: proxyLaneCfg}
 
 	proxyLane.HandleListeners(toGatewayChan)
-	netListener.startConnections = true
+	for i := 0; i < numberOfListeners; i++ {
+		newConnChannel<- &net.TCPConn{}
+	}
 
-	// Just wait for some time
-	<-time.After(defaultChanTimeout)
-
-	if netListener.count != numberOfListeners {
-		t.Error("different number of connections have been opened than we expected")
-		t.Logf("expected:\t%v", numberOfListeners)
-		t.Logf("got:\t\t%v", netListener.count)
+	select {
+	case newConnChannel <- &net.TCPConn{}:
+		t.Log("Listener called accept")
+		t.FailNow()
+	case <-time.After(defaultChanTimeout):
+		t.Log("Listener didnt accept connection (this is good)")
 	}
 
 }

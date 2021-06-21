@@ -21,7 +21,7 @@ type ProxyLaneConfig struct {
 
 	// Seperate this so we can test without making actual network calls
 	ServerConnFactory connection.NewServerConnFactory
-	ListenerFactory   gateway.ListanerFactory
+	ListenerFactory   gateway.ListenerFactory
 }
 
 type ProxyLane struct {

@@ -1,14 +1,14 @@
 package gateway
 
 import (
+	"fmt"
 	"net"
 
 	"github.com/haveachin/infrared/connection"
 )
 
-
 type ErrorLogger func(err error)
-type ListanerFactory func(addr string) (net.Listener, error)
+type ListenerFactory func(addr string) (net.Listener, error)
 
 //The last argument is being used for an optional logger only the first logger will be used
 func NewBasicListener(listener net.Listener, ch connection.HandshakeChannel, errorLogger ...ErrorLogger) BasicListener {
@@ -34,11 +34,14 @@ func (l *BasicListener) Listen() {
 	for {
 		conn, err := l.listener.Accept()
 		if err != nil {
+			fmt.Println("ABOVE LOGGER")
 			l.errLogger(err)
-			if _, ok := err.(*net.OpError); ok {
-				break
+			if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
+				fmt.Println("INSIDE IF")
+				continue
 			}
-			continue // When an error is returned there is no connection returned
+			fmt.Println("OUTSIDE IF")
+			break
 		}
 		remoteAddr := conn.RemoteAddr()
 		c := connection.NewHandshakeConn(conn, remoteAddr)
