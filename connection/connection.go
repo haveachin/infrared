@@ -30,7 +30,7 @@ const (
 )
 
 type PipeConn interface {
-	conn() net.Conn
+	Conn() net.Conn
 }
 
 type Conn interface {
@@ -55,8 +55,8 @@ func ParseRequestType(conn HandshakeConn) RequestType {
 }
 
 func Pipe(c, s PipeConn) {
-	client := c.conn()
-	server := s.conn()
+	client := c.Conn()
+	server := s.Conn()
 	go func() {
 		io.Copy(server, client)
 		client.Close()
@@ -104,7 +104,7 @@ func (hsConn HandshakeConn) RemoteAddr() net.Addr {
 	return hsConn.addr
 }
 
-func (conn HandshakeConn) conn() net.Conn {
+func (conn HandshakeConn) Conn() net.Conn {
 	return conn.netConn
 }
 
@@ -137,6 +137,6 @@ func (c ServerConn) WritePacket(p protocol.Packet) error {
 	return err
 }
 
-func (c ServerConn) conn() net.Conn {
+func (c ServerConn) Conn() net.Conn {
 	return c.netConn
 }

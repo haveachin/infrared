@@ -3,11 +3,16 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"net"
+	"net/http"
 	"os"
 	"strconv"
-	"sync"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/haveachin/infrared"
 	"github.com/haveachin/infrared/connection"
@@ -16,16 +21,23 @@ import (
 )
 
 const (
-	envPrefix     = "INFRARED_"
-	envConfigPath = envPrefix + "CONFIG_PATH"
+	envPrefix               = "INFRARED_"
+	envConfigPath           = envPrefix + "CONFIG_PATH"
+	envReceiveProxyProtocol = envPrefix + "RECEIVE_PROXY_PROTOCOL"
 )
 
 const (
-	clfConfigPath = "config-path"
+	clfConfigPath           = "config-path"
+	clfReceiveProxyProtocol = "receive-proxy-protocol"
+	clfPrometheusEnabled    = "enable-prometheus"
+	clfPrometheusBind       = "prometheus-bind"
 )
 
 var (
-	configPath = "./configs"
+	configPath           = "./configs"
+	receiveProxyProtocol = false
+	prometheusEnabled    = false
+	prometheusBind       = ":9100"
 )
 
 func envBool(name string, value bool) bool {
@@ -57,6 +69,9 @@ func initEnv() {
 
 func initFlags() {
 	flag.StringVar(&configPath, clfConfigPath, configPath, "path of all proxy configs")
+	flag.BoolVar(&receiveProxyProtocol, clfReceiveProxyProtocol, receiveProxyProtocol, "should accept proxy protocol")
+	flag.BoolVar(&prometheusEnabled, clfPrometheusEnabled, prometheusEnabled, "should run prometheus client exposing metrics")
+	flag.StringVar(&prometheusBind, clfPrometheusBind, prometheusBind, "bind address and/or port for prometheus")
 	flag.Parse()
 }
 
@@ -99,6 +114,11 @@ func main() {
 		return net.Listen("tcp", addr)
 	}
 
+	proxiesActive := promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "infrared_proxies",
+		Help: "The total number of proxies running",
+	})
+
 	proxyCfg := proxy.ProxyLaneConfig{
 		NumberOfListeners: 2,
 		NumberOfGateways:  4,
@@ -109,16 +129,21 @@ func main() {
 
 		ServerConnFactory: connFactoryFactory,
 		ListenerFactory:   listenerFactory,
+		Prometheus:        proxiesActive,
 	}
 
 	proxyLane := proxy.ProxyLane{Config: proxyCfg}
 	proxyLane.StartupProxy()
 
+	go func() {
+		http.Handle("/metrics", promhttp.Handler())
+		log.Println("Enabling Prometheus metrics endpoint on", prometheusBind)
+		http.ListenAndServe(prometheusBind, nil)
+	}()
+
 	fmt.Println("finished setting up proxylane")
 
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	wg.Wait()
+	select {}
 
 }
 

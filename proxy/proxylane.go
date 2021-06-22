@@ -3,10 +3,20 @@ package proxy
 import (
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
+
 	"github.com/haveachin/infrared/connection"
 	"github.com/haveachin/infrared/gateway"
 	"github.com/haveachin/infrared/protocol"
 	"github.com/haveachin/infrared/server"
+)
+
+var (
+	prometheusGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "infrared_connected",
+		Help: "The total number of connected players",
+	}, []string{"host"})
 )
 
 type ProxyLaneConfig struct {
@@ -22,6 +32,7 @@ type ProxyLaneConfig struct {
 	// Seperate this so we can test without making actual network calls
 	ServerConnFactory connection.NewServerConnFactory
 	ListenerFactory   gateway.ListenerFactory
+	Prometheus        prometheus.Gauge
 }
 
 type ProxyLane struct {
@@ -90,6 +101,18 @@ func (proxy *ProxyLane) LoadServers(servers []server.ServerConfig) {
 }
 
 func (proxy *ProxyLane) HandleServer(cfg server.ServerConfig) {
+	actionsJoining := []func(domain string){
+		func(domain string) {
+			prometheusGauge.With(prometheus.Labels{"host": domain}).Inc()
+		},
+	}
+
+	actionsLeaving := []func(domain string){
+		func(domain string) {
+			prometheusGauge.With(prometheus.Labels{"host": domain}).Dec()
+		},
+	}
+
 	var onlineStatus, offlineStatus protocol.Packet
 	// TODO: Should look into doing this differently, this check
 	if cfg.OnlineStatus.ProtocolNumber > 0 {
@@ -107,6 +130,9 @@ func (proxy *ProxyLane) HandleServer(cfg server.ServerConfig) {
 		OnlineConfigStatus:  onlineStatus,
 		OfflineConfigStatus: offlineStatus,
 		ConnCh:              serverCh,
+
+		JoiningActions: actionsJoining,
+		LeavingActions: actionsLeaving,
 	}
 
 	for i := 0; i < cfg.NumberOfInstances; i++ {

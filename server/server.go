@@ -33,6 +33,9 @@ type MCServer struct {
 	OfflineConfigStatus protocol.Packet
 
 	ConnCh <-chan connection.HandshakeConn
+
+	JoiningActions []func(domain string)
+	LeavingActions []func(domain string)
 }
 
 func (s *MCServer) Status(conn connection.HandshakeConn) protocol.Packet {
@@ -61,10 +64,23 @@ func (s *MCServer) Login(conn connection.HandshakeConn) error {
 	pk, _ := conn.ReadPacket()
 	serverConn.WritePacket(pk)
 
-	// Doing it like this should prevent weird behavior with can be causes by closujers combined with goroutines
 	go func(client, server connection.PipeConn) {
-		// closing connections on disconnect happen in the Pipe function
-		connection.Pipe(client, server)
+		for _, action := range s.JoiningActions {
+			action(s.Config.DomainName)
+		}
+
+		clientConn := client.Conn()
+		serverConn := server.Conn()
+		go func() {
+			io.Copy(serverConn, clientConn)
+			clientConn.Close()
+		}()
+		io.Copy(clientConn, serverConn)
+		serverConn.Close()
+
+		for _, action := range s.LeavingActions {
+			action(s.Config.DomainName)
+		}
 	}(conn, serverConn)
 
 	return nil
