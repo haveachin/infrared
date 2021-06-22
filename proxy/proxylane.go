@@ -13,7 +13,13 @@ import (
 )
 
 var (
-	prometheusGauge = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	// There is no closing yet, also some more numberes might be fun..?
+	proxiesActive = promauto.NewGauge(prometheus.GaugeOpts{
+		Name: "infrared_proxies",
+		Help: "The total number of proxies running",
+	})
+
+	playersConnected = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "infrared_connected",
 		Help: "The total number of connected players",
 	}, []string{"host"})
@@ -32,7 +38,6 @@ type ProxyLaneConfig struct {
 	// Seperate this so we can test without making actual network calls
 	ServerConnFactory connection.NewServerConnFactory
 	ListenerFactory   gateway.ListenerFactory
-	Prometheus        prometheus.Gauge
 }
 
 type ProxyLane struct {
@@ -58,6 +63,7 @@ func (proxy *ProxyLane) StartupProxy() {
 	proxy.HandleListeners(proxy.toGatewayChan)
 
 	for _, server := range servers {
+		proxiesActive.Inc()
 		proxy.HandleServer(server)
 	}
 
@@ -101,15 +107,16 @@ func (proxy *ProxyLane) LoadServers(servers []server.ServerConfig) {
 }
 
 func (proxy *ProxyLane) HandleServer(cfg server.ServerConfig) {
+	playersConnected.With(prometheus.Labels{"host": cfg.DomainName}).Dec()
 	actionsJoining := []func(domain string){
 		func(domain string) {
-			prometheusGauge.With(prometheus.Labels{"host": domain}).Inc()
+			playersConnected.With(prometheus.Labels{"host": domain}).Inc()
 		},
 	}
 
 	actionsLeaving := []func(domain string){
 		func(domain string) {
-			prometheusGauge.With(prometheus.Labels{"host": domain}).Dec()
+			playersConnected.With(prometheus.Labels{"host": domain}).Dec()
 		},
 	}
 

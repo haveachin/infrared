@@ -10,8 +10,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/haveachin/infrared"
@@ -24,20 +22,18 @@ const (
 	envPrefix               = "INFRARED_"
 	envConfigPath           = envPrefix + "CONFIG_PATH"
 	envReceiveProxyProtocol = envPrefix + "RECEIVE_PROXY_PROTOCOL"
-)
 
-const (
 	clfConfigPath           = "config-path"
 	clfReceiveProxyProtocol = "receive-proxy-protocol"
-    clfPrometheusEnabled    = "enable-prometheus"
-    clfPrometheusBind       = "prometheus-bind"
+	clfPrometheusEnabled    = "enable-prometheus"
+	clfPrometheusBind       = "prometheus-bind"
 )
 
 var (
 	configPath           = "./configs"
 	receiveProxyProtocol = false
-    prometheusEnabled    = false
-    prometheusBind       = ":9100"
+	prometheusEnabled    = false
+	prometheusBind       = ":9100"
 )
 
 func envBool(name string, value bool) bool {
@@ -71,8 +67,8 @@ func initEnv() {
 func initFlags() {
 	flag.StringVar(&configPath, clfConfigPath, configPath, "path of all proxy configs")
 	flag.BoolVar(&receiveProxyProtocol, clfReceiveProxyProtocol, receiveProxyProtocol, "should accept proxy protocol")
-    flag.BoolVar(&prometheusEnabled, clfPrometheusEnabled, prometheusEnabled, "should run prometheus client exposing metrics")
-    flag.StringVar(&prometheusBind, clfPrometheusBind, prometheusBind, "bind address and/or port for prometheus")
+	flag.BoolVar(&prometheusEnabled, clfPrometheusEnabled, prometheusEnabled, "should run prometheus client exposing metrics")
+	flag.StringVar(&prometheusBind, clfPrometheusBind, prometheusBind, "bind address and/or port for prometheus")
 	flag.Parse()
 }
 
@@ -115,11 +111,6 @@ func main() {
 		return net.Listen("tcp", addr)
 	}
 
-	proxiesActive := promauto.NewGauge(prometheus.GaugeOpts{
-		Name: "infrared_proxies",
-		Help: "The total number of proxies running",
-	})
-
 	proxyCfg := proxy.ProxyLaneConfig{
 		NumberOfListeners: 2,
 		NumberOfGateways:  4,
@@ -130,7 +121,6 @@ func main() {
 
 		ServerConnFactory: connFactoryFactory,
 		ListenerFactory:   listenerFactory,
-		Prometheus:        proxiesActive,
 	}
 
 	proxyLane := proxy.ProxyLane{Config: proxyCfg}

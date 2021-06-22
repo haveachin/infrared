@@ -10,16 +10,14 @@ import (
 	"github.com/haveachin/infrared/protocol/handshaking"
 	"github.com/pires/go-proxyproto"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 var (
-	proxiesActive = promauto.NewGauge(prometheus.GaugeOpts{
-		Name: "infrared_proxies",
-		Help: "The total number of proxies running",
-	})
+	// proxiesActive = promauto.NewGauge(prometheus.GaugeOpts{
+	// 	Name: "infrared_proxies",
+	// 	Help: "The total number of proxies running",
+	// })
 )
 
 var (
@@ -88,7 +86,7 @@ func (gateway *Gateway) CloseProxy(proxyUID string) {
 	if !ok {
 		return
 	}
-	proxiesActive.Dec()
+	// proxiesActive.Dec()
 	proxy := v.(*Proxy)
 
 	closeListener := true
@@ -117,7 +115,7 @@ func (gateway *Gateway) RegisterProxy(proxy *Proxy) error {
 	proxyUID := proxy.UID()
 	log.Println("Registering proxy with UID", proxyUID)
 	gateway.proxies.Store(proxyUID, proxy)
-	proxiesActive.Inc()
+	// proxiesActive.Inc()
 
 	proxy.Config.removeCallback = func() {
 		gateway.CloseProxy(proxyUID)
@@ -133,7 +131,7 @@ func (gateway *Gateway) RegisterProxy(proxy *Proxy) error {
 		}
 	}
 
-	playersConnected.WithLabelValues(proxy.DomainName())
+	// playersConnected.WithLabelValues(proxy.DomainName())
 
 	// Check if a gate is already listening to the Proxy address
 	addr := proxy.ListenTo()

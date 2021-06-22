@@ -16,8 +16,6 @@ import (
 	"github.com/haveachin/infrared/protocol/handshaking"
 	"github.com/haveachin/infrared/protocol/login"
 	"github.com/pires/go-proxyproto"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 var (
@@ -27,12 +25,12 @@ var (
 	ErrCantConnectWithServer = errors.New("can't create connection with server")
 )
 
-var (
-	playersConnected = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "infrared_connected",
-		Help: "The total number of connected players",
-	}, []string{"host"})
-)
+// var (
+// 	playersConnected = promauto.NewGaugeVec(prometheus.GaugeOpts{
+// 		Name: "infrared_connected",
+// 		Help: "The total number of connected players",
+// 	}, []string{"host"})
+// )
 
 func proxyUID(domain, addr string) string {
 	return fmt.Sprintf("%s@%s", strings.ToLower(domain), addr)
@@ -205,7 +203,7 @@ func (proxy *Proxy) handleConn(conn Conn, connRemoteAddr net.Addr) error {
 		return ErrCantUnMarshalPK
 	}
 
-	proxyDomain := proxy.DomainName()
+	// proxyDomain := proxy.DomainName()
 	proxyTo := proxy.ProxyTo()
 	proxyUID := proxy.UID()
 
@@ -274,7 +272,7 @@ func (proxy *Proxy) handleConn(conn Conn, connRemoteAddr net.Addr) error {
 			TargetAddress: proxyTo,
 			ProxyUID:      proxyUID,
 		})
-		playersConnected.With(prometheus.Labels{"host": proxyDomain}).Inc()
+		// playersConnected.With(prometheus.Labels{"host": proxyDomain}).Inc()
 		connected = true
 	}
 
@@ -288,7 +286,7 @@ func (proxy *Proxy) handleConn(conn Conn, connRemoteAddr net.Addr) error {
 			TargetAddress: proxyTo,
 			ProxyUID:      proxyUID,
 		})
-		playersConnected.With(prometheus.Labels{"host": proxyDomain}).Dec()
+		// playersConnected.With(prometheus.Labels{"host": proxyDomain}).Dec()
 	}
 
 	remainingPlayers := proxy.removePlayer(conn)
