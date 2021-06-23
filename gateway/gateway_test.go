@@ -17,7 +17,7 @@ var (
 	ErrNotImplemented = errors.New("not implemented")
 	ErrNoReadLeft     = errors.New("no packets left to read")
 
-	defaultChanTimeout time.Duration = 10 * time.Millisecond
+	defaultChTimeout time.Duration = 10 * time.Millisecond
 )
 
 type GatewayRunner func(gwCh <-chan connection.HandshakeConn) <-chan connection.HandshakeConn
@@ -128,7 +128,7 @@ func testFindServer(data findServerData, t *testing.T) {
 			serverCh := data.runGateway(gwCh)
 
 			select {
-			case <-time.After(defaultChanTimeout):
+			case <-time.After(defaultChTimeout):
 				t.Log("Tasked timed out")
 				t.FailNow() // Dont check other code it didnt finish anyway
 			case gwCh <- hsConn:
@@ -136,7 +136,7 @@ func testFindServer(data findServerData, t *testing.T) {
 			}
 
 			select {
-			case <-time.After(defaultChanTimeout): //Be fast or fail >:)
+			case <-time.After(defaultChTimeout): //Be fast or fail >:)
 				if tc.shouldFind {
 					t.Log("Tasked timed out")
 					t.FailNow() // Dont check other code it didnt finish anyway
@@ -177,7 +177,7 @@ func TestBasicGateway(t *testing.T) {
 
 		connCh <- handshakeConn
 		select {
-		case <-time.After(defaultChanTimeout):
+		case <-time.After(defaultChTimeout):
 			t.Log("Tasked timed out")
 			t.FailNow()
 		case <-serverCh:
@@ -201,7 +201,7 @@ func TestBasicGateway(t *testing.T) {
 
 		closeCh <- struct{}{}
 		select {
-		case <-time.After(defaultChanTimeout):
+		case <-time.After(defaultChTimeout):
 			t.Log("Everything is fine the task timed out like it should have")
 		case connCh <- handshakeConn:
 			t.Log("Tasked should have timed out")

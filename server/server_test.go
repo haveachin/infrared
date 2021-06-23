@@ -23,7 +23,7 @@ var (
 
 	ErrNotImplemented = errors.New("not implemented")
 
-	defaultChanTimeout = 10 * time.Millisecond
+	defaultChTimeout = 10 * time.Millisecond
 )
 
 type LoginData struct {
@@ -298,8 +298,8 @@ func testServerLogin(t *testing.T, runServer runTestServer) {
 
 			select {
 			case connCh <- loginConn:
-				t.Log("Channel took connection")
-			case <-time.After(defaultChanTimeout):
+				t.Log("Server took connection")
+			case <-time.After(defaultChTimeout):
 				t.Log("Tasked timed out")
 				t.FailNow() // Dont check other code it didnt finish anyway
 			}
@@ -470,8 +470,8 @@ func testServerStatus_WithoutConfigStatus(t *testing.T, runServer runTestServer,
 
 			select {
 			case connCh <- statusConn:
-				t.Log("Channel took connection")
-			case <-time.After(defaultChanTimeout):
+				t.Log("Server took connection")
+			case <-time.After(defaultChTimeout):
 				t.Log("Tasked timed out")
 				t.FailNow() // Dont check other code it didnt finish anyway
 			}
@@ -538,7 +538,7 @@ func TestOrMCServerCanClose(t *testing.T) {
 
 	closeCh <- struct{}{}
 	select {
-	case <-time.After(defaultChanTimeout):
+	case <-time.After(defaultChTimeout):
 		t.Log("Everything is fine the task timed out like it should have")
 	case connCh <- handshakeConn:
 		t.Log("Tasked should have timed out")

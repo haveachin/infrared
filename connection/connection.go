@@ -15,9 +15,8 @@ var (
 	ErrNoNameYet = errors.New("we dont have the name of this player yet")
 )
 
-type HandshakeChannel chan<- HandshakeConn
+//Yes this is a factory for a factory
 type NewServerConnFactory func(timeout time.Duration) (ServerConnFactory, error)
-
 type ServerConnFactory func(string) (ServerConn, error)
 type HandshakeConnFactory func(Conn, net.Addr) (HandshakeConn, error)
 

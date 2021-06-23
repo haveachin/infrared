@@ -27,8 +27,8 @@ func (e testTimeoutError) Error() string { return "timeout test error" }
 func (e testTimeoutError) Unwrap() error { return e }
 
 type testListener struct {
-	newConnChannel <-chan net.Conn
-	returnError    error
+	newConnCh   <-chan net.Conn
+	returnError error
 }
 
 func (l *testListener) Close() error {
@@ -40,7 +40,7 @@ func (l *testListener) Addr() net.Addr {
 }
 
 func (l *testListener) Accept() (net.Conn, error) {
-	conn := <-l.newConnChannel
+	conn := <-l.newConnCh
 	var err error
 	if l.returnError != nil {
 		err = l.returnError
@@ -50,14 +50,14 @@ func (l *testListener) Accept() (net.Conn, error) {
 
 // Actual test method(s)
 func TestBasicListener_Accept_Returns_OpError(t *testing.T) {
-	newConnChannel := make(chan net.Conn)
-	errChannel := make(chan error)
+	newConnCh := make(chan net.Conn)
+	errCh := make(chan error)
 	errLogger := func(err error) {
-		errChannel <- err
+		errCh <- err
 	}
 	listener := &testListener{
-		newConnChannel: newConnChannel,
-		returnError:    ErrStopListenerError,
+		newConnCh:   newConnCh,
+		returnError: ErrStopListenerError,
 	}
 
 	connCh := make(chan connection.HandshakeConn)
@@ -68,42 +68,42 @@ func TestBasicListener_Accept_Returns_OpError(t *testing.T) {
 	}()
 
 	select {
-	case newConnChannel <- &net.TCPConn{}:
+	case newConnCh <- &net.TCPConn{}:
 		t.Log("Listener called accept (this is good)")
-	case <-time.After(defaultChanTimeout):
+	case <-time.After(defaultChTimeout):
 		t.Log("Listener didnt accept connection")
 		t.FailNow()
 	}
 
 	select {
-	case err := <-errChannel:
+	case err := <-errCh:
 		t.Logf("Error has been received: %v (this is good)", err)
-	case <-time.After(defaultChanTimeout):
+	case <-time.After(defaultChTimeout):
 		t.Log("Tasked timed out by second select")
 		t.FailNow()
 	}
 
 	select {
-	case err := <-errChannel:
+	case err := <-errCh:
 		t.Logf("unexpected error was thrown: %v", err)
 		t.FailNow()
-	case <-time.After(defaultChanTimeout):
+	case <-time.After(defaultChTimeout):
 		t.Log("Tasked timed out by third select (this is good)")
-	case newConnChannel <- &net.TCPConn{}:
+	case newConnCh <- &net.TCPConn{}:
 		t.Log("Listener should have stopped")
 		t.FailNow()
 	}
 }
 
 func TestBasicListener_Has_Error_But_Continues(t *testing.T) {
-	newConnChannel := make(chan net.Conn)
-	errChannel := make(chan error)
+	newConnCh := make(chan net.Conn)
+	errCh := make(chan error)
 	errLogger := func(err error) {
-		errChannel <- err
+		errCh <- err
 	}
 	listener := &testListener{
-		newConnChannel: newConnChannel,
-		returnError:    ErrTimeoutListenerError,
+		newConnCh:   newConnCh,
+		returnError: ErrTimeoutListenerError,
 	}
 
 	connCh := make(chan connection.HandshakeConn)
@@ -114,35 +114,35 @@ func TestBasicListener_Has_Error_But_Continues(t *testing.T) {
 	}()
 
 	select {
-	case newConnChannel <- &net.TCPConn{}:
+	case newConnCh <- &net.TCPConn{}:
 		t.Log("Listener called accept (this is good)")
-	case <-time.After(defaultChanTimeout):
+	case <-time.After(defaultChTimeout):
 		t.Log("Listener didnt accept connection")
 		t.FailNow()
 	}
 
 	select {
-	case err := <-errChannel:
+	case err := <-errCh:
 		t.Logf("Error has been received: %v (this is good...?)", err)
-	case <-time.After(defaultChanTimeout):
+	case <-time.After(defaultChTimeout):
 		t.Log("Tasked timed out by second select")
 		t.FailNow()
 	}
 
 	select {
-	case <-time.After(defaultChanTimeout):
+	case <-time.After(defaultChTimeout):
 		t.Log("Tasked timed out by third select")
 		t.FailNow()
-	case newConnChannel <- &net.TCPConn{}:
+	case newConnCh <- &net.TCPConn{}:
 		t.Log("Listener accepts second connections (this is good)")
 	}
 
 }
 
 func TestBasicListener_Accept_Without_Error(t *testing.T) {
-	newConnChannel := make(chan net.Conn)
+	newConnCh := make(chan net.Conn)
 	listener := &testListener{
-		newConnChannel: newConnChannel,
+		newConnCh: newConnCh,
 	}
 
 	connCh := make(chan connection.HandshakeConn)
@@ -153,15 +153,15 @@ func TestBasicListener_Accept_Without_Error(t *testing.T) {
 	}()
 
 	select {
-	case newConnChannel <- &net.TCPConn{}:
+	case newConnCh <- &net.TCPConn{}:
 		t.Log("Listener called accept (this is good)")
-	case <-time.After(defaultChanTimeout):
+	case <-time.After(defaultChTimeout):
 		t.Log("Listener didnt accept connection")
 		t.FailNow()
 	}
 
 	select {
-	case <-time.After(defaultChanTimeout):
+	case <-time.After(defaultChTimeout):
 		t.Log("Tasked timed out by second select ")
 		t.FailNow()
 	case <-connCh:
@@ -169,10 +169,10 @@ func TestBasicListener_Accept_Without_Error(t *testing.T) {
 	}
 
 	select {
-	case <-time.After(defaultChanTimeout):
+	case <-time.After(defaultChTimeout):
 		t.Log("Tasked timed out by second select ")
 		t.FailNow()
-	case newConnChannel <- &net.TCPConn{}:
+	case newConnCh <- &net.TCPConn{}:
 		t.Log("Listener called accept (this is good)")
 	}
 

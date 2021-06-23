@@ -12,11 +12,11 @@ import (
 )
 
 var (
-	defaultChanTimeout = 10 * time.Millisecond
+	defaultChTimeout = 10 * time.Millisecond
 )
 
 type testListener struct {
-	newConnChannel <-chan net.Conn
+	newConnCh <-chan net.Conn
 }
 
 func (l *testListener) Close() error {
@@ -28,14 +28,14 @@ func (l *testListener) Addr() net.Addr {
 }
 
 func (l *testListener) Accept() (net.Conn, error) {
-	conn := <- l.newConnChannel
+	conn := <-l.newConnCh
 	return conn, nil
 }
 
 func TestProxyLane_ListenersCreation(t *testing.T) {
 	numberOfListeners := 3
-	newConnChannel := make(chan net.Conn)
-	netListener := &testListener{newConnChannel: newConnChannel}
+	newConnCh := make(chan net.Conn)
+	netListener := &testListener{newConnCh: newConnCh}
 	listenerFactory := func(addr string) (net.Listener, error) {
 		return netListener, nil
 	}
@@ -43,20 +43,20 @@ func TestProxyLane_ListenersCreation(t *testing.T) {
 		NumberOfListeners: numberOfListeners,
 		ListenerFactory:   listenerFactory,
 	}
-	toGatewayChan := make(chan connection.HandshakeConn)
+	toGatewayCh := make(chan connection.HandshakeConn)
 
 	proxyLane := proxy.ProxyLane{Config: proxyLaneCfg}
 
-	proxyLane.HandleListeners(toGatewayChan)
+	proxyLane.HandleListeners(toGatewayCh)
 	for i := 0; i < numberOfListeners; i++ {
-		newConnChannel<- &net.TCPConn{}
+		newConnCh <- &net.TCPConn{}
 	}
 
 	select {
-	case newConnChannel <- &net.TCPConn{}:
+	case newConnCh <- &net.TCPConn{}:
 		t.Log("Listener called accept")
 		t.FailNow()
-	case <-time.After(defaultChanTimeout):
+	case <-time.After(defaultChTimeout):
 		t.Log("Listener didnt accept connection (this is good)")
 	}
 
@@ -77,20 +77,20 @@ func TestProxyLane_GatewayCreation(t *testing.T) {
 		},
 	}
 
-	toGatewayChan := make(chan connection.HandshakeConn)
+	toGatewayCh := make(chan connection.HandshakeConn)
 
 	proxyLane := proxy.ProxyLane{Config: proxyLaneCfg}
 
 	proxyLane.RegisterMultipleServers(servers)
-	proxyLane.HandleGateways(toGatewayChan)
+	proxyLane.HandleGateways(toGatewayCh)
 	for i := 0; i < numberOfGateways; i++ {
-		toGatewayChan <- hsConn
+		toGatewayCh <- hsConn
 	}
 
 	select {
-	case <-time.After(defaultChanTimeout):
+	case <-time.After(defaultChTimeout):
 		t.Log("channel didnt took in another connection which was meant to be")
-	case toGatewayChan <- hsConn:
+	case toGatewayCh <- hsConn:
 		t.Error("Tasked should have timed out but didnt")
 	}
 
@@ -133,28 +133,28 @@ func TestProxyLane_ServerCreation(t *testing.T) {
 		},
 	}
 
-	toGatewayChan := make(chan connection.HandshakeConn)
+	toGatewayCh := make(chan connection.HandshakeConn)
 
 	proxyLane := proxy.ProxyLane{Config: proxyLaneCfg}
 
 	proxyLane.RegisterMultipleServers(servers)
-	proxyLane.HandleGateways(toGatewayChan)
+	proxyLane.HandleGateways(toGatewayCh)
 	proxyLane.InitialServerSetup(singleServerCfg)
 
-	numberfOfChannelAccepts := numberOfInstances + numberOfGateways
+	numberfOfChAccepts := numberOfInstances + numberOfGateways
 	runsNeededToTest := numberOfInstances + numberOfGateways + 1
 	for i := 1; i <= runsNeededToTest; i++ {
 		t.Logf("run: %d\n", i)
 		select {
-		case <-time.After(defaultChanTimeout):
-			if i <= numberfOfChannelAccepts {
+		case <-time.After(defaultChTimeout):
+			if i <= numberfOfChAccepts {
 				t.Log("channel stop taking in connections earlier than expected")
 				t.FailNow()
 			} else {
 				t.Log("channel didnt took in another connection which was expected to happen")
 			}
-		case toGatewayChan <- createConn():
-			if i > numberfOfChannelAccepts {
+		case toGatewayCh <- createConn():
+			if i > numberfOfChAccepts {
 				t.Error("Tasked should have timed out but didnt")
 			}
 			t.Log("channel took in connection")

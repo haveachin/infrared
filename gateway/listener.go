@@ -10,7 +10,7 @@ type ErrorLogger func(err error)
 type ListenerFactory func(addr string) (net.Listener, error)
 
 //The last argument is being used for an optional logger only the first logger will be used
-func NewBasicListener(listener net.Listener, ch connection.HandshakeChannel, errorLogger ...ErrorLogger) BasicListener {
+func NewBasicListener(listener net.Listener, ch chan<- connection.HandshakeConn, errorLogger ...ErrorLogger) BasicListener {
 	logger := func(err error) {}
 	if len(errorLogger) != 0 {
 		logger = errorLogger[0]
@@ -24,7 +24,7 @@ func NewBasicListener(listener net.Listener, ch connection.HandshakeChannel, err
 
 type BasicListener struct {
 	listener  net.Listener
-	connCh    connection.HandshakeChannel
+	connCh    chan<- connection.HandshakeConn
 	errLogger ErrorLogger
 }
 
