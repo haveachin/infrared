@@ -212,7 +212,7 @@ func (proxy *ProxyLane) gatewayServersModified() {
 // This will check or the current server and the new configs are change
 //  and will apply those changes to the server
 // Yes better method name is needed
-func (proxy *ProxyLane) DoStuffWithServer(cfg server.ServerConfig) {
+func (proxy *ProxyLane) UpdateServer(cfg server.ServerConfig) {
 	serverInfo := proxy.serverMap[cfg.MainDomain]
 	var reconstructGateways bool
 	var needToRestartAllServers bool
