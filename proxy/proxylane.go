@@ -25,15 +25,36 @@ var (
 	}, []string{"host"})
 )
 
+func NewServerInfo(cfg server.ServerConfig) ServerInfo {
+	return ServerInfo{
+		DomainName:        cfg.DomainName,
+		SubDomains:        cfg.SubDomains,
+		NumberOfInstances: cfg.NumberOfInstances,
+
+		CloseCh: make(chan struct{}),
+		ConnCh:  make(chan connection.HandshakeConn),
+	}
+}
+
+type ServerInfo struct {
+	DomainName        string
+	SubDomains        []string
+	NumberOfInstances int
+
+	CloseCh chan struct{}
+	ConnCh  chan connection.HandshakeConn
+}
+
 type ProxyLaneConfig struct {
 	NumberOfListeners int `json:"numberOfListeners"`
 	NumberOfGateways  int `json:"numberOfGateways"`
 
-	// ProxyProtocol     bool   `json:"proxyProtocol"`
-	Timeout  int    `json:"timeout"`
-	ListenTo string `json:"listenTo"`
+	ReceiveProxyProtocol bool   `json:"receiveProxyProtocol"`
+	Timeout              int    `json:"timeout"`
+	ListenTo             string `json:"listenTo"`
 
-	Servers []server.ServerConfig `json:"servers"`
+	Servers       []server.ServerConfig `json:"servers"`
+	DefaultStatus protocol.Packet       `json:"defaultStatus"`
 
 	// Seperate this so we can test without making actual network calls
 	ServerConnFactory connection.NewServerConnFactory

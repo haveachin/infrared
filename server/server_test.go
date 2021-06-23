@@ -525,3 +525,23 @@ func testServerStatus_WithoutConfigStatus(t *testing.T, runServer runTestServer,
 		})
 	}
 }
+
+func TestOrMCServerCanClose(t *testing.T) {
+	closeCh := make(chan struct{})
+	connCh := make(chan connection.HandshakeConn)
+	handshakeConn := connection.NewHandshakeConn(nil, nil)
+
+	server := server.NewMCServer(nil, connCh, closeCh)
+	go func() {
+		server.Start()
+	}()
+
+	closeCh <- struct{}{}
+	select {
+	case <-time.After(defaultChanTimeout):
+		t.Log("Everything is fine the task timed out like it should have")
+	case connCh <- handshakeConn:
+		t.Log("Tasked should have timed out")
+		t.FailNow()
+	}
+}

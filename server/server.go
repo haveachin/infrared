@@ -15,15 +15,31 @@ var (
 )
 
 type ServerConfig struct {
-	NumberOfInstances int    `json:"numberOfInstances"`
-	DomainName        string `json:"domainName"`
+	NumberOfInstances int `json:"numberOfInstances"`
+
+	DomainName string   `json:"domainName"`
+	SubDomains []string `json:"subDomains"`
+
+	ListenTo 		  string `json:"listenTo"`
+	ProxyBind         string `json:"proxyBind"`
+	SendProxyProtocol bool   `json:"sendProxyProtocol"`
 	ProxyTo           string `json:"proxyTo"`
 	RealIP            bool   `json:"realIp"`
 
+	DialTimeout       int    `json:"dialTimeout"`
+	DisconnectMessage string `json:"disconnectMessage"`
+
 	//Need different statusconfig struct
-	OnlineStatus infrared.StatusConfig `json:"onlineStatus"`
-	//Need different statusconfig struct
+	OnlineStatus  infrared.StatusConfig `json:"onlineStatus"`
 	OfflineStatus infrared.StatusConfig `json:"offlineStatus"`
+}
+
+func NewMCServer(connFactory connection.ServerConnFactory, connCh <-chan connection.HandshakeConn, closeCh <-chan struct{}) MCServer {
+	return MCServer{
+		ConnFactory: connFactory,
+		ConnCh:      connCh,
+		CloseCh:     closeCh,
+	}
 }
 
 type MCServer struct {
@@ -32,7 +48,8 @@ type MCServer struct {
 	OnlineConfigStatus  protocol.Packet
 	OfflineConfigStatus protocol.Packet
 
-	ConnCh <-chan connection.HandshakeConn
+	ConnCh  <-chan connection.HandshakeConn
+	CloseCh <-chan struct{}
 
 	JoiningActions []func(domain string)
 	LeavingActions []func(domain string)
@@ -87,19 +104,25 @@ func (s *MCServer) Login(conn connection.HandshakeConn) error {
 }
 
 func (s *MCServer) Start() {
+ForLoop:
 	for {
-		conn := <-s.ConnCh
-		switch connection.ParseRequestType(conn) {
-		case connection.LoginRequest:
-			s.Login(conn)
-		case connection.StatusRequest:
-			err := s.handleStatusRequest(conn)
-			if err != nil {
-				fmt.Println(err)
+		select {
+		case conn := <-s.ConnCh:
+			switch connection.ParseRequestType(conn) {
+			case connection.LoginRequest:
+				s.Login(conn)
+			case connection.StatusRequest:
+				err := s.handleStatusRequest(conn)
+				if err != nil {
+					fmt.Println(err)
+				}
+			default:
+				fmt.Sprintln("Didnt recognize handshake id")
 			}
-		default:
-			fmt.Sprintln("Didnt recognize handshake id")
+		case <-s.CloseCh:
+			break ForLoop
 		}
+
 	}
 }
 
