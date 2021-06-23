@@ -2,6 +2,7 @@ package infrared
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -96,6 +97,12 @@ type StatusConfig struct {
 	PlayerSamples  []PlayerSample `json:"playerSamples"`
 	IconPath       string         `json:"iconPath"`
 	MOTD           string         `json:"motd"`
+}
+
+func SameStatus(cfg1 StatusConfig, cfg2 StatusConfig) (bool, error) {
+	pk1, _ := cfg1.StatusResponsePacket()
+	pk2, _ := cfg2.StatusResponsePacket()
+	return bytes.Equal(pk1.Data, pk2.Data), nil
 }
 
 func (cfg StatusConfig) StatusResponsePacket() (protocol.Packet, error) {

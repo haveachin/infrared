@@ -82,7 +82,7 @@ func main() {
 	serverCfgs := []server.ServerConfig{
 		{
 			NumberOfInstances: 1,
-			DomainName:        "localhost",
+			MainDomain:        "localhost",
 			ProxyTo:           ":25560",
 			RealIP:            false,
 			OnlineStatus:      infrared.StatusConfig{},
@@ -90,7 +90,7 @@ func main() {
 		},
 		{
 			NumberOfInstances: 2,
-			DomainName:        "127.0.0.1",
+			MainDomain:        "127.0.0.1",
 			ProxyTo:           ":25560",
 			RealIP:            false,
 			OnlineStatus:      infrared.StatusConfig{},

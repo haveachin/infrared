@@ -73,7 +73,7 @@ func TestProxyLane_GatewayCreation(t *testing.T) {
 
 	servers := []server.ServerConfig{
 		{
-			DomainName: "infrared-1",
+			MainDomain: "infrared-1",
 		},
 	}
 
@@ -81,7 +81,7 @@ func TestProxyLane_GatewayCreation(t *testing.T) {
 
 	proxyLane := proxy.ProxyLane{Config: proxyLaneCfg}
 
-	proxyLane.LoadServers(servers)
+	proxyLane.RegisterMultipleServers(servers)
 	proxyLane.HandleGateways(toGatewayChan)
 	for i := 0; i < numberOfGateways; i++ {
 		toGatewayChan <- hsConn
@@ -121,14 +121,14 @@ func TestProxyLane_ServerCreation(t *testing.T) {
 	}
 
 	singleServerCfg := server.ServerConfig{
-		DomainName:        "infrared-1",
+		MainDomain:        "infrared-1",
 		NumberOfInstances: numberOfInstances,
 	}
 
 	servers := []server.ServerConfig{
 		singleServerCfg,
 		{
-			DomainName:        "infrared-2",
+			MainDomain:        "infrared-2",
 			NumberOfInstances: 3,
 		},
 	}
@@ -137,9 +137,9 @@ func TestProxyLane_ServerCreation(t *testing.T) {
 
 	proxyLane := proxy.ProxyLane{Config: proxyLaneCfg}
 
-	proxyLane.LoadServers(servers)
+	proxyLane.RegisterMultipleServers(servers)
 	proxyLane.HandleGateways(toGatewayChan)
-	proxyLane.HandleServer(singleServerCfg)
+	proxyLane.InitialServerSetup(singleServerCfg)
 
 	numberfOfChannelAccepts := numberOfInstances + numberOfGateways
 	runsNeededToTest := numberOfInstances + numberOfGateways + 1

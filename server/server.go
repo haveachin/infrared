@@ -17,10 +17,11 @@ var (
 type ServerConfig struct {
 	NumberOfInstances int `json:"numberOfInstances"`
 
-	DomainName string   `json:"domainName"`
-	SubDomains []string `json:"subDomains"`
+	// MainDomain will be treated as primary key (refactor: imperative -> workerpools)
+	MainDomain   string   `json:"mainDomain"`
+	ExtraDomains []string `json:"extraDomains"`
 
-	ListenTo 		  string `json:"listenTo"`
+	ListenTo          string `json:"listenTo"`
 	ProxyBind         string `json:"proxyBind"`
 	SendProxyProtocol bool   `json:"sendProxyProtocol"`
 	ProxyTo           string `json:"proxyTo"`
@@ -83,7 +84,7 @@ func (s *MCServer) Login(conn connection.HandshakeConn) error {
 
 	go func(client, server connection.PipeConn) {
 		for _, action := range s.JoiningActions {
-			action(s.Config.DomainName)
+			action(s.Config.MainDomain)
 		}
 
 		clientConn := client.Conn()
@@ -96,7 +97,7 @@ func (s *MCServer) Login(conn connection.HandshakeConn) error {
 		serverConn.Close()
 
 		for _, action := range s.LeavingActions {
-			action(s.Config.DomainName)
+			action(s.Config.MainDomain)
 		}
 	}(conn, serverConn)
 
