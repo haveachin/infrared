@@ -81,17 +81,27 @@ type ProxyLane struct {
 	serverMap   map[string]ServerInfo
 }
 
-func (proxy *ProxyLane) StartupProxy() {
-	proxy.toGatewayCh = make(chan connection.HandshakeConn)
+func NewProxyLane(cfg ProxyLaneConfig) ProxyLane {
+	return ProxyLane{
+		Config: cfg,
 
+		toGatewayCh: make(chan connection.HandshakeConn),
+		gwCloseCh:   make(chan struct{}),
+		serverMap:   make(map[string]ServerInfo),
+	}
+}
+
+
+// TODO: this needs some attention
+func (proxy *ProxyLane) StartupProxy() {
 	servers := proxy.Config.Servers
 
 	timeout := time.Duration(proxy.Config.Timeout) * time.Millisecond
 	proxy.connFactory, _ = proxy.Config.ServerConnFactory(timeout)
 
-	proxy.RegisterMultipleServers(servers)
-	proxy.HandleGateways(proxy.toGatewayCh)
-	proxy.HandleListeners(proxy.toGatewayCh)
+	proxy.CreateGateways()
+	proxy.CreateListeners()
+	proxy.RegisterServers(servers...)
 
 	for _, server := range servers {
 		proxiesActive.Inc()
@@ -100,17 +110,17 @@ func (proxy *ProxyLane) StartupProxy() {
 
 }
 
-func (proxy *ProxyLane) HandleListeners(gatewayCh chan connection.HandshakeConn) {
+func (proxy *ProxyLane) CreateListeners() {
 	listener, _ := proxy.Config.ListenerFactory(proxy.Config.ListenTo)
 	for i := 0; i < proxy.Config.NumberOfListeners; i++ {
-		l := gateway.NewBasicListener(listener, gatewayCh)
+		l := gateway.NewBasicListener(listener, proxy.toGatewayCh)
 		go func() {
 			l.Listen()
 		}()
 	}
 }
 
-func (proxy *ProxyLane) HandleGateways(gatewayCh chan connection.HandshakeConn) {
+func (proxy *ProxyLane) CreateGateways() {
 	serverStore := gateway.CreateDefaultServerStore()
 	for _, serverInfo := range proxy.serverMap {
 		serverData := gateway.ServerData{ConnCh: serverInfo.ConnCh}
@@ -122,22 +132,10 @@ func (proxy *ProxyLane) HandleGateways(gatewayCh chan connection.HandshakeConn) 
 	}
 
 	for i := 0; i < proxy.Config.NumberOfGateways; i++ {
-		gw := gateway.NewBasicGatewayWithStore(&serverStore, gatewayCh, proxy.gwCloseCh)
+		gw := gateway.NewBasicGatewayWithStore(&serverStore, proxy.toGatewayCh, proxy.gwCloseCh)
 		go func() {
 			gw.Start()
 		}()
-	}
-}
-
-func (proxy *ProxyLane) RegisterMultipleServers(servers []server.ServerConfig) {
-	if proxy.serverMap == nil {
-		proxy.serverMap = make(map[string]ServerInfo)
-	}
-
-	for _, serverCfg := range servers {
-		serverInfo := NewServerInfo(serverCfg, proxy.connFactory)
-		domainName := serverCfg.MainDomain
-		proxy.serverMap[domainName] = serverInfo
 	}
 }
 
@@ -152,36 +150,29 @@ func (proxy *ProxyLane) InitialServerSetup(cfg server.ServerConfig) {
 	}
 }
 
-func (proxy *ProxyLane) RegisterSingleServer(cfg server.ServerConfig) {
-	if proxy.serverMap == nil {
-		proxy.serverMap = make(map[string]ServerInfo)
+// Gateway needs to be running before before you call this method if NumberOfGateways is greater than 1
+func (proxy *ProxyLane) RegisterServers(cfgs ...server.ServerConfig) {
+	for _, cfg := range cfgs {
+		serverInfo := NewServerInfo(cfg, proxy.connFactory)
+		domainName := cfg.MainDomain
+		proxy.serverMap[domainName] = serverInfo
+		proxy.InitialServerSetup(cfg)
 	}
 
-	serverInfo := NewServerInfo(cfg, proxy.connFactory)
-	domainName := cfg.MainDomain
-	proxy.serverMap[domainName] = serverInfo
-
-	proxy.InitialServerSetup(cfg)
-
-	// Change gateway store...
 	proxy.gatewayServersModified()
-
 }
 
 func (proxy *ProxyLane) CloseServer(mainDomain string) {
-	// Get all running instances and close them...?
 	// We should look into transferring them to a different proxylane in the future
 	serverInfo := proxy.serverMap[mainDomain]
 	for i := 0; i < serverInfo.NumberOfInstances; i++ {
 		serverInfo.CloseCh <- struct{}{}
 	}
 
-	// Change gateway store...
-	proxy.gatewayServersModified()
-
-	// Remove serverInfo
 	delete(proxy.serverMap, mainDomain)
 	proxiesActive.Dec()
+
+	proxy.gatewayServersModified()
 }
 
 func (proxy *ProxyLane) gatewayServersModified() {
@@ -211,7 +202,6 @@ func (proxy *ProxyLane) gatewayServersModified() {
 
 // This will check or the current server and the new configs are change
 //  and will apply those changes to the server
-// Yes better method name is needed
 func (proxy *ProxyLane) UpdateServer(cfg server.ServerConfig) {
 	serverInfo := proxy.serverMap[cfg.MainDomain]
 	var reconstructGateways bool
@@ -340,4 +330,14 @@ func (info ServerInfo) createMCServer() server.MCServer {
 		JoiningActions: actionsJoining,
 		LeavingActions: actionsLeaving,
 	}
+}
+
+// This methed is meant for testing only usage
+func (proxy *ProxyLane) TestMethod_ServerMap() map[string]ServerInfo {
+	return proxy.serverMap
+}
+
+// This methed is meant for testing only usage
+func (proxy *ProxyLane) TestMethod_GatewayCh() (chan connection.HandshakeConn, chan struct{}) {
+	return proxy.toGatewayCh, proxy.gwCloseCh
 }

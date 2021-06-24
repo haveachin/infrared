@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/haveachin/infrared/connection"
+	"github.com/haveachin/infrared/protocol"
 	"github.com/haveachin/infrared/protocol/handshaking"
 	"github.com/haveachin/infrared/proxy"
 	"github.com/haveachin/infrared/server"
@@ -32,133 +33,174 @@ func (l *testListener) Accept() (net.Conn, error) {
 	return conn, nil
 }
 
-func TestProxyLane_ListenersCreation(t *testing.T) {
+func TestCreateListener(t *testing.T) {
 	numberOfListeners := 3
 	newConnCh := make(chan net.Conn)
 	netListener := &testListener{newConnCh: newConnCh}
 	listenerFactory := func(addr string) (net.Listener, error) {
 		return netListener, nil
 	}
-	proxyLaneCfg := proxy.ProxyLaneConfig{
+	proxyCfg := proxy.ProxyLaneConfig{
 		NumberOfListeners: numberOfListeners,
 		ListenerFactory:   listenerFactory,
 	}
-	toGatewayCh := make(chan connection.HandshakeConn)
+	proxyLane := proxy.NewProxyLane(proxyCfg)
+	proxyLane.CreateListeners()
 
-	proxyLane := proxy.ProxyLane{Config: proxyLaneCfg}
-
-	proxyLane.HandleListeners(toGatewayCh)
+	netConn, _ := net.Pipe()
 	for i := 0; i < numberOfListeners; i++ {
-		newConnCh <- &net.TCPConn{}
+		select {
+		case newConnCh <- netConn:
+			t.Log("Listener took connection  (this is expected)")
+		case <-time.After(defaultChTimeout):
+			t.Log("Listener didnt accept connection (this probably means that there werent enough listeners running))")
+			t.FailNow()
+		}
 	}
 
 	select {
-	case newConnCh <- &net.TCPConn{}:
-		t.Log("Listener called accept")
+	case newConnCh <- netConn:
+		t.Log("Listener took connection (which probably means that there were to many servers running, or the connections before failed to told their servers busy)")
 		t.FailNow()
 	case <-time.After(defaultChTimeout):
-		t.Log("Listener didnt accept connection (this is good)")
+		t.Log("Listener didnt accept connection (this is expected)")
 	}
-
 }
 
-func TestProxyLane_GatewayCreation(t *testing.T) {
-	numberOfGateways := 2
-	c1, _ := net.Pipe()
-	hsConn := connection.NewHandshakeConn(c1, nil)
-
-	proxyLaneCfg := proxy.ProxyLaneConfig{
-		NumberOfGateways: numberOfGateways,
-	}
-
+func TestCreateGateway(t *testing.T) {
+	numberOfGateways := 3
+	netConn, _ := net.Pipe()
+	conn := connection.NewHandshakeConn(netConn, &net.IPAddr{})
 	servers := []server.ServerConfig{
 		{
 			MainDomain: "infrared-1",
 		},
 	}
+	proxyCfg := proxy.ProxyLaneConfig{
+		NumberOfGateways: numberOfGateways,
+		Servers:          servers,
+	}
+	proxyLane := proxy.NewProxyLane(proxyCfg)
+	toGatewayCh, _ := proxyLane.TestMethod_GatewayCh()
 
-	toGatewayCh := make(chan connection.HandshakeConn)
+	proxyLane.CreateGateways()
 
-	proxyLane := proxy.ProxyLane{Config: proxyLaneCfg}
-
-	proxyLane.RegisterMultipleServers(servers)
-	proxyLane.HandleGateways(toGatewayCh)
 	for i := 0; i < numberOfGateways; i++ {
-		toGatewayCh <- hsConn
+		select {
+		case toGatewayCh <- conn:
+			t.Log("Listener took connection  (this is expected)")
+		case <-time.After(defaultChTimeout):
+			t.Log("Listener didnt accept connection (this probably means that there werent enough listeners running))")
+			t.FailNow()
+		}
 	}
 
 	select {
+	case toGatewayCh <- conn:
+		t.Log("Listener took connection (which probably means that there were to many servers running, or the connections before failed to told their servers busy)")
+		t.FailNow()
 	case <-time.After(defaultChTimeout):
-		t.Log("channel didnt took in another connection which was meant to be")
-	case toGatewayCh <- hsConn:
-		t.Error("Tasked should have timed out but didnt")
+		t.Log("Listener didnt accept connection (this is expected)")
 	}
-
 }
 
-func TestProxyLane_ServerCreation(t *testing.T) {
-	numberOfInstances := 2
-	numberOfGateways := 1
-	hsPk := handshaking.ServerBoundHandshake{
-		ServerAddress: "infrared-1",
-		//Using status so it first expects another request before making the server connection
-		NextState: 1,
-	}.Marshal()
+func TestCreateGateway_DoesRegisterDomains(t *testing.T) {
+	mainDomain := "infrared-1"
+	extraDomain := "infrared-2"
+	extraDomain2 := "infrared-3"
 
-	createConn := func() connection.HandshakeConn {
-		c1, c2 := net.Pipe()
-		conn := connection.NewServerConn(c1)
+	createHsConn := func(domain string) connection.HandshakeConn {
+		hsPk := handshaking.ServerBoundHandshake{
+			ServerAddress: protocol.String(domain),
+		}.Marshal()
+		netConn, otherConn := net.Pipe()
+		conn := connection.NewHandshakeConn(netConn, &net.IPAddr{})
 		go func() {
+			conn := connection.NewServerConn(otherConn)
 			conn.WritePacket(hsPk)
 		}()
-
-		conn2 := connection.NewHandshakeConn(c2, nil)
-		return conn2
+		return conn
 	}
 
-	proxyLaneCfg := proxy.ProxyLaneConfig{
-		NumberOfGateways: numberOfGateways,
+	serverCfg := server.ServerConfig{
+		NumberOfInstances: 0,
+		MainDomain:        mainDomain,
+		ExtraDomains:      []string{extraDomain, extraDomain2},
 	}
 
+	proxyCfg := proxy.ProxyLaneConfig{
+		NumberOfGateways: 1,
+	}
+
+	testOrDomainIsRegistered := func(t *testing.T, testDomain string) {
+		t.Helper()
+		proxyLane := proxy.NewProxyLane(proxyCfg)
+		proxyLane.CreateGateways()
+		proxyLane.RegisterServers(serverCfg)
+
+		toGatewayCh, _ := proxyLane.TestMethod_GatewayCh()
+		serverMap := proxyLane.TestMethod_ServerMap()
+		serverCh := serverMap[mainDomain].ConnCh
+		conn := createHsConn(testDomain)
+		select {
+		case toGatewayCh <- conn:
+			t.Log("Listener took connection  (this is expected)")
+		case <-time.After(defaultChTimeout):
+			t.Log("Listener didnt accept connection (this probably means that there werent enough listeners running))")
+			t.FailNow()
+		}
+
+		select {
+		case <-serverCh:
+			t.Log("Server got connection (this is expected)")
+		case <-time.After(defaultChTimeout):
+			t.Log("Server didnt got connection")
+			t.FailNow()
+		}
+	}
+
+	testOrDomainIsRegistered(t, mainDomain)
+	testOrDomainIsRegistered(t, extraDomain)
+	testOrDomainIsRegistered(t, extraDomain2)
+}
+
+func TestProxyLane_InitialServerSetup_CreatesRightAmountOfServers(t *testing.T) {
+	numberOfInstances := 2
+	hs := handshaking.ServerBoundHandshake{
+		NextState: 1, //Using status so it first expects another request before making the server connection
+	}
+	netConn, _ := net.Pipe()
+	conn := connection.NewHandshakeConn(netConn, &net.IPAddr{})
+	conn.Handshake = hs
 	singleServerCfg := server.ServerConfig{
 		MainDomain:        "infrared-1",
 		NumberOfInstances: numberOfInstances,
 	}
 
-	servers := []server.ServerConfig{
-		singleServerCfg,
-		{
-			MainDomain:        "infrared-2",
-			NumberOfInstances: 3,
-		},
-	}
+	proxyCfg := proxy.ProxyLaneConfig{}
+	proxyLane := proxy.NewProxyLane(proxyCfg)
+	proxyLane.RegisterServers(singleServerCfg)
 
-	toGatewayCh := make(chan connection.HandshakeConn)
+	serverMap := proxyLane.TestMethod_ServerMap()
+	serverCh := serverMap[singleServerCfg.MainDomain].ConnCh
 
-	proxyLane := proxy.ProxyLane{Config: proxyLaneCfg}
-
-	proxyLane.RegisterMultipleServers(servers)
-	proxyLane.HandleGateways(toGatewayCh)
-	proxyLane.InitialServerSetup(singleServerCfg)
-
-	numberfOfChAccepts := numberOfInstances + numberOfGateways
-	runsNeededToTest := numberOfInstances + numberOfGateways + 1
-	for i := 1; i <= runsNeededToTest; i++ {
-		t.Logf("run: %d\n", i)
+	for i := 0; i < numberOfInstances; i++ {
+		t.Logf("for loop run: %d\n", i)
 		select {
 		case <-time.After(defaultChTimeout):
-			if i <= numberfOfChAccepts {
-				t.Log("channel stop taking in connections earlier than expected")
-				t.FailNow()
-			} else {
-				t.Log("channel didnt took in another connection which was expected to happen")
-			}
-		case toGatewayCh <- createConn():
-			if i > numberfOfChAccepts {
-				t.Error("Tasked should have timed out but didnt")
-			}
-			t.Log("channel took in connection")
+			t.Log("Tasked timed out (this probably means that there werent enough servers running)")
+			t.FailNow()
+		case serverCh <- conn:
+			t.Log("a server took the connection")
 		}
+	}
+
+	select {
+	case <-time.After(defaultChTimeout):
+		t.Log("Tasked timed out (which means that there were no unexpected extra servers running)")
+	case serverCh <- connection.NewHandshakeConn(nil, nil):
+		t.Log("a server took the connection (which probably means that there were to many servers running, or the connections before failed to told their servers busy)")
+		t.FailNow()
 	}
 
 }
