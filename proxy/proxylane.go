@@ -1,7 +1,7 @@
 package proxy
 
 import (
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -15,20 +15,14 @@ import (
 )
 
 var (
-	// There is no closing yet, also some more numberes might be fun..?
-	proxiesActive = promauto.NewGauge(prometheus.GaugeOpts{
-		Name: "infrared_proxies",
-		Help: "The total number of proxies running",
-	})
-
-	playersConnected = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	ErrNoServerConnImplemented = errors.New("no server connection factory is implemented")
+	playersConnected           = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "infrared_connected",
 		Help: "The total number of connected players",
 	}, []string{"host"})
 )
 
 func NewServerInfo(cfg server.ServerConfig, connFactory connection.ServerConnFactory) ServerInfo {
-	proxiesActive.Inc()
 	return ServerInfo{
 		MainDomain:        cfg.MainDomain,
 		ExtraDomains:      cfg.ExtraDomains,
@@ -47,7 +41,7 @@ type ServerInfo struct {
 	ExtraDomains      []string
 	NumberOfInstances int
 
-	// Look into this later
+	// Look into this later (this needs to change)
 	Cfg         server.ServerConfig
 	ConnFactory connection.ServerConnFactory
 
@@ -71,48 +65,51 @@ type ProxyLaneConfig struct {
 	ListenerFactory   gateway.ListenerFactory
 }
 
-type ProxyLane struct {
-	Config ProxyLaneConfig
-
-	connFactory connection.ServerConnFactory
-
-	toGatewayCh chan connection.HandshakeConn
-	gwCloseCh   chan struct{}
-	serverMap   map[string]ServerInfo
-}
-
 func NewProxyLane(cfg ProxyLaneConfig) ProxyLane {
 	return ProxyLane{
-		Config: cfg,
+		config: cfg,
 
 		toGatewayCh: make(chan connection.HandshakeConn),
 		gwCloseCh:   make(chan struct{}),
 		serverMap:   make(map[string]ServerInfo),
+
+		connFactory: func(addr string) (connection.ServerConn, error) {
+			return connection.ServerConn{}, ErrNoServerConnImplemented
+		},
 	}
 }
 
+type ProxyLane struct {
+	config      ProxyLaneConfig
+	connFactory connection.ServerConnFactory
 
-// TODO: this needs some attention
+	activeGateways int
+	toGatewayCh    chan connection.HandshakeConn
+	gwCloseCh      chan struct{}
+	serverMap      map[string]ServerInfo
+}
+
 func (proxy *ProxyLane) StartupProxy() {
-	servers := proxy.Config.Servers
-
-	timeout := time.Duration(proxy.Config.Timeout) * time.Millisecond
-	proxy.connFactory, _ = proxy.Config.ServerConnFactory(timeout)
-
-	proxy.CreateGateways()
-	proxy.CreateListeners()
-	proxy.RegisterServers(servers...)
-
-	for _, server := range servers {
-		proxiesActive.Inc()
-		proxy.InitialServerSetup(server)
+	if proxy.config.ServerConnFactory != nil {
+		timeout := time.Duration(proxy.config.Timeout) * time.Millisecond
+		proxy.connFactory, _ = proxy.config.ServerConnFactory(timeout)
 	}
 
+	if proxy.config.NumberOfGateways > 0 {
+		proxy.gatewayModified()
+	}
+	if proxy.config.NumberOfListeners > 0 {
+		proxy.listenerModified()
+	}
+	if len(proxy.config.Servers) > 0 {
+		proxy.RegisterServers(proxy.config.Servers...)
+	}
 }
 
-func (proxy *ProxyLane) CreateListeners() {
-	listener, _ := proxy.Config.ListenerFactory(proxy.Config.ListenTo)
-	for i := 0; i < proxy.Config.NumberOfListeners; i++ {
+// To increase the number of running listeners, decreasing isnt supported yet
+func (proxy *ProxyLane) listenerModified() {
+	listener, _ := proxy.config.ListenerFactory(proxy.config.ListenTo)
+	for i := 0; i < proxy.config.NumberOfListeners; i++ {
 		l := gateway.NewBasicListener(listener, proxy.toGatewayCh)
 		go func() {
 			l.Listen()
@@ -120,46 +117,17 @@ func (proxy *ProxyLane) CreateListeners() {
 	}
 }
 
-func (proxy *ProxyLane) CreateGateways() {
-	serverStore := gateway.CreateDefaultServerStore()
-	for _, serverInfo := range proxy.serverMap {
-		serverData := gateway.ServerData{ConnCh: serverInfo.ConnCh}
-		serverStore.AddServer(serverInfo.MainDomain, serverData)
-		for _, subdomain := range serverInfo.ExtraDomains {
-			serverData := gateway.ServerData{ConnCh: serverInfo.ConnCh}
-			serverStore.AddServer(subdomain, serverData)
-		}
-	}
-
-	for i := 0; i < proxy.Config.NumberOfGateways; i++ {
-		gw := gateway.NewBasicGatewayWithStore(&serverStore, proxy.toGatewayCh, proxy.gwCloseCh)
-		go func() {
-			gw.Start()
-		}()
-	}
-}
-
-func (proxy *ProxyLane) InitialServerSetup(cfg server.ServerConfig) {
-	serverInfo := proxy.serverMap[cfg.MainDomain]
-	mcServer := serverInfo.createMCServer()
-	for i := 0; i < cfg.NumberOfInstances; i++ {
-		go func(server server.MCServer) {
-			// With this every server will be a unique instance
-			server.Start()
-		}(mcServer)
-	}
-}
-
-// Gateway needs to be running before before you call this method if NumberOfGateways is greater than 1
-func (proxy *ProxyLane) RegisterServers(cfgs ...server.ServerConfig) {
+// TODO: Some error here with already used domains, but it also needs to check extradomains
+func (proxy *ProxyLane) RegisterServers(cfgs ...server.ServerConfig) error {
 	for _, cfg := range cfgs {
 		serverInfo := NewServerInfo(cfg, proxy.connFactory)
 		domainName := cfg.MainDomain
 		proxy.serverMap[domainName] = serverInfo
-		proxy.InitialServerSetup(cfg)
+		serverInfo.startAllInstances()
 	}
 
-	proxy.gatewayServersModified()
+	proxy.gatewayModified()
+	return nil
 }
 
 func (proxy *ProxyLane) CloseServer(mainDomain string) {
@@ -169,13 +137,15 @@ func (proxy *ProxyLane) CloseServer(mainDomain string) {
 		serverInfo.CloseCh <- struct{}{}
 	}
 
+	// Not sure or closing these will have any effect
+	close(serverInfo.CloseCh)
+	close(serverInfo.ConnCh)
 	delete(proxy.serverMap, mainDomain)
-	proxiesActive.Dec()
 
-	proxy.gatewayServersModified()
+	proxy.gatewayModified()
 }
 
-func (proxy *ProxyLane) gatewayServersModified() {
+func (proxy *ProxyLane) gatewayModified() {
 	serverStore := gateway.CreateDefaultServerStore()
 	for _, serverInfo := range proxy.serverMap {
 		serverData := gateway.ServerData{ConnCh: serverInfo.ConnCh}
@@ -187,93 +157,87 @@ func (proxy *ProxyLane) gatewayServersModified() {
 	}
 
 	//Close them all before we start or new ones, so we dont accidently end up closing a new gateway
-	for i := 0; i < proxy.Config.NumberOfGateways; i++ {
+	for i := 0; i < proxy.activeGateways; i++ {
 		proxy.gwCloseCh <- struct{}{}
 	}
 
-	for i := 0; i < proxy.Config.NumberOfGateways; i++ {
+	for i := 0; i < proxy.config.NumberOfGateways; i++ {
 		gw := gateway.NewBasicGatewayWithStore(&serverStore, proxy.toGatewayCh, proxy.gwCloseCh)
 		go func() {
 			gw.Start()
 		}()
 	}
-
+	proxy.activeGateways = proxy.config.NumberOfGateways
 }
 
 // This will check or the current server and the new configs are change
 //  and will apply those changes to the server
 func (proxy *ProxyLane) UpdateServer(cfg server.ServerConfig) {
 	serverInfo := proxy.serverMap[cfg.MainDomain]
+	var hasDifferentDomains bool
 	var reconstructGateways bool
+	var createNewConnFactory bool
 	var needToRestartAllServers bool
 
-	//Check or domains have changed if so, change server store settings
 	// We will for now assume that the mainDomain wont change
-	newDomainInt := 2
-	currentDomainInt := 1
-	addedDomains := []string{}
-	removedDomains := []string{}
 	domainMap := make(map[string]int)
 	for _, domain := range serverInfo.ExtraDomains {
-		domainMap[domain] += currentDomainInt
+		domainMap[domain] += 1
 	}
 	for _, domain := range cfg.ExtraDomains {
-		domainMap[domain] += newDomainInt
+		domainMap[domain] += 2
 	}
-
-	for domain, number := range domainMap {
+	for _, number := range domainMap {
 		switch number {
-		case newDomainInt + currentDomainInt:
+		case 3:
 			continue
-		case newDomainInt:
-			addedDomains = append(addedDomains, domain)
-			fmt.Printf("Domain '%s' has been added to proxy '%s'\n", domain, cfg.MainDomain)
-		case currentDomainInt:
-			removedDomains = append(removedDomains, domain)
-			fmt.Printf("Domain '%s' has been removed from proxy '%s'\n", domain, cfg.MainDomain)
+		case 2, 1:
+			hasDifferentDomains = true
+			break
 		}
 	}
-
-	if len(addedDomains) > 0 || len(removedDomains) > 0 {
+	if hasDifferentDomains {
+		serverInfo.ExtraDomains = cfg.ExtraDomains
 		reconstructGateways = true
 	}
 
-	// only one of these has to be truth for all changes to apply
+	// only one of these needs to be truth for all changes to apply
 	if serverInfo.Cfg.ProxyBind != cfg.ProxyBind {
+		createNewConnFactory = true
 		needToRestartAllServers = true
 	} else if serverInfo.Cfg.SendProxyProtocol != cfg.SendProxyProtocol {
+		createNewConnFactory = true // TODO: Not sure about this one
 		needToRestartAllServers = true
 	} else if serverInfo.Cfg.ProxyTo != cfg.ProxyTo {
+		createNewConnFactory = true
 		needToRestartAllServers = true
 	} else if serverInfo.Cfg.RealIP != cfg.RealIP {
 		needToRestartAllServers = true
 	} else if serverInfo.Cfg.DialTimeout != cfg.DialTimeout {
+		createNewConnFactory = true
 		needToRestartAllServers = true
 	} else if serverInfo.Cfg.DisconnectMessage != cfg.DisconnectMessage {
 		needToRestartAllServers = true
 	} else {
-		sameOnlineStatus, _ := infrared.SameStatus(serverInfo.Cfg.OnlineStatus, cfg.OnlineStatus)
-		if sameOnlineStatus {
+		if same, _ := infrared.SameStatus(serverInfo.Cfg.OnlineStatus, cfg.OnlineStatus); !same {
 			needToRestartAllServers = true
 		}
-		sameOfflineStatus, _ := infrared.SameStatus(serverInfo.Cfg.OfflineStatus, cfg.OfflineStatus)
-		if sameOfflineStatus {
+		if same, _ := infrared.SameStatus(serverInfo.Cfg.OfflineStatus, cfg.OfflineStatus); !same {
 			needToRestartAllServers = true
 		}
 	}
 
+	serverInfo.Cfg = cfg
 	if needToRestartAllServers {
+		if createNewConnFactory {
+			// Create new conn factory here
+		}
+
 		for i := 0; i < serverInfo.NumberOfInstances; i++ {
 			serverInfo.CloseCh <- struct{}{}
 		}
-		proxy.InitialServerSetup(cfg)
-	}
-
-	// Figure first out or there isnt something critical changed in the cfg
-	// that  we dont have to adjust the value and than take them all down
-	//  to then create new instances
-	if !needToRestartAllServers && serverInfo.NumberOfInstances != cfg.NumberOfInstances {
-		// Change here the number of running instances
+		serverInfo.startAllInstances()
+	} else if serverInfo.NumberOfInstances != cfg.NumberOfInstances {
 		adjustNumber := cfg.NumberOfInstances - serverInfo.NumberOfInstances
 		for adjustNumber != 0 {
 			if adjustNumber > 0 {
@@ -287,12 +251,24 @@ func (proxy *ProxyLane) UpdateServer(cfg server.ServerConfig) {
 				adjustNumber++
 			}
 		}
+		serverInfo.NumberOfInstances = cfg.NumberOfInstances
 	}
 
+	proxy.serverMap[cfg.MainDomain] = serverInfo
 	if reconstructGateways {
-		proxy.gatewayServersModified()
+		proxy.gatewayModified()
 	}
+}
 
+// This create all instances of a server
+func (serverInfo ServerInfo) startAllInstances() {
+	mcServer := serverInfo.createMCServer()
+	for i := 0; i < serverInfo.NumberOfInstances; i++ {
+		go func(server server.MCServer) {
+			// With this every server will be a unique instance
+			server.Start()
+		}(mcServer)
+	}
 }
 
 func (info ServerInfo) createMCServer() server.MCServer {

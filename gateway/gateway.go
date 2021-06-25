@@ -32,7 +32,14 @@ Forloop:
 	for {
 		select {
 		case conn := <-g.inCh:
-			g.handleConn(conn)
+			err := g.handleConn(conn)
+			if errors.Is(err, ErrNoServerFound) {
+				// If default status is set and its a status request, send it here to the client
+
+			}
+			if err != nil {
+				conn.Conn().Close()
+			}
 		case <-g.closeCh:
 			break Forloop
 		}

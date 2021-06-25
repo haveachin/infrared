@@ -83,7 +83,6 @@ func main() {
 		{
 			NumberOfInstances: 1,
 			MainDomain:        "localhost",
-			ProxyTo:           ":25560",
 			RealIP:            false,
 			OnlineStatus:      infrared.StatusConfig{},
 			OfflineStatus:     infrared.StatusConfig{VersionName: "Infrared-1"},
@@ -91,7 +90,6 @@ func main() {
 		{
 			NumberOfInstances: 2,
 			MainDomain:        "127.0.0.1",
-			ProxyTo:           ":25560",
 			RealIP:            false,
 			OnlineStatus:      infrared.StatusConfig{},
 			OfflineStatus:     infrared.StatusConfig{VersionName: "Infrared-2"},
@@ -115,15 +113,15 @@ func main() {
 		NumberOfListeners: 2,
 		NumberOfGateways:  4,
 
-		Timeout:  250,
-		ListenTo: ":25565",
+		Timeout:  1000,
+		ListenTo: "0.0.0.0:25565",
 		Servers:  serverCfgs,
 
 		ServerConnFactory: connFactoryFactory,
 		ListenerFactory:   listenerFactory,
 	}
 
-	proxyLane := proxy.ProxyLane{Config: proxyCfg}
+	proxyLane := proxy.NewProxyLane(proxyCfg)
 	proxyLane.StartupProxy()
 
 	go func() {

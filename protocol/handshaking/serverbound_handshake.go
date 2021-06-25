@@ -86,7 +86,6 @@ func (pk *ServerBoundHandshake) UpgradeToRealIP(clientAddr net.Addr, timestamp t
 		return
 	}
 
-	// TOCHECK: Forge and REALIP werent compatible. This might fix it...?
 	addr := string(pk.ServerAddress)
 	addrWithForge := strings.SplitN(addr, ForgeSeparator, 3)
 
