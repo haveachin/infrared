@@ -17,7 +17,7 @@ var (
 
 //Yes this is a factory for a factory
 type NewServerConnFactory func(timeout time.Duration) (ServerConnFactory, error)
-type ServerConnFactory func(string) (ServerConn, error)
+type ServerConnFactory func() (ServerConn, error)
 type HandshakeConnFactory func(Conn, net.Addr) (HandshakeConn, error)
 
 type RequestType int8

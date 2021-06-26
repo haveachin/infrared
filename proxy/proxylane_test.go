@@ -49,83 +49,63 @@ func (l *testListener) Accept() (net.Conn, error) {
 	return conn, nil
 }
 
-func TestListenerCreation(t *testing.T) {
-	numberOfListeners := 3
+func newTestListener() (func(addr string) (net.Listener, error), chan net.Conn) {
 	newConnCh := make(chan net.Conn)
 	netListener := &testListener{newConnCh: newConnCh}
 	listenerFactory := func(addr string) (net.Listener, error) {
 		return netListener, nil
 	}
-	proxyCfg := proxy.ProxyLaneConfig{
-		NumberOfListeners: numberOfListeners,
-		ListenerFactory:   listenerFactory,
-	}
+	return listenerFactory, newConnCh
+}
+
+func TestListenerCreation(t *testing.T) {
+	listenerFactory, newConnCh := newTestListener()
+	proxyCfg := proxy.NewProxyLaneConfig()
+	proxyCfg.ListenerFactory = listenerFactory
 	proxyLane := proxy.NewProxyLane(proxyCfg)
-	proxyLane.StartupProxy()
+	proxyLane.StartProxy()
 
 	netConn, _ := net.Pipe()
-	for i := 0; i < numberOfListeners; i++ {
-		select {
-		case newConnCh <- netConn:
-			t.Log("Listener took connection  (this is expected)")
-		case <-time.After(defaultChTimeout):
-			t.Log("Listener didnt accept connection (this probably means that there werent enough listeners running))")
-			t.FailNow()
-		}
-	}
-
 	select {
 	case newConnCh <- netConn:
-		t.Log("Listener took connection (which probably means that there were to many servers running, or the connections before failed to told their servers busy)")
-		t.FailNow()
+		t.Log("Listener took connection")
 	case <-time.After(defaultChTimeout):
-		t.Log("Listener didnt accept connection (this is expected)")
+		t.Log("Listener didnt accept connection")
+		t.FailNow()
 	}
 }
 
 func TestGatewayCreation(t *testing.T) {
-	numberOfGateways := 3
 	netConn, _ := net.Pipe()
 	conn := connection.NewHandshakeConn(netConn, &net.IPAddr{})
-	proxyCfg := proxy.ProxyLaneConfig{
-		NumberOfGateways: numberOfGateways,
-	}
+	listenerFactory, _ := newTestListener()
+	proxyCfg := proxy.NewProxyLaneConfig()
+	proxyCfg.ListenerFactory = listenerFactory
+
 	proxyLane := proxy.NewProxyLane(proxyCfg)
 	toGatewayCh, _ := proxyLane.TestMethod_GatewayCh()
-
-	proxyLane.StartupProxy()
-
-	for i := 0; i < numberOfGateways; i++ {
-		select {
-		case toGatewayCh <- conn:
-			t.Log("Gateway took connection  (this is expected)")
-		case <-time.After(defaultChTimeout):
-			t.Log("Gateway didnt take connection (this probably means that there werent enough gateways running))")
-			t.FailNow()
-		}
-	}
+	proxyLane.StartProxy()
 
 	select {
 	case toGatewayCh <- conn:
-		t.Log("Gateway took connection (which probably means that there were to many gateways running, or the connections before failed to told their gateways busy)")
-		t.FailNow()
+		t.Log("Gateway took connection  (this is expected)")
 	case <-time.After(defaultChTimeout):
-		t.Log("Gateway didnt take connection (this is expected)")
+		t.Log("Gateway didnt take connection (this probably means that there werent enough gateways running))")
+		t.FailNow()
 	}
 }
 
 func TestServerCreation(t *testing.T) {
 	mainDomain := "infrared-1"
 	serverCfg := server.ServerConfig{
-		NumberOfInstances: 1,
-		MainDomain:        mainDomain,
+		MainDomain: mainDomain,
 	}
-	proxyCfg := proxy.ProxyLaneConfig{
-		Servers: []server.ServerConfig{serverCfg},
-	}
-
+	listenerFactory, _ := newTestListener()
+	proxyCfg := proxy.NewProxyLaneConfig()
+	proxyCfg.ListenerFactory = listenerFactory
+	proxyCfg.Servers = []server.ServerConfig{serverCfg}
 	proxyLane := proxy.NewProxyLane(proxyCfg)
-	proxyLane.StartupProxy()
+	proxyLane.StartProxy()
 
 	serverMap := proxyLane.TestMethod_ServerMap()
 	serverCh := serverMap[mainDomain].ConnCh
@@ -147,23 +127,23 @@ func TestServerCreation_DoesRegisterDomains(t *testing.T) {
 	extraDomain2 := "infrared-3"
 
 	serverCfg := server.ServerConfig{
-		NumberOfInstances: 0,
-		MainDomain:        mainDomain,
-		ExtraDomains:      []string{extraDomain, extraDomain2},
+		MainDomain:   mainDomain,
+		ExtraDomains: []string{extraDomain, extraDomain2},
 	}
 
-	proxyCfg := proxy.ProxyLaneConfig{
-		NumberOfGateways: 1,
-		Servers:          []server.ServerConfig{serverCfg},
-	}
+	listenerFactory, _ := newTestListener()
+	proxyCfg := proxy.NewProxyLaneConfig()
+	proxyCfg.ListenerFactory = listenerFactory
+	proxyCfg.Servers = []server.ServerConfig{serverCfg}
 
 	testOrDomainIsRegistered := func(t *testing.T, testDomain string) {
 		t.Helper()
 		proxyLane := proxy.NewProxyLane(proxyCfg)
-		proxyLane.StartupProxy()
+		proxyLane.StartProxy()
 
 		toGatewayCh, _ := proxyLane.TestMethod_GatewayCh()
 		serverMap := proxyLane.TestMethod_ServerMap()
+		serverMap[mainDomain].CloseCh <- struct{}{}
 		serverCh := serverMap[mainDomain].ConnCh
 		conn := createHsConn(testDomain)
 		select {
@@ -188,62 +168,18 @@ func TestServerCreation_DoesRegisterDomains(t *testing.T) {
 	testOrDomainIsRegistered(t, extraDomain2)
 }
 
-func TestProxyLane_ServerCreation_CreatesRightAmountOfServers(t *testing.T) {
-	numberOfInstances := 2
-	hs := handshaking.ServerBoundHandshake{
-		NextState: 1, //Using status so it first expects another request before making the server connection
-	}
-	netConn, _ := net.Pipe()
-	conn := connection.NewHandshakeConn(netConn, &net.IPAddr{})
-	conn.Handshake = hs
-	singleServerCfg := server.ServerConfig{
-		MainDomain:        "infrared-1",
-		NumberOfInstances: numberOfInstances,
-	}
-
-	proxyCfg := proxy.ProxyLaneConfig{
-		Servers: []server.ServerConfig{singleServerCfg},
-	}
-	proxyLane := proxy.NewProxyLane(proxyCfg)
-	proxyLane.StartupProxy()
-
-	serverMap := proxyLane.TestMethod_ServerMap()
-	serverCh := serverMap[singleServerCfg.MainDomain].ConnCh
-
-	for i := 0; i < numberOfInstances; i++ {
-		t.Logf("for loop run: %d\n", i)
-		select {
-		case <-time.After(defaultChTimeout):
-			t.Log("Tasked timed out (this probably means that there werent enough servers running)")
-			t.FailNow()
-		case serverCh <- conn:
-			t.Log("a server took the connection")
-		}
-	}
-
-	select {
-	case <-time.After(defaultChTimeout):
-		t.Log("Tasked timed out (which means that there were no unexpected extra servers running)")
-	case serverCh <- connection.NewHandshakeConn(nil, nil):
-		t.Log("a server took the connection (which probably means that there were to many servers running, or the connections before failed to told their servers busy)")
-		t.FailNow()
-	}
-
-}
-
 func TestProxyLane_CloseServer(t *testing.T) {
 	mainDomain := "infrared-1"
 	serverCfg := server.ServerConfig{
-		NumberOfInstances: 1,
-		MainDomain:        mainDomain,
+		MainDomain: mainDomain,
 	}
-	proxyCfg := proxy.ProxyLaneConfig{
-		NumberOfGateways: 1,
-		Servers:          []server.ServerConfig{serverCfg},
-	}
+	listenerFactory, _ := newTestListener()
+	proxyCfg := proxy.NewProxyLaneConfig()
+	proxyCfg.ListenerFactory = listenerFactory
+	proxyCfg.Servers = []server.ServerConfig{serverCfg}
 
 	proxyLane := proxy.NewProxyLane(proxyCfg)
-	proxyLane.StartupProxy()
+	proxyLane.StartProxy()
 	proxyLane.CloseServer(mainDomain)
 
 	toGatewayCh, _ := proxyLane.TestMethod_GatewayCh()
@@ -279,13 +215,13 @@ func TestUpdateServer(t *testing.T) {
 		MainDomain: mainDomain,
 	}
 	createProxyLane := func(cfg server.ServerConfig) proxy.ProxyLane {
-		proxyCfg := proxy.ProxyLaneConfig{
-			NumberOfGateways: 1,
-			Servers:          []server.ServerConfig{cfg},
-		}
+		listenerFactory, _ := newTestListener()
+		proxyCfg := proxy.NewProxyLaneConfig()
+		proxyCfg.ListenerFactory = listenerFactory
+		proxyCfg.Servers = []server.ServerConfig{serverCfg}
 
 		proxyLane := proxy.NewProxyLane(proxyCfg)
-		proxyLane.StartupProxy()
+		proxyLane.StartProxy()
 		return proxyLane
 	}
 
@@ -297,8 +233,8 @@ func TestUpdateServer(t *testing.T) {
 
 		serverMap := proxyLane.TestMethod_ServerMap()
 		toGatewayCh, _ := proxyLane.TestMethod_GatewayCh()
+		serverMap[mainDomain].CloseCh <- struct{}{}
 		serverCh := serverMap[mainDomain].ConnCh
-
 		select {
 		case toGatewayCh <- createHsConn(extraDomain):
 			t.Log("Gateway took connection")
@@ -326,6 +262,7 @@ func TestUpdateServer(t *testing.T) {
 
 		serverMap := proxyLane.TestMethod_ServerMap()
 		toGatewayCh, _ := proxyLane.TestMethod_GatewayCh()
+		serverMap[mainDomain].CloseCh <- struct{}{}
 		serverCh := serverMap[mainDomain].ConnCh
 		conn := createHsConn(extraDomain)
 
@@ -346,7 +283,7 @@ func TestUpdateServer(t *testing.T) {
 		}
 	})
 
-	t.Run("Keep its extra ExtraDomain", func(t *testing.T) {
+	t.Run("keep its extra ExtraDomain", func(t *testing.T) {
 		extraDomain := "infrared-2"
 		serverCfg.ExtraDomains = []string{extraDomain}
 		proxyLane := createProxyLane(serverCfg)
@@ -354,6 +291,7 @@ func TestUpdateServer(t *testing.T) {
 
 		serverMap := proxyLane.TestMethod_ServerMap()
 		toGatewayCh, _ := proxyLane.TestMethod_GatewayCh()
+		serverMap[mainDomain].CloseCh <- struct{}{}
 		serverCh := serverMap[mainDomain].ConnCh
 		conn := createHsConn(extraDomain)
 
@@ -371,62 +309,6 @@ func TestUpdateServer(t *testing.T) {
 		case <-time.After(defaultChTimeout):
 			t.Log("Server wasnt found")
 			t.Fail()
-		}
-	})
-
-	t.Run("Increases number of running servers", func(t *testing.T) {
-		proxyLane := createProxyLane(serverCfg)
-		numberOfInstances := 1
-		serverCfg.NumberOfInstances = numberOfInstances
-		proxyLane.UpdateServer(serverCfg)
-
-		toGatewayCh, _ := proxyLane.TestMethod_GatewayCh()
-		conn := createHsConn(mainDomain)
-
-		for i := 0; i < numberOfInstances+1; i++ {
-			select {
-			case toGatewayCh <- conn:
-				t.Log("Gateway took connection")
-			case <-time.After(defaultChTimeout):
-				// If this times out the other server isnt running since there only is 1 gateway
-				t.Log("Gateway didnt take connection")
-				t.FailNow()
-			}
-		}
-
-		select {
-		case toGatewayCh <- conn:
-			t.Log("Gateway took connection again (while it shouldnt since there is only one gateway and no one should receive the first connection")
-			t.FailNow()
-		case <-time.After(defaultChTimeout):
-			t.Log("Gateway didnt take connection")
-		}
-
-	})
-
-	t.Run("decreases number of running servers", func(t *testing.T) {
-		serverCfg.NumberOfInstances = 1
-		proxyLane := createProxyLane(serverCfg)
-		serverCfg.NumberOfInstances = 0
-		proxyLane.UpdateServer(serverCfg)
-
-		toGatewayCh, _ := proxyLane.TestMethod_GatewayCh()
-		conn := createHsConn(mainDomain)
-
-		select {
-		case toGatewayCh <- conn:
-			t.Log("Gateway took connection")
-		case <-time.After(defaultChTimeout):
-			t.Log("Gateway didnt take connection")
-			t.FailNow()
-		}
-
-		select {
-		case toGatewayCh <- conn:
-			t.Log("Gateway took connection again (while it shouldnt since there is only one gateway and no one should receive the first connection")
-			t.FailNow()
-		case <-time.After(defaultChTimeout):
-			t.Log("Gateway didnt take connection")
 		}
 	})
 

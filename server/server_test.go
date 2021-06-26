@@ -170,8 +170,8 @@ func TestMCServer(t *testing.T) {
 		connCh := make(chan connection.HandshakeConn)
 
 		mcServer := &server.MCServer{
-			ConnFactory: connFactory,
-			ConnCh:      connCh,
+			CreateServerConn: connFactory,
+			ConnCh:           connCh,
 		}
 		go func() {
 			mcServer.Start()
@@ -208,12 +208,12 @@ func TestMCServer(t *testing.T) {
 
 	statusFactory := func(conn net.Conn) server.MCServer {
 		serverConn := connection.NewServerConn(conn)
-		statusFactory := func(addr string) (connection.ServerConn, error) {
+		statusFactory := func() (connection.ServerConn, error) {
 			return serverConn, nil
 		}
 
 		mcServer := server.MCServer{
-			ConnFactory: statusFactory,
+			CreateServerConn: statusFactory,
 		}
 		return mcServer
 	}
@@ -227,12 +227,12 @@ func TestMCServer(t *testing.T) {
 
 	statusConfigFactory := func(conn net.Conn) server.MCServer {
 		serverConn := connection.NewServerConn(conn)
-		statusFactory := func(addr string) (connection.ServerConn, error) {
+		statusFactory := func() (connection.ServerConn, error) {
 			return serverConn, nil
 		}
 
 		mcServer := server.MCServer{
-			ConnFactory:         statusFactory,
+			CreateServerConn:    statusFactory,
 			OnlineConfigStatus:  onlineConfigStatus,
 			OfflineConfigStatus: offlineConfigStatus,
 		}
@@ -290,7 +290,7 @@ func testServerLogin(t *testing.T, runServer runTestServer) {
 			s1, s2 := net.Pipe()
 			sConn := connection.NewServerConn(s1)
 
-			connFactory := func(addr string) (connection.ServerConn, error) {
+			connFactory := func() (connection.ServerConn, error) {
 				return sConn, nil
 			}
 
@@ -462,7 +462,7 @@ func testServerStatus_WithoutConfigStatus(t *testing.T, runServer runTestServer,
 			s1, s2 := net.Pipe()
 			sConn := connection.NewServerConn(s1)
 
-			connFactory := func(addr string) (connection.ServerConn, error) {
+			connFactory := func() (connection.ServerConn, error) {
 				return sConn, nil
 			}
 
@@ -531,7 +531,10 @@ func TestOrMCServerCanClose(t *testing.T) {
 	connCh := make(chan connection.HandshakeConn)
 	handshakeConn := connection.NewHandshakeConn(nil, nil)
 
-	server := server.NewMCServer(nil, connCh, closeCh)
+	server := server.MCServer{
+		ConnCh:  connCh,
+		CloseCh: closeCh,
+	}
 	go func() {
 		server.Start()
 	}()

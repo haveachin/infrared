@@ -15,8 +15,6 @@ var (
 )
 
 type ServerConfig struct {
-	NumberOfInstances int `json:"numberOfInstances"`
-
 	// MainDomain will be treated as primary key (refactor: imperative -> workerpools)
 	MainDomain   string   `json:"mainDomain"`
 	ExtraDomains []string `json:"extraDomains"`
@@ -37,27 +35,28 @@ type ServerConfig struct {
 
 func NewMCServer(connFactory connection.ServerConnFactory, connCh <-chan connection.HandshakeConn, closeCh <-chan struct{}) MCServer {
 	return MCServer{
-		ConnFactory: connFactory,
-		ConnCh:      connCh,
-		CloseCh:     closeCh,
+		CreateServerConn: connFactory,
+		ConnCh:           connCh,
+		CloseCh:          closeCh,
 	}
 }
 
 type MCServer struct {
-	Config              ServerConfig
-	ConnFactory         connection.ServerConnFactory
+	CreateServerConn  connection.ServerConnFactory
+	SendProxyProtocol bool
+	RealIP            bool
+
 	OnlineConfigStatus  protocol.Packet
 	OfflineConfigStatus protocol.Packet
 
-	ConnCh  <-chan connection.HandshakeConn
-	CloseCh <-chan struct{}
-
-	JoiningActions []func(domain string)
-	LeavingActions []func(domain string)
+	ConnCh         <-chan connection.HandshakeConn
+	CloseCh        <-chan struct{}
+	JoiningActions []func()
+	LeavingActions []func()
 }
 
 func (s *MCServer) Status(conn connection.HandshakeConn) protocol.Packet {
-	serverConn, _ := s.ConnFactory(s.Config.ProxyTo)
+	serverConn, _ := s.CreateServerConn()
 	hs := conn.HandshakePacket
 	serverConn.WritePacket(hs)
 	serverConn.WritePacket(protocol.Packet{})
@@ -76,15 +75,15 @@ func (s *MCServer) Status(conn connection.HandshakeConn) protocol.Packet {
 
 // Error testing needed
 func (s *MCServer) Login(conn connection.HandshakeConn) error {
-	serverConn, _ := s.ConnFactory(s.Config.ProxyTo)
+	serverConn, _ := s.CreateServerConn()
 	hs := conn.HandshakePacket
 	serverConn.WritePacket(hs)
 	pk, _ := conn.ReadPacket()
 	serverConn.WritePacket(pk)
 
-	go func(client, server connection.PipeConn) {
+	go func(client, server connection.PipeConn, joinActions, leaveActions []func()) {
 		for _, action := range s.JoiningActions {
-			action(s.Config.MainDomain)
+			action()
 		}
 
 		clientConn := client.Conn()
@@ -97,9 +96,9 @@ func (s *MCServer) Login(conn connection.HandshakeConn) error {
 		serverConn.Close()
 
 		for _, action := range s.LeavingActions {
-			action(s.Config.MainDomain)
+			action()
 		}
-	}(conn, serverConn)
+	}(conn, serverConn, s.JoiningActions, s.LeavingActions)
 
 	return nil
 }
@@ -109,17 +108,19 @@ ForLoop:
 	for {
 		select {
 		case conn := <-s.ConnCh:
-			switch connection.ParseRequestType(conn) {
-			case connection.LoginRequest:
-				s.Login(conn)
-			case connection.StatusRequest:
-				err := s.handleStatusRequest(conn)
-				if err != nil {
-					fmt.Println(err)
+			go func() {
+				switch connection.ParseRequestType(conn) {
+				case connection.LoginRequest:
+					s.Login(conn)
+				case connection.StatusRequest:
+					err := s.handleStatusRequest(conn)
+					if err != nil {
+						fmt.Println(err)
+					}
+				default:
+					fmt.Sprintln("Didnt recognize handshake id")
 				}
-			default:
-				fmt.Sprintln("Didnt recognize handshake id")
-			}
+			}()
 		case <-s.CloseCh:
 			break ForLoop
 		}

@@ -8,12 +8,10 @@ import (
 	"net/http"
 	"os"
 	"strconv"
-	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/haveachin/infrared"
-	"github.com/haveachin/infrared/connection"
 	"github.com/haveachin/infrared/proxy"
 	"github.com/haveachin/infrared/server"
 )
@@ -81,48 +79,43 @@ func main() {
 	fmt.Println("starting going to setup proxylane")
 	serverCfgs := []server.ServerConfig{
 		{
-			NumberOfInstances: 1,
-			MainDomain:        "localhost",
-			RealIP:            false,
-			OnlineStatus:      infrared.StatusConfig{},
-			OfflineStatus:     infrared.StatusConfig{VersionName: "Infrared-1"},
+			MainDomain:    "localhost",
+			RealIP:        false,
+			OnlineStatus:  infrared.StatusConfig{},
+			OfflineStatus: infrared.StatusConfig{VersionName: "Infrared-1"},
 		},
 		{
-			NumberOfInstances: 2,
-			MainDomain:        "127.0.0.1",
-			RealIP:            false,
-			OnlineStatus:      infrared.StatusConfig{},
-			OfflineStatus:     infrared.StatusConfig{VersionName: "Infrared-2"},
+			MainDomain:    "0.0.0.0",
+			RealIP:        false,
+			OnlineStatus:  infrared.StatusConfig{},
+			OfflineStatus: infrared.StatusConfig{VersionName: "Infrared-2"},
 		},
 	}
 
-	connFactoryFactory := func(timeout time.Duration) (connection.ServerConnFactory, error) {
-		return func(addr string) (connection.ServerConn, error) {
-			c, err := net.DialTimeout("tcp", addr, timeout)
-			if err != nil {
-				return connection.ServerConn{}, err
-			}
-			return connection.NewServerConn(c), nil
-		}, nil
-	}
+	// connFactoryFactory := func(timeout time.Duration) (connection.ServerConnFactory, error) {
+	// 	return func(addr string) (connection.ServerConn, error) {
+	// 		c, err := net.DialTimeout("tcp", addr, timeout)
+	// 		if err != nil {
+	// 			return connection.ServerConn{}, err
+	// 		}
+	// 		return connection.NewServerConn(c), nil
+	// 	}, nil
+	// }
 	listenerFactory := func(addr string) (net.Listener, error) {
 		return net.Listen("tcp", addr)
 	}
 
 	proxyCfg := proxy.ProxyLaneConfig{
-		NumberOfListeners: 2,
-		NumberOfGateways:  4,
-
 		Timeout:  1000,
-		ListenTo: "0.0.0.0:25565",
+		ListenTo: ":25565",
 		Servers:  serverCfgs,
 
-		ServerConnFactory: connFactoryFactory,
-		ListenerFactory:   listenerFactory,
+		// ServerConnFactory: connFactoryFactory,
+		ListenerFactory: listenerFactory,
 	}
 
 	proxyLane := proxy.NewProxyLane(proxyCfg)
-	proxyLane.StartupProxy()
+	proxyLane.StartProxy()
 
 	go func() {
 		http.Handle("/metrics", promhttp.Handler())
