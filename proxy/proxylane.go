@@ -70,7 +70,6 @@ func NewServerInfo(cfg ServerConfig) ServerInfo {
 
 type ServerInfo struct {
 	Cfg         *ServerConfig
-	ConnFactory connection.ServerConnFactory
 
 	CloseCh chan struct{}
 	ConnCh  chan connection.HandshakeConn
