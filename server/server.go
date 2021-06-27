@@ -12,6 +12,7 @@ import (
 
 var (
 	ErrCantConnectWithServer = errors.New("cant connect with server")
+	ErrInvalidHandshakeID    = errors.New("didnt recognize handshake id")
 )
 
 type ServerConfig struct {
@@ -135,10 +136,13 @@ ForLoop:
 				case connection.StatusRequest:
 					err = s.handleStatusRequest(conn)
 				default:
-					log.Println("Didnt recognize handshake id")
+					err = ErrInvalidHandshakeID
 				}
 				if err != nil {
-					log.Printf("error login: %v", err)
+					if errors.Is(err, io.EOF) {
+						return
+					}
+					log.Printf("error: %v", err)
 					conn.Conn().Close()
 				}
 			}()

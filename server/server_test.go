@@ -22,9 +22,7 @@ import (
 
 var (
 	testLoginID byte = 6
-
 	ErrNotImplemented = errors.New("not implemented")
-
 	defaultChTimeout = 10 * time.Millisecond
 )
 
@@ -38,6 +36,14 @@ func loginClient(conn net.Conn, data LoginData) {
 	conn.Write(bytes)
 
 	//Write something for (optional) pipe logic...?
+}
+
+type serverStatusRequestData struct {
+	expectedOnlineStatus  protocol.Packet
+	expectedOfflineStatus protocol.Packet
+	serverStatusResponse  protocol.Packet
+
+	server func(net.Conn) server.MCServer
 }
 
 type StatusData struct {
@@ -99,7 +105,6 @@ func shouldStopTest(t *testing.T, err, expectedError error) bool {
 	}
 }
 
-// Help Methods
 func samePK(expected, received protocol.Packet) bool {
 	sameID := expected.ID == received.ID
 	sameData := bytes.Equal(expected.Data, received.Data)
@@ -108,65 +113,6 @@ func samePK(expected, received protocol.Packet) bool {
 }
 
 // Test themselves
-
-type serverStatusRequestData struct {
-	expectedOnlineStatus  protocol.Packet
-	expectedOfflineStatus protocol.Packet
-	serverStatusResponse  protocol.Packet
-
-	server func(net.Conn) server.MCServer
-}
-
-func testServerStatusRequest(t *testing.T, testData serverStatusRequestData) {
-	tt := []struct {
-		online         bool
-		configStatus   bool
-		expectedStatus protocol.Packet
-	}{
-		{
-			online:         true,
-			expectedStatus: testData.expectedOnlineStatus,
-		},
-		{
-			online:         false,
-			expectedStatus: testData.expectedOfflineStatus,
-		},
-	}
-
-	for _, tc := range tt {
-		name := fmt.Sprintf("online: %v, configStatus: %v", tc.online, tc.configStatus)
-		t.Run(name, func(t *testing.T) {
-			s1, s2 := net.Pipe()
-			mcServer := testData.server(s1)
-
-			go func() {
-				if !tc.online {
-					s2.Close()
-					return
-				}
-				serverConn2 := connection.NewServerConn(s2)
-				serverConn2.ReadPacket()
-				serverConn2.ReadPacket()
-				serverConn2.WritePacket(testData.serverStatusResponse)
-			}()
-
-			hs := handshaking.ServerBoundHandshake{}
-			hsPk := hs.Marshal()
-			statusConn := connection.HandshakeConn{}
-			statusConn.HandshakePacket = hsPk
-
-			receivedPk := mcServer.Status(statusConn)
-
-			if ok := samePK(tc.expectedStatus, receivedPk); !ok {
-				t.Logf("expected:\t%v", tc.expectedStatus)
-				t.Logf("got:\t\t%v", receivedPk)
-				t.Error("Received packet is different from what we expected")
-			}
-		})
-	}
-
-}
-
 func TestMCServer(t *testing.T) {
 	runServer := func(connFactory connection.ServerConnFactory) chan<- connection.HandshakeConn {
 		connCh := make(chan connection.HandshakeConn)
@@ -251,6 +197,56 @@ func TestMCServer(t *testing.T) {
 }
 
 type runTestServer func(connection.ServerConnFactory) chan<- connection.HandshakeConn
+
+func testServerStatusRequest(t *testing.T, testData serverStatusRequestData) {
+	tt := []struct {
+		online         bool
+		configStatus   bool
+		expectedStatus protocol.Packet
+	}{
+		{
+			online:         true,
+			expectedStatus: testData.expectedOnlineStatus,
+		},
+		{
+			online:         false,
+			expectedStatus: testData.expectedOfflineStatus,
+		},
+	}
+
+	for _, tc := range tt {
+		name := fmt.Sprintf("online: %v, configStatus: %v", tc.online, tc.configStatus)
+		t.Run(name, func(t *testing.T) {
+			s1, s2 := net.Pipe()
+			mcServer := testData.server(s1)
+
+			go func() {
+				if !tc.online {
+					s2.Close()
+					return
+				}
+				serverConn2 := connection.NewServerConn(s2)
+				serverConn2.ReadPacket()
+				serverConn2.ReadPacket()
+				serverConn2.WritePacket(testData.serverStatusResponse)
+			}()
+
+			hs := handshaking.ServerBoundHandshake{}
+			hsPk := hs.Marshal()
+			statusConn := connection.HandshakeConn{}
+			statusConn.HandshakePacket = hsPk
+
+			receivedPk := mcServer.Status(statusConn)
+
+			if ok := samePK(tc.expectedStatus, receivedPk); !ok {
+				t.Logf("expected:\t%v", tc.expectedStatus)
+				t.Logf("got:\t\t%v", receivedPk)
+				t.Error("Received packet is different from what we expected")
+			}
+		})
+	}
+
+}
 
 func testServerLogin(t *testing.T, runServer runTestServer) {
 	hs := handshaking.ServerBoundHandshake{
@@ -340,10 +336,9 @@ type serverStatusTestcase struct {
 	pingPacket protocol.Packet
 }
 
-// Didnt confirm or proxyPing test works, proxy request test does work.
+// Didnt confirm or proxyPing testcode works, proxy request test does work.
 //  Please remove this after its confirmed that it does work
 func testServerStatus_WithoutConfigStatus(t *testing.T, runServer runTestServer, proxyRequest, proxyPing bool) {
-
 	hs := handshaking.ServerBoundHandshake{
 		ProtocolVersion: 754,
 		ServerAddress:   "infrared",
@@ -608,6 +603,7 @@ func TestMCServerErrorDetection(t *testing.T) {
 			closeClientAfterWriteN: 2,
 		},
 		{
+			// Not really a code test since this should already close without error
 			handshake:             statusHandshake,
 			closeClientAfterReadN: 2,
 		},
@@ -620,8 +616,8 @@ func TestMCServerErrorDetection(t *testing.T) {
 			connCh := make(chan connection.HandshakeConn)
 			c1, c2 := net.Pipe()
 			s1, s2 := net.Pipe()
-			go serverThing(s2, int(tc.handshake.NextState), tc.closeServerAfterReadN, tc.closeServerAfterWriteN)
-			go clientThing(c2, int(tc.handshake.NextState), tc.closeClientAfterReadN, tc.closeClientAfterWriteN)
+			go closableServer(s2, int(tc.handshake.NextState), tc.closeServerAfterReadN, tc.closeServerAfterWriteN)
+			go closableClient(c2, int(tc.handshake.NextState), tc.closeClientAfterReadN, tc.closeClientAfterWriteN)
 			handshakeConn := connection.NewHandshakeConn(c1, nil)
 			handshakeConn.Handshake = tc.handshake
 			handshakeConn.HandshakePacket = tc.handshake.Marshal()
@@ -647,8 +643,8 @@ func TestMCServerErrorDetection(t *testing.T) {
 			}()
 			connCh <- handshakeConn
 
-			time.Sleep(2 * defaultChTimeout)
-			// Client connections needs to be broken by any error expect for server not being able to be reached (status:)
+			time.Sleep(defaultChTimeout)
+			// Client connections needs to be closed by any error expect for server not being able to be reached (status request connection to server)
 			_, err := c2.Write([]byte{1, 2, 3, 4, 5})
 			if !errors.Is(err, io.ErrClosedPipe) {
 				t.Log(err)
@@ -658,7 +654,7 @@ func TestMCServerErrorDetection(t *testing.T) {
 	}
 }
 
-func serverThing(conn net.Conn, state, closeAfterReadN, closeAfterWriteN int) {
+func closableServer(conn net.Conn, state, closeAfterReadN, closeAfterWriteN int) {
 	readBuffer := make([]byte, 25565)
 	switch state {
 	case 1: // Cancelling this should return offline status to client not closing its connection
@@ -702,7 +698,7 @@ func serverThing(conn net.Conn, state, closeAfterReadN, closeAfterWriteN int) {
 	}
 }
 
-func clientThing(conn net.Conn, state, closeAfterReadN, closeAfterWriteN int) {
+func closableClient(conn net.Conn, state, closeAfterReadN, closeAfterWriteN int) {
 	readBuffer := make([]byte, 0xffff)
 	switch state {
 	case 1:
