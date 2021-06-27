@@ -10,9 +10,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/haveachin/infrared"
 	"github.com/haveachin/infrared/proxy"
-	"github.com/haveachin/infrared/server"
 )
 
 const (
@@ -76,46 +74,19 @@ func init() {
 
 func main() {
 	fmt.Println("starting going to setup proxylane")
-	serverCfgs := []server.ServerConfig{
+	serverCfgs := []proxy.ServerConfig{
 		{
-			MainDomain:    "localhost",
-			ProxyTo:       "0.0.0.0:25566",
-			RealIP:        false,
-			OnlineStatus:  infrared.StatusConfig{},
-			OfflineStatus: infrared.StatusConfig{VersionName: "Infrared-1"},
+			MainDomain: "localhost",
+			ProxyTo:    "0.0.0.0:25566",
 		},
 		{
-			MainDomain:    "0.0.0.0",
-			ProxyTo:       "0.0.0.0:25566",
-			RealIP:        false,
-			OnlineStatus:  infrared.StatusConfig{},
-			OfflineStatus: infrared.StatusConfig{VersionName: "Infrared-2"},
+			MainDomain: "0.0.0.0",
+			ProxyTo:    "0.0.0.0:25566",
 		},
 	}
 
-	// connFactoryFactory := func(timeout time.Duration) (connection.ServerConnFactory, error) {
-	// 	return func(addr string) (connection.ServerConn, error) {
-	// 		c, err := net.DialTimeout("tcp", addr, timeout)
-	// 		if err != nil {
-	// 			return connection.ServerConn{}, err
-	// 		}
-	// 		return connection.NewServerConn(c), nil
-	// 	}, nil
-	// }
-	// listenerFactory := func(addr string) (net.Listener, error) {
-	// 	return net.Listen("tcp", addr)
-	// }
-
 	proxyCfg := proxy.NewProxyLaneConfig()
 	proxyCfg.Servers = serverCfgs
-	// proxyCfg := proxy.ProxyLaneConfig{
-	// Timeout:  1000,
-	// ListenTo: ":25565",
-	// Servers:  serverCfgs,
-	// ServerConnFactory: connFactoryFactory,
-	// ListenerFactory: listenerFactory,
-	// }
-
 	proxyLane := proxy.NewProxyLane(proxyCfg)
 	proxyLane.StartProxy()
 

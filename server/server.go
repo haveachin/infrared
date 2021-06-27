@@ -15,33 +15,6 @@ var (
 	ErrInvalidHandshakeID    = errors.New("didnt recognize handshake id")
 )
 
-type ServerConfig struct {
-	// MainDomain will be treated as primary key (refactor: imperative -> workerpools)
-	MainDomain   string   `json:"mainDomain"`
-	ExtraDomains []string `json:"extraDomains"`
-
-	ListenTo          string `json:"listenTo"`
-	ProxyBind         string `json:"proxyBind"`
-	SendProxyProtocol bool   `json:"sendProxyProtocol"`
-	ProxyTo           string `json:"proxyTo"`
-	RealIP            bool   `json:"realIp"`
-
-	DialTimeout       int    `json:"dialTimeout"`
-	DisconnectMessage string `json:"disconnectMessage"`
-
-	//Need different statusconfig struct
-	OnlineStatus  infrared.StatusConfig `json:"onlineStatus"`
-	OfflineStatus infrared.StatusConfig `json:"offlineStatus"`
-}
-
-func NewMCServer(connFactory connection.ServerConnFactory, connCh <-chan connection.HandshakeConn, closeCh <-chan struct{}) MCServer {
-	return MCServer{
-		CreateServerConn: connFactory,
-		ConnCh:           connCh,
-		CloseCh:          closeCh,
-	}
-}
-
 type MCServer struct {
 	CreateServerConn  connection.ServerConnFactory
 	SendProxyProtocol bool

@@ -1,13 +1,15 @@
 package proxy
 
 import (
-	"fmt"
+	"encoding/json"
+	"log"
 	"net"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
+	"github.com/haveachin/infrared"
 	"github.com/haveachin/infrared/connection"
 	"github.com/haveachin/infrared/gateway"
 	"github.com/haveachin/infrared/protocol"
@@ -21,26 +23,60 @@ var (
 	}, []string{"host"})
 )
 
-func NewServerInfo(cfg server.ServerConfig) ServerInfo {
-	return ServerInfo{
-		MainDomain:   cfg.MainDomain,
-		ExtraDomains: cfg.ExtraDomains,
-
-		Cfg:     cfg,
-		CloseCh: make(chan struct{}),
-		ConnCh:  make(chan connection.HandshakeConn),
+func DefaultServerConfig() ServerConfig {
+	return ServerConfig{
+		MainDomain:        "localhost",
+		ListenTo:          ":25565",
+		DialTimeout:       1000,
+		DisconnectMessage: "Sorry {{username}}, but the server is offline.",
+		OfflineStatus: infrared.StatusConfig{
+			VersionName:    "Infrared 1.17",
+			ProtocolNumber: 755,
+			MaxPlayers:     20,
+			MOTD:           "Powered by Infrared",
+		},
 	}
 }
 
-type ServerInfo struct {
-	MainDomain   string
-	ExtraDomains []string
+type ServerConfig struct {
+	// MainDomain will be treated as primary key
+	MainDomain   string   `json:"mainDomain"`
+	ExtraDomains []string `json:"extraDomains"`
 
-	Cfg         server.ServerConfig
+	ListenTo          string `json:"listenTo"`
+	ProxyBind         string `json:"proxyBind"`
+	ProxyTo           string `json:"proxyTo"`
+	SendProxyProtocol bool   `json:"sendProxyProtocol"`
+	RealIP            bool   `json:"realIp"`
+
+	DialTimeout       int    `json:"dialTimeout"`
+	DisconnectMessage string `json:"disconnectMessage"`
+
+	//Need different statusconfig struct
+	OnlineStatus  infrared.StatusConfig `json:"onlineStatus"`
+	OfflineStatus infrared.StatusConfig `json:"offlineStatus"`
+}
+
+func NewServerInfo(cfg ServerConfig) ServerInfo {
+	defaultCfg := DefaultServerConfig()
+	defaultCfg.updateServerConfig(cfg)
+	info := ServerInfo{
+		Cfg:     &defaultCfg,
+		CloseCh: make(chan struct{}),
+		ConnCh:  make(chan connection.HandshakeConn),
+	}
+	return info
+}
+
+type ServerInfo struct {
+	Cfg         *ServerConfig
 	ConnFactory connection.ServerConnFactory
 
 	CloseCh chan struct{}
 	ConnCh  chan connection.HandshakeConn
+
+	errLogger func(err error)
+	logger    func(a ...interface{})
 }
 
 func NewProxyLaneConfig() ProxyLaneConfig {
@@ -52,6 +88,12 @@ func NewProxyLaneConfig() ProxyLaneConfig {
 		ListenerFactory: func(addr string) (net.Listener, error) {
 			return net.Listen("tcp", addr)
 		},
+		ErrLogger: func(err error) {
+			log.Println(err)
+		},
+		Logger: func(a ...interface{}) {
+			log.Println(a...)
+		},
 	}
 }
 
@@ -60,18 +102,23 @@ type ProxyLaneConfig struct {
 	Timeout              int    `json:"timeout"`
 	ListenTo             string `json:"listenTo"`
 
-	Servers       []server.ServerConfig `json:"servers"`
-	DefaultStatus protocol.Packet       `json:"defaultStatus"`
+	Servers       []ServerConfig  `json:"servers"`
+	DefaultStatus protocol.Packet `json:"defaultStatus"`
 
 	// Seperate this so we can test without making actual network calls
 	// ServerConnFactory connection.NewServerConnFactory
 	ListenerFactory gateway.ListenerFactory
+	ErrLogger       func(err error)
+	Logger          func(a ...interface{})
 }
 
 func NewProxyLane(cfg ProxyLaneConfig) ProxyLane {
 	return ProxyLane{
 		listenTo:        cfg.ListenTo,
 		listenerFactory: cfg.ListenerFactory,
+
+		errLogger: cfg.ErrLogger,
+		logger:    cfg.Logger,
 
 		config:      cfg,
 		toGatewayCh: make(chan connection.HandshakeConn),
@@ -85,6 +132,9 @@ type ProxyLane struct {
 	listenTo        string
 	listenerFactory gateway.ListenerFactory
 	connFactory     connection.ServerConnFactory
+
+	errLogger func(err error)
+	logger    func(a ...interface{})
 
 	isGatewayActive bool
 	toGatewayCh     chan connection.HandshakeConn
@@ -107,9 +157,11 @@ func (proxy *ProxyLane) listenerModified() {
 }
 
 // TODO: Some error here with already used domains, but it also needs to check extradomains
-func (proxy *ProxyLane) RegisterServers(cfgs ...server.ServerConfig) error {
+func (proxy *ProxyLane) RegisterServers(cfgs ...ServerConfig) error {
 	for _, cfg := range cfgs {
 		serverInfo := NewServerInfo(cfg)
+		serverInfo.logger = proxy.logger
+		serverInfo.errLogger = proxy.errLogger
 		domainName := cfg.MainDomain
 		proxy.serverMap[domainName] = serverInfo
 		serverInfo.runMCServer()
@@ -129,8 +181,8 @@ func (proxy *ProxyLane) gatewayModified() {
 	serverStore := gateway.CreateDefaultServerStore()
 	for _, serverInfo := range proxy.serverMap {
 		serverData := gateway.ServerData{ConnCh: serverInfo.ConnCh}
-		serverStore.AddServer(serverInfo.MainDomain, serverData)
-		for _, subdomain := range serverInfo.ExtraDomains {
+		serverStore.AddServer(serverInfo.Cfg.MainDomain, serverData)
+		for _, subdomain := range serverInfo.Cfg.ExtraDomains {
 			serverData := gateway.ServerData{ConnCh: serverInfo.ConnCh}
 			serverStore.AddServer(subdomain, serverData)
 		}
@@ -149,13 +201,13 @@ func (proxy *ProxyLane) gatewayModified() {
 
 // This will check or the current server and the new configs are change
 //  and will apply those changes to the server
-func (proxy *ProxyLane) UpdateServer(cfg server.ServerConfig) {
+func (proxy *ProxyLane) UpdateServer(cfg ServerConfig) {
 	serverInfo := proxy.serverMap[cfg.MainDomain]
 	var reconstructGateways bool
 
 	// We will for now assume that the mainDomain wont change
 	domainMap := make(map[string]int)
-	for _, domain := range serverInfo.ExtraDomains {
+	for _, domain := range serverInfo.Cfg.ExtraDomains {
 		domainMap[domain] += 1
 	}
 	for _, domain := range cfg.ExtraDomains {
@@ -166,13 +218,16 @@ func (proxy *ProxyLane) UpdateServer(cfg server.ServerConfig) {
 		case 3:
 			continue
 		case 2, 1: // There is a domain removed or added
-			serverInfo.ExtraDomains = cfg.ExtraDomains
 			reconstructGateways = true
 			break
 		}
 	}
 
-	serverInfo.Cfg = cfg
+	err := serverInfo.Cfg.updateServerConfig(cfg)
+	if err != nil {
+		proxy.errLogger(err)
+		return
+	}
 	proxy.serverMap[cfg.MainDomain] = serverInfo
 	serverInfo.CloseCh <- struct{}{}
 	serverInfo.runMCServer()
@@ -183,16 +238,16 @@ func (proxy *ProxyLane) UpdateServer(cfg server.ServerConfig) {
 }
 
 func (info ServerInfo) runMCServer() {
-	playersConnected.WithLabelValues(info.MainDomain)
+	playersConnected.WithLabelValues(info.Cfg.MainDomain)
 	actionsJoining := []func(){
 		func() {
-			playersConnected.With(prometheus.Labels{"host": info.MainDomain}).Inc()
+			playersConnected.With(prometheus.Labels{"host": info.Cfg.MainDomain}).Inc()
 		},
 	}
 
 	actionsLeaving := []func(){
 		func() {
-			playersConnected.With(prometheus.Labels{"host": info.MainDomain}).Dec()
+			playersConnected.With(prometheus.Labels{"host": info.Cfg.MainDomain}).Dec()
 		},
 	}
 
@@ -206,20 +261,16 @@ func (info ServerInfo) runMCServer() {
 	}
 
 	timeout := time.Duration(info.Cfg.DialTimeout) * time.Millisecond
-
+	dialer := net.Dialer{
+		Timeout: time.Millisecond * time.Duration(timeout),
+		LocalAddr: &net.TCPAddr{
+			IP: net.ParseIP(info.Cfg.ProxyBind),
+		},
+	}
 	connFactory := func() (connection.ServerConn, error) {
-		fmt.Println("Before dial")
-		fmt.Println(info.Cfg.ProxyTo)
-		// Refactor dialer....?
-		dialer := net.Dialer{
-			Timeout: time.Millisecond * time.Duration(timeout),
-			LocalAddr: &net.TCPAddr{
-				IP: net.ParseIP(info.Cfg.ProxyBind),
-			},
-		}
 		c, err := dialer.Dial("tcp", info.Cfg.ProxyTo)
 		if err != nil {
-			fmt.Println(err)
+			info.errLogger(err)
 			return connection.ServerConn{}, err
 		}
 		return connection.NewServerConn(c), nil
@@ -227,19 +278,37 @@ func (info ServerInfo) runMCServer() {
 
 	mcServer := server.MCServer{
 		CreateServerConn:    connFactory,
-		OnlineConfigStatus:  onlineStatus,
+		SendProxyProtocol:   info.Cfg.SendProxyProtocol,
+		RealIP:              info.Cfg.RealIP,
 		OfflineConfigStatus: offlineStatus,
-
-		ConnCh:  info.ConnCh,
-		CloseCh: info.CloseCh,
-
-		JoiningActions: actionsJoining,
-		LeavingActions: actionsLeaving,
+		OnlineConfigStatus:  onlineStatus,
+		ConnCh:              info.ConnCh,
+		CloseCh:             info.CloseCh,
+		JoiningActions:      actionsJoining,
+		LeavingActions:      actionsLeaving,
 	}
 
 	go func(server server.MCServer) {
 		server.Start()
 	}(mcServer)
+}
+
+func (cfg *ServerConfig) updateServerConfig(newCfg ServerConfig) error {
+	var defaultCfg map[string]interface{}
+	bb, err := json.Marshal(DefaultServerConfig())
+	err = json.Unmarshal(bb, &defaultCfg)
+
+	var loadedCfg map[string]interface{}
+	bb, err = json.Marshal(newCfg)
+	err = json.Unmarshal(bb, &loadedCfg)
+
+	for k, v := range loadedCfg {
+		defaultCfg[k] = v
+	}
+
+	bb, err = json.Marshal(defaultCfg)
+	err = json.Unmarshal(bb, cfg)
+	return err
 }
 
 // This methed is meant for testing only usage
