@@ -4,13 +4,17 @@ import (
 	"errors"
 	"io"
 	"log"
+	"time"
 
 	"github.com/haveachin/infrared"
 	"github.com/haveachin/infrared/connection"
 	"github.com/haveachin/infrared/protocol"
+	"github.com/pires/go-proxyproto"
 )
 
 var (
+	ErrCantWriteToServer     = errors.New("can't write to proxy target")
+	ErrCantWriteToClient     = errors.New("can't write to client")
 	ErrCantConnectWithServer = errors.New("cant connect with server")
 	ErrInvalidHandshakeID    = errors.New("didnt recognize handshake id")
 )
@@ -62,8 +66,30 @@ func (s *MCServer) Login(conn connection.HandshakeConn) error {
 		return err
 	}
 
-	hs := conn.HandshakePacket
-	if err := serverConn.WritePacket(hs); err != nil {
+	if s.SendProxyProtocol {
+		header := &proxyproto.Header{
+			Version:           2,
+			Command:           proxyproto.PROXY,
+			TransportProtocol: proxyproto.TCPv4,
+			SourceAddr:        conn.RemoteAddr(),
+			DestinationAddr:   serverConn.Conn().RemoteAddr(),
+		}
+
+		if _, err = header.WriteTo(serverConn.Conn()); err != nil {
+			return ErrCantWriteToServer
+		}
+	}
+
+	var handshakePk protocol.Packet
+	if s.RealIP {
+		hs := conn.Handshake
+		hs.UpgradeToRealIP(conn.RemoteAddr(), time.Now())
+		handshakePk = hs.Marshal()
+	} else {
+		handshakePk = conn.HandshakePacket
+	}
+
+	if err := serverConn.WritePacket(handshakePk); err != nil {
 		return err
 	}
 	pk, err := conn.ReadPacket()
