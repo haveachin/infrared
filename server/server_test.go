@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"testing"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/haveachin/infrared/connection"
 	"github.com/haveachin/infrared/protocol"
 	"github.com/haveachin/infrared/protocol/handshaking"
+	"github.com/haveachin/infrared/protocol/login"
 	"github.com/haveachin/infrared/protocol/status"
 	"github.com/haveachin/infrared/server"
 )
@@ -546,5 +548,216 @@ func TestOrMCServerCanClose(t *testing.T) {
 	case connCh <- handshakeConn:
 		t.Log("Tasked should have timed out")
 		t.FailNow()
+	}
+}
+
+func TestMCServerErrorDetection(t *testing.T) {
+	statusHandshake := handshaking.ServerBoundHandshake{
+		NextState: 1,
+	}
+	loginHandshake := handshaking.ServerBoundHandshake{
+		NextState: 2,
+	}
+	tt := []struct {
+		handshake              handshaking.ServerBoundHandshake
+		closeClientAfterReadN  int
+		closeClientAfterWriteN int
+		closeServerAfterReadN  int
+		closeServerAfterWriteN int
+	}{
+		{
+			handshake:              loginHandshake,
+			closeServerAfterReadN:  -1,
+			closeServerAfterWriteN: -1,
+		},
+		{
+			handshake:              loginHandshake,
+			closeServerAfterWriteN: -1,
+		},
+		{
+			handshake:              loginHandshake,
+			closeClientAfterWriteN: -1,
+		},
+		{
+			handshake:             loginHandshake,
+			closeServerAfterReadN: 1,
+		},
+		{
+			handshake:             loginHandshake,
+			closeServerAfterReadN: 2,
+		},
+		{
+			handshake:              loginHandshake,
+			closeClientAfterWriteN: 1,
+		},
+
+		{
+			handshake:              statusHandshake,
+			closeClientAfterWriteN: -1,
+		},
+		{
+			handshake:              statusHandshake,
+			closeClientAfterWriteN: 1,
+		},
+		{
+			handshake:             statusHandshake,
+			closeClientAfterReadN: 1,
+		},
+		{
+			handshake:              statusHandshake,
+			closeClientAfterWriteN: 2,
+		},
+		{
+			handshake:             statusHandshake,
+			closeClientAfterReadN: 2,
+		},
+	}
+
+	for _, tc := range tt {
+		name := fmt.Sprintf("hs-state:%v, Client:%d-%d, Server:%d-%d (read-write)", tc.handshake.NextState, tc.closeClientAfterReadN, tc.closeClientAfterWriteN, tc.closeServerAfterReadN, tc.closeServerAfterWriteN)
+		t.Run(name, func(t *testing.T) {
+			closeCh := make(chan struct{})
+			connCh := make(chan connection.HandshakeConn)
+			c1, c2 := net.Pipe()
+			s1, s2 := net.Pipe()
+			go serverThing(s2, int(tc.handshake.NextState), tc.closeServerAfterReadN, tc.closeServerAfterWriteN)
+			go clientThing(c2, int(tc.handshake.NextState), tc.closeClientAfterReadN, tc.closeClientAfterWriteN)
+			handshakeConn := connection.NewHandshakeConn(c1, nil)
+			handshakeConn.Handshake = tc.handshake
+			handshakeConn.HandshakePacket = tc.handshake.Marshal()
+			var serverConn connection.ServerConnFactory
+
+			if tc.closeServerAfterReadN == -1 && tc.closeServerAfterWriteN == -1 {
+				serverConn = func() (connection.ServerConn, error) {
+					return connection.ServerConn{}, &net.OpError{Op: "dial", Net: "0.0.0.0", Source: nil, Addr: nil, Err: errors.New("connfection refused")}
+				}
+			} else {
+				serverConn = func() (connection.ServerConn, error) {
+					return connection.NewServerConn(s1), nil
+				}
+			}
+
+			go func() {
+				server := server.MCServer{
+					CreateServerConn: serverConn,
+					ConnCh:           connCh,
+					CloseCh:          closeCh,
+				}
+				server.Start()
+			}()
+			connCh <- handshakeConn
+
+			time.Sleep(2 * defaultChTimeout)
+			// Client connections needs to be broken by any error expect for server not being able to be reached (status:)
+			_, err := c2.Write([]byte{1, 2, 3, 4, 5})
+			if !errors.Is(err, io.ErrClosedPipe) {
+				t.Log(err)
+				t.Fail()
+			}
+		})
+	}
+}
+
+func serverThing(conn net.Conn, state, closeAfterReadN, closeAfterWriteN int) {
+	readBuffer := make([]byte, 25565)
+	switch state {
+	case 1: // Cancelling this should return offline status to client not closing its connection
+		// Receives handshake
+		conn.Read(readBuffer)
+		// Receives status request
+		conn.Read(readBuffer)
+		pkStatus := status.ClientBoundResponse{}.Marshal()
+		bytes, _ := pkStatus.Marshal()
+		conn.Write(bytes)
+	case 2:
+		if closeAfterWriteN == -1 || closeAfterReadN == -1 {
+			conn.Close()
+			return
+		}
+		//Read Handshake
+		conn.Read(readBuffer)
+		if closeAfterReadN == 1 {
+			conn.Close()
+			return
+		}
+		//Read LoginRequest packet
+		conn.Read(readBuffer)
+		if closeAfterReadN == 2 {
+			conn.Close()
+			return
+		}
+		// Here starts the pipe connection
+		couldReadCh := make(chan struct{})
+		go func() {
+			conn.Read(readBuffer)
+			couldReadCh <- struct{}{}
+		}()
+
+		select {
+		case <-couldReadCh:
+		case <-time.After(defaultChTimeout):
+			conn.Write([]byte{1, 2, 3, 4, 5, 6, 7, 8, 9})
+		}
+
+	}
+}
+
+func clientThing(conn net.Conn, state, closeAfterReadN, closeAfterWriteN int) {
+	readBuffer := make([]byte, 0xffff)
+	switch state {
+	case 1:
+		if closeAfterWriteN == -1 || closeAfterReadN == -1 {
+			conn.Close()
+			return
+		}
+		pkStatus := status.ServerBoundRequest{}.Marshal()
+		bytes, _ := pkStatus.Marshal()
+		conn.Write(bytes)
+		if closeAfterWriteN == 1 {
+			conn.Close()
+			return
+		}
+		conn.Read(readBuffer)
+		if closeAfterReadN == 1 {
+			conn.Close()
+			return
+		}
+		pkPing := protocol.Packet{ID: 0x01, Data: []byte{8}}
+		bytes, _ = pkPing.Marshal()
+		conn.Write(bytes)
+		if closeAfterWriteN == 2 {
+			conn.Close()
+			return
+		}
+		conn.Read(readBuffer)
+		if closeAfterReadN == 2 {
+			conn.Close()
+			return
+		}
+	case 2:
+		if closeAfterWriteN == -1 || closeAfterReadN == -1 {
+			conn.Close()
+			return
+		}
+		pkLogin := login.ServerLoginStart{Name: "Infrared"}.Marshal()
+		bytes, _ := pkLogin.Marshal()
+		conn.Write(bytes)
+		if closeAfterWriteN == 1 {
+			conn.Close()
+			return
+		}
+
+		//Here starts pipe connection
+		couldWriteCh := make(chan struct{})
+		go func() {
+			conn.Write([]byte{1, 2, 3, 4, 5, 6, 7, 8, 9})
+			couldWriteCh <- struct{}{}
+		}()
+
+		select {
+		case <-couldWriteCh:
+		case <-time.After(defaultChTimeout):
+			conn.Read(readBuffer)
+		}
 	}
 }

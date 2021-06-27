@@ -1,6 +1,7 @@
 package proxy
 
 import (
+	"fmt"
 	"net"
 	"time"
 
@@ -35,11 +36,6 @@ type ServerInfo struct {
 	MainDomain   string
 	ExtraDomains []string
 
-	ProxyTo           string
-	SendProxyProtocol bool
-	RealIP            bool
-	DialTimeout       int
-
 	Cfg         server.ServerConfig
 	ConnFactory connection.ServerConnFactory
 
@@ -68,8 +64,8 @@ type ProxyLaneConfig struct {
 	DefaultStatus protocol.Packet       `json:"defaultStatus"`
 
 	// Seperate this so we can test without making actual network calls
-	ServerConnFactory connection.NewServerConnFactory
-	ListenerFactory   gateway.ListenerFactory
+	// ServerConnFactory connection.NewServerConnFactory
+	ListenerFactory gateway.ListenerFactory
 }
 
 func NewProxyLane(cfg ProxyLaneConfig) ProxyLane {
@@ -209,19 +205,22 @@ func (info ServerInfo) runMCServer() {
 		offlineStatus, _ = info.Cfg.OfflineStatus.StatusResponsePacket()
 	}
 
-	timeout := time.Duration(info.DialTimeout) * time.Millisecond
+	timeout := time.Duration(info.Cfg.DialTimeout) * time.Millisecond
+
 	connFactory := func() (connection.ServerConn, error) {
-		// Refactor dialer....
+		fmt.Println("Before dial")
+		fmt.Println(info.Cfg.ProxyTo)
+		// Refactor dialer....?
 		dialer := net.Dialer{
 			Timeout: time.Millisecond * time.Duration(timeout),
 			LocalAddr: &net.TCPAddr{
 				IP: net.ParseIP(info.Cfg.ProxyBind),
 			},
 		}
-		c, err := dialer.Dial("tcp", info.ProxyTo)
+		c, err := dialer.Dial("tcp", info.Cfg.ProxyTo)
 		if err != nil {
+			fmt.Println(err)
 			return connection.ServerConn{}, err
-
 		}
 		return connection.NewServerConn(c), nil
 	}

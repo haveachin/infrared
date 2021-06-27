@@ -2,8 +2,8 @@ package server
 
 import (
 	"errors"
-	"fmt"
 	"io"
+	"log"
 
 	"github.com/haveachin/infrared"
 	"github.com/haveachin/infrared/connection"
@@ -56,12 +56,20 @@ type MCServer struct {
 }
 
 func (s *MCServer) Status(conn connection.HandshakeConn) protocol.Packet {
-	serverConn, _ := s.CreateServerConn()
-	hs := conn.HandshakePacket
-	serverConn.WritePacket(hs)
-	serverConn.WritePacket(protocol.Packet{})
-	pk, err := serverConn.ReadPacket()
+	var pk protocol.Packet
+	var isServerOnline bool
+	serverConn, err := s.CreateServerConn()
+
 	if err == nil {
+		if err := serverConn.WritePacket(conn.HandshakePacket); err == nil {
+			if err := serverConn.WritePacket(protocol.Packet{}); err == nil {
+				pk, err = serverConn.ReadPacket()
+				isServerOnline = true
+			}
+		}
+	}
+
+	if isServerOnline {
 		if len(s.OnlineConfigStatus.Data) != 0 {
 			pk = s.OnlineConfigStatus
 		}
@@ -70,16 +78,27 @@ func (s *MCServer) Status(conn connection.HandshakeConn) protocol.Packet {
 	} else {
 		pk, _ = infrared.StatusConfig{}.StatusResponsePacket()
 	}
+
 	return pk
 }
 
-// Error testing needed
 func (s *MCServer) Login(conn connection.HandshakeConn) error {
-	serverConn, _ := s.CreateServerConn()
+	serverConn, err := s.CreateServerConn()
+	if err != nil {
+		return err
+	}
+
 	hs := conn.HandshakePacket
-	serverConn.WritePacket(hs)
-	pk, _ := conn.ReadPacket()
-	serverConn.WritePacket(pk)
+	if err := serverConn.WritePacket(hs); err != nil {
+		return err
+	}
+	pk, err := conn.ReadPacket()
+	if err != nil {
+		return err
+	}
+	if err := serverConn.WritePacket(pk); err != nil {
+		return err
+	}
 
 	go func(client, server connection.PipeConn, joinActions, leaveActions []func()) {
 		for _, action := range s.JoiningActions {
@@ -109,16 +128,18 @@ ForLoop:
 		select {
 		case conn := <-s.ConnCh:
 			go func() {
+				var err error
 				switch connection.ParseRequestType(conn) {
 				case connection.LoginRequest:
-					s.Login(conn)
+					err = s.Login(conn)
 				case connection.StatusRequest:
-					err := s.handleStatusRequest(conn)
-					if err != nil {
-						fmt.Println(err)
-					}
+					err = s.handleStatusRequest(conn)
 				default:
-					fmt.Sprintln("Didnt recognize handshake id")
+					log.Println("Didnt recognize handshake id")
+				}
+				if err != nil {
+					log.Printf("error login: %v", err)
+					conn.Conn().Close()
 				}
 			}()
 		case <-s.CloseCh:
@@ -134,20 +155,12 @@ func (s *MCServer) handleStatusRequest(conn connection.HandshakeConn) error {
 	if err != nil {
 		return err
 	}
-
 	responsePk := s.Status(conn)
-
 	if err := conn.WritePacket(responsePk); err != nil {
 		return err
 	}
-	// This ping packet is optional, clients send them but scripts like bots dont have to send them
-	//  and this will return an EOF when the connections gets closed
 	pingPk, err := conn.ReadPacket()
 	if err != nil {
-		if errors.Is(err, io.EOF) {
-			return nil
-		}
-		fmt.Println(err)
 		return err
 	}
 	return conn.WritePacket(pingPk)

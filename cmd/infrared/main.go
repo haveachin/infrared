@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -80,12 +79,14 @@ func main() {
 	serverCfgs := []server.ServerConfig{
 		{
 			MainDomain:    "localhost",
+			ProxyTo:       "0.0.0.0:25566",
 			RealIP:        false,
 			OnlineStatus:  infrared.StatusConfig{},
 			OfflineStatus: infrared.StatusConfig{VersionName: "Infrared-1"},
 		},
 		{
 			MainDomain:    "0.0.0.0",
+			ProxyTo:       "0.0.0.0:25566",
 			RealIP:        false,
 			OnlineStatus:  infrared.StatusConfig{},
 			OfflineStatus: infrared.StatusConfig{VersionName: "Infrared-2"},
@@ -101,18 +102,19 @@ func main() {
 	// 		return connection.NewServerConn(c), nil
 	// 	}, nil
 	// }
-	listenerFactory := func(addr string) (net.Listener, error) {
-		return net.Listen("tcp", addr)
-	}
+	// listenerFactory := func(addr string) (net.Listener, error) {
+	// 	return net.Listen("tcp", addr)
+	// }
 
-	proxyCfg := proxy.ProxyLaneConfig{
-		Timeout:  1000,
-		ListenTo: ":25565",
-		Servers:  serverCfgs,
-
-		// ServerConnFactory: connFactoryFactory,
-		ListenerFactory: listenerFactory,
-	}
+	proxyCfg := proxy.NewProxyLaneConfig()
+	proxyCfg.Servers = serverCfgs
+	// proxyCfg := proxy.ProxyLaneConfig{
+	// Timeout:  1000,
+	// ListenTo: ":25565",
+	// Servers:  serverCfgs,
+	// ServerConnFactory: connFactoryFactory,
+	// ListenerFactory: listenerFactory,
+	// }
 
 	proxyLane := proxy.NewProxyLane(proxyCfg)
 	proxyLane.StartProxy()
