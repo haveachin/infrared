@@ -10,6 +10,7 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"github.com/haveachin/infrared/config"
 	"github.com/haveachin/infrared/proxy"
 )
 
@@ -25,9 +26,9 @@ const (
 )
 
 var (
-	configPath           = "./configs"
-	prometheusEnabled    = false
-	prometheusBind       = ":9100"
+	configPath        = "./configs"
+	prometheusEnabled = false
+	prometheusBind    = ":9100"
 )
 
 func envBool(name string, value bool) bool {
@@ -71,17 +72,10 @@ func init() {
 
 func main() {
 	fmt.Println("starting going to setup proxylane")
-	serverCfgs := []proxy.ServerConfig{
-		{
-			MainDomain: "localhost",
-			ProxyTo:    "0.0.0.0:25566",
-		},
-		{
-			MainDomain: "0.0.0.0",
-			ProxyTo:    "0.0.0.0:25566",
-		},
+	serverCfgs, err := config.ReadServerConfigs(configPath)
+	if err != nil {
+		log.Printf("Failed loading proxy configs from %s; error: %s", configPath, err)
 	}
-
 	proxyCfg := proxy.NewProxyLaneConfig()
 	proxyCfg.Servers = serverCfgs
 	proxyLane := proxy.NewProxyLane(proxyCfg)

@@ -248,7 +248,7 @@ func readFilePaths(path string) ([]string, error) {
 
 	return filePaths, err
 }
-
+// Separate load function
 func LoadProxyConfigsFromPath(path string, recursive bool) ([]*ProxyConfig, error) {
 	filePaths, err := ReadFilePaths(path, recursive)
 	if err != nil {
@@ -383,6 +383,7 @@ func (cfg *ProxyConfig) LoadFromPath(path string) error {
 	return json.Unmarshal(bb, cfg)
 }
 
+// Begin point old config code ((called in main))
 func WatchProxyConfigFolder(path string, out chan *ProxyConfig) error {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {

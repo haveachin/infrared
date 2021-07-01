@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"errors"
+	"log"
 
 	"github.com/haveachin/infrared/connection"
 	"github.com/haveachin/infrared/protocol/handshaking"
@@ -36,7 +37,7 @@ Forloop:
 				err := g.handleConn(conn)
 				if errors.Is(err, ErrNoServerFound) {
 					// If default status is set and its a status request, send it here to the client
-					
+					log.Println("[>] ServerAddress not found")
 				}
 				if err != nil {
 					conn.Conn().Close()
@@ -59,6 +60,7 @@ func (g *BasicGateway) handleConn(conn connection.HandshakeConn) error {
 	if err != nil {
 		return err
 	}
+	log.Printf("[>] Incoming %s on listener %s", conn.RemoteAddr(), hs.ServerAddress)
 	addr := string(hs.ServerAddress)
 	serverData, ok := g.store.FindServer(addr)
 	if !ok {

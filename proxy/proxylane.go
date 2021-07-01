@@ -1,7 +1,6 @@
 package proxy
 
 import (
-	"encoding/json"
 	"log"
 	"net"
 	"time"
@@ -9,7 +8,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 
-	"github.com/haveachin/infrared"
+	"github.com/haveachin/infrared/config"
 	"github.com/haveachin/infrared/connection"
 	"github.com/haveachin/infrared/gateway"
 	"github.com/haveachin/infrared/protocol"
@@ -23,43 +22,9 @@ var (
 	}, []string{"host"})
 )
 
-func DefaultServerConfig() ServerConfig {
-	return ServerConfig{
-		MainDomain:        "localhost",
-		ListenTo:          ":25565",
-		DialTimeout:       1000,
-		DisconnectMessage: "Sorry {{username}}, but the server is offline.",
-		OfflineStatus: infrared.StatusConfig{
-			VersionName:    "Infrared 1.17",
-			ProtocolNumber: 755,
-			MaxPlayers:     20,
-			MOTD:           "Powered by Infrared",
-		},
-	}
-}
-
-type ServerConfig struct {
-	// MainDomain will be treated as primary key
-	MainDomain   string   `json:"mainDomain"`
-	ExtraDomains []string `json:"extraDomains"`
-
-	ListenTo          string `json:"listenTo"`
-	ProxyBind         string `json:"proxyBind"`
-	ProxyTo           string `json:"proxyTo"`
-	SendProxyProtocol bool   `json:"sendProxyProtocol"`
-	RealIP            bool   `json:"realIp"`
-
-	DialTimeout       int    `json:"dialTimeout"`
-	DisconnectMessage string `json:"disconnectMessage"`
-
-	//Need different statusconfig struct
-	OnlineStatus  infrared.StatusConfig `json:"onlineStatus"`
-	OfflineStatus infrared.StatusConfig `json:"offlineStatus"`
-}
-
-func NewServerInfo(cfg ServerConfig) ServerInfo {
-	defaultCfg := DefaultServerConfig()
-	defaultCfg.updateServerConfig(cfg)
+func NewServerInfo(cfg config.ServerConfig) ServerInfo {
+	defaultCfg := config.DefaultServerConfig()
+	defaultCfg.UpdateServerConfig(cfg)
 	info := ServerInfo{
 		Cfg:     &defaultCfg,
 		CloseCh: make(chan struct{}),
@@ -69,7 +34,7 @@ func NewServerInfo(cfg ServerConfig) ServerInfo {
 }
 
 type ServerInfo struct {
-	Cfg         *ServerConfig
+	Cfg *config.ServerConfig
 
 	CloseCh chan struct{}
 	ConnCh  chan connection.HandshakeConn
@@ -101,11 +66,10 @@ type ProxyLaneConfig struct {
 	Timeout              int    `json:"timeout"`
 	ListenTo             string `json:"listenTo"`
 
-	Servers       []ServerConfig  `json:"servers"`
-	DefaultStatus protocol.Packet `json:"defaultStatus"`
+	Servers       []config.ServerConfig `json:"servers"`
+	DefaultStatus protocol.Packet       `json:"defaultStatus"`
 
 	// Seperate this so we can test without making actual network calls
-	// ServerConnFactory connection.NewServerConnFactory
 	ListenerFactory gateway.ListenerFactory
 	ErrLogger       func(err error)
 	Logger          func(a ...interface{})
@@ -130,7 +94,6 @@ type ProxyLane struct {
 	config          ProxyLaneConfig
 	listenTo        string
 	listenerFactory gateway.ListenerFactory
-	connFactory     connection.ServerConnFactory
 
 	errLogger func(err error)
 	logger    func(a ...interface{})
@@ -156,7 +119,7 @@ func (proxy *ProxyLane) listenerModified() {
 }
 
 // TODO: Some error here with already used domains, but it also needs to check extradomains
-func (proxy *ProxyLane) RegisterServers(cfgs ...ServerConfig) error {
+func (proxy *ProxyLane) RegisterServers(cfgs ...config.ServerConfig) error {
 	for _, cfg := range cfgs {
 		serverInfo := NewServerInfo(cfg)
 		serverInfo.logger = proxy.logger
@@ -200,7 +163,7 @@ func (proxy *ProxyLane) gatewayModified() {
 
 // This will check or the current server and the new configs are change
 //  and will apply those changes to the server
-func (proxy *ProxyLane) UpdateServer(cfg ServerConfig) {
+func (proxy *ProxyLane) UpdateServer(cfg config.ServerConfig) {
 	serverInfo := proxy.serverMap[cfg.MainDomain]
 	var reconstructGateways bool
 
@@ -222,7 +185,7 @@ func (proxy *ProxyLane) UpdateServer(cfg ServerConfig) {
 		}
 	}
 
-	err := serverInfo.Cfg.updateServerConfig(cfg)
+	err := serverInfo.Cfg.UpdateServerConfig(cfg)
 	if err != nil {
 		proxy.errLogger(err)
 		return
@@ -290,24 +253,6 @@ func (info ServerInfo) runMCServer() {
 	go func(server server.MCServer) {
 		server.Start()
 	}(mcServer)
-}
-
-func (cfg *ServerConfig) updateServerConfig(newCfg ServerConfig) error {
-	var defaultCfg map[string]interface{}
-	bb, err := json.Marshal(DefaultServerConfig())
-	err = json.Unmarshal(bb, &defaultCfg)
-
-	var loadedCfg map[string]interface{}
-	bb, err = json.Marshal(newCfg)
-	err = json.Unmarshal(bb, &loadedCfg)
-
-	for k, v := range loadedCfg {
-		defaultCfg[k] = v
-	}
-
-	bb, err = json.Marshal(defaultCfg)
-	err = json.Unmarshal(bb, cfg)
-	return err
 }
 
 // This methed is meant for testing only usage

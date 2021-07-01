@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/haveachin/infrared/config"
 	"github.com/haveachin/infrared/connection"
 	"github.com/haveachin/infrared/protocol"
 	"github.com/haveachin/infrared/protocol/handshaking"
@@ -96,13 +97,13 @@ func TestGatewayCreation(t *testing.T) {
 
 func TestServerCreation(t *testing.T) {
 	mainDomain := "infrared-1"
-	serverCfg := proxy.ServerConfig{
+	serverCfg := config.ServerConfig{
 		MainDomain: mainDomain,
 	}
 	listenerFactory, _ := newTestListener()
 	proxyCfg := proxy.NewProxyLaneConfig()
 	proxyCfg.ListenerFactory = listenerFactory
-	proxyCfg.Servers = []proxy.ServerConfig{serverCfg}
+	proxyCfg.Servers = []config.ServerConfig{serverCfg}
 	proxyLane := proxy.NewProxyLane(proxyCfg)
 	proxyLane.StartProxy()
 
@@ -125,7 +126,7 @@ func TestServerCreation_DoesRegisterDomains(t *testing.T) {
 	extraDomain := "infrared-2"
 	extraDomain2 := "infrared-3"
 
-	serverCfg := proxy.ServerConfig{
+	serverCfg := config.ServerConfig{
 		MainDomain:   mainDomain,
 		ExtraDomains: []string{extraDomain, extraDomain2},
 	}
@@ -133,7 +134,7 @@ func TestServerCreation_DoesRegisterDomains(t *testing.T) {
 	listenerFactory, _ := newTestListener()
 	proxyCfg := proxy.NewProxyLaneConfig()
 	proxyCfg.ListenerFactory = listenerFactory
-	proxyCfg.Servers = []proxy.ServerConfig{serverCfg}
+	proxyCfg.Servers = []config.ServerConfig{serverCfg}
 
 	testOrDomainIsRegistered := func(t *testing.T, testDomain string) {
 		t.Helper()
@@ -169,13 +170,13 @@ func TestServerCreation_DoesRegisterDomains(t *testing.T) {
 
 func TestProxyLane_CloseServer(t *testing.T) {
 	mainDomain := "infrared-1"
-	serverCfg := proxy.ServerConfig{
+	serverCfg := config.ServerConfig{
 		MainDomain: mainDomain,
 	}
 	listenerFactory, _ := newTestListener()
 	proxyCfg := proxy.NewProxyLaneConfig()
 	proxyCfg.ListenerFactory = listenerFactory
-	proxyCfg.Servers = []proxy.ServerConfig{serverCfg}
+	proxyCfg.Servers = []config.ServerConfig{serverCfg}
 
 	proxyLane := proxy.NewProxyLane(proxyCfg)
 	proxyLane.StartProxy()
@@ -211,7 +212,7 @@ func TestProxyLane_CloseServer(t *testing.T) {
 func TestUpdateServer(t *testing.T) {
 	mainDomain := "infrared-1"
 
-	createProxyLane := func(t *testing.T, cfg proxy.ServerConfig) proxy.ProxyLane {
+	createProxyLane := func(t *testing.T, cfg config.ServerConfig) proxy.ProxyLane {
 		proxyCfg := proxy.NewProxyLaneConfig()
 		proxyCfg.ErrLogger = func(err error) {
 			t.Helper()
@@ -222,7 +223,7 @@ func TestUpdateServer(t *testing.T) {
 			t.Log(a...)
 		}
 		proxyCfg.ListenerFactory, _ = newTestListener()
-		proxyCfg.Servers = []proxy.ServerConfig{cfg}
+		proxyCfg.Servers = []config.ServerConfig{cfg}
 
 		proxyLane := proxy.NewProxyLane(proxyCfg)
 		proxyLane.StartProxy()
@@ -230,7 +231,7 @@ func TestUpdateServer(t *testing.T) {
 	}
 
 	t.Run("adding an ExtraDomain", func(t *testing.T) {
-		serverCfg := proxy.ServerConfig{
+		serverCfg := config.ServerConfig{
 			MainDomain: mainDomain,
 		}
 		proxyLane := createProxyLane(t, serverCfg)
@@ -262,7 +263,7 @@ func TestUpdateServer(t *testing.T) {
 
 	t.Run("removing an ExtraDomain", func(t *testing.T) {
 		extraDomain := "infrared-2"
-		serverCfg := proxy.ServerConfig{
+		serverCfg := config.ServerConfig{
 			MainDomain:   mainDomain,
 			ExtraDomains: []string{extraDomain},
 		}
@@ -295,7 +296,7 @@ func TestUpdateServer(t *testing.T) {
 
 	t.Run("keep its extra ExtraDomain", func(t *testing.T) {
 		extraDomain := "infrared-2"
-		serverCfg := proxy.ServerConfig{
+		serverCfg := config.ServerConfig{
 			MainDomain:   mainDomain,
 			ExtraDomains: []string{extraDomain},
 		}
@@ -326,7 +327,7 @@ func TestUpdateServer(t *testing.T) {
 	})
 
 	t.Run("enable SendProxyProtocol", func(t *testing.T) {
-		serverCfg := proxy.ServerConfig{
+		serverCfg := config.ServerConfig{
 			MainDomain: mainDomain,
 		}
 		proxyLane := createProxyLane(t, serverCfg)
@@ -340,7 +341,7 @@ func TestUpdateServer(t *testing.T) {
 	})
 
 	t.Run("disable SendProxyProtocol", func(t *testing.T) {
-		serverCfg := proxy.ServerConfig{
+		serverCfg := config.ServerConfig{
 			MainDomain:        mainDomain,
 			SendProxyProtocol: true,
 		}
@@ -354,7 +355,7 @@ func TestUpdateServer(t *testing.T) {
 	})
 
 	t.Run("enable RealIP", func(t *testing.T) {
-		serverCfg := proxy.ServerConfig{
+		serverCfg := config.ServerConfig{
 			MainDomain: mainDomain,
 		}
 		proxyLane := createProxyLane(t, serverCfg)
@@ -368,7 +369,7 @@ func TestUpdateServer(t *testing.T) {
 	})
 
 	t.Run("disable RealIP", func(t *testing.T) {
-		serverCfg := proxy.ServerConfig{
+		serverCfg := config.ServerConfig{
 			MainDomain: mainDomain,
 			RealIP:     true,
 		}
@@ -383,7 +384,7 @@ func TestUpdateServer(t *testing.T) {
 
 	t.Run("change DialTimeout", func(t *testing.T) {
 		dialTimeout := 10
-		serverCfg := proxy.ServerConfig{
+		serverCfg := config.ServerConfig{
 			MainDomain: mainDomain,
 		}
 		proxyLane := createProxyLane(t, serverCfg)
@@ -397,7 +398,7 @@ func TestUpdateServer(t *testing.T) {
 
 	t.Run("change DisconnectMessage", func(t *testing.T) {
 		disconnectMessage := "Nope"
-		serverCfg := proxy.ServerConfig{
+		serverCfg := config.ServerConfig{
 			MainDomain: mainDomain,
 		}
 		proxyLane := createProxyLane(t, serverCfg)
@@ -411,7 +412,7 @@ func TestUpdateServer(t *testing.T) {
 
 	t.Run("change ProxyTo", func(t *testing.T) {
 		proxyTo := "127.0.0.1:80"
-		serverCfg := proxy.ServerConfig{
+		serverCfg := config.ServerConfig{
 			MainDomain: mainDomain,
 		}
 		proxyLane := createProxyLane(t, serverCfg)
@@ -425,7 +426,7 @@ func TestUpdateServer(t *testing.T) {
 
 	t.Run("fails to update", func(t *testing.T) {
 		proxyTo := "127.0.0.1:80"
-		serverCfg := proxy.ServerConfig{
+		serverCfg := config.ServerConfig{
 			MainDomain: mainDomain,
 		}
 		proxyLane := createProxyLane(t, serverCfg)
