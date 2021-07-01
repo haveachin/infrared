@@ -62,7 +62,6 @@ func TestReadServerConfigs(t *testing.T) {
 			t.Errorf("index: %d \nWanted:%v \n got: %v", i, cfg, loadedCfg)
 		}
 	}
-	t.Fail()
 }
 
 func TestWatchConfigDir(t *testing.T) {
