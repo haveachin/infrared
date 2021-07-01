@@ -40,6 +40,7 @@ func DefaultServerConfig() ServerConfig {
 	}
 }
 
+// Is it even possible to get an error here....?
 func (cfg *ServerConfig) UpdateServerConfig(newCfg ServerConfig) error {
 	var defaultCfg map[string]interface{}
 	bb, err := json.Marshal(DefaultServerConfig())

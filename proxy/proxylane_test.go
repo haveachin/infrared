@@ -63,6 +63,10 @@ func TestListenerCreation(t *testing.T) {
 	proxyCfg := proxy.NewProxyLaneConfig()
 	proxyCfg.ListenerFactory = listenerFactory
 	proxyLane := proxy.NewProxyLane(proxyCfg)
+	proxyCfg.Logger = func(msg string) {
+		t.Helper()
+		t.Log(msg)
+	}
 	proxyLane.StartProxy()
 
 	netConn, _ := net.Pipe()
@@ -81,7 +85,10 @@ func TestGatewayCreation(t *testing.T) {
 	listenerFactory, _ := newTestListener()
 	proxyCfg := proxy.NewProxyLaneConfig()
 	proxyCfg.ListenerFactory = listenerFactory
-
+	proxyCfg.Logger = func(msg string) {
+		t.Helper()
+		t.Log(msg)
+	}
 	proxyLane := proxy.NewProxyLane(proxyCfg)
 	toGatewayCh, _ := proxyLane.TestMethod_GatewayCh()
 	proxyLane.StartProxy()
@@ -96,29 +103,53 @@ func TestGatewayCreation(t *testing.T) {
 }
 
 func TestServerCreation(t *testing.T) {
-	mainDomain := "infrared-1"
-	serverCfg := config.ServerConfig{
-		MainDomain: mainDomain,
-	}
-	listenerFactory, _ := newTestListener()
-	proxyCfg := proxy.NewProxyLaneConfig()
-	proxyCfg.ListenerFactory = listenerFactory
-	proxyCfg.Servers = []config.ServerConfig{serverCfg}
-	proxyLane := proxy.NewProxyLane(proxyCfg)
-	proxyLane.StartProxy()
-
-	serverMap := proxyLane.TestMethod_ServerMap()
-	serverCh := serverMap[mainDomain].ConnCh
-	conn := createHsConn(mainDomain)
-
-	select {
-	case serverCh <- conn:
-		t.Log("Server is created")
-	case <-time.After(defaultChTimeout):
-		t.Log("Server didnt got connection")
-		t.FailNow()
+	newProxyLane := func(serverCfgs []config.ServerConfig) proxy.ProxyLane {
+		proxyCfg := proxy.NewProxyLaneConfig()
+		proxyCfg.ListenerFactory, _ = newTestListener()
+		proxyCfg.Servers = serverCfgs
+		proxyCfg.Logger = func(msg string) {
+			t.Helper()
+			t.Log(msg)
+		}
+		proxyLane := proxy.NewProxyLane(proxyCfg)
+		proxyLane.StartProxy()
+		return proxyLane
 	}
 
+	t.Run("create normal single server", func(t *testing.T) {
+		serverCfg := config.ServerConfig{MainDomain: "infrared-1"}
+		proxyLane := newProxyLane([]config.ServerConfig{serverCfg})
+		serverMap := proxyLane.TestMethod_ServerMap()
+		serverCh := serverMap[serverCfg.MainDomain].ConnCh
+		conn := createHsConn(serverCfg.MainDomain)
+		select {
+		case serverCh <- conn:
+			t.Log("Server is created")
+		case <-time.After(defaultChTimeout):
+			t.Log("Server didnt got connection")
+			t.FailNow()
+		}
+	})
+
+	t.Run("return error when maindomain is already registered", func(t *testing.T) {
+		domainUsed := "infrared"
+		serverCfg := config.ServerConfig{MainDomain: domainUsed}
+		proxyCfg := proxy.NewProxyLaneConfig()
+		proxyLane := proxy.NewProxyLane(proxyCfg)
+		err := proxyLane.RegisterServers(serverCfg, serverCfg)
+		if err == nil {
+			t.Fatal("expected to fail because of the double registered main domain")
+		}
+		if domainErr, ok := err.(*proxy.ErrDomain); ok {
+			if len(domainErr.Domains) != 1 {
+				t.Fatal("Only expected to duplicated domain to register")
+			}
+			if domainErr.Domains[0] != domainUsed {
+				t.Errorf("Wanted: %s \t got: %v", domainUsed, domainErr.Domains[0])
+			}
+		}
+
+	})
 }
 
 func TestServerCreation_DoesRegisterDomains(t *testing.T) {
@@ -131,9 +162,12 @@ func TestServerCreation_DoesRegisterDomains(t *testing.T) {
 		ExtraDomains: []string{extraDomain, extraDomain2},
 	}
 
-	listenerFactory, _ := newTestListener()
 	proxyCfg := proxy.NewProxyLaneConfig()
-	proxyCfg.ListenerFactory = listenerFactory
+	proxyCfg.ListenerFactory, _ = newTestListener()
+	proxyCfg.Logger = func(msg string) {
+		t.Helper()
+		t.Log(msg)
+	}
 	proxyCfg.Servers = []config.ServerConfig{serverCfg}
 
 	testOrDomainIsRegistered := func(t *testing.T, testDomain string) {
@@ -173,11 +207,13 @@ func TestProxyLane_CloseServer(t *testing.T) {
 	serverCfg := config.ServerConfig{
 		MainDomain: mainDomain,
 	}
-	listenerFactory, _ := newTestListener()
 	proxyCfg := proxy.NewProxyLaneConfig()
-	proxyCfg.ListenerFactory = listenerFactory
+	proxyCfg.ListenerFactory, _ = newTestListener()
 	proxyCfg.Servers = []config.ServerConfig{serverCfg}
-
+	proxyCfg.Logger = func(msg string) {
+		t.Helper()
+		t.Log(msg)
+	}
 	proxyLane := proxy.NewProxyLane(proxyCfg)
 	proxyLane.StartProxy()
 	proxyLane.CloseServer(mainDomain)
@@ -214,13 +250,9 @@ func TestUpdateServer(t *testing.T) {
 
 	createProxyLane := func(t *testing.T, cfg config.ServerConfig) proxy.ProxyLane {
 		proxyCfg := proxy.NewProxyLaneConfig()
-		proxyCfg.ErrLogger = func(err error) {
+		proxyCfg.Logger = func(msg string) {
 			t.Helper()
-			t.Logf("Got error: %v\n", err)
-		}
-		proxyCfg.Logger = func(a ...interface{}) {
-			t.Helper()
-			t.Log(a...)
+			t.Log(msg)
 		}
 		proxyCfg.ListenerFactory, _ = newTestListener()
 		proxyCfg.Servers = []config.ServerConfig{cfg}
@@ -258,7 +290,6 @@ func TestUpdateServer(t *testing.T) {
 			t.Log("Server wasnt found")
 			t.Fail()
 		}
-
 	})
 
 	t.Run("removing an ExtraDomain", func(t *testing.T) {

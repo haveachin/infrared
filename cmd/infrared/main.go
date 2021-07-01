@@ -76,10 +76,8 @@ func main() {
 	if err != nil {
 		log.Printf("Failed loading proxy configs from %s; error: %s", configPath, err)
 	}
-	proxyCfg := proxy.NewProxyLaneConfig()
-	proxyCfg.Servers = serverCfgs
-	proxyLane := proxy.NewProxyLane(proxyCfg)
-	proxyLane.StartProxy()
+	proxyManager := proxy.NewProxyLaneManager()
+	proxyManager.AddServer(serverCfgs...)
 
 	if prometheusEnabled {
 		go func() {

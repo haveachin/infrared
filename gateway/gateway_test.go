@@ -32,6 +32,7 @@ func TestFindMatchingServer_SingleServerStore(t *testing.T) {
 		serverStore := &gateway.SingleServerStore{Server: serverData}
 
 		gw := gateway.NewBasicGatewayWithStore(serverStore, gwCh, nil)
+		gw.Logger = func(msg string) {}
 		go func() {
 			gw.Start()
 		}()
@@ -63,6 +64,7 @@ func TestFindServer_DefaultServerStore(t *testing.T) {
 		serverStore.AddServer(serverAddr, serverData)
 
 		gw := gateway.NewBasicGatewayWithStore(&serverStore, gwCh, nil)
+		gw.Logger = func(msg string) {}
 		go func() {
 			gw.Start()
 		}()
@@ -152,7 +154,6 @@ func testFindServer(data findServerData, t *testing.T) {
 }
 
 func TestBasicGateway(t *testing.T) {
-
 	t.Run("Test or gateway can accept connection", func(t *testing.T) {
 		serverCh := make(chan connection.HandshakeConn)
 		serverData := gateway.ServerData{ConnCh: serverCh}
@@ -162,6 +163,7 @@ func TestBasicGateway(t *testing.T) {
 		closeCh := make(chan struct{})
 
 		gw := gateway.NewBasicGatewayWithStore(serverStore, connCh, closeCh)
+		gw.Logger = func(msg string) {}
 		go func() {
 			gw.Start()
 		}()
@@ -194,6 +196,7 @@ func TestBasicGateway(t *testing.T) {
 		closeCh := make(chan struct{})
 
 		gw := gateway.NewBasicGatewayWithStore(serverStore, connCh, closeCh)
+		gw.Logger = func(msg string) {}
 		go func() {
 			gw.Start()
 		}()

@@ -2,8 +2,8 @@ package server
 
 import (
 	"errors"
+	"fmt"
 	"io"
-	"log"
 	"time"
 
 	"github.com/haveachin/infrared"
@@ -31,6 +31,9 @@ type MCServer struct {
 	CloseCh        <-chan struct{}
 	JoiningActions []func()
 	LeavingActions []func()
+
+	// TODO: Refactor this
+	Logger func(msg string)
 }
 
 func (s *MCServer) Status(conn connection.HandshakeConn) protocol.Packet {
@@ -141,7 +144,7 @@ ForLoop:
 					if errors.Is(err, io.EOF) {
 						return
 					}
-					log.Printf("error: %v", err)
+					s.Logger(fmt.Sprintf("error: %v", err))
 					conn.Conn().Close()
 				}
 			}()

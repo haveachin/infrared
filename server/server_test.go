@@ -21,9 +21,9 @@ import (
 )
 
 var (
-	testLoginID byte = 6
-	ErrNotImplemented = errors.New("not implemented")
-	defaultChTimeout = 10 * time.Millisecond
+	testLoginID       byte = 6
+	ErrNotImplemented      = errors.New("not implemented")
+	defaultChTimeout       = 10 * time.Millisecond
 )
 
 type LoginData struct {
@@ -120,6 +120,7 @@ func TestMCServer(t *testing.T) {
 		mcServer := &server.MCServer{
 			CreateServerConn: connFactory,
 			ConnCh:           connCh,
+			Logger:           func(msg string) {},
 		}
 		go func() {
 			mcServer.Start()
@@ -162,6 +163,7 @@ func TestMCServer(t *testing.T) {
 
 		mcServer := server.MCServer{
 			CreateServerConn: statusFactory,
+			Logger:           func(msg string) {},
 		}
 		return mcServer
 	}
@@ -183,6 +185,7 @@ func TestMCServer(t *testing.T) {
 			CreateServerConn:    statusFactory,
 			OnlineConfigStatus:  onlineConfigStatus,
 			OfflineConfigStatus: offlineConfigStatus,
+			Logger:              func(msg string) {},
 		}
 		return mcServer
 	}
@@ -531,6 +534,7 @@ func TestOrMCServerCanClose(t *testing.T) {
 	server := server.MCServer{
 		ConnCh:  connCh,
 		CloseCh: closeCh,
+		Logger:  func(msg string) {},
 	}
 	go func() {
 		server.Start()
@@ -638,6 +642,7 @@ func TestMCServerErrorDetection(t *testing.T) {
 					CreateServerConn: serverConn,
 					ConnCh:           connCh,
 					CloseCh:          closeCh,
+					Logger:           func(msg string) {},
 				}
 				server.Start()
 			}()

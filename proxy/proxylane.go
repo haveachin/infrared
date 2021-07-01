@@ -22,6 +22,24 @@ var (
 	}, []string{"host"})
 )
 
+type ErrDomain struct {
+	Domains []string
+	Err     error
+}
+
+func (e *ErrDomain) Unwrap() error { return e.Err }
+
+func (e *ErrDomain) Error() string {
+	if e == nil {
+		return "<nil>"
+	}
+	s := "these domains have already been registered: "
+	for _, domain := range e.Domains {
+		s += domain + ", "
+	}
+	return s
+}
+
 func NewServerInfo(cfg config.ServerConfig) ServerInfo {
 	defaultCfg := config.DefaultServerConfig()
 	defaultCfg.UpdateServerConfig(cfg)
@@ -39,8 +57,7 @@ type ServerInfo struct {
 	CloseCh chan struct{}
 	ConnCh  chan connection.HandshakeConn
 
-	errLogger func(err error)
-	logger    func(a ...interface{})
+	logger func(msg string)
 }
 
 func NewProxyLaneConfig() ProxyLaneConfig {
@@ -52,11 +69,8 @@ func NewProxyLaneConfig() ProxyLaneConfig {
 		ListenerFactory: func(addr string) (net.Listener, error) {
 			return net.Listen("tcp", addr)
 		},
-		ErrLogger: func(err error) {
-			log.Println(err)
-		},
-		Logger: func(a ...interface{}) {
-			log.Println(a...)
+		Logger: func(msg string) {
+			log.Println(msg)
 		},
 	}
 }
@@ -71,8 +85,7 @@ type ProxyLaneConfig struct {
 
 	// Seperate this so we can test without making actual network calls
 	ListenerFactory gateway.ListenerFactory
-	ErrLogger       func(err error)
-	Logger          func(a ...interface{})
+	Logger          func(msg string)
 }
 
 func NewProxyLane(cfg ProxyLaneConfig) ProxyLane {
@@ -80,8 +93,7 @@ func NewProxyLane(cfg ProxyLaneConfig) ProxyLane {
 		listenTo:        cfg.ListenTo,
 		listenerFactory: cfg.ListenerFactory,
 
-		errLogger: cfg.ErrLogger,
-		logger:    cfg.Logger,
+		logger: cfg.Logger,
 
 		config:      cfg,
 		toGatewayCh: make(chan connection.HandshakeConn),
@@ -95,8 +107,7 @@ type ProxyLane struct {
 	listenTo        string
 	listenerFactory gateway.ListenerFactory
 
-	errLogger func(err error)
-	logger    func(a ...interface{})
+	logger func(msg string)
 
 	isGatewayActive bool
 	toGatewayCh     chan connection.HandshakeConn
@@ -120,15 +131,23 @@ func (proxy *ProxyLane) listenerModified() {
 
 // TODO: Some error here with already used domains, but it also needs to check extradomains
 func (proxy *ProxyLane) RegisterServers(cfgs ...config.ServerConfig) error {
+	duplicateDomains := make([]string, 0)
 	for _, cfg := range cfgs {
+		if _, ok := proxy.serverMap[cfg.MainDomain]; ok {
+			duplicateDomains = append(duplicateDomains, cfg.MainDomain)
+			continue
+		}
 		serverInfo := NewServerInfo(cfg)
 		serverInfo.logger = proxy.logger
-		serverInfo.errLogger = proxy.errLogger
 		domainName := cfg.MainDomain
 		proxy.serverMap[domainName] = serverInfo
 		serverInfo.runMCServer()
 	}
 	proxy.gatewayModified()
+
+	if len(duplicateDomains) > 0 {
+		return &ErrDomain{Domains: duplicateDomains}
+	}
 	return nil
 }
 
@@ -155,6 +174,8 @@ func (proxy *ProxyLane) gatewayModified() {
 	}
 
 	gw := gateway.NewBasicGatewayWithStore(&serverStore, proxy.toGatewayCh, proxy.gwCloseCh)
+	// TODO: Refactor this
+	gw.Logger = proxy.logger
 	go func() {
 		gw.Start()
 	}()
@@ -187,7 +208,7 @@ func (proxy *ProxyLane) UpdateServer(cfg config.ServerConfig) {
 
 	err := serverInfo.Cfg.UpdateServerConfig(cfg)
 	if err != nil {
-		proxy.errLogger(err)
+		proxy.logger(err.Error())
 		return
 	}
 	proxy.serverMap[cfg.MainDomain] = serverInfo
@@ -232,7 +253,7 @@ func (info ServerInfo) runMCServer() {
 	connFactory := func() (connection.ServerConn, error) {
 		c, err := dialer.Dial("tcp", info.Cfg.ProxyTo)
 		if err != nil {
-			info.errLogger(err)
+			info.logger(err.Error())
 			return connection.ServerConn{}, err
 		}
 		return connection.NewServerConn(c), nil
@@ -248,6 +269,8 @@ func (info ServerInfo) runMCServer() {
 		CloseCh:             info.CloseCh,
 		JoiningActions:      actionsJoining,
 		LeavingActions:      actionsLeaving,
+		// TODO: Refactor this
+		Logger: info.logger,
 	}
 
 	go func(server server.MCServer) {
