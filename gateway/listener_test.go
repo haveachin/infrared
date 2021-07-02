@@ -1,195 +1,179 @@
 package gateway_test
 
 import (
-	"bytes"
 	"errors"
-	"fmt"
 	"net"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/haveachin/infrared/connection"
 	"github.com/haveachin/infrared/gateway"
-	"github.com/haveachin/infrared/protocol"
 )
 
 var (
-	testOuterListenerPort = 10024
-
-	ErrStopListenerError = errors.New("use this error to stop the listener")
-	ErrNoMoreConnections = errors.New("no more connections")
+	ErrNoConnections        = errors.New("no more connections")
+	ErrStopListenerError    = &net.OpError{Op: "accept", Err: ErrNoConnections}
+	ErrTimeoutListenerError = &net.OpError{Op: "accept", Err: &testTimeoutError{}}
 )
 
-type LoginData struct {
-	hs         protocol.Packet
-	loginStart protocol.Packet
+type testTimeoutError struct{}
+
+func (err testTimeoutError) Timeout() bool {
+	return true
 }
 
-func loginClient(conn net.Conn, data LoginData) {
-	bytes, _ := data.hs.Marshal()
-	conn.Write(bytes)
+func (e testTimeoutError) Error() string { return "timeout test error" }
 
-	bytes, _ = data.loginStart.Marshal()
-	conn.Write(bytes)
+func (e testTimeoutError) Unwrap() error { return e }
 
-	//Write something for (optional) pipe logic...?
+type testListener struct {
+	newConnCh   <-chan net.Conn
+	returnError error
 }
 
-type outerListenFunc func(addr string) gateway.OuterListener
-
-type faultyTestOutLis struct {
-}
-
-func (l *faultyTestOutLis) Start() error {
-	return gateway.ErrCantStartOutListener
-}
-
-func (l *faultyTestOutLis) Accept() (net.Conn, net.Addr) {
-	return nil, nil
-}
-
-type testOutLis struct {
-	conn net.Conn
-
-	count int
-}
-
-func (l *testOutLis) Start() error {
+func (l *testListener) Close() error {
 	return nil
 }
 
-func (l *testOutLis) Accept() (net.Conn, net.Addr) {
-	if l.count > 0 {
-		// To block the thread while kinda acting like a real listener
-		//  aka not returning a error bc there are not more connections
-		time.Sleep(10 * time.Second)
+func (l *testListener) Addr() net.Addr {
+	return nil
+}
+
+func (l *testListener) Accept() (net.Conn, error) {
+	conn := <-l.newConnCh
+	var err error
+	if l.returnError != nil {
+		err = l.returnError
 	}
-	l.count++
-	return l.conn, nil
+	return conn, err
 }
 
-// Help methods
-func testSamePK(t *testing.T, expected, received protocol.Packet) {
-	if !samePK(expected, received) {
-		t.Logf("expected:\t%v", expected)
-		t.Logf("got:\t\t%v", received)
-		t.Error("Received packet is different from what we expected")
+// Actual test method(s)
+func TestBasicListener_Accept_Returns_OpError(t *testing.T) {
+	newConnCh := make(chan net.Conn)
+	errCh := make(chan error)
+	logger := func(err error) {
+		errCh <- err
 	}
-}
-
-func samePK(expected, received protocol.Packet) bool {
-	sameID := expected.ID == received.ID
-	sameData := bytes.Equal(expected.Data, received.Data)
-
-	return sameID && sameData
-}
-
-// Actual test methods
-
-// OuterListener Tests
-func TestBasicOuterListener(t *testing.T) {
-	listenerCreateFn := func(addr string) gateway.OuterListener {
-		return gateway.NewBasicOuterListener(addr)
+	listener := &testListener{
+		newConnCh:   newConnCh,
+		returnError: ErrStopListenerError,
 	}
 
-	testOuterListener(t, listenerCreateFn)
-}
+	connCh := make(chan connection.HandshakeConn)
+	l := gateway.NewListenerWithLogger(listener, connCh, logger)
 
-func testOuterListener(t *testing.T, fn outerListenFunc) {
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	addr := fmt.Sprintf(":%d", testOuterListenerPort)
-	testOuterListenerPort++
-	testPk := protocol.Packet{ID: testUnboundID}
-	outerListener := fn(addr)
+	go func() {
+		l.Listen()
+	}()
 
-	go func(t *testing.T, wg *sync.WaitGroup) {
-		wg.Wait()
-		conn, err := net.Dial("tcp", addr)
-		if err != nil {
-			t.Errorf("error was throw: %v", err)
-		}
-		bConn := connection.NewHandshakeConn(conn, nil)
-		err = bConn.WritePacket(testPk)
-		if err != nil {
-			t.Logf("got an error while writing the packet: %v", err)
-		}
-	}(t, &wg)
-
-	err := outerListener.Start()
-	if err != nil {
-		t.Errorf("Got an error while i shouldn't. Error: %v", err)
+	select {
+	case newConnCh <- &net.TCPConn{}:
+		t.Log("Listener called accept (this is good)")
+	case <-time.After(defaultChTimeout):
+		t.Log("Listener didnt accept connection")
 		t.FailNow()
 	}
-	wg.Done()
-	cNet, _ := outerListener.Accept()
-	conn := connection.NewHandshakeConn(cNet, nil)
-	receivedPk, _ := conn.ReadPacket()
 
-	testSamePK(t, testPk, receivedPk)
+	select {
+	case err := <-errCh:
+		t.Logf("Error has been received: %v (this is good)", err)
+	case <-time.After(defaultChTimeout):
+		t.Log("Tasked timed out by second select")
+		t.FailNow()
+	}
+
+	select {
+	case err := <-errCh:
+		t.Logf("unexpected error was thrown: %v", err)
+		t.FailNow()
+	case <-time.After(defaultChTimeout):
+		t.Log("Tasked timed out by third select (this is good)")
+	case newConnCh <- &net.TCPConn{}:
+		t.Log("Listener should have stopped")
+		t.FailNow()
+	}
 }
 
-// Infrared Listener Tests
-func TestBasicListener(t *testing.T) {
-	// Need changes
-	tt := []struct {
-		name         string
-		returnsError bool
-	}{
-		{
-			name:         "Test where start doesnt return error",
-			returnsError: false,
-		},
-		{
-			name:         "Test where start return error",
-			returnsError: true,
-		},
+func TestBasicListener_Has_Error_But_Continues(t *testing.T) {
+	newConnCh := make(chan net.Conn)
+	errCh := make(chan error)
+	logger := func(err error) {
+		errCh <- err
+	}
+	listener := &testListener{
+		newConnCh:   newConnCh,
+		returnError: ErrTimeoutListenerError,
 	}
 
-	for _, tc := range tt {
-		t.Run(tc.name, func(t *testing.T) {
-			var outerListener gateway.OuterListener
-			hsPk := protocol.Packet{ID: testLoginHSID}
-			c1, c2 := net.Pipe()
-			loginData := LoginData{
-				hs: hsPk,
-			}
+	connCh := make(chan connection.HandshakeConn)
+	l := gateway.NewListenerWithLogger(listener, connCh, logger)
 
-			go func() {
-				loginClient(c2, loginData)
-			}()
+	go func() {
+		l.Listen()
+	}()
 
-			outerListener = &testOutLis{conn: c1}
-			if tc.returnsError {
-				outerListener = &faultyTestOutLis{}
-			}
-			connCh := make(chan connection.HandshakeConn)
-			l := gateway.BasicListener{OutListener: outerListener, ConnCh: connCh}
-
-			errChannel := make(chan error)
-
-			go func() {
-				err := l.Listen()
-				if err != nil {
-					errChannel <- err
-				}
-			}()
-
-			select {
-			case err := <-errChannel:
-				if !errors.Is(err, gateway.ErrCantStartListener) {
-					t.Logf("unexpected error was thrown: %v", err)
-					t.FailNow()
-				}
-			case <-time.After(defaultChanTimeout): // err should be returned almost immediately
-				t.Log("Tasked timed out")
-				t.FailNow() // Dont check other code it didnt finish anyway
-			case conn := <-connCh:
-				receivePk, _ := conn.ReadPacket()
-				testSamePK(t, hsPk, receivePk)
-			}
-
-		})
+	select {
+	case newConnCh <- &net.TCPConn{}:
+		t.Log("Listener called accept (this is good)")
+	case <-time.After(defaultChTimeout):
+		t.Log("Listener didnt accept connection")
+		t.FailNow()
 	}
+
+	select {
+	case err := <-errCh:
+		t.Logf("Error has been received: %v (this is good...?)", err)
+	case <-time.After(defaultChTimeout):
+		t.Log("Tasked timed out by second select")
+		t.FailNow()
+	}
+
+	select {
+	case <-time.After(defaultChTimeout):
+		t.Log("Tasked timed out by third select")
+		t.FailNow()
+	case newConnCh <- &net.TCPConn{}:
+		t.Log("Listener accepts second connections (this is good)")
+	}
+
+}
+
+func TestBasicListener_Accept_Without_Error(t *testing.T) {
+	newConnCh := make(chan net.Conn)
+	listener := &testListener{
+		newConnCh: newConnCh,
+	}
+
+	connCh := make(chan connection.HandshakeConn)
+	l := gateway.NewBasicListener(listener, connCh)
+
+	go func() {
+		l.Listen()
+	}()
+
+	select {
+	case newConnCh <- &net.TCPConn{}:
+		t.Log("Listener called accept (this is good)")
+	case <-time.After(defaultChTimeout):
+		t.Log("Listener didnt accept connection")
+		t.FailNow()
+	}
+
+	select {
+	case <-time.After(defaultChTimeout):
+		t.Log("Tasked timed out by second select ")
+		t.FailNow()
+	case <-connCh:
+		t.Log("Listener passed on received connection (this is good)")
+	}
+
+	select {
+	case <-time.After(defaultChTimeout):
+		t.Log("Tasked timed out by second select ")
+		t.FailNow()
+	case newConnCh <- &net.TCPConn{}:
+		t.Log("Listener called accept (this is good)")
+	}
+
 }

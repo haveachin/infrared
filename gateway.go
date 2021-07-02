@@ -3,11 +3,21 @@ package infrared
 import (
 	"errors"
 	"log"
+	"net/http"
 	"sync"
 
 	"github.com/haveachin/infrared/callback"
 	"github.com/haveachin/infrared/protocol/handshaking"
 	"github.com/pires/go-proxyproto"
+
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+)
+
+var (
+	// proxiesActive = promauto.NewGauge(prometheus.GaugeOpts{
+	// 	Name: "infrared_proxies",
+	// 	Help: "The total number of proxies running",
+	// })
 )
 
 var (
@@ -18,10 +28,11 @@ var (
 )
 
 type Gateway struct {
-	listeners sync.Map
-	proxies   sync.Map
-	closed    chan bool
-	wg        sync.WaitGroup
+	listeners            sync.Map
+	proxies              sync.Map
+	closed               chan bool
+	wg                   sync.WaitGroup
+	receiveProxyProtocol bool
 }
 
 func (gateway *Gateway) ListenAndServe(proxies []*Proxy) error {
@@ -39,6 +50,20 @@ func (gateway *Gateway) ListenAndServe(proxies []*Proxy) error {
 	}
 
 	log.Println("All proxies are online")
+	return nil
+}
+
+func (gateway *Gateway) EnablePrometheus(bind string) error {
+	gateway.wg.Add(1)
+
+	go func() {
+		defer gateway.wg.Done()
+
+		http.Handle("/metrics", promhttp.Handler())
+		http.ListenAndServe(bind, nil)
+	}()
+
+	log.Println("Enabling Prometheus metrics endpoint on", bind)
 	return nil
 }
 
@@ -61,6 +86,7 @@ func (gateway *Gateway) CloseProxy(proxyUID string) {
 	if !ok {
 		return
 	}
+	// proxiesActive.Dec()
 	proxy := v.(*Proxy)
 
 	closeListener := true
@@ -89,6 +115,7 @@ func (gateway *Gateway) RegisterProxy(proxy *Proxy) error {
 	proxyUID := proxy.UID()
 	log.Println("Registering proxy with UID", proxyUID)
 	gateway.proxies.Store(proxyUID, proxy)
+	// proxiesActive.Inc()
 
 	proxy.Config.removeCallback = func() {
 		gateway.CloseProxy(proxyUID)
@@ -103,6 +130,8 @@ func (gateway *Gateway) RegisterProxy(proxy *Proxy) error {
 			log.Println(err)
 		}
 	}
+
+	// playersConnected.WithLabelValues(proxy.DomainName())
 
 	// Check if a gate is already listening to the Proxy address
 	addr := proxy.ListenTo()
@@ -155,27 +184,23 @@ func (gateway *Gateway) listenAndServe(listener Listener, addr string) error {
 }
 
 func (gateway *Gateway) serve(conn Conn, addr string) error {
-	pk, err := conn.PeekPacket()
-	if err != nil {
-		return ErrCantPeekPK
-	}
-
 	connRemoteAddr := conn.RemoteAddr()
-	hs, err := handshaking.UnmarshalServerBoundHandshake(pk)
-	if err != nil {
+	if gateway.receiveProxyProtocol {
 		header, err := proxyproto.Read(conn.Reader())
 		if err != nil {
 			return err
 		}
 		connRemoteAddr = header.SourceAddr
-		pk, err := conn.PeekPacket()
-		if err != nil {
-			return ErrCantPeekPK
-		}
-		hs, err = handshaking.UnmarshalServerBoundHandshake(pk)
-		if err != nil {
-			return ErrCantUnMarshalPK
-		}
+	}
+
+	pk, err := conn.PeekPacket()
+	if err != nil {
+		return ErrCantPeekPK
+	}
+
+	hs, err := handshaking.UnmarshalServerBoundHandshake(pk)
+	if err != nil {
+		return err
 	}
 
 	proxyUID := proxyUID(hs.ParseServerAddress(), addr)

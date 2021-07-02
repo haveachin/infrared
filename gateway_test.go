@@ -216,7 +216,7 @@ func statusDial(c statusDialConfig) (protocol.Packet, *testError) {
 	} else if c.useProxyProtocol {
 		conn, err = createConnWithFakeIP(c.dialerPort, c.gatewayAddr)
 	} else {
-		conn, err = Dial(c.gatewayAddr)
+		conn, err = Dialer{}.Dial(c.gatewayAddr)
 	}
 
 	if err != nil {
@@ -333,7 +333,7 @@ type e2eTestServer struct {
 
 func (s *e2eTestServer) CanConnect() bool {
 	var err error
-	s.connection, err = DialTimeout(s.ServerAddr, s.Timeout)
+	// s.connection, err = DialTimeout(s.ServerAddr, s.Timeout)
 	return err == nil
 }
 

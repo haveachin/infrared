@@ -2,6 +2,7 @@ package gateway
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/haveachin/infrared/connection"
 	"github.com/haveachin/infrared/protocol/handshaking"
@@ -13,8 +14,13 @@ var (
 	ErrNotValidHandshake = errors.New("this connection didnt provide a valid handshake")
 )
 
-func NewBasicGatewayWithStore(store ServerStore, ch <-chan connection.HandshakeConn) BasicGateway {
-	return BasicGateway{store: store, inCh: ch}
+func NewBasicGatewayWithStore(store ServerStore, connCh <-chan connection.HandshakeConn, closeCh <-chan struct{}) BasicGateway {
+	return BasicGateway{
+		store:   store,
+		inCh:    connCh,
+		closeCh: closeCh,
+		Logger:  func(msg string) {},
+	}
 }
 
 type ServerData struct {
@@ -22,18 +28,35 @@ type ServerData struct {
 }
 
 type BasicGateway struct {
-	store ServerStore
-	inCh  <-chan connection.HandshakeConn
+	store   ServerStore
+	inCh    <-chan connection.HandshakeConn
+	closeCh <-chan struct{}
+	// TODO: Refactor this
+	Logger func(msg string)
 }
 
 func (g *BasicGateway) Start() error {
+Forloop:
 	for {
-		conn := <-g.inCh
-		g.HandleConn(conn)
+		select {
+		case conn := <-g.inCh:
+			go func() {
+				err := g.handleConn(conn)
+				if errors.Is(err, ErrNoServerFound) {
+					// If default status is set and its a status request, send it here to the client ...?
+				}
+				if err != nil {
+					conn.Conn().Close()
+				}
+			}()
+		case <-g.closeCh:
+			break Forloop
+		}
 	}
+	return nil
 }
 
-func (g *BasicGateway) HandleConn(conn connection.HandshakeConn) error {
+func (g *BasicGateway) handleConn(conn connection.HandshakeConn) error {
 	pk, err := conn.ReadPacket()
 	if err != nil {
 		return ErrCantGetHSPacket
@@ -43,10 +66,12 @@ func (g *BasicGateway) HandleConn(conn connection.HandshakeConn) error {
 	if err != nil {
 		return err
 	}
+	g.Logger(fmt.Sprintf("[>] Incoming %s on listener %s", conn.RemoteAddr(), hs.ServerAddress))
 	addr := string(hs.ServerAddress)
 	serverData, ok := g.store.FindServer(addr)
 	if !ok {
 		// There was no server to be found
+		g.Logger(fmt.Sprintf("[>] No server with  %s found", hs.ServerAddress))
 		return ErrNoServerFound
 	}
 	conn.HandshakePacket = pk
@@ -86,8 +111,8 @@ func (store *DefaultServerStore) AddServer(addr string, serverData ServerData) {
 	store.servers[addr] = serverData
 }
 
-func CreateDefaultServerStore() DefaultServerStore {
-	store := DefaultServerStore{}
-	store.servers = make(map[string]ServerData)
-	return store
+func NewDefaultServerStore() DefaultServerStore {
+	return DefaultServerStore{
+		servers: make(map[string]ServerData),
+	}
 }

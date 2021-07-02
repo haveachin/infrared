@@ -4,44 +4,53 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/haveachin/infrared"
 	"github.com/haveachin/infrared/connection"
 	"github.com/haveachin/infrared/protocol"
+	"github.com/pires/go-proxyproto"
 )
 
 var (
+	ErrCantWriteToServer     = errors.New("can't write to proxy target")
+	ErrCantWriteToClient     = errors.New("can't write to client")
 	ErrCantConnectWithServer = errors.New("cant connect with server")
+	ErrInvalidHandshakeID    = errors.New("didnt recognize handshake id")
 )
 
-type ServerConfig struct {
-	NumberOfInstances int    `json:"numberOfInstances"`
-	DomainName        string `json:"domainName"`
-	ProxyTo           string `json:"proxyTo"`
-	RealIP            bool   `json:"realIp"`
-
-	//Need different statusconfig struct
-	OnlineStatus infrared.StatusConfig `json:"onlineStatus"`
-	//Need different statusconfig struct
-	OfflineStatus infrared.StatusConfig `json:"offlineStatus"`
-}
-
 type MCServer struct {
-	Config              ServerConfig
-	ConnFactory         connection.ServerConnFactory
+	CreateServerConn  connection.ServerConnFactory
+	SendProxyProtocol bool
+	RealIP            bool
+
 	OnlineConfigStatus  protocol.Packet
 	OfflineConfigStatus protocol.Packet
 
-	ConnCh <-chan connection.HandshakeConn
+	ConnCh         <-chan connection.HandshakeConn
+	CloseCh        <-chan struct{}
+	JoiningActions []func()
+	LeavingActions []func()
+
+	// TODO: Refactor this
+	Logger func(msg string)
 }
 
 func (s *MCServer) Status(conn connection.HandshakeConn) protocol.Packet {
-	serverConn, _ := s.ConnFactory(s.Config.ProxyTo)
-	hs := conn.HandshakePacket
-	serverConn.WritePacket(hs)
-	serverConn.WritePacket(protocol.Packet{})
-	pk, err := serverConn.ReadPacket()
+	var pk protocol.Packet
+	var isServerOnline bool
+	serverConn, err := s.CreateServerConn()
+
 	if err == nil {
+		if err := serverConn.WritePacket(conn.HandshakePacket); err == nil {
+			if err := serverConn.WritePacket(protocol.Packet{}); err == nil {
+				pk, err = serverConn.ReadPacket()
+				isServerOnline = true
+			}
+		}
+	}
+
+	if isServerOnline {
 		if len(s.OnlineConfigStatus.Data) != 0 {
 			pk = s.OnlineConfigStatus
 		}
@@ -50,40 +59,99 @@ func (s *MCServer) Status(conn connection.HandshakeConn) protocol.Packet {
 	} else {
 		pk, _ = infrared.StatusConfig{}.StatusResponsePacket()
 	}
+
 	return pk
 }
 
-// Error testing needed
 func (s *MCServer) Login(conn connection.HandshakeConn) error {
-	serverConn, _ := s.ConnFactory(s.Config.ProxyTo)
-	hs := conn.HandshakePacket
-	serverConn.WritePacket(hs)
-	pk, _ := conn.ReadPacket()
-	serverConn.WritePacket(pk)
+	serverConn, err := s.CreateServerConn()
+	if err != nil {
+		return err
+	}
 
-	// Doing it like this should prevent weird behavior with can be causes by closujers combined with goroutines
-	go func(client, server connection.PipeConn) {
-		// closing connections on disconnect happen in the Pipe function
-		connection.Pipe(client, server)
-	}(conn, serverConn)
+	if s.SendProxyProtocol {
+		header := &proxyproto.Header{
+			Version:           2,
+			Command:           proxyproto.PROXY,
+			TransportProtocol: proxyproto.TCPv4,
+			SourceAddr:        conn.RemoteAddr(),
+			DestinationAddr:   serverConn.Conn().RemoteAddr(),
+		}
+
+		if _, err = header.WriteTo(serverConn.Conn()); err != nil {
+			return ErrCantWriteToServer
+		}
+	}
+
+	var handshakePk protocol.Packet
+	if s.RealIP {
+		hs := conn.Handshake
+		hs.UpgradeToRealIP(conn.RemoteAddr(), time.Now())
+		handshakePk = hs.Marshal()
+	} else {
+		handshakePk = conn.HandshakePacket
+	}
+
+	if err := serverConn.WritePacket(handshakePk); err != nil {
+		return err
+	}
+	pk, err := conn.ReadPacket()
+	if err != nil {
+		return err
+	}
+	if err := serverConn.WritePacket(pk); err != nil {
+		return err
+	}
+
+	go func(client, server connection.PipeConn, joinActions, leaveActions []func()) {
+		for _, action := range s.JoiningActions {
+			action()
+		}
+
+		clientConn := client.Conn()
+		serverConn := server.Conn()
+		go func() {
+			io.Copy(serverConn, clientConn)
+			clientConn.Close()
+		}()
+		io.Copy(clientConn, serverConn)
+		serverConn.Close()
+
+		for _, action := range s.LeavingActions {
+			action()
+		}
+	}(conn, serverConn, s.JoiningActions, s.LeavingActions)
 
 	return nil
 }
 
 func (s *MCServer) Start() {
+ForLoop:
 	for {
-		conn := <-s.ConnCh
-		switch connection.ParseRequestType(conn) {
-		case connection.LoginRequest:
-			s.Login(conn)
-		case connection.StatusRequest:
-			err := s.handleStatusRequest(conn)
-			if err != nil {
-				fmt.Println(err)
-			}
-		default:
-			fmt.Sprintln("Didnt recognize handshake id")
+		select {
+		case conn := <-s.ConnCh:
+			go func() {
+				var err error
+				switch connection.ParseRequestType(conn) {
+				case connection.LoginRequest:
+					err = s.Login(conn)
+				case connection.StatusRequest:
+					err = s.handleStatusRequest(conn)
+				default:
+					err = ErrInvalidHandshakeID
+				}
+				if err != nil {
+					if errors.Is(err, io.EOF) {
+						return
+					}
+					s.Logger(fmt.Sprintf("error: %v", err))
+					conn.Conn().Close()
+				}
+			}()
+		case <-s.CloseCh:
+			break ForLoop
 		}
+
 	}
 }
 
@@ -93,20 +161,12 @@ func (s *MCServer) handleStatusRequest(conn connection.HandshakeConn) error {
 	if err != nil {
 		return err
 	}
-
 	responsePk := s.Status(conn)
-
 	if err := conn.WritePacket(responsePk); err != nil {
 		return err
 	}
-	// This ping packet is optional, clients send them but scripts like bots dont have to send them
-	//  and this will return an EOF when the connections gets closed
 	pingPk, err := conn.ReadPacket()
 	if err != nil {
-		if errors.Is(err, io.EOF) {
-			return nil
-		}
-		fmt.Println(err)
 		return err
 	}
 	return conn.WritePacket(pingPk)

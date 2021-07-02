@@ -3,8 +3,8 @@ package connection
 import (
 	"bufio"
 	"errors"
+	"io"
 	"net"
-	"time"
 
 	"github.com/haveachin/infrared/protocol"
 	"github.com/haveachin/infrared/protocol/handshaking"
@@ -14,9 +14,7 @@ var (
 	ErrNoNameYet = errors.New("we dont have the name of this player yet")
 )
 
-type NewServerConnFactory func(timeout time.Duration) (ServerConnFactory, error)
-
-type ServerConnFactory func(string) (ServerConn, error)
+type ServerConnFactory func() (ServerConn, error)
 type HandshakeConnFactory func(Conn, net.Addr) (HandshakeConn, error)
 
 type RequestType int8
@@ -28,7 +26,7 @@ const (
 )
 
 type PipeConn interface {
-	conn() net.Conn
+	Conn() net.Conn
 }
 
 type Conn interface {
@@ -53,13 +51,13 @@ func ParseRequestType(conn HandshakeConn) RequestType {
 }
 
 func Pipe(c, s PipeConn) {
-	client := c.conn()
-	server := s.conn()
+	client := c.Conn()
+	server := s.Conn()
 	go func() {
-		pipe(server, client)
+		io.Copy(server, client)
 		client.Close()
 	}()
-	pipe(client, server)
+	io.Copy(client, server)
 	server.Close()
 }
 
@@ -102,7 +100,7 @@ func (hsConn HandshakeConn) RemoteAddr() net.Addr {
 	return hsConn.addr
 }
 
-func (conn HandshakeConn) conn() net.Conn {
+func (conn HandshakeConn) Conn() net.Conn {
 	return conn.netConn
 }
 
@@ -135,6 +133,6 @@ func (c ServerConn) WritePacket(p protocol.Packet) error {
 	return err
 }
 
-func (c ServerConn) conn() net.Conn {
+func (c ServerConn) Conn() net.Conn {
 	return c.netConn
 }
