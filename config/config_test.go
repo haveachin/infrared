@@ -113,11 +113,11 @@ func TestWatchConfigDir(t *testing.T) {
 
 	t.Run("Delete file tells you which domain and listen to address has been removed", func(t *testing.T) {
 		tmpDir, _ := ioutil.TempDir("", "infrared-configs")
-		cfgEventCh, err := config.WatchServerCfgDir(tmpDir)
 		testFile, _ := ioutil.TempFile(tmpDir, "example")
+		cfgEventCh, err := config.WatchServerCfgDir(tmpDir)
 		testFile.Write(defaultText)
 		testFile.Close()
-		t.Log(<-cfgEventCh) // File Create event
+		// t.Log(<-cfgEventCh) // File Create event
 		t.Log(<-cfgEventCh) // File Update event
 
 		err = os.Remove(testFile.Name())
