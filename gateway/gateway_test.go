@@ -32,7 +32,6 @@ func TestFindMatchingServer_SingleServerStore(t *testing.T) {
 		serverStore := &gateway.SingleServerStore{Server: serverData}
 
 		gw := gateway.NewBasicGatewayWithStore(serverStore, gwCh, nil)
-		gw.Logger = func(msg string) {}
 		go func() {
 			gw.Start()
 		}()
@@ -52,7 +51,7 @@ func TestFindServer_DefaultServerStore(t *testing.T) {
 	serverAddr := "addr-1"
 
 	gatewayRunner := func(gwCh <-chan connection.HandshakeConn) <-chan connection.HandshakeConn {
-		serverStore := gateway.CreateDefaultServerStore()
+		serverStore := gateway.NewDefaultServerStore()
 		for id := 2; id < 10; id++ {
 			serverAddr := fmt.Sprintf("addr-%d", id)
 			serverData := gateway.ServerData{ConnCh: make(chan connection.HandshakeConn)}
@@ -64,7 +63,6 @@ func TestFindServer_DefaultServerStore(t *testing.T) {
 		serverStore.AddServer(serverAddr, serverData)
 
 		gw := gateway.NewBasicGatewayWithStore(&serverStore, gwCh, nil)
-		gw.Logger = func(msg string) {}
 		go func() {
 			gw.Start()
 		}()
@@ -163,7 +161,6 @@ func TestBasicGateway(t *testing.T) {
 		closeCh := make(chan struct{})
 
 		gw := gateway.NewBasicGatewayWithStore(serverStore, connCh, closeCh)
-		gw.Logger = func(msg string) {}
 		go func() {
 			gw.Start()
 		}()
@@ -196,7 +193,6 @@ func TestBasicGateway(t *testing.T) {
 		closeCh := make(chan struct{})
 
 		gw := gateway.NewBasicGatewayWithStore(serverStore, connCh, closeCh)
-		gw.Logger = func(msg string) {}
 		go func() {
 			gw.Start()
 		}()

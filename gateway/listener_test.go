@@ -52,7 +52,7 @@ func (l *testListener) Accept() (net.Conn, error) {
 func TestBasicListener_Accept_Returns_OpError(t *testing.T) {
 	newConnCh := make(chan net.Conn)
 	errCh := make(chan error)
-	errLogger := func(err error) {
+	logger := func(err error) {
 		errCh <- err
 	}
 	listener := &testListener{
@@ -61,7 +61,7 @@ func TestBasicListener_Accept_Returns_OpError(t *testing.T) {
 	}
 
 	connCh := make(chan connection.HandshakeConn)
-	l := gateway.NewBasicListener(listener, connCh, errLogger)
+	l := gateway.NewListenerWithLogger(listener, connCh, logger)
 
 	go func() {
 		l.Listen()
@@ -98,7 +98,7 @@ func TestBasicListener_Accept_Returns_OpError(t *testing.T) {
 func TestBasicListener_Has_Error_But_Continues(t *testing.T) {
 	newConnCh := make(chan net.Conn)
 	errCh := make(chan error)
-	errLogger := func(err error) {
+	logger := func(err error) {
 		errCh <- err
 	}
 	listener := &testListener{
@@ -107,7 +107,7 @@ func TestBasicListener_Has_Error_But_Continues(t *testing.T) {
 	}
 
 	connCh := make(chan connection.HandshakeConn)
-	l := gateway.NewBasicListener(listener, connCh, errLogger)
+	l := gateway.NewListenerWithLogger(listener, connCh, logger)
 
 	go func() {
 		l.Listen()

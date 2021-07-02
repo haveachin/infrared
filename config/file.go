@@ -12,6 +12,7 @@ import (
 )
 
 var (
+	// Isnt this the proper path to put config files into (for execution without docker)
 	defaultCfgPath       = "/etc/infrared"
 	defaultServerCfgPath = filepath.Join(defaultCfgPath, "configs")
 
@@ -55,7 +56,7 @@ func ReadServerConfigs(path string) ([]ServerConfig, error) {
 
 func LoadServerCfgFromPath(path string) (ServerConfig, error) {
 	bb, err := ioutil.ReadFile(path)
-	if len(bb) < 50 {
+	if len(bb) < 10 {
 		return ServerConfig{}, ErrFileContentIsTooSmall
 	}
 	if err != nil {
@@ -77,9 +78,31 @@ type ServerCfgEvent struct {
 	Action CfgAction
 }
 
-// TODO: Refactor so that deleted configes also get processed correct
-//  so the loading of the config should be taken to somewhere else
-//  and just send the file name and action through the channel.
+func NewCfgFileInfo(filename string, cfg ServerConfig) CfgFileInfo {
+	listenAddr := ":25565"
+	if cfg.ListenTo != "" {
+		listenAddr = cfg.ListenTo
+	}
+	return CfgFileInfo{
+		FileName:   filename,
+		Id:         cfg.MainDomain,
+		ListenAddr: listenAddr,
+	}
+}
+
+type CfgFileInfo struct {
+	FileName   string
+	Id         string
+	ListenAddr string
+}
+
+func (info CfgFileInfo) serverConfig() ServerConfig {
+	return ServerConfig{
+		MainDomain: info.Id,
+		ListenTo:   info.ListenAddr,
+	}
+}
+
 func WatchServerCfgDir(path string) (<-chan ServerCfgEvent, error) {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -90,6 +113,10 @@ func WatchServerCfgDir(path string) (<-chan ServerCfgEvent, error) {
 	}
 	eventCh := make(chan ServerCfgEvent)
 	go func() {
+		// Keep track of all the file names and their unique id (maindomain) and the listen to address so we can notify the manager which server needs to be removed
+		//  when it files gets deleted
+		fileInfo := make(map[string]CfgFileInfo)
+
 		defer watcher.Close()
 		defer close(eventCh)
 		for {
@@ -99,24 +126,33 @@ func WatchServerCfgDir(path string) (<-chan ServerCfgEvent, error) {
 					return
 				}
 				var action CfgAction
-				if event.Op&fsnotify.Create == fsnotify.Create {
+				if event.Op == fsnotify.Create {
 					action = Create
-				} else if event.Op&fsnotify.Write == fsnotify.Write {
+				} else if event.Op == fsnotify.Write {
 					action = Update
-				} else if event.Op&fsnotify.Remove == fsnotify.Remove {
+				} else if event.Op == fsnotify.Remove {
 					action = Delete
 				}
 				if action == Create || action == Update {
 					serverCfg, err := LoadServerCfgFromPath(event.Name)
-					if err != nil {
+					if errors.Is(err, ErrFileContentIsTooSmall) {
+						continue
+					} else if err != nil {
 						fmt.Printf("Failed loading %s; error %s", event.Name, err)
 						continue
 					}
+					fileInfo[event.Name] = NewCfgFileInfo(event.Name, serverCfg)
 					eventCh <- ServerCfgEvent{Action: action, Cfg: serverCfg}
 				} else if action == Delete {
-					eventCh <- ServerCfgEvent{Action: action}
+					cfg := fileInfo[event.Name]
+					eventCh <- ServerCfgEvent{
+						Action: action,
+						Cfg: cfg.serverConfig(),
+					}
+					delete(fileInfo, event.Name)
 				}
 			case err, ok := <-watcher.Errors:
+				// Copied this from old code, not sure what to do here yet
 				if !ok {
 					return
 				}

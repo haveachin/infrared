@@ -15,7 +15,12 @@ var (
 )
 
 func NewBasicGatewayWithStore(store ServerStore, connCh <-chan connection.HandshakeConn, closeCh <-chan struct{}) BasicGateway {
-	return BasicGateway{store: store, inCh: connCh, closeCh: closeCh}
+	return BasicGateway{
+		store:   store,
+		inCh:    connCh,
+		closeCh: closeCh,
+		Logger:  func(msg string) {},
+	}
 }
 
 type ServerData struct {
@@ -106,7 +111,7 @@ func (store *DefaultServerStore) AddServer(addr string, serverData ServerData) {
 	store.servers[addr] = serverData
 }
 
-func CreateDefaultServerStore() DefaultServerStore {
+func NewDefaultServerStore() DefaultServerStore {
 	return DefaultServerStore{
 		servers: make(map[string]ServerData),
 	}

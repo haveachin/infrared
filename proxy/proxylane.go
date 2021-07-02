@@ -159,7 +159,7 @@ func (proxy *ProxyLane) CloseServer(mainDomain string) {
 }
 
 func (proxy *ProxyLane) gatewayModified() {
-	serverStore := gateway.CreateDefaultServerStore()
+	serverStore := gateway.NewDefaultServerStore()
 	for _, serverInfo := range proxy.serverMap {
 		serverData := gateway.ServerData{ConnCh: serverInfo.ConnCh}
 		serverStore.AddServer(serverInfo.Cfg.MainDomain, serverData)
@@ -174,8 +174,6 @@ func (proxy *ProxyLane) gatewayModified() {
 	}
 
 	gw := gateway.NewBasicGatewayWithStore(&serverStore, proxy.toGatewayCh, proxy.gwCloseCh)
-	// TODO: Refactor this
-	gw.Logger = proxy.logger
 	go func() {
 		gw.Start()
 	}()

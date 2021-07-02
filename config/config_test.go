@@ -11,6 +11,10 @@ import (
 	"github.com/haveachin/infrared/config"
 )
 
+var (
+	defaultChTimeout time.Duration = 10 * time.Millisecond
+)
+
 func TestLoadServerCfgFromPath(t *testing.T) {
 	cfg := config.ServerConfig{
 		MainDomain: "infrared",
@@ -68,9 +72,10 @@ func TestWatchConfigDir(t *testing.T) {
 	cfg := config.ServerConfig{
 		MainDomain: "infrared",
 		ProxyTo:    ":25566",
+		ListenTo:   ":25565",
 	}
 	defaultText, _ := json.MarshalIndent(cfg, "", " ")
-	t.Run("Create new file", func(t *testing.T) {
+	t.Run("Create new file with valid config in it", func(t *testing.T) {
 		tmpDir, _ := ioutil.TempDir("", "infrared-configs")
 		cfgEventCh, _ := config.WatchServerCfgDir(tmpDir)
 		go func() {
@@ -104,15 +109,17 @@ func TestWatchConfigDir(t *testing.T) {
 		if cfgEvent.Action != config.Update {
 			t.Errorf("Expected Create action but got: %v", cfgEvent.Action)
 		}
-
 	})
 
-	t.Run("Delete file", func(t *testing.T) {
+	t.Run("Delete file tells you which domain and listen to address has been removed", func(t *testing.T) {
 		tmpDir, _ := ioutil.TempDir("", "infrared-configs")
-		testFile, _ := ioutil.TempFile(tmpDir, "example")
-		testFile.Close()
 		cfgEventCh, err := config.WatchServerCfgDir(tmpDir)
-		time.Sleep(54 * time.Millisecond)
+		testFile, _ := ioutil.TempFile(tmpDir, "example")
+		testFile.Write(defaultText)
+		testFile.Close()
+		t.Log(<-cfgEventCh) // File Create event
+		t.Log(<-cfgEventCh) // File Update event
+
 		err = os.Remove(testFile.Name())
 		if err != nil {
 			t.Fatalf("Failed to remove testFile: %v", err)
@@ -123,7 +130,13 @@ func TestWatchConfigDir(t *testing.T) {
 			t.Fatal("Channel closed")
 		}
 		if cfgEvent.Action != config.Delete {
-			t.Errorf("Expected Create action but got: %v", cfgEvent.Action)
+			t.Errorf("Expected Delete action but got: %v", cfgEvent.Action)
+		}
+		if cfgEvent.Cfg.MainDomain != cfg.MainDomain {
+			t.Errorf("Expected: '%v' got: '%v'", cfg.MainDomain, cfgEvent.Cfg.MainDomain)
+		}
+		if cfgEvent.Cfg.ListenTo != cfg.ListenTo {
+			t.Errorf("Expected: '%v' got: '%v'", cfg.ListenTo, cfgEvent.Cfg.ListenTo)
 		}
 	})
 

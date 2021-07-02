@@ -6,26 +6,27 @@ import (
 	"github.com/haveachin/infrared/connection"
 )
 
-type ErrorLogger func(err error)
 type ListenerFactory func(addr string) (net.Listener, error)
 
-//The last argument is being used for an optional logger only the first logger will be used
-func NewBasicListener(listener net.Listener, ch chan<- connection.HandshakeConn, errorLogger ...ErrorLogger) BasicListener {
-	logger := func(err error) {}
-	if len(errorLogger) != 0 {
-		logger = errorLogger[0]
-	}
+func NewBasicListener(listener net.Listener, ch chan<- connection.HandshakeConn) BasicListener {
 	return BasicListener{
-		listener:  listener,
-		connCh:    ch,
-		errLogger: logger,
+		listener: listener,
+		connCh:   ch,
+	}
+}
+
+func NewListenerWithLogger(listener net.Listener, ch chan<- connection.HandshakeConn, logger func(err error)) BasicListener {
+	return BasicListener{
+		listener: listener,
+		connCh:   ch,
+		logger:   logger,
 	}
 }
 
 type BasicListener struct {
-	listener  net.Listener
-	connCh    chan<- connection.HandshakeConn
-	errLogger ErrorLogger
+	listener net.Listener
+	connCh   chan<- connection.HandshakeConn
+	logger   func(err error)
 }
 
 // The only way to stop this is when the listeners closes
@@ -33,7 +34,7 @@ func (l *BasicListener) Listen() {
 	for {
 		conn, err := l.listener.Accept()
 		if err != nil {
-			l.errLogger(err)
+			l.logger(err)
 			if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
 				continue
 			}
