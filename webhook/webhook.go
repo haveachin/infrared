@@ -71,7 +71,8 @@ func (webhook Webhook) DispatchEvent(event Event) (EventLog, error) {
 		return EventLog{}, err
 	}
 	// We don't care about the client's response, but we should still close the client's body if it exists.
-	// If not closed this will become a resource leak.
+	// If not closed the underlying connection cannot be reused for further requests.
+	// See https://pkg.go.dev/net/http#Client.Do for more details.
 	if resp != nil && resp.Body != nil {
 		_ = resp.Body.Close()
 	}
