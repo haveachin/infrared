@@ -2,7 +2,6 @@ package webhook_test
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"github.com/haveachin/infrared/webhook"
 	"net/http"
@@ -115,22 +114,12 @@ func TestWebhook_DispatchEvent(t *testing.T) {
 				requestShouldFail: tc.httpRequestShouldFail,
 			}
 
-			eventLog, err := tc.webhook.DispatchEvent(tc.event)
-			if err != nil {
+			if err := tc.webhook.DispatchEvent(tc.event); err != nil {
 				if errors.Is(err, webhook.ErrEventNotAllowed) && !tc.shouldDispatch ||
 					errors.Is(err, errHTTPRequestFailed) && tc.httpRequestShouldFail {
 					return
 				}
 				t.Error(err)
-			}
-
-			bb, err := json.Marshal(eventLog)
-			if err != nil {
-				t.Error(err)
-			}
-
-			if !bytes.Equal(body.Bytes(), bb) {
-				t.Fail()
 			}
 		})
 	}

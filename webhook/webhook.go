@@ -45,9 +45,9 @@ func (webhook Webhook) hasEvent(event Event) bool {
 
 // DispatchEvent wraps the given Event in an EventLog and marshals it into JSON
 // before sending it in a POST Request to the Webhook.URL.
-func (webhook Webhook) DispatchEvent(event Event) (EventLog, error) {
+func (webhook Webhook) DispatchEvent(event Event) error {
 	if !webhook.hasEvent(event) {
-		return EventLog{}, ErrEventNotAllowed
+		return ErrEventNotAllowed
 	}
 
 	eventLog := EventLog{
@@ -58,17 +58,17 @@ func (webhook Webhook) DispatchEvent(event Event) (EventLog, error) {
 
 	bb, err := json.Marshal(eventLog)
 	if err != nil {
-		return EventLog{}, err
+		return err
 	}
 
 	request, err := http.NewRequest(http.MethodPost, webhook.URL, bytes.NewReader(bb))
 	if err != nil {
-		return EventLog{}, err
+		return err
 	}
 
 	resp, err := webhook.HTTPClient.Do(request)
 	if err != nil {
-		return EventLog{}, err
+		return err
 	}
 	// We don't care about the client's response, but we should still close the client's body if it exists.
 	// If not closed the underlying connection cannot be reused for further requests.
@@ -77,5 +77,5 @@ func (webhook Webhook) DispatchEvent(event Event) (EventLog, error) {
 		_ = resp.Body.Close()
 	}
 
-	return eventLog, nil
+	return nil
 }
