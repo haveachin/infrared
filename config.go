@@ -2,11 +2,13 @@ package infrared
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"os"
 	"path/filepath"
 	"sync"
@@ -25,11 +27,13 @@ type ProxyConfig struct {
 
 	removeCallback func()
 	changeCallback func()
+	dialer         *Dialer
 	process        process.Process
 
 	DomainName        string               `json:"domainName"`
 	ListenTo          string               `json:"listenTo"`
 	ProxyTo           string               `json:"proxyTo"`
+	ProxyBind         string               `json:"proxyBind"`
 	ProxyProtocol     bool                 `json:"proxyProtocol"`
 	RealIP            bool                 `json:"realIp"`
 	Timeout           int                  `json:"timeout"`
@@ -38,6 +42,22 @@ type ProxyConfig struct {
 	OnlineStatus      StatusConfig         `json:"onlineStatus"`
 	OfflineStatus     StatusConfig         `json:"offlineStatus"`
 	CallbackServer    CallbackServerConfig `json:"callbackServer"`
+}
+
+func (cfg *ProxyConfig) Dialer() (*Dialer, error) {
+	if cfg.dialer != nil {
+		return cfg.dialer, nil
+	}
+
+	cfg.dialer = &Dialer{
+		Dialer: net.Dialer{
+			Timeout: time.Millisecond * time.Duration(cfg.Timeout),
+			LocalAddr: &net.TCPAddr{
+				IP: net.ParseIP(cfg.ProxyBind),
+			},
+		},
+	}
+	return cfg.dialer, nil
 }
 
 type DockerConfig struct {
@@ -77,6 +97,12 @@ type StatusConfig struct {
 	PlayerSamples  []PlayerSample `json:"playerSamples"`
 	IconPath       string         `json:"iconPath"`
 	MOTD           string         `json:"motd"`
+}
+
+func SameStatus(cfg1 StatusConfig, cfg2 StatusConfig) (bool, error) {
+	pk1, _ := cfg1.StatusResponsePacket()
+	pk2, _ := cfg2.StatusResponsePacket()
+	return bytes.Equal(pk1.Data, pk2.Data), nil
 }
 
 func (cfg StatusConfig) StatusResponsePacket() (protocol.Packet, error) {
@@ -170,8 +196,8 @@ func DefaultProxyConfig() ProxyConfig {
 			Timeout:   300000,
 		},
 		OfflineStatus: StatusConfig{
-			VersionName:    "Infrared 1.16.5",
-			ProtocolNumber: 754,
+			VersionName:    "Infrared 1.17",
+			ProtocolNumber: 755,
 			MaxPlayers:     20,
 			MOTD:           "Powered by Infrared",
 		},
@@ -222,7 +248,7 @@ func readFilePaths(path string) ([]string, error) {
 
 	return filePaths, err
 }
-
+// Separate load function
 func LoadProxyConfigsFromPath(path string, recursive bool) ([]*ProxyConfig, error) {
 	filePaths, err := ReadFilePaths(path, recursive)
 	if err != nil {
@@ -314,6 +340,7 @@ func (cfg *ProxyConfig) onConfigWrite(event fsnotify.Event) {
 	}
 	cfg.OnlineStatus.cachedPacket = nil
 	cfg.OfflineStatus.cachedPacket = nil
+	cfg.dialer = nil
 	cfg.process = nil
 	cfg.changeCallback()
 }
@@ -356,6 +383,7 @@ func (cfg *ProxyConfig) LoadFromPath(path string) error {
 	return json.Unmarshal(bb, cfg)
 }
 
+// Begin point old config code ((called in main))
 func WatchProxyConfigFolder(path string, out chan *ProxyConfig) error {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {

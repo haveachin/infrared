@@ -25,6 +25,13 @@ var (
 	ErrCantConnectWithServer = errors.New("can't create connection with server")
 )
 
+// var (
+// 	playersConnected = promauto.NewGaugeVec(prometheus.GaugeOpts{
+// 		Name: "infrared_connected",
+// 		Help: "The total number of connected players",
+// 	}, []string{"host"})
+// )
+
 func proxyUID(domain, addr string) string {
 	return fmt.Sprintf("%s@%s", strings.ToLower(domain), addr)
 }
@@ -90,6 +97,12 @@ func (proxy *Proxy) ProxyTo() string {
 	proxy.Config.RLock()
 	defer proxy.Config.RUnlock()
 	return proxy.Config.ProxyTo
+}
+
+func (proxy *Proxy) Dialer() (*Dialer, error) {
+	proxy.Config.RLock()
+	defer proxy.Config.RUnlock()
+	return proxy.Config.Dialer()
 }
 
 func (proxy *Proxy) DisconnectMessage() string {
@@ -190,13 +203,17 @@ func (proxy *Proxy) handleConn(conn Conn, connRemoteAddr net.Addr) error {
 		return ErrCantUnMarshalPK
 	}
 
+	// proxyDomain := proxy.DomainName()
 	proxyTo := proxy.ProxyTo()
 	proxyUID := proxy.UID()
-	// rconn, err := DialTimeout(proxyTo, proxy.Timeout())
-	// if err != nil {
-	server := proxy.ServerFactory(proxy)
 
-	if !server.CanConnect() {
+	dialer, err := proxy.Dialer()
+	if err != nil {
+		return err
+	}
+
+	rconn, err := dialer.Dial(proxyTo)
+	if err != nil {
 		log.Printf("[i] %s did not respond to ping; is the target offline?", proxyTo)
 		if hs.IsStatusRequest() {
 			return proxy.handleStatusRequest(conn, false)
@@ -212,7 +229,6 @@ func (proxy *Proxy) handleConn(conn Conn, connRemoteAddr net.Addr) error {
 		return proxy.handleStatusRequest(conn, true)
 	}
 
-	rconn, err := server.Connection()
 	if err != nil {
 		return ErrCantConnectWithServer
 	}
@@ -242,6 +258,7 @@ func (proxy *Proxy) handleConn(conn Conn, connRemoteAddr net.Addr) error {
 	}
 
 	var username string
+	connected := false
 	if hs.IsLoginRequest() {
 		proxy.cancelProcessTimeout()
 		username, err = proxy.sniffUsername(conn, rconn, connRemoteAddr)
@@ -255,17 +272,22 @@ func (proxy *Proxy) handleConn(conn Conn, connRemoteAddr net.Addr) error {
 			TargetAddress: proxyTo,
 			ProxyUID:      proxyUID,
 		})
+		// playersConnected.With(prometheus.Labels{"host": proxyDomain}).Inc()
+		connected = true
 	}
 
 	go pipe(rconn, conn)
 	pipe(conn, rconn)
 
-	proxy.logEvent(webhook.EventPlayerLeave{
-		Username:      username,
-		RemoteAddress: connRemoteAddr.String(),
-		TargetAddress: proxyTo,
-		ProxyUID:      proxyUID,
-	})
+	if connected {
+		proxy.logEvent(webhook.EventPlayerLeave{
+			Username:      username,
+			RemoteAddress: connRemoteAddr.String(),
+			TargetAddress: proxyTo,
+			ProxyUID:      proxyUID,
+		})
+		// playersConnected.With(prometheus.Labels{"host": proxyDomain}).Dec()
+	}
 
 	remainingPlayers := proxy.removePlayer(conn)
 	if remainingPlayers <= 0 {
@@ -444,7 +466,7 @@ func (s *BasicServer) CanConnect() bool {
 	// May seem stupid and redundent for now but this makes it possible to easier test
 	//  And to do some sort of caching or some toggle to turn it off and on with an api/config for example
 	var err error
-	s.conn, err = DialTimeout(s.ServerAddr, s.Timeout)
+	// s.conn, err = DialTimeout(s.ServerAddr, s.Timeout)
 	if err != nil {
 		log.Printf("[i] %s did not respond to ping; is the target offline?", s.ServerAddr)
 		return false

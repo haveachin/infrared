@@ -1,61 +1,47 @@
 package gateway
 
 import (
-	"errors"
 	"net"
 
 	"github.com/haveachin/infrared/connection"
 )
 
-var (
-	ErrCantStartOutListener = errors.New("failed to start outer listener")
-	ErrCantStartListener    = errors.New("failed to start listener")
-)
+type ListenerFactory func(addr string) (net.Listener, error)
 
-type OuterListanerFactory func(addr string) OuterListener
-
-type OuterListener interface {
-	Start() error
-	Accept() (net.Conn, net.Addr)
-}
-
-func NewBasicOuterListener(addr string) OuterListener {
-	return &BasicOuterListener{addr: addr}
-}
-
-type BasicOuterListener struct {
-	net.Listener
-	addr string
-}
-
-func (l *BasicOuterListener) Start() error {
-	netL, err := net.Listen("tcp", l.addr)
-	if err != nil {
-		return ErrCantStartOutListener // TODO: look into ways to test this
+func NewBasicListener(listener net.Listener, ch chan<- connection.HandshakeConn) BasicListener {
+	return BasicListener{
+		listener: listener,
+		connCh:   ch,
 	}
-	l.Listener = netL
-	return nil
-
 }
 
-func (l *BasicOuterListener) Accept() (net.Conn, net.Addr) {
-	conn, _ := l.Listener.Accept() // Err needs test before it can be added
-	return conn, conn.RemoteAddr()
+func NewListenerWithLogger(listener net.Listener, ch chan<- connection.HandshakeConn, logger func(err error)) BasicListener {
+	return BasicListener{
+		listener: listener,
+		connCh:   ch,
+		logger:   logger,
+	}
 }
 
 type BasicListener struct {
-	OutListener OuterListener
-	ConnCh      chan<- connection.HandshakeConn
+	listener net.Listener
+	connCh   chan<- connection.HandshakeConn
+	logger   func(err error)
 }
 
-func (l *BasicListener) Listen() error {
-	err := l.OutListener.Start()
-	if err != nil {
-		return ErrCantStartListener
-	}
+// The only way to stop this is when the listeners closes
+func (l *BasicListener) Listen() {
 	for {
-		conn, remoteAddr := l.OutListener.Accept()
+		conn, err := l.listener.Accept()
+		if err != nil {
+			l.logger(err)
+			if opErr, ok := err.(*net.OpError); ok && opErr.Timeout() {
+				continue
+			}
+			break
+		}
+		remoteAddr := conn.RemoteAddr()
 		c := connection.NewHandshakeConn(conn, remoteAddr)
-		l.ConnCh <- c
+		l.connCh <- c
 	}
 }

@@ -24,6 +24,7 @@ It works similar to Nginx for those of you who are familiar.
 - [x] Logger Callback URLs
 - [x] HAProxy Protocol Support
 - [x] TCPShield/RealIP Protocol Support
+- [X] Prometheus Support
 - [ ] REST API
 
 ## Deploy
@@ -49,14 +50,21 @@ $ docker build --no-cache -t haveachin/infrared:latest https://github.com/haveac
 **Info**: Command-line flags override environment variables.
 
 `INFRARED_CONFIG_PATH` is the path to all your server configs [default: `"./configs/"`]
+`INFRARED_RECEIVE_PROXY_PROTOCOL` if Infrared should be able to receive proxy protocol [default: `"false"`]
 
 ## Command-Line Flags
 
 `-config-path` specifies the path to all your server configs [default: `"./configs/"`]
 
+`-receive-proxy-protocol` if Infrared should be able to receive proxy protocol [default: `false`]
+
+`-enable-prometheus` enables the Prometheus stats exporter [default: `false`]
+
+`-prometheus-bind` specifies what the Prometheus HTTP server should bind to [default: `:9100`]
+
 ### Example Usage
 
-`./infrared -config-path="."`
+`./infrared -config-path="." -receive-proxy-protocol=true -enable-prometheus -prometheus-bind="localhost:9123"`
 
 ## Proxy Config
 
@@ -65,6 +73,7 @@ $ docker build --no-cache -t haveachin/infrared:latest https://github.com/haveac
 | domainName        | String  | true     | localhost                                      | Should be [fully qualified domain name](https://en.wikipedia.org/wiki/Domain_name). <br>Note: Every string is accepted. So `localhost` is also valid.                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | listenTo          | String  | true     | :25565                                         | The address (usually just the port; so short term `:port`) that the proxy should listen to for incoming connections.<br>Accepts basically every address format you throw at it. Valid examples: `:25565`, `localhost:25565`, `0.0.0.0:25565`, `127.0.0.1:25565`, `example.de:25565`                                                                                                                                                                                                                                                                                                        |
 | proxyTo           | String  | true     |                                                | The address that the proxy should send incoming connections to. Accepts Same formats as the `listenTo` field.                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| proxyBind         | String  | false    |                                                | The local IP that is being used to dail to the server on `proxyTo`. (Same as Nginx `proxy-bind`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | disconnectMessage | String  | false    | Sorry {{username}}, but the server is offline. | The message a client sees when he gets disconnected from Infrared due to the server on `proxyTo` won't respond. Currently available placeholders:<br>- `username` the username of player that tries to connect<br>- `now` the current server time<br>- `remoteAddress` the address of the client that tries to connect<br>- `localAddress` the local address of the server<br>- `domain` the domain of the proxy (same as `domainName`)<br>- `proxyTo` the address that the proxy proxies to (same as `proxyTo`)<br>- `listenTo` the address that Infrared listens on (same as `listenTo`) |
 | timeout           | Integer | true     | 1000                                           | The time in milliseconds for the proxy to wait for a ping response before the host (the address you proxyTo) will be declared as offline. This "online check" will be resend for every new connection.                                                                                                                                                                                                                                                                                                                                                                                     |
 | proxyProtocol     | Boolean | false    | false                                          | If Infrared should use HAProxy's Proxy Protocol for IP **forwarding**.<br>Warning: You should only ever set this to true if you now that the server you `proxyTo` is compatible.                                                                                                                                                                                                                                                                                                                                                                                                           |
@@ -97,8 +106,8 @@ More info on [Portainer](https://www.portainer.io/).
 
 | Field Name     | Type    | Required | Default         | Description                                                                                                                                          |
 |----------------|---------|----------|-----------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
-| versionName    | String  | false    | Infrared 1.16.5 | The version name of the Minecraft Server.                                                                                                            |
-| protocolNumber | Integer | true     | 754             | The protocol version number.                                                                                                                         |
+| versionName    | String  | false    | Infrared 1.17 | The version name of the Minecraft Server.                                                                                                            |
+| protocolNumber | Integer | true     | 755             | The protocol version number.                                                                                                                         |
 | maxPlayers     | Integer | false    | 20              | The maximum number of players that can join the server.<br>Note: Infrared will not limit more players from joining. This number is just for display. |
 | playersOnline  | Integer | false    | 0               | The number of online players.<br>Note: Infrared will not that this number is also just for display.                                                  |
 | playerSamples  | Array   | false    |                 | An array of player samples. See [Player Sample](#Player Sample).                                                                                     |
@@ -146,6 +155,7 @@ More info on [Portainer](https://www.portainer.io/).
   "domainName": "mc.example.com",
   "listenTo": ":25565",
   "proxyTo": ":8080",
+  "proxyBind": "0.0.0.0",
   "proxyProtocol": false,
   "realIp": false,
   "timeout": 1000,
@@ -162,8 +172,8 @@ More info on [Portainer](https://www.portainer.io/).
     }
   },
   "onlineStatus": {
-    "versionName": "1.16.5",
-    "protocolNumber": 754,
+    "versionName": "1.17",
+    "protocolNumber": 755,
     "maxPlayers": 20,
     "playersOnline": 2,
     "playerSamples": [
@@ -179,8 +189,8 @@ More info on [Portainer](https://www.portainer.io/).
     "motd": "Join us!"
   },
   "offlineStatus": {
-    "versionName": "1.16.5",
-    "protocolNumber": 754,
+    "versionName": "1.17",
+    "protocolNumber": 755,
     "maxPlayers": 20,
     "playersOnline": 0,
     "motd": "Server is currently offline"
@@ -199,3 +209,27 @@ More info on [Portainer](https://www.portainer.io/).
 ```
 
 </details>
+
+## Prometheus exporter
+The built-in prometheus exporter can be used to view metrics about infrareds operation.  
+When the command line flag `-enable-prometheus` is enabled it will bind to `:9100` by default, if you would like to use another port or use an application like [node_exporter](https://github.com/prometheus/node_exporter) that also uses port 9100 on the same machine you can change the port with the `-prometheus-bind` command line flag, example: `-prometheus-bind=":9070"`.  
+It is recommended to firewall the prometheus exporter with an application like *ufw* or *iptables* to make it only accessible by your own Prometheus instance.
+### Prometheus configuration:
+Example prometheus.yml configuration:
+```yaml
+scrape_configs:
+  - job_name: infrared
+    static_configs:
+    - targets: ['infrared-exporter-hostname:port']
+```
+
+### Metrics:
+* infrared_connected: show the amount of connected players per instance and proxy:
+  * **Example response:** `infrared_connected{host="proxy.example.com",instance="vps1.example.com:9070",job="infrared"} 10`
+  * **host:** listenTo domain as specified in the infrared configuration.
+  * **instance:** what infrared instance the amount of players are connected to.
+  * **job:** what job was specified in the prometheus configuration.
+* infrared_proxies: show the amount of active infrared proxies:
+  * **Example response:** `infrared_proxies{instance="vps1.example.com:9070",job="infrared"} 5`
+  * **instance:** what infrared instance has that amount of active proxies.
+  * **job:** what job was specified in the prometheus configuration.
