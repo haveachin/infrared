@@ -10,11 +10,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/haveachin/infrared/callback"
 	"github.com/haveachin/infrared/process"
 	"github.com/haveachin/infrared/protocol"
 	"github.com/haveachin/infrared/protocol/handshaking"
 	"github.com/haveachin/infrared/protocol/login"
+	"github.com/haveachin/infrared/webhook"
 	"github.com/pires/go-proxyproto"
 )
 
@@ -153,12 +153,12 @@ func (proxy *Proxy) RealIP() bool {
 	return proxy.Config.RealIP
 }
 
-func (proxy *Proxy) CallbackLogger() callback.Logger {
+func (proxy *Proxy) CallbackLogger() webhook.Webhook {
 	proxy.Config.RLock()
 	defer proxy.Config.RUnlock()
-	return callback.Logger{
-		URL:    proxy.Config.CallbackServer.URL,
-		Events: proxy.Config.CallbackServer.Events,
+	return webhook.Webhook{
+		URL:        proxy.Config.CallbackServer.URL,
+		EventTypes: proxy.Config.CallbackServer.Events,
 	}
 }
 
@@ -186,9 +186,9 @@ func (proxy *Proxy) removePlayer(conn Conn) int {
 	return len(proxy.players)
 }
 
-func (proxy *Proxy) logEvent(event callback.Event) {
-	if _, err := proxy.CallbackLogger().LogEvent(event); err != nil {
-		log.Println("[w] Failed callback logging; error:", err)
+func (proxy *Proxy) logEvent(event webhook.Event) {
+	if err := proxy.CallbackLogger().DispatchEvent(event); err != nil {
+		log.Println("[w] Failed webhook logging; error:", err)
 	}
 }
 
@@ -266,7 +266,7 @@ func (proxy *Proxy) handleConn(conn Conn, connRemoteAddr net.Addr) error {
 			return err
 		}
 		proxy.addPlayer(conn, username)
-		proxy.logEvent(callback.PlayerJoinEvent{
+		proxy.logEvent(webhook.EventPlayerJoin{
 			Username:      username,
 			RemoteAddress: connRemoteAddr.String(),
 			TargetAddress: proxyTo,
@@ -280,7 +280,7 @@ func (proxy *Proxy) handleConn(conn Conn, connRemoteAddr net.Addr) error {
 	pipe(conn, rconn)
 
 	if connected {
-		proxy.logEvent(callback.PlayerLeaveEvent{
+		proxy.logEvent(webhook.EventPlayerLeave{
 			Username:      username,
 			RemoteAddress: connRemoteAddr.String(),
 			TargetAddress: proxyTo,
@@ -329,7 +329,7 @@ func (proxy *Proxy) startProcessIfNotRunning() error {
 	}
 
 	log.Println("[i] Starting container for", proxy.UID())
-	proxy.logEvent(callback.ContainerStartEvent{ProxyUID: proxy.UID()})
+	proxy.logEvent(webhook.EventContainerStart{ProxyUID: proxy.UID()})
 	return proxy.Process().Start()
 }
 
@@ -347,7 +347,7 @@ func (proxy *Proxy) timeoutProcess() {
 	log.Printf("[i] Starting container timeout %s on %s", proxy.DockerTimeout(), proxy.UID())
 	timer := time.AfterFunc(proxy.DockerTimeout(), func() {
 		log.Println("[i] Stopping container on", proxy.UID())
-		proxy.logEvent(callback.ContainerStopEvent{ProxyUID: proxy.UID()})
+		proxy.logEvent(webhook.EventContainerStop{ProxyUID: proxy.UID()})
 		if err := proxy.Process().Stop(); err != nil {
 			log.Printf("[w] Failed to stop the container for %s; error: %s", proxy.UID(), err)
 		}

@@ -196,7 +196,7 @@ More info on [Portainer](https://www.portainer.io/).
     "motd": "Server is currently offline"
   },
   "callbackServer": {
-    "url": "https://mc.example.com/callback",
+    "url": "https://mc.example.com/webhook",
     "events": [
       "Error",
       "PlayerJoin",
