@@ -127,6 +127,15 @@ More info on [Portainer](https://www.portainer.io/).
 |------------|--------|----------|---------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | url        | String | true     |         | URL of the callback server URL.                                                                                                                                                                                                                                                         |
 | events     | Array  | true     |         | A string array of event names. Currently available event names are:<br>- `Error` will send error logs<br>- `PlayerJoin` will send player joins<br>- `PlayerLeave` will send player leaves<br>- `ContainerStart` will send container starts<br>- `ContainerStop` will send container stops |
+| discord    | Boolean| false    | false   | If the webhook url is a discord server, set to true to properly format request body.
+### Event Configuration
+| Field Name | Type | Required | Default | Description |
+|------------|------|----------|---------|-------------|
+|PlayerJoinConfig.Message     |String   | false  | `[{{eventType}}] [{{proxyUID}}] {{username}}` |  The message published to the provided webhook URL when a PlayerJoin Event Occurs. Currently available placeholders:<br>- `now` The time the event took place. <br>- `eventType` The type of event that occurred. <br>- `proxyUID` The id of the instance this event relates to. <br>- `username` The name of the user joining. <br>- `remoteAddress` The address of the user joining. <br>- `targetAddress` The address the user was proxied to.
+|PlayerLeaveConfig.Message    |String   | false  | `[{{eventType}}] [{{proxyUID}}] {{username}}` |  The message published to the provided webhook URL when a PlayerLeave Event Occurs. Currently available placeholders:<br>- `now` The time the event took place. <br>- `eventType` The type of event that occurred. <br>- `proxyUID` The id of the instance this event relates to. <br>- `username` The name of the user leaving. <br>- `remoteAddress` The address of the user joining. <br>- `targetAddress` The address the user was proxied to.
+|ContainerStopConfig.Message  |String   | false  | `[{{eventType}}] [{{proxyUID}}]` |  The message published to the provided webhook URL when a ContainerStop Event Occurs. Currently available placeholders:<br>- `now` The time the event took place.  <br>-`eventType` The type of event that occurred.  <br>- `proxyUID` The id of the instance this event relates to. 
+|ContainerStartConfig.Message |String   | false  | `[{{eventType}}] [{{proxyUID}}]` |  The message published to the provided webhook URL when a ContainerStart Event Occurs. Currently available placeholders:<br>- `now` The time the event took place.  <br>-`eventType` The type of event that occurred.  <br>- `proxyUID` The id of the instance this event relates to. 
+|ErrorConfig.Message          |String   | false  | `[{{eventType}}] [{{proxyUID}}] {{error}}` |  The message published to the provided webhook URL when a Error Event Occurs. Currently available placeholders:<br>- `now` The time the event took place.  <br>- `eventType` The type of event that occurred.  <br>- `proxyUID` The id of the instance this event relates to.  <br>- `error` The error that occured to fire this event
 
 
 ### Examples
@@ -204,7 +213,22 @@ More info on [Portainer](https://www.portainer.io/).
       "ContainerStart",
       "ContainerStop"
     ]
-  }
+  },
+  "PlayerJoin": {
+      "Message": "{{username}} has joined {{proxyUID}}."
+  },
+	"PlayerLeave": {
+      "Message": "{{username}} has left {{proxyUID}}."
+  },
+	"ContainerStop": {
+    "Message": "[{{proxyUID}}] Container has stopped."
+	},
+	"ContainerStart": {
+    "Message": "[{{proxyUID}}] Container has started."
+	},
+	"Error": {
+    "Message": "[{{eventType}}] [{{proxyUID}}] {{error}}"
+	}
 }
 ```
 
