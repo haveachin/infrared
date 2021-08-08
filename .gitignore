@@ -15,3 +15,6 @@
 *.yaml
 
 .idea
+
+# common name of build output
+main
