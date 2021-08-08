@@ -217,6 +217,7 @@ func (gateway *Gateway) serve(conn Conn, addr string) error {
 		proxy.CallbackLogger().DispatchEvent(webhook.EventError{
 			Error:    err.Error(),
 			ProxyUID: proxyUID,
+			Message:	  proxy.EventErrorConfig().Message,
 		})
 		return err
 	}

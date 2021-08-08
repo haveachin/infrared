@@ -12,9 +12,9 @@ import (
 
 	"github.com/haveachin/infrared/process"
 	"github.com/haveachin/infrared/protocol"
+	"github.com/haveachin/infrared/webhook"
 	"github.com/haveachin/infrared/protocol/handshaking"
 	"github.com/haveachin/infrared/protocol/login"
-	"github.com/haveachin/infrared/webhook"
 	"github.com/pires/go-proxyproto"
 )
 
@@ -159,6 +159,47 @@ func (proxy *Proxy) CallbackLogger() webhook.Webhook {
 	return webhook.Webhook{
 		URL:        proxy.Config.CallbackServer.URL,
 		EventTypes: proxy.Config.CallbackServer.Events,
+		Discord: proxy.Config.CallbackServer.Discord,
+	}
+}
+
+func (proxy *Proxy) PlayerJoinConfig() EventConfig {
+	proxy.Config.RLock()
+	defer proxy.Config.RUnlock()
+	return EventConfig{
+		Message: proxy.Config.PlayerJoin.Message,
+	}
+}
+
+func (proxy *Proxy) PlayerLeaveConfig() EventConfig {
+	proxy.Config.RLock()
+	defer proxy.Config.RUnlock()
+	return EventConfig{
+		Message: proxy.Config.PlayerLeave.Message,
+	}
+}
+
+func (proxy *Proxy) ContainerStartConfig() EventConfig {
+	proxy.Config.RLock()
+	defer proxy.Config.RUnlock()
+	return EventConfig{
+		Message: proxy.Config.ContainerStart.Message,
+	}
+}
+
+func (proxy *Proxy) ContainerStopConfig() EventConfig {
+	proxy.Config.RLock()
+	defer proxy.Config.RUnlock()
+	return EventConfig{
+		Message: proxy.Config.ContainerStop.Message,
+	}
+}
+
+func (proxy *Proxy) EventErrorConfig() EventConfig {
+	proxy.Config.RLock()
+	defer proxy.Config.RUnlock()
+	return EventConfig{
+		Message: proxy.Config.Error.Message,
 	}
 }
 
@@ -256,12 +297,12 @@ func (proxy *Proxy) handleConn(conn Conn, connRemoteAddr net.Addr) error {
 	if err := rconn.WritePacket(pk); err != nil {
 		return ErrCantWriteToServer
 	}
-
 	var username string
 	connected := false
 	if hs.IsLoginRequest() {
 		proxy.cancelProcessTimeout()
 		username, err = proxy.sniffUsername(conn, rconn, connRemoteAddr)
+		eventConfig := proxy.PlayerJoinConfig()
 		if err != nil {
 			return err
 		}
@@ -271,6 +312,7 @@ func (proxy *Proxy) handleConn(conn Conn, connRemoteAddr net.Addr) error {
 			RemoteAddress: connRemoteAddr.String(),
 			TargetAddress: proxyTo,
 			ProxyUID:      proxyUID,
+			Message:	   eventConfig.Message,
 		})
 		// playersConnected.With(prometheus.Labels{"host": proxyDomain}).Inc()
 		connected = true
@@ -280,11 +322,13 @@ func (proxy *Proxy) handleConn(conn Conn, connRemoteAddr net.Addr) error {
 	pipe(conn, rconn)
 
 	if connected {
+		eventConfig := proxy.PlayerLeaveConfig()
 		proxy.logEvent(webhook.EventPlayerLeave{
 			Username:      username,
 			RemoteAddress: connRemoteAddr.String(),
 			TargetAddress: proxyTo,
 			ProxyUID:      proxyUID,
+			Message:	   eventConfig.Message,
 		})
 		// playersConnected.With(prometheus.Labels{"host": proxyDomain}).Dec()
 	}
@@ -329,7 +373,8 @@ func (proxy *Proxy) startProcessIfNotRunning() error {
 	}
 
 	log.Println("[i] Starting container for", proxy.UID())
-	proxy.logEvent(webhook.EventContainerStart{ProxyUID: proxy.UID()})
+	eventConfig := proxy.ContainerStopConfig()
+	proxy.logEvent(webhook.EventContainerStart{ProxyUID: proxy.UID(), Message: eventConfig.Message})
 	return proxy.Process().Start()
 }
 
@@ -347,7 +392,8 @@ func (proxy *Proxy) timeoutProcess() {
 	log.Printf("[i] Starting container timeout %s on %s", proxy.DockerTimeout(), proxy.UID())
 	timer := time.AfterFunc(proxy.DockerTimeout(), func() {
 		log.Println("[i] Stopping container on", proxy.UID())
-		proxy.logEvent(webhook.EventContainerStop{ProxyUID: proxy.UID()})
+		eventConfig := proxy.ContainerStopConfig()
+		proxy.logEvent(webhook.EventContainerStop{ProxyUID: proxy.UID(), Message: eventConfig.Message})
 		if err := proxy.Process().Stop(); err != nil {
 			log.Printf("[w] Failed to stop the container for %s; error: %s", proxy.UID(), err)
 		}

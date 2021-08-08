@@ -6,6 +6,8 @@ import (
 	"errors"
 	"net/http"
 	"time"
+	"strings"
+	"fmt"
 )
 
 var (
@@ -24,6 +26,10 @@ type EventLog struct {
 	Event     Event     `json:"event"`
 }
 
+type EventLogDiscord struct {
+	Content	string `json:"content"`
+}
+
 // Webhook can send a Event via POST Request to a specified URL.
 // There are two ways to use a Webhook. You can directly call
 // DispatchEvent or Serve to attach a channel to the Webhook.
@@ -31,7 +37,9 @@ type Webhook struct {
 	HTTPClient HTTPClient
 	URL        string
 	EventTypes []string
+	Discord bool
 }
+
 
 // hasEvent checks if Webhook.EventTypes contain the given event's type.
 func (webhook Webhook) hasEvent(event Event) bool {
@@ -41,6 +49,16 @@ func (webhook Webhook) hasEvent(event Event) bool {
 		}
 	}
 	return false
+}
+
+func EventString(event Event) string {
+	message := event.EventBaseMessage()
+	templates := event.EventTemplate()
+
+	for key, value := range templates {
+		message = strings.Replace(message, fmt.Sprintf("{{%s}}", key), value, -1)
+	}
+	return message
 }
 
 // DispatchEvent wraps the given Event in an EventLog and marshals it into JSON
@@ -57,6 +75,15 @@ func (webhook Webhook) DispatchEvent(event Event) error {
 	}
 
 	bb, err := json.Marshal(eventLog)
+
+	// If it is a discord webhook, cunstruct a body that complies with discord request the format.
+	if webhook.Discord {
+		EventLogDiscord := EventLogDiscord{
+			Content: EventString(event),
+		}
+		bb, err = json.Marshal(EventLogDiscord)
+	}
+
 	if err != nil {
 		return err
 	}
@@ -65,11 +92,14 @@ func (webhook Webhook) DispatchEvent(event Event) error {
 	if err != nil {
 		return err
 	}
+	// Always sending json bodies
+	request.Header.Set("Content-Type", "application/json")
 
 	resp, err := webhook.HTTPClient.Do(request)
 	if err != nil {
 		return err
 	}
+
 	// We don't care about the client's response, but we should still close the client's body if it exists.
 	// If not closed the underlying connection cannot be reused for further requests.
 	// See https://pkg.go.dev/net/http#Client.Do for more details.

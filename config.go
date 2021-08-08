@@ -42,6 +42,12 @@ type ProxyConfig struct {
 	OnlineStatus      StatusConfig         `json:"onlineStatus"`
 	OfflineStatus     StatusConfig         `json:"offlineStatus"`
 	CallbackServer    CallbackServerConfig `json:"callbackServer"`
+	PlayerJoin		  EventConfig	       `json:"PlayerJoinConfig"`
+	PlayerLeave		  EventConfig	       `json:"PlayerLeaveConfig"`
+	ContainerStop	  EventConfig          `json:"ContainerStopConfig"`
+	ContainerStart	  EventConfig          `json:"ContainerStartConfig"`
+	Error			  EventConfig	       `json:"ErrorConfig"`
+
 }
 
 func (cfg *ProxyConfig) Dialer() (*Dialer, error) {
@@ -183,6 +189,11 @@ func loadImageAndEncodeToBase64String(path string) (string, error) {
 type CallbackServerConfig struct {
 	URL    string   `json:"url"`
 	Events []string `json:"events"`
+	Discord bool `json:"Discord"`
+}
+
+type EventConfig struct {
+	Message string `json:"message"`
 }
 
 func DefaultProxyConfig() ProxyConfig {
@@ -200,6 +211,21 @@ func DefaultProxyConfig() ProxyConfig {
 			ProtocolNumber: 755,
 			MaxPlayers:     20,
 			MOTD:           "Powered by Infrared",
+		},
+		PlayerJoin: EventConfig{
+			Message: "[{{eventType}}] [{{proxyUID}}] {{username}}",
+		},
+		PlayerLeave: EventConfig{
+			Message: "[{{eventType}}] [{{proxyUID}}] {{username}}",
+		},
+		ContainerStop: EventConfig{
+			Message: "[{{eventType}}] [{{proxyUID}}]",
+		},
+		ContainerStart: EventConfig{
+			Message: "[{{eventType}}] [{{proxyUID}}]",
+		},
+		Error: EventConfig{
+			Message: "[{{eventType}}] [{{proxyUID}}] {{error}}",
 		},
 	}
 }

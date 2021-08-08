@@ -1,9 +1,9 @@
 package webhook_test
 
 import (
+	"github.com/haveachin/infrared/webhook"
 	"bytes"
 	"errors"
-	"github.com/haveachin/infrared/webhook"
 	"net/http"
 	"testing"
 )
@@ -64,6 +64,22 @@ func TestWebhook_DispatchEvent(t *testing.T) {
 			webhook: webhook.Webhook{
 				URL:        "https://example.com",
 				EventTypes: []string{webhook.EventTypePlayerJoin, webhook.EventTypePlayerLeave},
+			},
+			event: webhook.EventPlayerJoin{
+				Username:      "notch",
+				RemoteAddress: "1.2.3.4",
+				TargetAddress: "1.2.3.4",
+				ProxyUID:      "example.com@1.2.3.4:25565",
+			},
+			shouldDispatch:        true,
+			httpRequestShouldFail: false,
+		},
+		{
+			name: "WithDiscordWebhookTrue",
+			webhook: webhook.Webhook{
+				URL:        "https://example.com",
+				EventTypes: []string{webhook.EventTypePlayerJoin},
+				Discord: true,
 			},
 			event: webhook.EventPlayerJoin{
 				Username:      "notch",
