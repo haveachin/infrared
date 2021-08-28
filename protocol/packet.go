@@ -83,11 +83,20 @@ func ReadPacket(r DecodeReader) (Packet, error) {
 }
 
 // PeekPacket decodes and decompresses a byte stream and peeks the first Packet
-func PeekPacket(p PeekReader) (Packet, error) {
+func PeekPackets(p PeekReader, n int) ([]Packet, error) {
+	pks := make([]Packet, n)
 	r := bytePeeker{
 		PeekReader: p,
 		cursor:     0,
 	}
 
-	return ReadPacket(&r)
+	for i := 0; i < n; i++ {
+		pk, err := ReadPacket(&r)
+		if err != nil {
+			return nil, err
+		}
+		pks[i] = pk
+	}
+
+	return pks, nil
 }

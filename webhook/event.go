@@ -1,4 +1,4 @@
-package callback
+package webhook
 
 const (
 	EventTypeError          string = "Error"
@@ -12,49 +12,49 @@ type Event interface {
 	EventType() string
 }
 
-type ErrorEvent struct {
+type EventError struct {
 	Error    string `json:"error"`
 	ProxyUID string `json:"proxyUid"`
 }
 
-func (event ErrorEvent) EventType() string {
+func (event EventError) EventType() string {
 	return EventTypeError
 }
 
-type PlayerJoinEvent struct {
+type EventPlayerJoin struct {
 	Username      string `json:"username"`
 	RemoteAddress string `json:"remoteAddress"`
 	TargetAddress string `json:"targetAddress"`
 	ProxyUID      string `json:"proxyUid"`
 }
 
-func (event PlayerJoinEvent) EventType() string {
+func (event EventPlayerJoin) EventType() string {
 	return EventTypePlayerJoin
 }
 
-type PlayerLeaveEvent struct {
+type EventPlayerLeave struct {
 	Username      string `json:"username"`
 	RemoteAddress string `json:"remoteAddress"`
 	TargetAddress string `json:"targetAddress"`
 	ProxyUID      string `json:"proxyUid"`
 }
 
-func (event PlayerLeaveEvent) EventType() string {
+func (event EventPlayerLeave) EventType() string {
 	return EventTypePlayerLeave
 }
 
-type ContainerStartEvent struct {
+type EventContainerStart struct {
 	ProxyUID string `json:"proxyUid"`
 }
 
-func (event ContainerStartEvent) EventType() string {
+func (event EventContainerStart) EventType() string {
 	return EventTypeContainerStart
 }
 
-type ContainerStopEvent struct {
+type EventContainerStop struct {
 	ProxyUID string `json:"proxyUid"`
 }
 
-func (event ContainerStopEvent) EventType() string {
+func (event EventContainerStop) EventType() string {
 	return EventTypeContainerStop
 }

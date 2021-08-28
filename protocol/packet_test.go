@@ -194,21 +194,32 @@ func TestReadPacket(t *testing.T) {
 
 func TestPeekPacket(t *testing.T) {
 	tt := []struct {
-		data   []byte
-		packet Packet
+		data    []byte
+		n       int
+		packets []Packet
 	}{
 		{
 			data: []byte{0x03, 0x00, 0x00, 0xf2, 0x05, 0x0f, 0x00, 0xf2, 0x03, 0x50},
-			packet: Packet{
-				ID:   0x00,
-				Data: []byte{0x00, 0xf2},
+			n:    2,
+			packets: []Packet{
+				{
+					ID:   0x00,
+					Data: []byte{0x00, 0xf2},
+				},
+				{
+					ID:   0x0f,
+					Data: []byte{0x00, 0xf2, 0x03, 0x50},
+				},
 			},
 		},
 		{
-			data: []byte{0x05, 0x0f, 0x00, 0xf2, 0x03, 0x50, 0x30, 0x01, 0xef, 0xaa},
-			packet: Packet{
-				ID:   0x0f,
-				Data: []byte{0x00, 0xf2, 0x03, 0x50},
+			data: []byte{0x05, 0x0f, 0x00, 0xf2, 0x03, 0x50, 0x03, 0x01, 0xef, 0xaa},
+			n:    1,
+			packets: []Packet{
+				{
+					ID:   0x0f,
+					Data: []byte{0x00, 0xf2, 0x03, 0x50},
+				},
 			},
 		},
 	}
@@ -217,21 +228,23 @@ func TestPeekPacket(t *testing.T) {
 		dataCopy := make([]byte, len(tc.data))
 		copy(dataCopy, tc.data)
 
-		pk, err := PeekPacket(bufio.NewReader(bytes.NewReader(dataCopy)))
+		pks, err := PeekPackets(bufio.NewReader(bytes.NewReader(dataCopy)), tc.n)
 		if err != nil {
 			t.Error(err)
 		}
 
-		if pk.ID != tc.packet.ID {
-			t.Errorf("packet ID: got: %v; want: %v", pk.ID, tc.packet.ID)
-		}
+		for i := 0; i < tc.n; i++ {
+			if pks[i].ID != tc.packets[i].ID {
+				t.Errorf("packet ID: got: %v; want: %v", pks[i].ID, tc.packets[i].ID)
+			}
 
-		if !bytes.Equal(pk.Data, tc.packet.Data) {
-			t.Errorf("packet data: got: %v; want: %v", pk.Data, tc.packet.Data)
-		}
+			if !bytes.Equal(pks[i].Data, tc.packets[i].Data) {
+				t.Errorf("packet data: got: %v; want: %v", pks[i].Data, tc.packets[i].Data)
+			}
 
-		if !bytes.Equal(dataCopy, tc.data) {
-			t.Errorf("data after read: got: %v; want: %v", dataCopy, tc.data)
+			if !bytes.Equal(dataCopy, tc.data) {
+				t.Errorf("data after read: got: %v; want: %v", dataCopy, tc.data)
+			}
 		}
 	}
 }

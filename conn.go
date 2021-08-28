@@ -2,22 +2,26 @@ package infrared
 
 import (
 	"bufio"
-	"crypto/cipher"
-	"github.com/haveachin/infrared/protocol"
 	"io"
 	"net"
+
+	"github.com/haveachin/infrared/protocol"
+	"github.com/haveachin/infrared/protocol/handshaking"
 )
 
 type PacketWriter interface {
-	WritePacket(p protocol.Packet) error
+	WritePacket(pk protocol.Packet) error
+	WritePackets(pk ...protocol.Packet) error
 }
 
 type PacketReader interface {
 	ReadPacket() (protocol.Packet, error)
+	ReadPackets(n int) ([]protocol.Packet, error)
 }
 
 type PacketPeeker interface {
 	PeekPacket() (protocol.Packet, error)
+	PeekPackets(n int) ([]protocol.Packet, error)
 }
 
 type conn struct {
@@ -27,21 +31,12 @@ type conn struct {
 	w io.Writer
 }
 
-type Listener struct {
-	net.Listener
-}
-
-func Listen(addr string) (Listener, error) {
-	l, err := net.Listen("tcp", addr)
-	return Listener{Listener: l}, err
-}
-
-func (l Listener) Accept() (Conn, error) {
-	conn, err := l.Listener.Accept()
-	if err != nil {
-		return nil, err
+func newConn(c net.Conn) Conn {
+	return &conn{
+		Conn: c,
+		r:    bufio.NewReader(c),
+		w:    c,
 	}
-	return wrapConn(conn), nil
 }
 
 // Conn is a minecraft Connection
@@ -54,27 +49,12 @@ type Conn interface {
 	Reader() *bufio.Reader
 }
 
-// wrapConn warp an net.Conn to infared.conn
-func wrapConn(c net.Conn) *conn {
-	return &conn{
-		Conn: c,
-		r:    bufio.NewReader(c),
-		w:    c,
-	}
-}
-
 type Dialer struct {
 	net.Dialer
 }
 
-// Dial create a Minecraft connection
-func (d Dialer) Dial(addr string) (Conn, error) {
-	conn, err := d.Dialer.Dial("tcp", addr)
-	if err != nil {
-		return nil, err
-	}
-
-	return wrapConn(conn), nil
+func (c *conn) Reader() *bufio.Reader {
+	return c.r
 }
 
 func (c *conn) Read(b []byte) (int, error) {
@@ -90,33 +70,66 @@ func (c *conn) ReadPacket() (protocol.Packet, error) {
 	return protocol.ReadPacket(c.r)
 }
 
-// PeekPacket peeks a Packet from Conn.
+// ReadPacket read a Packet from Conn.
+func (c *conn) ReadPackets(n int) ([]protocol.Packet, error) {
+	pks := make([]protocol.Packet, n)
+	for i := 0; i < n; i++ {
+		pk, err := c.ReadPacket()
+		if err != nil {
+			return nil, err
+		}
+		pks[i] = pk
+	}
+	return pks, nil
+}
+
+// PeekPacket peek a Packet from Conn.
 func (c *conn) PeekPacket() (protocol.Packet, error) {
-	return protocol.PeekPacket(c.r)
+	pks, err := c.PeekPackets(1)
+	if err != nil {
+		return protocol.Packet{}, err
+	}
+
+	return pks[0], nil
+}
+
+// PeekPackets peeks n Packets from Conn.
+func (c *conn) PeekPackets(n int) ([]protocol.Packet, error) {
+	return protocol.PeekPackets(c.r, n)
 }
 
 //WritePacket write a Packet to Conn.
-func (c *conn) WritePacket(p protocol.Packet) error {
-	pk, err := p.Marshal()
+func (c *conn) WritePacket(pk protocol.Packet) error {
+	bb, err := pk.Marshal()
 	if err != nil {
 		return err
 	}
-	_, err = c.w.Write(pk)
+	_, err = c.w.Write(bb)
 	return err
 }
 
-// SetCipher sets the decode/encode stream for this Conn
-func (c *conn) SetCipher(ecoStream, decoStream cipher.Stream) {
-	c.r = bufio.NewReader(cipher.StreamReader{
-		S: decoStream,
-		R: c.Conn,
-	})
-	c.w = cipher.StreamWriter{
-		S: ecoStream,
-		W: c.Conn,
+//WritePackets writes Packets to Conn.
+func (c *conn) WritePackets(pks ...protocol.Packet) error {
+	for _, pk := range pks {
+		if err := c.WritePacket(pk); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
-func (c *conn) Reader() *bufio.Reader {
-	return c.r
+type ProcessingConn struct {
+	Conn
+	readPks       []protocol.Packet
+	handshake     handshaking.ServerBoundHandshake
+	remoteAddr    net.Addr
+	srvHost       string
+	username      string
+	proxyProtocol bool
+	realIP        bool
+	serverIDs     []string
+}
+
+func (c ProcessingConn) RemoteAddr() net.Addr {
+	return c.remoteAddr
 }

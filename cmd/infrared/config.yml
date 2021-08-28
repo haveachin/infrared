@@ -1,0 +1,49 @@
+gateways:
+  mygateway:
+    binds:
+      - 0.0.0.0:25565
+    receive_proxy_protocol: true
+    receive_real_ip: false
+    servers:
+      - myserver
+
+servers:
+  myserver:
+    domains:
+      - mc.example.com
+    address: 0.0.0.0:25544
+    send_proxy_protocol: true
+    send_real_ip: false
+    disconnect_message: Sorry {{username}}, but the server is offline.
+    online_status: # Overrides only version name and icon of the original server
+      version_name: Infrared 1.17
+      icon_path: ./myserver.png
+    webhooks:
+      - mywebhook
+    
+# These are default values that can be overridden
+defaults:
+  gateway:
+    timeout: 10s
+    proxy_bind: 0.0.0.0
+    real_ip: true
+  server:
+    offline_status:
+      version_name: Proxy Host XY
+      protocol_number: 0
+      max_players: 0
+      players_online: 0
+      icon_path: ./offline.png
+      motd: |
+        Proxy Host XY
+        {{requestedDomain}} is not reachable.
+
+webhook:
+  mywebhook:
+    url: https://mc.example.com/callback
+    events:
+      - PlayerJoin
+      - PlayerLeave
+
+api:
+  bind: 0.0.0.0:8080

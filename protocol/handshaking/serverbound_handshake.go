@@ -1,11 +1,14 @@
 package handshaking
 
 import (
+	"errors"
 	"fmt"
-	"github.com/haveachin/infrared/protocol"
 	"net"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/haveachin/infrared/protocol"
 )
 
 const (
@@ -79,6 +82,42 @@ func (pk ServerBoundHandshake) ParseServerAddress() string {
 	// Resolves an issue with some proxies
 	addr = strings.Trim(addr, ".")
 	return addr
+}
+
+func parseTCPAddr(addr string) (net.Addr, error) {
+	ipStr, portStr, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, err
+	}
+
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return nil, err
+	}
+
+	return &net.TCPAddr{
+		IP:   net.ParseIP(ipStr),
+		Port: port,
+	}, nil
+}
+
+func (pk ServerBoundHandshake) ParseRealIP() (net.Addr, time.Time, []byte, error) {
+	payload := strings.Split(string(pk.ServerAddress), RealIPSeparator)
+	if len(payload) < 4 {
+		return nil, time.Time{}, nil, errors.New("invalid payload")
+	}
+
+	addr, err := parseTCPAddr(payload[1])
+	if err != nil {
+		return nil, time.Time{}, nil, err
+	}
+
+	timeStamp, err := time.Parse(time.UnixDate, payload[2])
+	if err != nil {
+		return nil, time.Time{}, nil, err
+	}
+
+	return addr, timeStamp, []byte(payload[3]), nil
 }
 
 func (pk *ServerBoundHandshake) UpgradeToRealIP(clientAddr net.Addr, timestamp time.Time) {

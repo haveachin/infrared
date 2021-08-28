@@ -1,122 +1,69 @@
 package main
 
 import (
-	"flag"
 	"log"
-	"os"
-	"strconv"
 
 	"github.com/haveachin/infrared"
 )
 
-const (
-	envPrefix               = "INFRARED_"
-	envConfigPath           = envPrefix + "CONFIG_PATH"
-	envReceiveProxyProtocol = envPrefix + "RECEIVE_PROXY_PROTOCOL"
-)
+// Amount of Connection Processing Nodes (CPN)
+const cpnCount = 10
 
-const (
-	clfConfigPath           = "config-path"
-	clfReceiveProxyProtocol = "receive-proxy-protocol"
-    clfPrometheusEnabled    = "enable-prometheus"
-    clfPrometheusBind       = "prometheus-bind"
-)
-
-var (
-	configPath           = "./configs"
-	receiveProxyProtocol = false
-    prometheusEnabled    = false
-    prometheusBind       = ":9100"
-)
-
-func envBool(name string, value bool) bool {
-	envString := os.Getenv(name)
-	if envString == "" {
-		return value
-	}
-
-	envBool, err := strconv.ParseBool(envString)
-	if err != nil {
-		return value
-	}
-
-	return envBool
-}
-
-func envString(name string, value string) string {
-	envString := os.Getenv(name)
-	if envString == "" {
-		return value
-	}
-
-	return envString
-}
-
-func initEnv() {
-	configPath = envString(envConfigPath, configPath)
-	receiveProxyProtocol = envBool(envReceiveProxyProtocol, receiveProxyProtocol)
-}
-
-func initFlags() {
-	flag.StringVar(&configPath, clfConfigPath, configPath, "path of all proxy configs")
-	flag.BoolVar(&receiveProxyProtocol, clfReceiveProxyProtocol, receiveProxyProtocol, "should accept proxy protocol")
-    flag.BoolVar(&prometheusEnabled, clfPrometheusEnabled, prometheusEnabled, "should run prometheus client exposing metrics")
-    flag.StringVar(&prometheusBind, clfPrometheusBind, prometheusBind, "bind address and/or port for prometheus")
-	flag.Parse()
-}
-
-func init() {
-	initEnv()
-	initFlags()
-}
+var configFile = "./config.yml"
 
 func main() {
-	log.Println("Loading proxy configs")
+	log.Println(configFile)
 
-	cfgs, err := infrared.LoadProxyConfigsFromPath(configPath, false)
-	if err != nil {
-		log.Printf("Failed loading proxy configs from %s; error: %s", configPath, err)
-		return
+	cpnChan := make(chan infrared.ProcessingConn)
+	srvChan := make(chan infrared.ProcessingConn)
+
+	gw := infrared.Gateway{
+		Binds:                []string{":25565"},
+		ReceiveProxyProtocol: false,
+		ReceiveRealIP:        false,
+		ServerIDs:            []string{"test"},
 	}
 
-	var proxies []*infrared.Proxy
-	for _, cfg := range cfgs {
-		proxies = append(proxies, &infrared.Proxy{
-			Config: cfg,
-		})
+	srvTest := infrared.Server{
+		ID:                "test",
+		Domains:           []string{"localhost", "127.0.0.1"},
+		Address:           "localhost:25566",
+		SendProxyProtocol: false,
+		SendRealIP:        false,
+		DisconnectMessage: "Hey §4§l{{username}}§r, your address is {{remoteAddress}}",
+		OnlineStatus: infrared.StatusResponse{
+			MOTD: "Fuck you {{username}}",
+		},
+		OfflineStatus: infrared.StatusResponse{
+			VersionName:    "Infrared v2 1.17.1",
+			ProtocolNumber: 756,
+			MaxPlayers:     20,
+			PlayersOnline:  0,
+			PlayerSamples:  nil,
+			IconPath:       "icon.png",
+			MOTD:           "§cInfrared v2 Proxy\n§4§l{{domain}}§r is an invalid host",
+		},
+		WebhookIDs: []string{},
 	}
 
-	outCfgs := make(chan *infrared.ProxyConfig)
-	go func() {
-		if err := infrared.WatchProxyConfigFolder(configPath, outCfgs); err != nil {
-			log.Println("Failed watching config folder; error:", err)
-			log.Println("SYSTEM FAILURE: CONFIG WATCHER FAILED")
-		}
-	}()
-
-	gateway := infrared.Gateway{}
-	go func() {
-		for {
-			cfg, ok := <-outCfgs
-			if !ok {
-				return
-			}
-
-			proxy := &infrared.Proxy{Config: cfg}
-			if err := gateway.RegisterProxy(proxy); err != nil {
-				log.Println("Failed registering proxy; error:", err)
-			}
-		}
-	}()
-
-	if prometheusEnabled {
-		gateway.EnablePrometheus(prometheusBind)
+	srvGw := infrared.ServerGateway{
+		Servers: []infrared.Server{srvTest},
 	}
 
-	log.Println("Starting Infrared")
-	if err := gateway.ListenAndServe(proxies); err != nil {
-		log.Fatal("Gateway exited; error: ", err)
+	for i := 0; i < cpnCount; i++ {
+		cpn := infrared.CPN{}
+		go cpn.Start(cpnChan, srvChan)
 	}
 
-	gateway.KeepProcessActive()
+	go srvGw.Start(srvChan)
+	gw.Start(cpnChan)
 }
+
+/* func dos(addr string) {
+	for {
+		rc, _ := net.Dial("tcp", addr)
+		rc.Write([]byte{16, 0, 244, 5, 9, 108, 111, 99, 97, 108, 104, 111, 115, 116, 99, 221, 1})
+		rc.Write([]byte{1, 0})
+		rc.Close()
+	}
+} */
