@@ -16,6 +16,7 @@ func main() {
 
 	cpnChan := make(chan infrared.ProcessingConn)
 	srvChan := make(chan infrared.ProcessingConn)
+	poolChan := make(chan infrared.ProcessedConn)
 
 	gw := infrared.Gateway{
 		Binds:                []string{":25565"},
@@ -55,7 +56,10 @@ func main() {
 		go cpn.Start(cpnChan, srvChan)
 	}
 
-	go srvGw.Start(srvChan)
+	pool := infrared.ConnPool{}
+
+	go pool.Start(poolChan)
+	go srvGw.Start(srvChan, poolChan)
 	gw.Start(cpnChan)
 }
 

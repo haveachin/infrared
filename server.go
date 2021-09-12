@@ -206,28 +206,31 @@ func (srv Server) overrideStatusResponse(c ProcessingConn, rc Conn) error {
 	return nil
 }
 
-func (srv Server) Connect(c ProcessingConn) error {
-	defer c.Close()
-
+func (srv Server) ProcessConnection(c ProcessingConn) (ProcessedConn, error) {
 	rc, err := srv.Dial()
 	if err != nil {
-		log.Println(err)
-		return srv.handleOffline(c)
+		if err := srv.handleOffline(c); err != nil {
+			return ProcessedConn{}, err
+		}
+		return ProcessedConn{}, err
 	}
-	defer rc.Close()
 
 	if err := rc.WritePackets(c.readPks...); err != nil {
-		log.Println(err)
-		return err
+		rc.Close()
+		return ProcessedConn{}, err
 	}
 
 	if c.handshake.IsStatusRequest() {
-		srv.overrideStatusResponse(c, rc)
+		if err := srv.overrideStatusResponse(c, rc); err != nil {
+			rc.Close()
+			return ProcessedConn{}, err
+		}
 	}
 
-	go io.Copy(rc, c)
-	io.Copy(c, rc)
-	return nil
+	return ProcessedConn{
+		ProcessingConn: c,
+		ServerConn:     rc,
+	}, nil
 }
 
 type ServerGateway struct {
@@ -235,7 +238,7 @@ type ServerGateway struct {
 	srvs    map[string]*Server
 }
 
-func (gw *ServerGateway) compServers() {
+func (gw *ServerGateway) mapServers() {
 	gw.srvs = map[string]*Server{}
 
 	for _, server := range gw.Servers {
@@ -246,8 +249,8 @@ func (gw *ServerGateway) compServers() {
 	}
 }
 
-func (gw ServerGateway) Start(srvChan <-chan ProcessingConn) {
-	gw.compServers()
+func (gw ServerGateway) Start(srvChan <-chan ProcessingConn, poolChan chan<- ProcessedConn) {
+	gw.mapServers()
 
 	for {
 		c, ok := <-srvChan
@@ -263,6 +266,10 @@ func (gw ServerGateway) Start(srvChan <-chan ProcessingConn) {
 		}
 
 		log.Printf("[server|>] %s host=%s\n", c.RemoteAddr(), hostLower)
-		srv.Connect(c)
+		pc, err := srv.ProcessConnection(c)
+		if err != nil {
+			continue
+		}
+		poolChan <- pc
 	}
 }

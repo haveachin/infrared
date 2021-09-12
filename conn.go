@@ -133,3 +133,20 @@ type ProcessingConn struct {
 func (c ProcessingConn) RemoteAddr() net.Addr {
 	return c.remoteAddr
 }
+
+type ProcessedConn struct {
+	ProcessingConn
+	ServerConn Conn
+}
+
+func (c ProcessedConn) StartPipe() {
+	defer c.Close()
+
+	go io.Copy(c.ServerConn, c)
+	io.Copy(c, c.ServerConn)
+}
+
+func (c ProcessedConn) Close() {
+	c.ServerConn.Close()
+	c.ProcessingConn.Close()
+}
