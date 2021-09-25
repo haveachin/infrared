@@ -1,17 +1,19 @@
 package infrared
 
 import (
-	"log"
 	"net"
 	"strings"
 
+	"github.com/go-logr/logr"
 	"github.com/haveachin/infrared/protocol/handshaking"
 	"github.com/haveachin/infrared/protocol/login"
 	"github.com/pires/go-proxyproto"
 )
 
 // Connection Processing Node
-type CPN struct{}
+type CPN struct {
+	Log logr.Logger
+}
 
 func (cpn *CPN) Start(cpnChan <-chan ProcessingConn, srvChan chan<- ProcessingConn) {
 	for {
@@ -19,10 +21,14 @@ func (cpn *CPN) Start(cpnChan <-chan ProcessingConn, srvChan chan<- ProcessingCo
 		if !ok {
 			break
 		}
-		log.Printf("[cpn|i] %s\n", c.RemoteAddr())
+		cpn.Log.Info("processing",
+			"remoteAddress", c.RemoteAddr(),
+		)
 
 		if err := process(&c); err != nil {
-			log.Printf("[cpn|x] %s err=%s\n", c.RemoteAddr(), err)
+			cpn.Log.Error(err, "processing",
+				"remoteAddress", c.RemoteAddr(),
+			)
 			c.Close()
 			continue
 		}

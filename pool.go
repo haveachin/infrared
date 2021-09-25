@@ -1,6 +1,10 @@
 package infrared
 
+import "github.com/go-logr/logr"
+
 type ConnPool struct {
+	Log logr.Logger
+
 	pool []ProcessedConn
 }
 

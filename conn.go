@@ -137,6 +137,7 @@ func (c ProcessingConn) RemoteAddr() net.Addr {
 type ProcessedConn struct {
 	ProcessingConn
 	ServerConn Conn
+	ServerID   string
 }
 
 func (c ProcessedConn) StartPipe() {

@@ -1,18 +1,27 @@
 package main
 
 import (
-	"log"
+	"fmt"
 
+	"github.com/go-logr/logr"
+	"github.com/go-logr/zapr"
 	"github.com/haveachin/infrared"
+	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
 
-// Amount of Connection Processing Nodes (CPN)
-const cpnCount = 10
+var logger logr.Logger
 
-var configFile = "./config.yml"
+func init() {
+	zapLog, err := zap.NewDevelopment()
+	if err != nil {
+		panic(fmt.Sprintf("Failed to init logger; err: %s", err))
+	}
+	logger = zapr.NewLogger(zapLog)
+}
 
 func main() {
-	log.Println(configFile)
+	logger.Info(viper.GetString("api.bind"))
 
 	cpnChan := make(chan infrared.ProcessingConn)
 	srvChan := make(chan infrared.ProcessingConn)
@@ -23,6 +32,7 @@ func main() {
 		ReceiveProxyProtocol: false,
 		ReceiveRealIP:        false,
 		ServerIDs:            []string{"test"},
+		Log:                  logger,
 	}
 
 	srvTest := infrared.Server{
@@ -45,29 +55,26 @@ func main() {
 			MOTD:           "§cInfrared v2 Proxy\n§4§l{{domain}}§r is an invalid host",
 		},
 		WebhookIDs: []string{},
+		Log:        logger,
 	}
 
 	srvGw := infrared.ServerGateway{
 		Servers: []infrared.Server{srvTest},
+		Log:     logger,
 	}
 
-	for i := 0; i < cpnCount; i++ {
-		cpn := infrared.CPN{}
+	for i := 0; i < 10; i++ {
+		cpn := infrared.CPN{
+			Log: logger,
+		}
 		go cpn.Start(cpnChan, srvChan)
 	}
 
-	pool := infrared.ConnPool{}
+	pool := infrared.ConnPool{
+		Log: logger,
+	}
 
 	go pool.Start(poolChan)
 	go srvGw.Start(srvChan, poolChan)
 	gw.Start(cpnChan)
 }
-
-/* func dos(addr string) {
-	for {
-		rc, _ := net.Dial("tcp", addr)
-		rc.Write([]byte{16, 0, 244, 5, 9, 108, 111, 99, 97, 108, 104, 111, 115, 116, 99, 221, 1})
-		rc.Write([]byte{1, 0})
-		rc.Close()
-	}
-} */

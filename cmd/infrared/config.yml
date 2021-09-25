@@ -1,3 +1,10 @@
+compute_nodes:
+  min: 10
+  max: 20
+
+api:
+  bind: 0.0.0.0:8080
+  
 gateways:
   mygateway:
     binds:
@@ -44,6 +51,3 @@ webhook:
     events:
       - PlayerJoin
       - PlayerLeave
-
-api:
-  bind: 0.0.0.0:8080

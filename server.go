@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/go-logr/logr"
 	"github.com/haveachin/infrared/protocol"
 	"github.com/haveachin/infrared/protocol/login"
 	"github.com/haveachin/infrared/protocol/status"
@@ -100,6 +100,7 @@ type Server struct {
 	OnlineStatus      StatusResponse
 	OfflineStatus     StatusResponse
 	WebhookIDs        []string
+	Log               logr.Logger
 }
 
 func (srv Server) Dial() (Conn, error) {
@@ -230,12 +231,15 @@ func (srv Server) ProcessConnection(c ProcessingConn) (ProcessedConn, error) {
 	return ProcessedConn{
 		ProcessingConn: c,
 		ServerConn:     rc,
+		ServerID:       srv.ID,
 	}, nil
 }
 
 type ServerGateway struct {
 	Servers []Server
-	srvs    map[string]*Server
+	Log     logr.Logger
+
+	srvs map[string]*Server
 }
 
 func (gw *ServerGateway) mapServers() {
@@ -259,13 +263,19 @@ func (gw ServerGateway) Start(srvChan <-chan ProcessingConn, poolChan chan<- Pro
 		}
 
 		hostLower := strings.ToLower(c.srvHost)
-		log.Printf("[srvgateway|i] %s host=%s\n", c.RemoteAddr(), hostLower)
 		srv, ok := gw.srvs[hostLower]
 		if !ok {
+			gw.Log.Info("invlaid server host",
+				"serverId", hostLower,
+				"remoteAddress", c.RemoteAddr(),
+			)
 			continue
 		}
 
-		log.Printf("[server|>] %s host=%s\n", c.RemoteAddr(), hostLower)
+		gw.Log.Info("connecting client",
+			"serverId", hostLower,
+			"remoteAddress", c.RemoteAddr(),
+		)
 		pc, err := srv.ProcessConnection(c)
 		if err != nil {
 			continue

@@ -1,9 +1,10 @@
 package infrared
 
 import (
-	"log"
 	"net"
 	"sync"
+
+	"github.com/go-logr/logr"
 )
 
 type Gateway struct {
@@ -11,6 +12,7 @@ type Gateway struct {
 	ReceiveProxyProtocol bool
 	ReceiveRealIP        bool
 	ServerIDs            []string
+	Log                  logr.Logger
 
 	listeners []net.Listener
 }
@@ -52,7 +54,10 @@ func (gw *Gateway) listenAndServe(cpnChan chan<- ProcessingConn) {
 				if err != nil {
 					break
 				}
-				log.Printf("[gateway|>] %s\n", c.RemoteAddr())
+
+				gw.Log.Info("connected",
+					"remoteAddress", c.RemoteAddr(),
+				)
 
 				cpnChan <- gw.wrapConn(c)
 			}
