@@ -18,12 +18,10 @@ var defaultConfig []byte
 
 func init() {
 	viper.SetConfigFile(configPath)
-	if err := viper.ReadInConfig(); err != nil {
+	viper.ReadConfig(bytes.NewBuffer(defaultConfig))
+	if err := viper.MergeInConfig(); err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			if err := os.WriteFile(configPath, defaultConfig, 0777); err != nil {
-				log.Fatal(err)
-			}
-			if err := viper.ReadConfig(bytes.NewBuffer(defaultConfig)); err != nil {
+			if err := os.WriteFile(configPath, defaultConfig, 0644); err != nil {
 				log.Fatal(err)
 			}
 		} else {
@@ -32,21 +30,7 @@ func init() {
 	}
 }
 
-func loadConfig(configPath string) (*viper.Viper, error) {
-	vpr := viper.New()
-	vpr.AddConfigPath(configPath)
-	if err := vpr.ReadInConfig(); err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			os.WriteFile(configPath, defaultConfig, 0777)
-		}
-	}
-	if err := vpr.MergeConfig(bytes.NewBuffer(defaultConfig)); err != nil {
-		return nil, err
-	}
-	if err := vpr.SafeWriteConfig(); err != nil {
-		return nil, err
-	}
-	return vpr, nil
+type gatewayConfig struct {
 }
 
 func loadGateways() []infrared.Gateway {
