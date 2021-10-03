@@ -24,6 +24,7 @@ func init() {
 func main() {
 	logger.Info(viper.GetString("api.bind"))
 	log.Println(loadGateways())
+	log.Println(loadServers())
 
 	cpnChan := make(chan infrared.ProcessingConn)
 	srvChan := make(chan infrared.ProcessingConn)

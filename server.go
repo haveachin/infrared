@@ -93,8 +93,6 @@ func loadImageAndEncodeToBase64String(path string) (string, error) {
 type Server struct {
 	ID                string
 	Domains           []string
-	ProxyBind         string
-	DialTimeout       time.Duration
 	Dialer            net.Dialer
 	Address           string
 	SendProxyProtocol bool
@@ -107,16 +105,7 @@ type Server struct {
 }
 
 func (srv Server) Dial() (Conn, error) {
-	dialer := Dialer{
-		Dialer: net.Dialer{
-			Timeout: srv.DialTimeout,
-			LocalAddr: &net.TCPAddr{
-				IP: net.ParseIP(srv.ProxyBind),
-			},
-		},
-	}
-
-	c, err := net.DialTimeout("tcp", srv.Address, 1*time.Second)
+	c, err := srv.Dialer.Dial("tcp", srv.Address)
 	if err != nil {
 		return nil, err
 	}

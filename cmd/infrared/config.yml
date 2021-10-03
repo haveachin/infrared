@@ -41,6 +41,8 @@ defaults:
     domains:
       - mc.example.com
     address: 0.0.0.0:25544
+    proxy_bind: 0.0.0.0
+    dial_timeout: 1s
     send_proxy_protocol: true
     send_real_ip: false
     disconnect_message: Sorry {{username}}, but the server is offline.
@@ -50,6 +52,11 @@ defaults:
       max_players: 20
       players_online: 0
       icon_path: ./offline.png
+      player_sample:
+        - name: Steve
+          uuid: 8667ba71-b85a-4004-af54-457a9734eed7
+        - name: Alex
+          uuid: ec561538-f3fd-461d-aff5-086b22154bce
       motd: |
         Proxy Host XY
         {{requestedDomain}} is not reachable.

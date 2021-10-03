@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"errors"
 	"log"
+	"net"
 	"os"
 	"time"
 
@@ -39,7 +40,7 @@ type gatewayConfig struct {
 	Servers              []string      `mapstructure:"servers"`
 }
 
-func newGateway(id string, cfg gatewayConfig) (infrared.Gateway, error) {
+func newGateway(id string, cfg gatewayConfig) infrared.Gateway {
 	return infrared.Gateway{
 		ID:                   id,
 		Binds:                cfg.Binds,
@@ -47,7 +48,7 @@ func newGateway(id string, cfg gatewayConfig) (infrared.Gateway, error) {
 		ReceiveRealIP:        cfg.ReceiveRealIP,
 		ClientTimeout:        cfg.ClientTimeout,
 		ServerIDs:            cfg.Servers,
-	}, nil
+	}
 }
 
 func loadGateways() ([]infrared.Gateway, error) {
@@ -66,12 +67,99 @@ func loadGateways() ([]infrared.Gateway, error) {
 		if err := vpr.Unmarshal(&cfg); err != nil {
 			return nil, err
 		}
-		gateway, err := newGateway(id, cfg)
-		if err != nil {
-			return nil, err
-		}
-		gateways = append(gateways, gateway)
+		gateways = append(gateways, newGateway(id, cfg))
 	}
 
 	return gateways, nil
+}
+
+type serverConfig struct {
+	Domains           []string           `mapstructure:"domains"`
+	Address           string             `mapstructure:"address"`
+	ProxyBind         string             `mapstructure:"proxy_bind"`
+	DialTimeout       time.Duration      `mapstructure:"dial_timeout"`
+	SendProxyProtocol bool               `mapstructure:"send_proxy_protocol"`
+	SendRealIP        bool               `mapstructure:"send_real_ip"`
+	DisconnectMessage string             `mapstructure:"disconnect_message"`
+	OnlineStatus      serverStatusConfig `mapstructure:"online_status"`
+	OfflineStatus     serverStatusConfig `mapstructure:"offline_status"`
+}
+
+type serverStatusConfig struct {
+	VersionName    string                           `mapstructure:"version_name"`
+	ProtocolNumber int                              `mapstructure:"protocol_number"`
+	MaxPlayer      int                              `mapstructure:"max_players"`
+	PlayersOnline  int                              `mapstructure:"players_online"`
+	PlayerSample   []serverStatusPlayerSampleConfig `mapstructure:"player_sample"`
+	IconPath       string                           `mapstructure:"icon_path"`
+	MOTD           string                           `mapstructure:"motd"`
+}
+
+type serverStatusPlayerSampleConfig struct {
+	Name string `mapstructure:"name"`
+	UUID string `mapstructure:"uuid"`
+}
+
+func newServer(id string, cfg serverConfig) infrared.Server {
+	return infrared.Server{
+		ID:      id,
+		Domains: cfg.Domains,
+		Dialer: net.Dialer{
+			Timeout: cfg.DialTimeout,
+			LocalAddr: &net.TCPAddr{
+				IP: net.ParseIP(cfg.ProxyBind),
+			},
+		},
+		Address:           cfg.Address,
+		SendProxyProtocol: cfg.SendProxyProtocol,
+		SendRealIP:        cfg.SendRealIP,
+		DisconnectMessage: cfg.DisconnectMessage,
+		OnlineStatus:      newServerStatus(cfg.OnlineStatus),
+		OfflineStatus:     newServerStatus(cfg.OfflineStatus),
+	}
+}
+
+func newServerStatus(cfg serverStatusConfig) infrared.StatusResponse {
+	return infrared.StatusResponse{
+		VersionName:    cfg.VersionName,
+		ProtocolNumber: cfg.ProtocolNumber,
+		MaxPlayers:     cfg.MaxPlayer,
+		PlayersOnline:  cfg.PlayersOnline,
+		IconPath:       cfg.IconPath,
+		MOTD:           cfg.MOTD,
+		PlayerSamples:  newServerStatusPlayerSample(cfg.PlayerSample),
+	}
+}
+
+func newServerStatusPlayerSample(cfgs []serverStatusPlayerSampleConfig) []infrared.PlayerSample {
+	playerSamples := make([]infrared.PlayerSample, len(cfgs))
+	for n, cfg := range cfgs {
+		playerSamples[n] = infrared.PlayerSample{
+			Name: cfg.Name,
+			UUID: cfg.UUID,
+		}
+	}
+	return playerSamples
+}
+
+func loadServers() ([]infrared.Server, error) {
+	var defaultCfg map[string]interface{}
+	if err := viper.UnmarshalKey("defaults.server", &defaultCfg); err != nil {
+		return nil, err
+	}
+
+	var servers []infrared.Server
+	for id := range viper.GetStringMap("servers") {
+		vpr := viper.Sub("servers." + id)
+		if err := vpr.MergeConfigMap(defaultCfg); err != nil {
+			return nil, err
+		}
+		var cfg serverConfig
+		if err := vpr.Unmarshal(&cfg); err != nil {
+			return nil, err
+		}
+		servers = append(servers, newServer(id, cfg))
+	}
+
+	return servers, nil
 }
