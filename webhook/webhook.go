@@ -28,6 +28,7 @@ type EventLog struct {
 // There are two ways to use a Webhook. You can directly call
 // DispatchEvent or Serve to attach a channel to the Webhook.
 type Webhook struct {
+	ID         string
 	HTTPClient HTTPClient
 	URL        string
 	EventTypes []string

@@ -27,6 +27,14 @@ servers:
       icon_path: ./myserver.png
     webhooks:
       - mywebhook
+
+webhooks:
+  mywebhook:
+    client_timeout: 1s
+    url: https://mc.example.com/callback
+    events:
+      - PlayerJoin
+      - PlayerLeave
     
 # These are default values that can be overridden
 defaults:
@@ -60,10 +68,6 @@ defaults:
       motd: |
         Proxy Host XY
         {{requestedDomain}} is not reachable.
+  webhook:
+    client_timeout: 1s
 
-webhook:
-  mywebhook:
-    url: https://mc.example.com/callback
-    events:
-      - PlayerJoin
-      - PlayerLeave

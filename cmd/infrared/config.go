@@ -6,10 +6,12 @@ import (
 	"errors"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"time"
 
 	"github.com/haveachin/infrared"
+	"github.com/haveachin/infrared/webhook"
 	"github.com/spf13/viper"
 )
 
@@ -162,4 +164,43 @@ func loadServers() ([]infrared.Server, error) {
 	}
 
 	return servers, nil
+}
+
+type webhookConfig struct {
+	ClientTimeout time.Duration `mapstructure:"client_timeout"`
+	URL           string        `mapstructure:"url"`
+	Events        []string      `mapstructure:"events"`
+}
+
+func newWebhook(id string, cfg webhookConfig) webhook.Webhook {
+	return webhook.Webhook{
+		ID: id,
+		HTTPClient: &http.Client{
+			Timeout: cfg.ClientTimeout,
+		},
+		URL:        cfg.URL,
+		EventTypes: cfg.Events,
+	}
+}
+
+func loadWebhooks() ([]webhook.Webhook, error) {
+	var defaultCfg map[string]interface{}
+	if err := viper.UnmarshalKey("defaults.webhook", &defaultCfg); err != nil {
+		return nil, err
+	}
+
+	var webhooks []webhook.Webhook
+	for id := range viper.GetStringMap("webhooks") {
+		vpr := viper.Sub("webhooks." + id)
+		if err := vpr.MergeConfigMap(defaultCfg); err != nil {
+			return nil, err
+		}
+		var cfg webhookConfig
+		if err := vpr.Unmarshal(&cfg); err != nil {
+			return nil, err
+		}
+		webhooks = append(webhooks, newWebhook(id, cfg))
+	}
+
+	return webhooks, nil
 }
