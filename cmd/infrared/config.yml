@@ -31,9 +31,9 @@ servers:
 # These are default values that can be overridden
 defaults:
   gateway:
-    timeout: 10s
+    client_timeout: 10s
     proxy_bind: 0.0.0.0
-    real_ip: true
+    receive_real_ip: true
   server:
     offline_status:
       version_name: Proxy Host XY

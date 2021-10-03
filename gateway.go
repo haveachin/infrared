@@ -3,14 +3,18 @@ package infrared
 import (
 	"net"
 	"sync"
+	"time"
 
 	"github.com/go-logr/logr"
 )
 
 type Gateway struct {
+	ID                   string
 	Binds                []string
+	ProxyBind            string
 	ReceiveProxyProtocol bool
 	ReceiveRealIP        bool
+	ClientTimeout        time.Duration
 	ServerIDs            []string
 	Log                  logr.Logger
 

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log"
 	"os"
+	"time"
 
 	"github.com/haveachin/infrared"
 	"github.com/spf13/viper"
@@ -31,8 +32,48 @@ func init() {
 }
 
 type gatewayConfig struct {
+	Binds                []string      `mapstructure:"binds"`
+	ProxyBind            string        `mapstructure:"proxy_bind"`
+	ReceiveProxyProtocol bool          `mapstructure:"receive_proxy_protocol"`
+	ReceiveRealIP        bool          `mapstructure:"receive_real_ip"`
+	ClientTimeout        time.Duration `mapstructure:"client_timeout"`
+	Servers              []string      `mapstructure:"servers"`
 }
 
-func loadGateways() []infrared.Gateway {
-	return nil
+func newGateway(id string, cfg gatewayConfig) (infrared.Gateway, error) {
+	return infrared.Gateway{
+		ID:                   id,
+		Binds:                cfg.Binds,
+		ProxyBind:            cfg.ProxyBind,
+		ReceiveProxyProtocol: cfg.ReceiveProxyProtocol,
+		ReceiveRealIP:        cfg.ReceiveRealIP,
+		ClientTimeout:        cfg.ClientTimeout,
+		ServerIDs:            cfg.Servers,
+	}, nil
+}
+
+func loadGateways() ([]infrared.Gateway, error) {
+	var defaultCfg map[string]interface{}
+	if err := viper.UnmarshalKey("defaults.gateway", &defaultCfg); err != nil {
+		return nil, err
+	}
+
+	var gateways []infrared.Gateway
+	for id := range viper.GetStringMap("gateways") {
+		vpr := viper.Sub("gateways." + id)
+		if err := vpr.MergeConfigMap(defaultCfg); err != nil {
+			return nil, err
+		}
+		var cfg gatewayConfig
+		if err := vpr.Unmarshal(&cfg); err != nil {
+			return nil, err
+		}
+		gateway, err := newGateway(id, cfg)
+		if err != nil {
+			return nil, err
+		}
+		gateways = append(gateways, gateway)
+	}
+
+	return gateways, nil
 }

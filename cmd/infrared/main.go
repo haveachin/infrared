@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 
 	"github.com/go-logr/logr"
 	"github.com/go-logr/zapr"
@@ -22,6 +23,7 @@ func init() {
 
 func main() {
 	logger.Info(viper.GetString("api.bind"))
+	log.Println(loadGateways())
 
 	cpnChan := make(chan infrared.ProcessingConn)
 	srvChan := make(chan infrared.ProcessingConn)
