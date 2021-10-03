@@ -166,6 +166,19 @@ func loadServers() ([]infrared.Server, error) {
 	return servers, nil
 }
 
+type cpnConfig struct {
+	Count int `mapstructure:"count"`
+}
+
+func loadCPNs() ([]infrared.CPN, error) {
+	var cfg cpnConfig
+	if err := viper.UnmarshalKey("connection_processing_nodes", &cfg); err != nil {
+		return nil, err
+	}
+
+	return make([]infrared.CPN, cfg.Count), nil
+}
+
 type webhookConfig struct {
 	ClientTimeout time.Duration `mapstructure:"client_timeout"`
 	URL           string        `mapstructure:"url"`

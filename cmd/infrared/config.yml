@@ -1,6 +1,5 @@
-compute_nodes:
-  min: 10
-  max: 20
+connection_processing_nodes:
+  count: 10
 
 api:
   bind: 0.0.0.0:8080
@@ -30,7 +29,6 @@ servers:
 
 webhooks:
   mywebhook:
-    client_timeout: 1s
     url: https://mc.example.com/callback
     events:
       - PlayerJoin
