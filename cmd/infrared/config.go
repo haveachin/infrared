@@ -33,7 +33,6 @@ func init() {
 
 type gatewayConfig struct {
 	Binds                []string      `mapstructure:"binds"`
-	ProxyBind            string        `mapstructure:"proxy_bind"`
 	ReceiveProxyProtocol bool          `mapstructure:"receive_proxy_protocol"`
 	ReceiveRealIP        bool          `mapstructure:"receive_real_ip"`
 	ClientTimeout        time.Duration `mapstructure:"client_timeout"`
@@ -44,7 +43,6 @@ func newGateway(id string, cfg gatewayConfig) (infrared.Gateway, error) {
 	return infrared.Gateway{
 		ID:                   id,
 		Binds:                cfg.Binds,
-		ProxyBind:            cfg.ProxyBind,
 		ReceiveProxyProtocol: cfg.ReceiveProxyProtocol,
 		ReceiveRealIP:        cfg.ReceiveRealIP,
 		ClientTimeout:        cfg.ClientTimeout,

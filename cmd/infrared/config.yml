@@ -31,14 +31,23 @@ servers:
 # These are default values that can be overridden
 defaults:
   gateway:
-    client_timeout: 10s
-    proxy_bind: 0.0.0.0
+    binds:
+      - 0.0.0.0:25565
+    receive_proxy_protocol: true
     receive_real_ip: true
+    servers:
+      - myserver
   server:
+    domains:
+      - mc.example.com
+    address: 0.0.0.0:25544
+    send_proxy_protocol: true
+    send_real_ip: false
+    disconnect_message: Sorry {{username}}, but the server is offline.
     offline_status:
       version_name: Proxy Host XY
       protocol_number: 0
-      max_players: 0
+      max_players: 20
       players_online: 0
       icon_path: ./offline.png
       motd: |

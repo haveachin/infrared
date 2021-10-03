@@ -11,7 +11,6 @@ import (
 type Gateway struct {
 	ID                   string
 	Binds                []string
-	ProxyBind            string
 	ReceiveProxyProtocol bool
 	ReceiveRealIP        bool
 	ClientTimeout        time.Duration
