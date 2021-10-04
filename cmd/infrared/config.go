@@ -54,15 +54,12 @@ func newGateway(id string, cfg gatewayConfig) infrared.Gateway {
 }
 
 func loadGateways() ([]infrared.Gateway, error) {
-	var defaultCfg map[string]interface{}
-	if err := viper.UnmarshalKey("defaults.gateway", &defaultCfg); err != nil {
-		return nil, err
-	}
+	vpr := viper.Sub("defaults.gateway")
 
 	var gateways []infrared.Gateway
-	for id := range viper.GetStringMap("gateways") {
-		vpr := viper.Sub("gateways." + id)
-		if err := vpr.MergeConfigMap(defaultCfg); err != nil {
+	for id, v := range viper.GetStringMap("gateways") {
+		vMap := v.(map[string]interface{})
+		if err := vpr.MergeConfigMap(vMap); err != nil {
 			return nil, err
 		}
 		var cfg gatewayConfig
@@ -145,15 +142,12 @@ func newServerStatusPlayerSample(cfgs []serverStatusPlayerSampleConfig) []infrar
 }
 
 func loadServers() ([]infrared.Server, error) {
-	var defaultCfg map[string]interface{}
-	if err := viper.UnmarshalKey("defaults.server", &defaultCfg); err != nil {
-		return nil, err
-	}
+	vpr := viper.Sub("defaults.server")
 
 	var servers []infrared.Server
-	for id := range viper.GetStringMap("servers") {
-		vpr := viper.Sub("servers." + id)
-		if err := vpr.MergeConfigMap(defaultCfg); err != nil {
+	for id, v := range viper.GetStringMap("servers") {
+		vMap := v.(map[string]interface{})
+		if err := vpr.MergeConfigMap(vMap); err != nil {
 			return nil, err
 		}
 		var cfg serverConfig
@@ -197,15 +191,12 @@ func newWebhook(id string, cfg webhookConfig) webhook.Webhook {
 }
 
 func loadWebhooks() ([]webhook.Webhook, error) {
-	var defaultCfg map[string]interface{}
-	if err := viper.UnmarshalKey("defaults.webhook", &defaultCfg); err != nil {
-		return nil, err
-	}
+	vpr := viper.Sub("defaults.webhook")
 
 	var webhooks []webhook.Webhook
-	for id := range viper.GetStringMap("webhooks") {
-		vpr := viper.Sub("webhooks." + id)
-		if err := vpr.MergeConfigMap(defaultCfg); err != nil {
+	for id, v := range viper.GetStringMap("webhooks") {
+		vMap := v.(map[string]interface{})
+		if err := vpr.MergeConfigMap(vMap); err != nil {
 			return nil, err
 		}
 		var cfg webhookConfig
