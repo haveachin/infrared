@@ -243,19 +243,19 @@ type ServerGateway struct {
 	srvs map[string]*Server
 }
 
-func (gw *ServerGateway) mapServers() {
-	gw.srvs = map[string]*Server{}
+func (sgw *ServerGateway) mapServers() {
+	sgw.srvs = map[string]*Server{}
 
-	for _, server := range gw.Servers {
+	for _, server := range sgw.Servers {
 		for _, host := range server.Domains {
 			hostLower := strings.ToLower(host)
-			gw.srvs[hostLower] = &server
+			sgw.srvs[hostLower] = &server
 		}
 	}
 }
 
-func (gw ServerGateway) Start(srvChan <-chan ProcessingConn, poolChan chan<- ProcessedConn) {
-	gw.mapServers()
+func (sgw ServerGateway) Start(srvChan <-chan ProcessingConn, poolChan chan<- ProcessedConn) {
+	sgw.mapServers()
 
 	for {
 		c, ok := <-srvChan
@@ -264,16 +264,16 @@ func (gw ServerGateway) Start(srvChan <-chan ProcessingConn, poolChan chan<- Pro
 		}
 
 		hostLower := strings.ToLower(c.srvHost)
-		srv, ok := gw.srvs[hostLower]
+		srv, ok := sgw.srvs[hostLower]
 		if !ok {
-			gw.Log.Info("invlaid server host",
+			sgw.Log.Info("invlaid server host",
 				"serverId", hostLower,
 				"remoteAddress", c.RemoteAddr(),
 			)
 			continue
 		}
 
-		gw.Log.Info("connecting client",
+		sgw.Log.Info("connecting client",
 			"serverId", hostLower,
 			"remoteAddress", c.RemoteAddr(),
 		)
