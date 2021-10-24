@@ -21,53 +21,50 @@ type PlayerSample struct {
 	UUID string
 }
 
+type PlayerSamples []PlayerSample
+
+func (ps PlayerSamples) PlayerSampleJson() []status.PlayerSampleJSON {
+	ss := make([]status.PlayerSampleJSON, len(ps))
+	for i, s := range ps {
+		ss[i] = status.PlayerSampleJSON{
+			Name: s.Name,
+			ID:   s.UUID,
+		}
+	}
+	return ss
+}
+
 type StatusResponse struct {
 	VersionName    string
 	ProtocolNumber int
 	MaxPlayers     int
 	PlayersOnline  int
-	PlayerSamples  []PlayerSample
+	PlayerSamples  PlayerSamples
 	IconPath       string
 	MOTD           string
-
-	cachedJSON *status.ResponseJSON
 }
 
-func (resp StatusResponse) ResponseJSON() (status.ResponseJSON, error) {
-	if resp.cachedJSON != nil {
-		return *resp.cachedJSON, nil
-	}
-
-	var samples []status.PlayerSampleJSON
-	for _, sample := range resp.PlayerSamples {
-		samples = append(samples, status.PlayerSampleJSON{
-			Name: sample.Name,
-			ID:   sample.UUID,
-		})
-	}
-
-	img64, err := loadImageAndEncodeToBase64String(resp.IconPath)
+func (r StatusResponse) ResponseJSON() (status.ResponseJSON, error) {
+	img64, err := loadImageAndEncodeToBase64String(r.IconPath)
 	if err != nil {
 		return status.ResponseJSON{}, err
 	}
 
-	resp.cachedJSON = &status.ResponseJSON{
+	return status.ResponseJSON{
 		Version: status.VersionJSON{
-			Name:     resp.VersionName,
-			Protocol: resp.ProtocolNumber,
+			Name:     r.VersionName,
+			Protocol: r.ProtocolNumber,
 		},
 		Players: status.PlayersJSON{
-			Max:    resp.MaxPlayers,
-			Online: resp.PlayersOnline,
-			Sample: samples,
+			Max:    r.MaxPlayers,
+			Online: r.PlayersOnline,
+			Sample: r.PlayerSamples.PlayerSampleJson(),
 		},
 		Favicon: img64,
 		Description: status.DescriptionJSON{
-			Text: resp.MOTD,
+			Text: r.MOTD,
 		},
-	}
-
-	return *resp.cachedJSON, nil
+	}, nil
 }
 
 func loadImageAndEncodeToBase64String(path string) (string, error) {
@@ -104,8 +101,8 @@ type Server struct {
 	Log               logr.Logger
 }
 
-func (srv Server) Dial() (Conn, error) {
-	c, err := srv.Dialer.Dial("tcp", srv.Address)
+func (s Server) Dial() (Conn, error) {
+	c, err := s.Dialer.Dial("tcp", s.Address)
 	if err != nil {
 		return nil, err
 	}
@@ -113,14 +110,14 @@ func (srv Server) Dial() (Conn, error) {
 	return newConn(c), nil
 }
 
-func (srv Server) replaceTemplates(c ProcessingConn, msg string) string {
+func (s Server) replaceTemplates(c ProcessingConn, msg string) string {
 	tmpls := map[string]string{
 		"username":      c.username,
 		"now":           time.Now().Format(time.RFC822),
 		"remoteAddress": c.RemoteAddr().String(),
 		"localAddress":  c.LocalAddr().String(),
 		"domain":        c.srvHost,
-		"serverAddress": srv.Address,
+		"serverAddress": s.Address,
 	}
 
 	for k, v := range tmpls {
@@ -130,8 +127,8 @@ func (srv Server) replaceTemplates(c ProcessingConn, msg string) string {
 	return msg
 }
 
-func (srv Server) handleOfflineStatusRequest(c ProcessingConn) error {
-	respJSON, err := srv.OfflineStatus.ResponseJSON()
+func (s Server) handleOfflineStatusRequest(c ProcessingConn) error {
+	respJSON, err := s.OfflineStatus.ResponseJSON()
 	if err != nil {
 		return err
 	}
@@ -157,8 +154,8 @@ func (srv Server) handleOfflineStatusRequest(c ProcessingConn) error {
 	return c.WritePacket(pingPk)
 }
 
-func (srv Server) handleOfflineLoginRequest(c ProcessingConn) error {
-	msg := srv.replaceTemplates(c, srv.DisconnectMessage)
+func (s Server) handleOfflineLoginRequest(c ProcessingConn) error {
+	msg := s.replaceTemplates(c, s.DisconnectMessage)
 
 	pk := login.ClientBoundDisconnect{
 		Reason: protocol.Chat(fmt.Sprintf("{\"text\":\"%s\"}", msg)),
@@ -167,15 +164,15 @@ func (srv Server) handleOfflineLoginRequest(c ProcessingConn) error {
 	return c.WritePacket(pk)
 }
 
-func (srv Server) handleOffline(c ProcessingConn) error {
+func (s Server) handleOffline(c ProcessingConn) error {
 	if c.handshake.IsStatusRequest() {
-		return srv.handleOfflineStatusRequest(c)
+		return s.handleOfflineStatusRequest(c)
 	}
 
-	return srv.handleOfflineLoginRequest(c)
+	return s.handleOfflineLoginRequest(c)
 }
 
-func (srv Server) overrideStatusResponse(c ProcessingConn, rc Conn) error {
+func (s Server) overrideStatusResponse(c ProcessingConn, rc Conn) error {
 	pk, err := rc.ReadPacket()
 	if err != nil {
 		return err
@@ -191,7 +188,7 @@ func (srv Server) overrideStatusResponse(c ProcessingConn, rc Conn) error {
 		return err
 	}
 
-	motd := srv.replaceTemplates(c, srv.OnlineStatus.MOTD)
+	motd := s.replaceTemplates(c, s.OnlineStatus.MOTD)
 	respJSON.Description.Text = motd
 
 	bb, err := json.Marshal(respJSON)
@@ -208,10 +205,10 @@ func (srv Server) overrideStatusResponse(c ProcessingConn, rc Conn) error {
 	return nil
 }
 
-func (srv Server) ProcessConnection(c ProcessingConn) (ProcessedConn, error) {
-	rc, err := srv.Dial()
+func (s Server) ProcessConnection(c ProcessingConn) (ProcessedConn, error) {
+	rc, err := s.Dial()
 	if err != nil {
-		if err := srv.handleOffline(c); err != nil {
+		if err := s.handleOffline(c); err != nil {
 			return ProcessedConn{}, err
 		}
 		return ProcessedConn{}, err
@@ -223,7 +220,7 @@ func (srv Server) ProcessConnection(c ProcessingConn) (ProcessedConn, error) {
 	}
 
 	if c.handshake.IsStatusRequest() {
-		if err := srv.overrideStatusResponse(c, rc); err != nil {
+		if err := s.overrideStatusResponse(c, rc); err != nil {
 			rc.Close()
 			return ProcessedConn{}, err
 		}
@@ -232,7 +229,7 @@ func (srv Server) ProcessConnection(c ProcessingConn) (ProcessedConn, error) {
 	return ProcessedConn{
 		ProcessingConn: c,
 		ServerConn:     rc,
-		ServerID:       srv.ID,
+		ServerID:       s.ID,
 	}, nil
 }
 
@@ -243,19 +240,19 @@ type ServerGateway struct {
 	srvs map[string]*Server
 }
 
-func (sgw *ServerGateway) mapServers() {
-	sgw.srvs = map[string]*Server{}
+func (sg *ServerGateway) mapServers() {
+	sg.srvs = map[string]*Server{}
 
-	for _, server := range sgw.Servers {
+	for _, server := range sg.Servers {
 		for _, host := range server.Domains {
 			hostLower := strings.ToLower(host)
-			sgw.srvs[hostLower] = &server
+			sg.srvs[hostLower] = &server
 		}
 	}
 }
 
-func (sgw ServerGateway) Start(srvChan <-chan ProcessingConn, poolChan chan<- ProcessedConn) {
-	sgw.mapServers()
+func (sg ServerGateway) Start(srvChan <-chan ProcessingConn, poolChan chan<- ProcessedConn) {
+	sg.mapServers()
 
 	for {
 		c, ok := <-srvChan
@@ -264,16 +261,16 @@ func (sgw ServerGateway) Start(srvChan <-chan ProcessingConn, poolChan chan<- Pr
 		}
 
 		hostLower := strings.ToLower(c.srvHost)
-		srv, ok := sgw.srvs[hostLower]
+		srv, ok := sg.srvs[hostLower]
 		if !ok {
-			sgw.Log.Info("invlaid server host",
+			sg.Log.Info("invlaid server host",
 				"serverId", hostLower,
 				"remoteAddress", c.RemoteAddr(),
 			)
 			continue
 		}
 
-		sgw.Log.Info("connecting client",
+		sg.Log.Info("connecting client",
 			"serverId", hostLower,
 			"remoteAddress", c.RemoteAddr(),
 		)
