@@ -1,35 +1,60 @@
 package callback
 
-import "errors"
-
-type Event string
-
-const EventKey = "event"
-
 const (
-	ErrorEvent            Event = "Error"
-	PlayerJoinEvent       Event = "PlayerJoin"
-	PlayerLeaveEvent      Event = "PlayerLeave"
-	ContainerStartEvent   Event = "ContainerStart"
-	ContainerStopEvent    Event = "ContainerStop"
-	ContainerTimeoutEvent Event = "ContainerTimeout"
+	EventTypeError          string = "Error"
+	EventTypePlayerJoin     string = "PlayerJoin"
+	EventTypePlayerLeave    string = "PlayerLeave"
+	EventTypeContainerStart string = "ContainerStart"
+	EventTypeContainerStop  string = "ContainerStop"
 )
 
-var Events = []Event{
-	ErrorEvent,
-	PlayerJoinEvent,
-	PlayerLeaveEvent,
-	ContainerStartEvent,
-	ContainerStopEvent,
-	ContainerTimeoutEvent,
+type Event interface {
+	EventType() string
 }
 
-func ParseEvent(name string) (Event, error) {
-	for _, event := range Events {
-		if name == string(event) {
-			return event, nil
-		}
-	}
+type ErrorEvent struct {
+	Error    string `json:"error"`
+	ProxyUID string `json:"proxyUid"`
+}
 
-	return "", errors.New("not a registered event")
+func (event ErrorEvent) EventType() string {
+	return EventTypeError
+}
+
+type PlayerJoinEvent struct {
+	Username      string `json:"username"`
+	RemoteAddress string `json:"remoteAddress"`
+	TargetAddress string `json:"targetAddress"`
+	ProxyUID      string `json:"proxyUid"`
+}
+
+func (event PlayerJoinEvent) EventType() string {
+	return EventTypePlayerJoin
+}
+
+type PlayerLeaveEvent struct {
+	Username      string `json:"username"`
+	RemoteAddress string `json:"remoteAddress"`
+	TargetAddress string `json:"targetAddress"`
+	ProxyUID      string `json:"proxyUid"`
+}
+
+func (event PlayerLeaveEvent) EventType() string {
+	return EventTypePlayerLeave
+}
+
+type ContainerStartEvent struct {
+	ProxyUID string `json:"proxyUid"`
+}
+
+func (event ContainerStartEvent) EventType() string {
+	return EventTypeContainerStart
+}
+
+type ContainerStopEvent struct {
+	ProxyUID string `json:"proxyUid"`
+}
+
+func (event ContainerStopEvent) EventType() string {
+	return EventTypeContainerStop
 }

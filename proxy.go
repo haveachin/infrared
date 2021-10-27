@@ -1,325 +1,436 @@
 package infrared
 
 import (
-	"github.com/haveachin/infrared/callback"
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
-	"io"
+	"fmt"
+	"log"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
-	"github.com/haveachin/infrared/mc"
-	"github.com/haveachin/infrared/mc/protocol"
-	"github.com/haveachin/infrared/mc/sim"
+	"github.com/haveachin/infrared/callback"
 	"github.com/haveachin/infrared/process"
+	"github.com/haveachin/infrared/protocol"
+	"github.com/haveachin/infrared/protocol/handshaking"
+	"github.com/haveachin/infrared/protocol/login"
+	"github.com/pires/go-proxyproto"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-type playerMap struct {
-	sync.RWMutex
-	players map[*mc.Conn]string
+var (
+	playersConnected = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "infrared_connected",
+		Help: "The total number of connected players",
+	}, []string{"host"})
+)
+
+func proxyUID(domain, addr string) string {
+	return fmt.Sprintf("%s@%s", strings.ToLower(domain), addr)
 }
 
-func (p *playerMap) put(key *mc.Conn, value string) {
-	p.Lock()
-	defer p.Unlock()
-	p.players[key] = value
-}
-
-func (p *playerMap) remove(key *mc.Conn) {
-	p.Lock()
-	defer p.Unlock()
-	delete(p.players, key)
-}
-
-func (p *playerMap) length() int {
-	p.RLock()
-	defer p.RUnlock()
-	return len(p.players)
-}
-
-func (p *playerMap) keys() []*mc.Conn {
-	p.RLock()
-	defer p.RUnlock()
-
-	var conns []*mc.Conn
-
-	for conn := range p.players {
-		conns = append(conns, conn)
-	}
-
-	return conns
-}
-
-// Proxy is a TCP server that takes an incoming request and sends it to another
-// server, proxying the response back to the client.
 type Proxy struct {
-	// ClientBoundModifiers modify traffic that is send from the server to the client
-	ClientBoundModifiers []Modifier
-	// ServerBoundModifiers modify traffic that is send from the client to the server
-	ServerBoundModifiers []Modifier
+	Config *ProxyConfig
 
-	domainName    string
-	listenTo      string
-	proxyTo       string
-	timeout       time.Duration
-	cancelTimeout func()
-	players       playerMap
-
-	server    sim.Server
-	process   process.Process
-	logWriter *callback.LogWriter
-
-	logger        zerolog.Logger
-	loggerOutputs []io.Writer
+	cancelTimeoutFunc func()
+	players           map[Conn]string
+	mu                sync.Mutex
 }
 
-// NewProxy takes a config an creates a new proxy based on it
-func NewProxy(cfg ProxyConfig) (*Proxy, error) {
-	logWriter := &callback.LogWriter{}
-
-	proxy := Proxy{
-		ClientBoundModifiers: []Modifier{},
-		ServerBoundModifiers: []Modifier{},
-		players:              playerMap{players: map[*mc.Conn]string{}},
-		cancelTimeout:        nil,
-		logWriter:            logWriter,
-		loggerOutputs:        []io.Writer{logWriter},
+func (proxy *Proxy) Process() process.Process {
+	proxy.Config.RLock()
+	defer proxy.Config.RUnlock()
+	if proxy.Config.process != nil {
+		return proxy.Config.process
 	}
 
-	if err := proxy.updateConfig(cfg); err != nil {
-		return nil, err
-	}
-
-	proxy.overrideLogger(log.Logger)
-
-	return &proxy, nil
-}
-
-func (proxy *Proxy) AddLoggerOutput(w io.Writer) {
-	proxy.loggerOutputs = append(proxy.loggerOutputs, w)
-	proxy.logger = proxy.logger.Output(io.MultiWriter(proxy.loggerOutputs...))
-}
-
-func (proxy *Proxy) overrideLogger(logger zerolog.Logger) zerolog.Logger {
-	proxy.logger = logger.With().
-		Str("destinationAddress", proxy.proxyTo).
-		Str("domainName", proxy.domainName).Logger().
-		Output(io.MultiWriter(proxy.loggerOutputs...))
-
-	return proxy.logger
-}
-
-// HandleConn takes a minecraft client connection and it's initial handshake packet
-// and relays all following packets to the remote connection (proxyTo)
-func (proxy *Proxy) HandleConn(conn mc.Conn) error {
-	connAddr := conn.RemoteAddr().String()
-	logger := proxy.logger.With().Str("connection", connAddr).Logger()
-
-	packet, err := conn.PeekPacket()
-	if err != nil {
-		return err
-	}
-
-	handshake, err := protocol.ParseSLPHandshake(packet)
-	if err != nil {
-		return err
-	}
-
-	rconn, err := mc.DialTimeout(proxy.proxyTo, time.Millisecond*500)
-	if err != nil {
-		defer conn.Close()
-		if handshake.IsStatusRequest() {
-			return proxy.server.HandleConn(conn)
-		}
-
-		isProcessRunning, err := proxy.process.IsRunning()
+	if proxy.Config.Docker.IsPortainer() {
+		portainer, err := process.NewPortainer(
+			proxy.Config.Docker.ContainerName,
+			proxy.Config.Docker.Portainer.Address,
+			proxy.Config.Docker.Portainer.EndpointID,
+			proxy.Config.Docker.Portainer.Username,
+			proxy.Config.Docker.Portainer.Password,
+		)
 		if err != nil {
-			logger.Err(err).Interface(callback.EventKey, callback.ErrorEvent).Msg("Could not determine if the container is running")
-			return proxy.server.HandleConn(conn)
+			log.Println("Failed to create a Portainer process; error:", err)
+			return nil
 		}
-
-		if isProcessRunning {
-			return proxy.server.HandleConn(conn)
-		}
-
-		logger.Info().Interface(callback.EventKey, callback.ContainerStartEvent).Msg("Starting container")
-		if err := proxy.process.Start(); err != nil {
-			logger.Err(err).Interface(callback.EventKey, callback.ErrorEvent).Msg("Could not start the container")
-			return proxy.server.HandleConn(conn)
-		}
-
-		proxy.startTimeout()
-
-		return proxy.server.HandleConn(conn)
+		proxy.Config.process = portainer
+		return portainer
 	}
 
-	if handshake.IsLoginRequest() {
-		username, err := sniffUsername(conn, rconn)
+	if proxy.Config.Docker.IsDocker() {
+		docker, err := process.NewDocker(proxy.Config.Docker.ContainerName)
 		if err != nil {
-			return err
+			log.Println("Failed to create a Docker process; error:", err)
+			return nil
 		}
-
-		proxy.stopTimeout()
-		proxy.players.put(&conn, username)
-		logger = logger.With().Str("username", username).Logger()
-		logger.Info().Interface(callback.EventKey, callback.PlayerJoinEvent).Msgf("%s joined the game", username)
-
-		defer func() {
-			logger.Info().Interface(callback.EventKey, callback.PlayerLeaveEvent).Msgf("%s left the game", username)
-			proxy.players.remove(&conn)
-
-			if proxy.players.length() <= 0 {
-				proxy.startTimeout()
-			}
-		}()
+		proxy.Config.process = docker
+		return docker
 	}
-
-	wg := sync.WaitGroup{}
-
-	var pipe = func(src, dst mc.Conn, modifiers []Modifier) {
-		defer wg.Done()
-
-		buffer := make([]byte, 0xffff)
-
-		for {
-			n, err := src.Read(buffer)
-			if err != nil {
-				return
-			}
-
-			data := buffer[:n]
-
-			for _, modifier := range modifiers {
-				if modifier == nil {
-					continue
-				}
-
-				modifier.Modify(src, dst, &data)
-			}
-
-			_, err = dst.Conn.Write(data)
-			if err != nil {
-				return
-			}
-		}
-	}
-
-	wg.Add(2)
-	go pipe(conn, rconn, proxy.ClientBoundModifiers)
-	go pipe(rconn, conn, proxy.ServerBoundModifiers)
-	wg.Wait()
-
-	conn.Close()
-	rconn.Close()
 
 	return nil
 }
 
-// updateConfig is a callback function that handles config changes
-func (proxy *Proxy) updateConfig(cfg ProxyConfig) error {
-	if cfg.ProxyTo == "" {
-		ip, err := net.ResolveIPAddr(cfg.Docker.DNSServer, cfg.Docker.ContainerName)
+func (proxy *Proxy) DomainName() string {
+	proxy.Config.RLock()
+	defer proxy.Config.RUnlock()
+	return proxy.Config.DomainName
+}
+
+func (proxy *Proxy) ListenTo() string {
+	proxy.Config.RLock()
+	defer proxy.Config.RUnlock()
+	return proxy.Config.ListenTo
+}
+
+func (proxy *Proxy) ProxyTo() string {
+	proxy.Config.RLock()
+	defer proxy.Config.RUnlock()
+	return proxy.Config.ProxyTo
+}
+
+func (proxy *Proxy) Dialer() (*Dialer, error) {
+	proxy.Config.RLock()
+	defer proxy.Config.RUnlock()
+	return proxy.Config.Dialer()
+}
+
+func (proxy *Proxy) DisconnectMessage() string {
+	proxy.Config.RLock()
+	defer proxy.Config.RUnlock()
+	return proxy.Config.DisconnectMessage
+}
+
+func (proxy *Proxy) IsOnlineStatusConfigured() bool {
+	proxy.Config.Lock()
+	defer proxy.Config.Unlock()
+	return proxy.Config.OnlineStatus.ProtocolNumber != 0
+}
+
+func (proxy *Proxy) OnlineStatusPacket() (protocol.Packet, error) {
+	proxy.Config.Lock()
+	defer proxy.Config.Unlock()
+	return proxy.Config.OnlineStatus.StatusResponsePacket()
+}
+
+func (proxy *Proxy) OfflineStatusPacket() (protocol.Packet, error) {
+	proxy.Config.Lock()
+	defer proxy.Config.Unlock()
+	return proxy.Config.OfflineStatus.StatusResponsePacket()
+}
+
+func (proxy *Proxy) Timeout() time.Duration {
+	proxy.Config.RLock()
+	defer proxy.Config.RUnlock()
+	return time.Millisecond * time.Duration(proxy.Config.Timeout)
+}
+
+func (proxy *Proxy) DockerTimeout() time.Duration {
+	proxy.Config.RLock()
+	defer proxy.Config.RUnlock()
+	return time.Millisecond * time.Duration(proxy.Config.Docker.Timeout)
+}
+
+func (proxy *Proxy) ProxyProtocol() bool {
+	proxy.Config.RLock()
+	defer proxy.Config.RUnlock()
+	return proxy.Config.ProxyProtocol
+}
+
+func (proxy *Proxy) RealIP() bool {
+	proxy.Config.RLock()
+	defer proxy.Config.RUnlock()
+	return proxy.Config.RealIP
+}
+
+func (proxy *Proxy) CallbackLogger() callback.Logger {
+	proxy.Config.RLock()
+	defer proxy.Config.RUnlock()
+	return callback.Logger{
+		URL:    proxy.Config.CallbackServer.URL,
+		Events: proxy.Config.CallbackServer.Events,
+	}
+}
+
+func (proxy *Proxy) UID() string {
+	return proxyUID(proxy.DomainName(), proxy.ListenTo())
+}
+
+func (proxy *Proxy) addPlayer(conn Conn, username string) {
+	proxy.mu.Lock()
+	defer proxy.mu.Unlock()
+	if proxy.players == nil {
+		proxy.players = map[Conn]string{}
+	}
+	proxy.players[conn] = username
+}
+
+func (proxy *Proxy) removePlayer(conn Conn) int {
+	proxy.mu.Lock()
+	defer proxy.mu.Unlock()
+	if proxy.players == nil {
+		proxy.players = map[Conn]string{}
+		return 0
+	}
+	delete(proxy.players, conn)
+	return len(proxy.players)
+}
+
+func (proxy *Proxy) logEvent(event callback.Event) {
+	if _, err := proxy.CallbackLogger().LogEvent(event); err != nil {
+		log.Println("[w] Failed callback logging; error:", err)
+	}
+}
+
+func (proxy *Proxy) handleConn(conn Conn, connRemoteAddr net.Addr) error {
+	pk, err := conn.ReadPacket()
+	if err != nil {
+		return err
+	}
+
+	hs, err := handshaking.UnmarshalServerBoundHandshake(pk)
+	if err != nil {
+		return err
+	}
+
+	proxyDomain := proxy.DomainName()
+	proxyTo := proxy.ProxyTo()
+	proxyUID := proxy.UID()
+
+	dialer, err := proxy.Dialer()
+	if err != nil {
+		return err
+	}
+
+	rconn, err := dialer.Dial(proxyTo)
+	if err != nil {
+		log.Printf("[i] %s did not respond to ping; is the target offline?", proxyTo)
+		if hs.IsStatusRequest() {
+			return proxy.handleStatusRequest(conn, false)
+		}
+		if err := proxy.startProcessIfNotRunning(); err != nil {
+			return err
+		}
+		proxy.timeoutProcess()
+		return proxy.handleLoginRequest(conn)
+	}
+	defer rconn.Close()
+
+	if hs.IsStatusRequest() && proxy.IsOnlineStatusConfigured() {
+		return proxy.handleStatusRequest(conn, true)
+	}
+
+	if proxy.ProxyProtocol() {
+		header := &proxyproto.Header{
+			Version:           2,
+			Command:           proxyproto.PROXY,
+			TransportProtocol: proxyproto.TCPv4,
+			SourceAddr:        connRemoteAddr,
+			DestinationAddr:   rconn.RemoteAddr(),
+		}
+
+		if _, err = header.WriteTo(rconn); err != nil {
+			return err
+		}
+	}
+
+	if proxy.RealIP() {
+		hs.UpgradeToRealIP(connRemoteAddr, time.Now())
+		pk = hs.Marshal()
+	}
+
+	if err := rconn.WritePacket(pk); err != nil {
+		return err
+	}
+
+	var username string
+	connected := false
+	if hs.IsLoginRequest() {
+		proxy.cancelProcessTimeout()
+		username, err = proxy.sniffUsername(conn, rconn, connRemoteAddr)
 		if err != nil {
 			return err
 		}
-
-		cfg.ProxyTo = ip.String()
+		proxy.addPlayer(conn, username)
+		proxy.logEvent(callback.PlayerJoinEvent{
+			Username:      username,
+			RemoteAddress: connRemoteAddr.String(),
+			TargetAddress: proxyTo,
+			ProxyUID:      proxyUID,
+		})
+		playersConnected.With(prometheus.Labels{"host": proxyDomain}).Inc()
+		connected = true
 	}
 
-	timeout, err := time.ParseDuration(cfg.Timeout)
-	if err != nil {
-		return err
+	go pipe(rconn, conn)
+	pipe(conn, rconn)
+
+	if connected {
+		proxy.logEvent(callback.PlayerLeaveEvent{
+			Username:      username,
+			RemoteAddress: connRemoteAddr.String(),
+			TargetAddress: proxyTo,
+			ProxyUID:      proxyUID,
+		})
+		playersConnected.With(prometheus.Labels{"host": proxyDomain}).Dec()
 	}
 
-	proc, err := process.New(cfg.Docker)
-	if err != nil {
-		return err
+	remainingPlayers := proxy.removePlayer(conn)
+	if remainingPlayers <= 0 {
+		proxy.timeoutProcess()
 	}
-
-	if err := proxy.server.UpdateConfig(cfg.Server); err != nil {
-		return err
-	}
-
-	logWriter, err := callback.NewLogWriter(cfg.CallbackLog)
-	if err != nil {
-		return err
-	}
-
-	proxy.logWriter.URL = logWriter.URL
-	proxy.logWriter.Events = logWriter.Events
-
-	proxy.domainName = cfg.DomainName
-	proxy.listenTo = cfg.ListenTo
-	proxy.proxyTo = cfg.ProxyTo
-	proxy.timeout = timeout
-	proxy.process = proc
-
 	return nil
 }
 
-func (proxy *Proxy) startTimeout() {
-	if proxy.cancelTimeout != nil {
-		proxy.stopTimeout()
-	}
+func pipe(src, dst Conn) {
+	buffer := make([]byte, 0xffff)
 
-	timer := time.AfterFunc(proxy.timeout, func() {
-		proxy.logger.Info().Interface(callback.EventKey, callback.ContainerStopEvent).Msgf("Stopping container")
-		if err := proxy.process.Stop(); err != nil {
-			proxy.logger.Err(err).Interface(callback.EventKey, callback.ErrorEvent).Msg("Failed to stop the container")
+	for {
+		n, err := src.Read(buffer)
+		if err != nil {
+			return
 		}
-	})
 
-	proxy.cancelTimeout = func() {
-		timer.Stop()
-		proxy.logger.Debug().Msg("Timeout canceled")
+		data := buffer[:n]
+
+		_, err = dst.Write(data)
+		if err != nil {
+			return
+		}
 	}
-
-	proxy.logger.Info().Interface(callback.EventKey, callback.ContainerTimeoutEvent).Msgf("Timing out in %s", proxy.timeout)
 }
 
-func (proxy *Proxy) stopTimeout() {
-	if proxy.cancelTimeout == nil {
+func (proxy *Proxy) startProcessIfNotRunning() error {
+	if proxy.Process() == nil {
+		return nil
+	}
+
+	running, err := proxy.Process().IsRunning()
+	if err != nil {
+		return err
+	}
+
+	if running {
+		return nil
+	}
+
+	log.Println("[i] Starting container for", proxy.UID())
+	proxy.logEvent(callback.ContainerStartEvent{ProxyUID: proxy.UID()})
+	return proxy.Process().Start()
+}
+
+func (proxy *Proxy) timeoutProcess() {
+	if proxy.Process() == nil {
 		return
 	}
 
-	proxy.cancelTimeout()
-	proxy.cancelTimeout = nil
-}
+	if proxy.DockerTimeout() <= 0 {
+		return
+	}
 
-func (proxy *Proxy) Close() {
-	for _, conn := range proxy.players.keys() {
-		if err := conn.Close(); err != nil {
-			proxy.logger.Err(err)
+	proxy.cancelProcessTimeout()
+
+	log.Printf("[i] Starting container timeout %s on %s", proxy.DockerTimeout(), proxy.UID())
+	timer := time.AfterFunc(proxy.DockerTimeout(), func() {
+		log.Println("[i] Stopping container on", proxy.UID())
+		proxy.logEvent(callback.ContainerStopEvent{ProxyUID: proxy.UID()})
+		if err := proxy.Process().Stop(); err != nil {
+			log.Printf("[w] Failed to stop the container for %s; error: %s", proxy.UID(), err)
+		}
+	})
+
+	proxy.cancelTimeoutFunc = func() {
+		if timer.Stop() {
+			log.Println("[i] Timout stopped for", proxy.UID())
 		}
 	}
 }
 
-func sniffUsername(conn, rconn mc.Conn) (string, error) {
-	// Handshake
+func (proxy *Proxy) cancelProcessTimeout() {
+	if proxy.cancelTimeoutFunc == nil {
+		return
+	}
+
+	proxy.cancelTimeoutFunc()
+	proxy.cancelTimeoutFunc = nil
+}
+
+func (proxy *Proxy) sniffUsername(conn, rconn Conn, connRemoteAddr net.Addr) (string, error) {
+	pk, err := conn.ReadPacket()
+	if err != nil {
+		return "", err
+	}
+	rconn.WritePacket(pk)
+
+	ls, err := login.UnmarshalServerBoundLoginStart(pk)
+	if err != nil {
+		return "", err
+	}
+	log.Printf("[i] %s with username %s connects through %s", connRemoteAddr, ls.Name, proxy.UID())
+	return string(ls.Name), nil
+}
+
+func (proxy *Proxy) handleLoginRequest(conn Conn) error {
 	packet, err := conn.ReadPacket()
 	if err != nil {
-		return "", err
+		return err
 	}
 
-	if err := rconn.WritePacket(packet); err != nil {
-		return "", err
-	}
-
-	// Login
-	packet, err = conn.ReadPacket()
+	loginStart, err := login.UnmarshalServerBoundLoginStart(packet)
 	if err != nil {
-		return "", err
+		return err
 	}
 
-	loginStartPacket, err := protocol.ParseClientLoginStart(packet)
+	message := proxy.DisconnectMessage()
+	templates := map[string]string{
+		"username":      string(loginStart.Name),
+		"now":           time.Now().Format(time.RFC822),
+		"remoteAddress": conn.LocalAddr().String(),
+		"localAddress":  conn.LocalAddr().String(),
+		"domain":        proxy.DomainName(),
+		"proxyTo":       proxy.ProxyTo(),
+		"listenTo":      proxy.ListenTo(),
+	}
+
+	for key, value := range templates {
+		message = strings.Replace(message, fmt.Sprintf("{{%s}}", key), value, -1)
+	}
+
+	return conn.WritePacket(login.ClientBoundDisconnect{
+		Reason: protocol.Chat(fmt.Sprintf("{\"text\":\"%s\"}", message)),
+	}.Marshal())
+}
+
+func (proxy *Proxy) handleStatusRequest(conn Conn, online bool) error {
+	// Read the request packet and send status response back
+	_, err := conn.ReadPacket()
 	if err != nil {
-		return "", err
+		return err
 	}
 
-	if err := rconn.WritePacket(packet); err != nil {
-		return "", err
+	var responsePk protocol.Packet
+	if online {
+		responsePk, err = proxy.OnlineStatusPacket()
+		if err != nil {
+			return err
+		}
+	} else {
+		responsePk, err = proxy.OfflineStatusPacket()
+		if err != nil {
+			return err
+		}
 	}
 
-	return string(loginStartPacket.Name), nil
+	if err := conn.WritePacket(responsePk); err != nil {
+		return err
+	}
+
+	pingPk, err := conn.ReadPacket()
+	if err != nil {
+		return err
+	}
+
+	return conn.WritePacket(pingPk)
 }

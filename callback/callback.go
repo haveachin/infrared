@@ -3,80 +3,84 @@ package callback
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/rs/zerolog/log"
 	"net/http"
+	"time"
 )
 
-func NewLogWriter(cfg Config) (LogWriter, error) {
-	var events []Event
-
-	for _, eventString := range cfg.Events {
-		event, err := ParseEvent(eventString)
-		if err != nil {
-			return LogWriter{}, err
-		}
-
-		events = append(events, event)
-	}
-
-	return LogWriter{
-		URL:    cfg.URL,
-		Events: events,
-	}, nil
+// HTTPClient represents an interface for the Logger to log events with.
+type HTTPClient interface {
+	Do(req *http.Request) (*http.Response, error)
 }
 
-type LogWriter struct {
+// EventLog
+type EventLog struct {
+	Event     string      `json:"event"`
+	Timestamp time.Time   `json:"timestamp"`
+	Payload   interface{} `json:"payload"`
+}
+
+func newEventLog(event Event) EventLog {
+	return EventLog{
+		Event:     event.EventType(),
+		Timestamp: time.Now(),
+		Payload:   event,
+	}
+}
+
+// Logger can post events to an http endpoint
+type Logger struct {
+	client HTTPClient
+
 	URL    string
-	Events []Event
+	Events []string
 }
 
-func (w LogWriter) Write(b []byte) (int, error) {
-	bb := make([]byte, len(b))
-	copy(bb, b)
-	go w.handleLog(bb)
-	return len(b), nil
+func (logger Logger) isValid() bool {
+	return logger.URL != "" && len(logger.Events) > 0
 }
 
-func (w LogWriter) handleLog(b []byte) {
-	if w.URL == "" {
-		return
-	}
-
-	eventJSON := struct {
-		Event string `json:"event"`
-	}{}
-
-	if err := json.Unmarshal(b, &eventJSON); err != nil {
-		log.Err(err)
-		return
-	}
-
-	if len(w.Events) > 0 {
-		hasEvent := false
-		for _, event := range w.Events {
-			if eventJSON.Event != string(event) {
-				continue
-			}
-
+// hasEvent checks if Logger.Events contain the given event's type.
+func (logger Logger) hasEvent(event Event) bool {
+	hasEvent := false
+	for _, e := range logger.Events {
+		if e == event.EventType() {
 			hasEvent = true
 			break
 		}
-
-		if !hasEvent {
-			return
-		}
 	}
-
-	if err := postToURL(w.URL, b); err != nil {
-		log.Err(err).Str("url", w.URL)
-	}
+	return hasEvent
 }
 
-func postToURL(url string, payload []byte) error {
-	_, err := http.Post(url, "application/json", bytes.NewReader(payload))
-	if err != nil {
-		return err
+// LogEvent posts the given event to an http endpoint if the Logger
+// holds a valid URL and the Logger.Events contains given event's type.
+func (logger Logger) LogEvent(event Event) (*EventLog, error) {
+	if logger.client == nil {
+		logger.client = http.DefaultClient
 	}
 
-	return nil
+	if !logger.isValid() {
+		return nil, nil
+	}
+
+	if !logger.hasEvent(event) {
+		return nil, nil
+	}
+
+	eventLog := newEventLog(event)
+	bb, err := json.Marshal(eventLog)
+	if err != nil {
+		return nil, err
+	}
+
+	request, err := http.NewRequest(http.MethodPost, logger.URL, bytes.NewReader(bb))
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = logger.client.Do(request)
+	if err != nil {
+		return nil, err
+	}
+
+	return &eventLog, nil
 }
