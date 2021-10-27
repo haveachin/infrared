@@ -73,18 +73,28 @@ func loadGateways() ([]infrared.Gateway, error) {
 }
 
 type serverConfig struct {
-	Domains           []string           `mapstructure:"domains"`
-	Address           string             `mapstructure:"address"`
-	ProxyBind         string             `mapstructure:"proxy_bind"`
-	DialTimeout       time.Duration      `mapstructure:"dial_timeout"`
-	SendProxyProtocol bool               `mapstructure:"send_proxy_protocol"`
-	SendRealIP        bool               `mapstructure:"send_real_ip"`
-	DisconnectMessage string             `mapstructure:"disconnect_message"`
-	OnlineStatus      serverStatusConfig `mapstructure:"online_status"`
-	OfflineStatus     serverStatusConfig `mapstructure:"offline_status"`
+	Domains           []string                  `mapstructure:"domains"`
+	Address           string                    `mapstructure:"address"`
+	ProxyBind         string                    `mapstructure:"proxy_bind"`
+	DialTimeout       time.Duration             `mapstructure:"dial_timeout"`
+	SendProxyProtocol bool                      `mapstructure:"send_proxy_protocol"`
+	SendRealIP        bool                      `mapstructure:"send_real_ip"`
+	DisconnectMessage string                    `mapstructure:"disconnect_message"`
+	OnlineStatus      onlineServerStatusConfig  `mapstructure:"online_status"`
+	OfflineStatus     offlineServerStatusConfig `mapstructure:"offline_status"`
 }
 
-type serverStatusConfig struct {
+type onlineServerStatusConfig struct {
+	VersionName    *string                          `mapstructure:"version_name,omitempty"`
+	ProtocolNumber *int                             `mapstructure:"protocol_number,omitempty"`
+	MaxPlayer      *int                             `mapstructure:"max_players,omitempty"`
+	PlayersOnline  *int                             `mapstructure:"players_online,omitempty"`
+	PlayerSample   []serverStatusPlayerSampleConfig `mapstructure:"player_sample,omitempty"`
+	IconPath       *string                          `mapstructure:"icon_path,omitempty"`
+	MOTD           *string                          `mapstructure:"motd,omitempty"`
+}
+
+type offlineServerStatusConfig struct {
 	VersionName    string                           `mapstructure:"version_name"`
 	ProtocolNumber int                              `mapstructure:"protocol_number"`
 	MaxPlayer      int                              `mapstructure:"max_players"`
@@ -113,13 +123,25 @@ func newServer(id string, cfg serverConfig) infrared.Server {
 		SendProxyProtocol: cfg.SendProxyProtocol,
 		SendRealIP:        cfg.SendRealIP,
 		DisconnectMessage: cfg.DisconnectMessage,
-		OnlineStatus:      newServerStatus(cfg.OnlineStatus),
-		OfflineStatus:     newServerStatus(cfg.OfflineStatus),
+		OnlineStatus:      newOnlineServerStatus(cfg.OnlineStatus),
+		OfflineStatus:     newOfflineServerStatus(cfg.OfflineStatus),
 	}
 }
 
-func newServerStatus(cfg serverStatusConfig) infrared.StatusResponse {
-	return infrared.StatusResponse{
+func newOnlineServerStatus(cfg onlineServerStatusConfig) infrared.OnlineStatusResponse {
+	return infrared.OnlineStatusResponse{
+		VersionName:    cfg.VersionName,
+		ProtocolNumber: cfg.ProtocolNumber,
+		MaxPlayers:     cfg.MaxPlayer,
+		PlayersOnline:  cfg.PlayersOnline,
+		IconPath:       cfg.IconPath,
+		MOTD:           cfg.MOTD,
+		PlayerSamples:  newServerStatusPlayerSample(cfg.PlayerSample),
+	}
+}
+
+func newOfflineServerStatus(cfg offlineServerStatusConfig) infrared.OfflineStatusResponse {
+	return infrared.OfflineStatusResponse{
 		VersionName:    cfg.VersionName,
 		ProtocolNumber: cfg.ProtocolNumber,
 		MaxPlayers:     cfg.MaxPlayer,

@@ -1,12 +1,9 @@
 package infrared
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net"
-	"os"
 	"strings"
 	"time"
 
@@ -16,77 +13,6 @@ import (
 	"github.com/haveachin/infrared/protocol/status"
 )
 
-type PlayerSample struct {
-	Name string
-	UUID string
-}
-
-type PlayerSamples []PlayerSample
-
-func (ps PlayerSamples) PlayerSampleJson() []status.PlayerSampleJSON {
-	ss := make([]status.PlayerSampleJSON, len(ps))
-	for i, s := range ps {
-		ss[i] = status.PlayerSampleJSON{
-			Name: s.Name,
-			ID:   s.UUID,
-		}
-	}
-	return ss
-}
-
-type StatusResponse struct {
-	VersionName    string
-	ProtocolNumber int
-	MaxPlayers     int
-	PlayersOnline  int
-	PlayerSamples  PlayerSamples
-	IconPath       string
-	MOTD           string
-}
-
-func (r StatusResponse) ResponseJSON() (status.ResponseJSON, error) {
-	img64, err := loadImageAndEncodeToBase64String(r.IconPath)
-	if err != nil {
-		return status.ResponseJSON{}, err
-	}
-
-	return status.ResponseJSON{
-		Version: status.VersionJSON{
-			Name:     r.VersionName,
-			Protocol: r.ProtocolNumber,
-		},
-		Players: status.PlayersJSON{
-			Max:    r.MaxPlayers,
-			Online: r.PlayersOnline,
-			Sample: r.PlayerSamples.PlayerSampleJson(),
-		},
-		Favicon: img64,
-		Description: status.DescriptionJSON{
-			Text: r.MOTD,
-		},
-	}, nil
-}
-
-func loadImageAndEncodeToBase64String(path string) (string, error) {
-	if path == "" {
-		return "", nil
-	}
-
-	imgFile, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer imgFile.Close()
-
-	bb, err := io.ReadAll(imgFile)
-	if err != nil {
-		return "", err
-	}
-	img64 := base64.StdEncoding.EncodeToString(bb)
-
-	return fmt.Sprintf("data:image/png;base64,%s", img64), nil
-}
-
 type Server struct {
 	ID                string
 	Domains           []string
@@ -95,8 +21,8 @@ type Server struct {
 	SendProxyProtocol bool
 	SendRealIP        bool
 	DisconnectMessage string
-	OnlineStatus      StatusResponse
-	OfflineStatus     StatusResponse
+	OnlineStatus      OnlineStatusResponse
+	OfflineStatus     OfflineStatusResponse
 	WebhookIDs        []string
 	Log               logr.Logger
 }
@@ -188,8 +114,10 @@ func (s Server) overrideStatusResponse(c ProcessingConn, rc Conn) error {
 		return err
 	}
 
-	motd := s.replaceTemplates(c, s.OnlineStatus.MOTD)
-	respJSON.Description.Text = motd
+	respJSON, err = s.OnlineStatus.ResponseJSON(respJSON)
+	if err != nil {
+		return err
+	}
 
 	bb, err := json.Marshal(respJSON)
 	if err != nil {

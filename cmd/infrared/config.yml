@@ -17,13 +17,18 @@ servers:
   myserver:
     domains:
       - localhost
-    address: 0.0.0.0:25567
+    address: 0.0.0.0:25566
     send_proxy_protocol: false
     send_real_ip: false
     disconnect_message: Sorry {{username}}, but the server is offline.
     online_status: # Overrides only version name and icon of the original server
       version_name: Infrared 1.17
       icon_path: ./icon.png
+      player_sample:
+        - name: Steve
+          uuid: 8667ba71-b85a-4004-af54-457a9734eed7
+        - name: Alex
+          uuid: ec561538-f3fd-461d-aff5-086b22154bce
     webhooks:
       - mywebhook
 
@@ -53,11 +58,11 @@ defaults:
     send_real_ip: false
     disconnect_message: Sorry {{username}}, but the server is offline.
     offline_status:
-      version_name: Proxy Host XY
+      version_name: "Proxy Host XY"
       protocol_number: 0
       max_players: 20
       players_online: 0
-      icon_path: ./icon.png
+      icon_path: "./icon.png"
       player_sample:
         - name: Steve
           uuid: 8667ba71-b85a-4004-af54-457a9734eed7
