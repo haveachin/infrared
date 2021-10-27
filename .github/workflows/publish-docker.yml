@@ -5,8 +5,6 @@ name: Publish Docker Images
 on:
   push:
     branches: [ master ]
-  pull_request:
-    branches: [ master ]
 
 env:
   GH_REGISTRY: ghcr.io
@@ -15,7 +13,6 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
-    needs: [ test ]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
