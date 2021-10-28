@@ -11,6 +11,7 @@ import (
 	"github.com/haveachin/infrared/protocol"
 	"github.com/haveachin/infrared/protocol/login"
 	"github.com/haveachin/infrared/protocol/status"
+	"github.com/haveachin/infrared/webhook"
 )
 
 type Server struct {
@@ -162,25 +163,61 @@ func (s Server) ProcessConnection(c ProcessingConn) (ProcessedConn, error) {
 }
 
 type ServerGateway struct {
-	Servers []Server
-	Log     logr.Logger
+	Servers  []Server
+	Webhooks []webhook.Webhook
+	Log      logr.Logger
 
-	srvs map[string]*Server
+	// Domain mapped to server
+	srvs map[string]Server
+	// Server ID mapped to webhooks
+	srvWhks map[string][]webhook.Webhook
 }
 
-func (sg *ServerGateway) mapServers() {
-	sg.srvs = map[string]*Server{}
-
+func (sg *ServerGateway) indexServers() error {
+	sg.srvs = map[string]Server{}
 	for _, server := range sg.Servers {
 		for _, host := range server.Domains {
 			hostLower := strings.ToLower(host)
-			sg.srvs[hostLower] = &server
+			if _, exits := sg.srvs[hostLower]; exits {
+				return fmt.Errorf("duplicate server domain %q", hostLower)
+			}
+			sg.srvs[hostLower] = server
 		}
 	}
+	return nil
 }
 
-func (sg ServerGateway) Start(srvChan <-chan ProcessingConn, poolChan chan<- ProcessedConn) {
-	sg.mapServers()
+// indexWebhooks indexes the webhooks that servers use.
+// This creates a map
+func (sg *ServerGateway) indexWebhooks() error {
+	whks := map[string]webhook.Webhook{}
+	for _, w := range sg.Webhooks {
+		whks[w.ID] = w
+	}
+
+	sg.srvWhks = map[string][]webhook.Webhook{}
+	for _, s := range sg.Servers {
+		ww := make([]webhook.Webhook, len(s.WebhookIDs))
+		for n, id := range s.WebhookIDs {
+			w, ok := whks[id]
+			if !ok {
+				return fmt.Errorf("no webhook with id %q", id)
+			}
+			ww[n] = w
+		}
+		sg.srvWhks[s.ID] = ww
+	}
+	return nil
+}
+
+func (sg ServerGateway) Start(srvChan <-chan ProcessingConn, poolChan chan<- ProcessedConn) error {
+	if err := sg.indexServers(); err != nil {
+		return err
+	}
+
+	if err := sg.indexWebhooks(); err != nil {
+		return err
+	}
 
 	for {
 		c, ok := <-srvChan
@@ -208,4 +245,6 @@ func (sg ServerGateway) Start(srvChan <-chan ProcessingConn, poolChan chan<- Pro
 		}
 		poolChan <- pc
 	}
+
+	return nil
 }

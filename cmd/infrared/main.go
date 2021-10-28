@@ -65,11 +65,10 @@ func startCPNs(cpnChan <-chan infrared.ProcessingConn, srvChan chan<- infrared.P
 	}
 }
 
-func startServers(srvChan <-chan infrared.ProcessingConn, poolChan chan<- infrared.ProcessedConn) {
+func startServers(srvChan <-chan infrared.ProcessingConn, poolChan chan<- infrared.ProcessedConn) error {
 	servers, err := loadServers()
 	if err != nil {
-		logger.Error(err, "loading servers")
-		return
+		return err
 	}
 
 	for _, srv := range servers {
@@ -80,12 +79,17 @@ func startServers(srvChan <-chan infrared.ProcessingConn, poolChan chan<- infrar
 		Servers: servers,
 		Log:     logger,
 	}
-	go srvGw.Start(srvChan, poolChan)
+
+	if err := srvGw.Start(srvChan, poolChan); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func startConnPool(poolChan <-chan infrared.ProcessedConn) {
 	pool := infrared.ConnPool{
 		Log: logger,
 	}
-	go pool.Start(poolChan)
+	pool.Start(poolChan)
 }
