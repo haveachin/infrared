@@ -233,3 +233,7 @@ scrape_configs:
   * **Example response:** `infrared_proxies{instance="vps1.example.com:9070",job="infrared"} 5`
   * **instance:** what infrared instance has that amount of active proxies.
   * **job:** what job was specified in the prometheus configuration.
+
+## Similar Projects
+
+* https://github.com/itzg/mc-router
