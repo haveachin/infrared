@@ -23,13 +23,13 @@ func init() {
 }
 
 func main() {
-	cpnChan := make(chan infrared.ProcessingConn)
+	cpnChan := make(chan infrared.ProcessingConn, 10)
 	srvChan := make(chan infrared.ProcessingConn)
 	poolChan := make(chan infrared.ProcessedConn)
 
 	startGateways(cpnChan)
 	startCPNs(cpnChan, srvChan)
-	startServers(srvChan, poolChan)
+	go startServers(srvChan, poolChan)
 	startConnPool(poolChan)
 
 	logger.Info("done")
@@ -91,5 +91,5 @@ func startConnPool(poolChan <-chan infrared.ProcessedConn) {
 	pool := infrared.ConnPool{
 		Log: logger,
 	}
-	pool.Start(poolChan)
+	go pool.Start(poolChan)
 }

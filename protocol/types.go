@@ -3,8 +3,9 @@ package protocol
 import (
 	"bytes"
 	"errors"
-	"github.com/gofrs/uuid"
 	"io"
+
+	"github.com/gofrs/uuid"
 )
 
 // A Field is both FieldEncoder and FieldDecoder

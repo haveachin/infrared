@@ -3,12 +3,17 @@ package infrared
 import (
 	"net"
 	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/haveachin/infrared/protocol/handshaking"
 	"github.com/haveachin/infrared/protocol/login"
 	"github.com/pires/go-proxyproto"
 )
+
+type ConnProcessor interface {
+	ProcessConn()
+}
 
 // Connection Processing Node
 type CPN struct {
@@ -25,7 +30,7 @@ func (cpn *CPN) Start(cpnChan <-chan ProcessingConn, srvChan chan<- ProcessingCo
 			"remoteAddress", c.RemoteAddr(),
 		)
 
-		if err := process(&c); err != nil {
+		if err := cpn.ProcessConn(&c); err != nil {
 			cpn.Log.Error(err, "processing",
 				"remoteAddress", c.RemoteAddr(),
 			)
@@ -36,7 +41,9 @@ func (cpn *CPN) Start(cpnChan <-chan ProcessingConn, srvChan chan<- ProcessingCo
 	}
 }
 
-func process(c *ProcessingConn) error {
+func (cpn *CPN) ProcessConn(c *ProcessingConn) error {
+	// TODO: Add client timeout config setting
+	c.SetReadDeadline(time.Now().Add(time.Second))
 	if c.proxyProtocol {
 		header, err := proxyproto.Read(c.Reader())
 		if err != nil {
@@ -49,6 +56,7 @@ func process(c *ProcessingConn) error {
 	if err != nil {
 		return err
 	}
+	c.SetReadDeadline(time.Time{})
 	c.readPks = pks
 
 	hs, err := handshaking.UnmarshalServerBoundHandshake(pks[0])
