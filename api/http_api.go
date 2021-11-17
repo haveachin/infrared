@@ -12,19 +12,15 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-var configPath = "./configs"
-
 // ListenAndServe StartWebserver Start Webserver if environment variable "api-enable" is set to true
-func ListenAndServe(methodConfigPath string, apiBind string) {
-	configPath = methodConfigPath
-
+func ListenAndServe(configPath string, apiBind string) {
 	fmt.Println("Starting WebAPI on " + apiBind)
 	router := chi.NewRouter()
 	router.Use(middleware.Logger)
 
-	router.Post("/proxies", addProxy)
-	router.Post("/proxies/{fileName}", addProxyWithName)
-	router.Delete("/proxies/{fileName}", removeProxy)
+	router.Post("/proxies", addProxy(configPath))
+	router.Post("/proxies/{fileName}", addProxyWithName(configPath))
+	router.Delete("/proxies/{fileName}", removeProxy(configPath))
 
 	err := http.ListenAndServe(apiBind, router)
 	if err != nil {
@@ -33,59 +29,65 @@ func ListenAndServe(methodConfigPath string, apiBind string) {
 	}
 }
 
-func addProxy(w http.ResponseWriter, r *http.Request) {
-	rawData, err := ioutil.ReadAll(r.Body)
-	if err != nil || string(rawData) == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
+func addProxy(configPath string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		rawData, err := ioutil.ReadAll(r.Body)
+		if err != nil || string(rawData) == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
 
-	jsonIsValid := checkJSONAndRegister(rawData, "")
-	if jsonIsValid {
-		w.WriteHeader(http.StatusOK)
-		return
-	} else {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("{'error': 'domainName and proxyTo could not be found'}"))
-		return
-	}
-}
-
-func addProxyWithName(w http.ResponseWriter, r *http.Request) {
-	fileName := chi.URLParam(r, "fileName")
-
-	rawData, err := ioutil.ReadAll(r.Body)
-	if err != nil || string(rawData) == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	jsonIsValid := checkJSONAndRegister(rawData, fileName)
-	if jsonIsValid {
-		w.WriteHeader(http.StatusOK)
-		return
-	} else {
-		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte("{'error': 'domainName and proxyTo could not be found'}"))
-		return
+		jsonIsValid := checkJSONAndRegister(rawData, "", configPath)
+		if jsonIsValid {
+			w.WriteHeader(http.StatusOK)
+			return
+		} else {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte("{'error': 'domainName and proxyTo could not be found'}"))
+			return
+		}
 	}
 }
 
-func removeProxy(w http.ResponseWriter, r *http.Request) {
-	file := chi.URLParam(r, "fileName")
-	fmt.Println(file)
+func addProxyWithName(configPath string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		fileName := chi.URLParam(r, "fileName")
 
-	err := os.Remove(configPath + "/" + file)
-	if err != nil {
-		w.WriteHeader(http.StatusNoContent)
-		w.Write([]byte(err.Error()))
-		return
+		rawData, err := ioutil.ReadAll(r.Body)
+		if err != nil || string(rawData) == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		jsonIsValid := checkJSONAndRegister(rawData, fileName, configPath)
+		if jsonIsValid {
+			w.WriteHeader(http.StatusOK)
+			return
+		} else {
+			w.WriteHeader(http.StatusBadRequest)
+			w.Write([]byte("{'error': 'domainName and proxyTo could not be found'}"))
+			return
+		}
+	}
+}
+
+func removeProxy(configPath string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		file := chi.URLParam(r, "fileName")
+		fmt.Println(file)
+
+		err := os.Remove(configPath + "/" + file)
+		if err != nil {
+			w.WriteHeader(http.StatusNoContent)
+			w.Write([]byte(err.Error()))
+			return
+		}
 	}
 }
 
 // Helper method to check for domainName and proxyTo in a given JSON array
 // If the filename is empty the domain will be used as the filename - files with the same name will be overwritten
-func checkJSONAndRegister(rawData []byte, filename string) (successful bool) {
+func checkJSONAndRegister(rawData []byte, filename string, configPath string) (successful bool) {
 	tmpFile, err := ioutil.TempFile(os.TempDir(), "infraredTmpConfig_")
 	if err != nil {
 		fmt.Println(err)
