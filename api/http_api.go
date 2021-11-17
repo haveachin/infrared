@@ -24,7 +24,7 @@ func ListenAndServe(methodConfigPath string, apiBind string) {
 
 	router.Post("/proxies", addProxy)
 	router.Post("/proxies/{fileName}", addProxyWithName)
-	router.Delete("/proxies/{file}", removeProxy)
+	router.Delete("/proxies/{fileName}", removeProxy)
 
 	err := http.ListenAndServe(apiBind, router)
 	if err != nil {
@@ -72,7 +72,7 @@ func addProxyWithName(w http.ResponseWriter, r *http.Request) {
 }
 
 func removeProxy(w http.ResponseWriter, r *http.Request) {
-	file := chi.URLParam(r, "file")
+	file := chi.URLParam(r, "fileName")
 	fmt.Println(file)
 
 	err := os.Remove(configPath + "/" + file)
