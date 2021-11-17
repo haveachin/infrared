@@ -16,7 +16,7 @@ import (
 
 var configPath = "./configs"
 
-// StartWebserver Start Webserver if environment variable "api-enable" is set to true
+// ListenAndServe StartWebserver Start Webserver if environment variable "api-enable" is set to true
 func ListenAndServe(methodConfigPath string, apiBind string) {
 	configPath = methodConfigPath
 
@@ -37,14 +37,14 @@ func ListenAndServe(methodConfigPath string, apiBind string) {
 func addProxy(w http.ResponseWriter, r *http.Request) {
 	rawData, err := ioutil.ReadAll(r.Body)
 	if err != nil || string(rawData) == "" {
-		w.WriteHeader(400)
+		w.WriteHeader(http.StatusBadRequest)
 	}
 
 	jsonIsValid := checkJSONAndRegister(rawData, "")
 	if jsonIsValid {
-		w.WriteHeader(200)
+		w.WriteHeader(http.StatusOK)
 	} else {
-		w.WriteHeader(400)
+		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("{'error': 'domainName and proxyTo could not be found'}"))
 	}
 }
@@ -54,14 +54,14 @@ func addProxyWithName(w http.ResponseWriter, r *http.Request) {
 
 	rawData, err := ioutil.ReadAll(r.Body)
 	if err != nil || string(rawData) == "" {
-		w.WriteHeader(400)
+		w.WriteHeader(http.StatusBadRequest)
 	}
 
 	jsonIsValid := checkJSONAndRegister(rawData, fileName)
 	if jsonIsValid {
-		w.WriteHeader(200)
+		w.WriteHeader(http.StatusOK)
 	} else {
-		w.WriteHeader(400)
+		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("{'error': 'domainName and proxyTo could not be found'}"))
 	}
 }
@@ -72,7 +72,7 @@ func removeProxy(w http.ResponseWriter, r *http.Request) {
 
 	err := os.Remove(configPath + "/" + file)
 	if err != nil {
-		w.WriteHeader(500)
+		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(err.Error()))
 	}
 }
