@@ -77,7 +77,7 @@ func removeProxy(w http.ResponseWriter, r *http.Request) {
 
 	err := os.Remove(configPath + "/" + file)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		w.WriteHeader(http.StatusNoContent)
 		w.Write([]byte(err.Error()))
 		return
 	}
@@ -88,7 +88,7 @@ func removeProxy(w http.ResponseWriter, r *http.Request) {
 func checkJSONAndRegister(rawData []byte, filename string) (successful bool) {
 	tmpFile, err := ioutil.TempFile(os.TempDir(), "infraredTmpConfig_")
 	if err != nil {
-		log.Fatal(err)
+		fmt.Println(err)
 		return false
 	}
 
