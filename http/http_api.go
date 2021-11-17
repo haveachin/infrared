@@ -12,16 +12,12 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-
-	"github.com/haveachin/infrared"
 )
 
 var ConfigPath = "./configs"
-var ProxyGateway = infrared.Gateway{}
 
 // StartWebserver Start Webserver if environment variable "api-enable" is set to true
-func StartWebserver(configPath string, gateway infrared.Gateway, apiBind string) {
-	ProxyGateway = gateway
+func StartWebserver(configPath string, apiBind string) {
 	ConfigPath = configPath
 
 	fmt.Println("Starting WebAPI on " + apiBind)
@@ -44,7 +40,7 @@ func addProxy(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var result map[string]interface{}
-	err = json.Unmarshal([]byte(jsonData), &result)
+	err = json.Unmarshal(jsonData, &result)
 	if err != nil {
 		w.WriteHeader(400)
 	}
@@ -58,16 +54,6 @@ func addProxy(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(500)
 			w.Write([]byte(err.Error()))
 		}
-
-		conf, err := infrared.NewProxyConfigFromPath(filePath)
-		if err != nil {
-			w.WriteHeader(500)
-			w.Write([]byte(err.Error()))
-		}
-
-		ProxyGateway.RegisterProxy(&infrared.Proxy{
-			Config: conf,
-		})
 
 	} else {
 		w.WriteHeader(400)
