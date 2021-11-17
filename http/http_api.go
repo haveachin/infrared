@@ -14,23 +14,25 @@ import (
 var ConfigPath = "./configs"
 var ProxyGateway = infrared.Gateway{}
 
+// StartWebserver Start Webserver if environment variable "api-enable" is set to true
 func StartWebserver(configPath string, gateway infrared.Gateway) {
 	ProxyGateway = gateway
 	ConfigPath = configPath
-	//if getEnv("api-enabled", "false") == "true" {
-	apiBind := getEnv("api-bind", "127.0.0.1:8080")
+	if getEnv("API-ENABLED", "false") == "true" {
+		apiBind := getEnv("API-BIND", "127.0.0.1:8080")
 
-	fmt.Println("Starting WebAPI on " + apiBind)
-	server := gin.Default()
+		fmt.Println("Starting WebAPI on " + apiBind)
+		server := gin.Default()
+		gin.SetMode(gin.ReleaseMode)
 
-	server.POST("/proxies/", addProxy)
-	server.DELETE("/proxies/:file/", removeProxy)
+		server.POST("/proxies/", addProxy)
+		server.DELETE("/proxies/:file/", removeProxy)
 
-	err := server.Run(apiBind)
-	if err != nil {
-		panic(err)
+		err := server.Run(apiBind)
+		if err != nil {
+			panic(err)
+		}
 	}
-	//}
 }
 
 func addProxy(c *gin.Context) {
@@ -53,12 +55,6 @@ func addProxy(c *gin.Context) {
 		if err != nil {
 			c.AbortWithError(500, err)
 		}
-
-		/*
-			&infrared.Proxy{
-					Config: cfg,
-				})
-		*/
 
 		conf, err := infrared.NewProxyConfigFromPath(filePath)
 		if err != nil {

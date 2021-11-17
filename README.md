@@ -25,7 +25,7 @@ It works similar to Nginx for those of you who are familiar.
 - [x] HAProxy Protocol Support
 - [x] TCPShield/RealIP Protocol Support
 - [X] Prometheus Support
-- [ ] REST API
+- [X] REST API
 
 ## Deploy
 
@@ -51,6 +51,9 @@ $ docker build --no-cache -t haveachin/infrared:latest https://github.com/haveac
 
 `INFRARED_CONFIG_PATH` is the path to all your server configs [default: `"./configs/"`]
 `INFRARED_RECEIVE_PROXY_PROTOCOL` if Infrared should be able to receive proxy protocol [default: `"false"`]
+
+`API-ENABLED` if the api should be enabled [default: `"false"`]\
+`API-BIND` change the http bind option [default: `"127.0.0.1:8080"`]
 
 ## Command-Line Flags
 
@@ -209,6 +212,34 @@ More info on [Portainer](https://www.portainer.io/).
 ```
 
 </details>
+
+## Rest API
+**The API should not be accessible from the internet!**
+
+### Enabling API
+To enable the API the environment variable `api-enabled` must be set to `"true"`.
+To change the http bind, set the env variable `api-bind` to something like `"0.0.0.0:3000"` the default value is `"127.0.0.1:8080"`
+
+### API Methods
+#### Create new config
+
+POST `/proxies/`\
+Body must contain:
+```json
+{
+"domainName": "mc.example.com",
+"proxyTo": ":8080"
+}
+```
+But all values (like in a normal config file) can be set.
+
+The API then will create a file with the name of the domain (if the file exists it will be overwritten) and write the body to it. The proxy can now be visited.
+
+### Remove config
+DELETE `/proxies/:file/`\
+Replace `:file` with the name of the proxy configuration file.
+
+If the file was found it will be unloaded and deleted. Open connections do not close, but no new player can connect anymore.
 
 ## Prometheus exporter
 The built-in prometheus exporter can be used to view metrics about infrareds operation.  
