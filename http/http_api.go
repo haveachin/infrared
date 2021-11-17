@@ -20,23 +20,20 @@ var ConfigPath = "./configs"
 var ProxyGateway = infrared.Gateway{}
 
 // StartWebserver Start Webserver if environment variable "api-enable" is set to true
-func StartWebserver(configPath string, gateway infrared.Gateway) {
+func StartWebserver(configPath string, gateway infrared.Gateway, apiBind string) {
 	ProxyGateway = gateway
 	ConfigPath = configPath
-	if getEnv("API-ENABLED", "false") == "false" {
-		apiBind := getEnv("API-BIND", "127.0.0.1:8080")
 
-		fmt.Println("Starting WebAPI on " + apiBind)
-		router := chi.NewRouter()
-		router.Use(middleware.Logger)
+	fmt.Println("Starting WebAPI on " + apiBind)
+	router := chi.NewRouter()
+	router.Use(middleware.Logger)
 
-		router.Post("/proxies", addProxy)
-		router.Delete("/proxies/{file}", removeProxy)
+	router.Post("/proxies", addProxy)
+	router.Delete("/proxies/{file}", removeProxy)
 
-		err := http.ListenAndServe(apiBind, router)
-		if err != nil {
-			log.Fatal(err)
-		}
+	err := http.ListenAndServe(apiBind, router)
+	if err != nil {
+		log.Fatal(err)
 	}
 }
 

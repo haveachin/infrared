@@ -14,6 +14,8 @@ const (
 	envPrefix               = "INFRARED_"
 	envConfigPath           = envPrefix + "CONFIG_PATH"
 	envReceiveProxyProtocol = envPrefix + "RECEIVE_PROXY_PROTOCOL"
+	envApiEnabled           = envPrefix + "API_ENABLED"
+	envApiBind              = envPrefix + "API_BIND"
 )
 
 const (
@@ -28,6 +30,8 @@ var (
 	receiveProxyProtocol = false
 	prometheusEnabled    = false
 	prometheusBind       = ":9100"
+	apiEnabled           = false
+	apiBind              = "127.0.0.1:8080"
 )
 
 func envBool(name string, value bool) bool {
@@ -56,6 +60,8 @@ func envString(name string, value string) string {
 func initEnv() {
 	configPath = envString(envConfigPath, configPath)
 	receiveProxyProtocol = envBool(envReceiveProxyProtocol, receiveProxyProtocol)
+	apiEnabled = envBool(envApiEnabled, apiEnabled)
+	apiBind = envString(envApiBind, apiBind)
 }
 
 func initFlags() {
@@ -110,7 +116,9 @@ func main() {
 		}
 	}()
 
-	go http.StartWebserver(configPath, gateway)
+	if apiEnabled {
+		go http.StartWebserver(configPath, gateway, apiBind)
+	}
 
 	if prometheusEnabled {
 		gateway.EnablePrometheus(prometheusBind)
