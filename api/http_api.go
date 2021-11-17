@@ -17,7 +17,7 @@ import (
 var configPath = "./configs"
 
 // StartWebserver Start Webserver if environment variable "api-enable" is set to true
-func StartWebserver(methodConfigPath string, apiBind string) {
+func ListenAndServe(methodConfigPath string, apiBind string) {
 	configPath = methodConfigPath
 
 	fmt.Println("Starting WebAPI on " + apiBind)

@@ -117,7 +117,7 @@ func main() {
 	}()
 
 	if apiEnabled {
-		go api.StartWebserver(configPath, apiBind)
+		go api.ListenAndServe(configPath, apiBind)
 	}
 
 	if prometheusEnabled {
