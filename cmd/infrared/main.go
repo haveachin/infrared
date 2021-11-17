@@ -2,7 +2,7 @@ package main
 
 import (
 	"flag"
-	"github.com/haveachin/infrared/http"
+	"github.com/haveachin/infrared/api"
 	"log"
 	"os"
 	"strconv"
@@ -117,7 +117,7 @@ func main() {
 	}()
 
 	if apiEnabled {
-		go http.StartWebserver(configPath, apiBind)
+		go api.StartWebserver(configPath, apiBind)
 	}
 
 	if prometheusEnabled {
