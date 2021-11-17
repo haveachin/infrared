@@ -14,11 +14,11 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 )
 
-var ConfigPath = "./configs"
+var configPath = "./configs"
 
 // StartWebserver Start Webserver if environment variable "api-enable" is set to true
-func StartWebserver(configPath string, apiBind string) {
-	ConfigPath = configPath
+func StartWebserver(methodConfigPath string, apiBind string) {
+	configPath = methodConfigPath
 
 	fmt.Println("Starting WebAPI on " + apiBind)
 	router := chi.NewRouter()
@@ -43,7 +43,7 @@ func addProxy(w http.ResponseWriter, r *http.Request) {
 	jsonIsValid, jsonData := checkForRequiredObjects(rawData)
 	if jsonIsValid {
 		proxyName := jsonData["domainName"]
-		filePath := ConfigPath + "/" + fmt.Sprint(proxyName)
+		filePath := configPath + "/" + fmt.Sprint(proxyName)
 		createProxyFile(filePath, rawData)
 	} else {
 		w.WriteHeader(400)
@@ -61,7 +61,7 @@ func addProxyWithName(w http.ResponseWriter, r *http.Request) {
 
 	jsonIsValid, _ := checkForRequiredObjects(rawData)
 	if jsonIsValid {
-		filePath := ConfigPath + "/" + fileName
+		filePath := configPath + "/" + fileName
 		createProxyFile(filePath, rawData)
 	} else {
 		w.WriteHeader(400)
@@ -73,7 +73,7 @@ func removeProxy(w http.ResponseWriter, r *http.Request) {
 	file := strings.TrimPrefix(r.URL.Path, "/proxies/")
 	fmt.Println(file)
 
-	err := os.Remove(ConfigPath + "/" + file)
+	err := os.Remove(configPath + "/" + file)
 	if err != nil {
 		w.WriteHeader(500)
 		w.Write([]byte(err.Error()))
