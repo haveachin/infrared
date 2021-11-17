@@ -25,6 +25,7 @@ func StartWebserver(configPath string, apiBind string) {
 	router.Use(middleware.Logger)
 
 	router.Post("/proxies", addProxy)
+	router.Post("/proxies/{fileName}", addProxyWithName)
 	router.Delete("/proxies/{file}", removeProxy)
 
 	err := http.ListenAndServe(apiBind, router)
@@ -34,32 +35,38 @@ func StartWebserver(configPath string, apiBind string) {
 }
 
 func addProxy(w http.ResponseWriter, r *http.Request) {
-	jsonData, err := ioutil.ReadAll(r.Body)
-	if err != nil || string(jsonData) == "" {
+	rawData, err := ioutil.ReadAll(r.Body)
+	if err != nil || string(rawData) == "" {
 		w.WriteHeader(400)
 	}
 
-	var result map[string]interface{}
-	err = json.Unmarshal(jsonData, &result)
-	if err != nil {
-		w.WriteHeader(400)
-	}
-
-	if result["domainName"] != nil && result["proxyTo"] != nil {
-		proxyName := result["domainName"]
+	jsonIsValid, jsonData := checkForRequiredObjects(rawData)
+	if jsonIsValid {
+		proxyName := jsonData["domainName"]
 		filePath := ConfigPath + "/" + fmt.Sprint(proxyName)
-
-		err := os.WriteFile(filePath, jsonData, 0644)
-		if err != nil {
-			w.WriteHeader(500)
-			w.Write([]byte(err.Error()))
-		}
-
+		createProxyFile(filePath, rawData)
 	} else {
 		w.WriteHeader(400)
 		w.Write([]byte("{'error': 'domainName and proxyTo were not found'}"))
 	}
+}
 
+func addProxyWithName(w http.ResponseWriter, r *http.Request) {
+	fileName := strings.TrimPrefix(r.URL.Path, "/proxies/")
+
+	rawData, err := ioutil.ReadAll(r.Body)
+	if err != nil || string(rawData) == "" {
+		w.WriteHeader(400)
+	}
+
+	jsonIsValid, _ := checkForRequiredObjects(rawData)
+	if jsonIsValid {
+		filePath := ConfigPath + "/" + fileName
+		createProxyFile(filePath, rawData)
+	} else {
+		w.WriteHeader(400)
+		w.Write([]byte("{'error': 'domainName and proxyTo could not be found'}"))
+	}
 }
 
 func removeProxy(w http.ResponseWriter, r *http.Request) {
@@ -70,5 +77,24 @@ func removeProxy(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(500)
 		w.Write([]byte(err.Error()))
+	}
+}
+
+// Helper method to check for domainName and proxyTo in a given JSON array
+func checkForRequiredObjects(rawData []byte) (successful bool, jsonData map[string]interface{}) {
+	var result map[string]interface{}
+	err := json.Unmarshal(rawData, &result)
+	if err != nil {
+		return false, nil
+	}
+
+	return result["domainName"] != nil && result["proxyTo"] != nil, result
+}
+
+// Method to create proxy file in config directory
+func createProxyFile(path string, json []byte) {
+	err := os.WriteFile(path, json, 0644)
+	if err != nil {
+		log.Fatal(err)
 	}
 }

@@ -117,7 +117,7 @@ func main() {
 	}()
 
 	if apiEnabled {
-		go http.StartWebserver(configPath, gateway, apiBind)
+		go http.StartWebserver(configPath, apiBind)
 	}
 
 	if prometheusEnabled {
