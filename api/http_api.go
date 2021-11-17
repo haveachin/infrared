@@ -5,10 +5,8 @@ import (
 	"github.com/haveachin/infrared"
 	"io/ioutil"
 	"log"
-	"os"
-	"strings"
-
 	"net/http"
+	"os"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -50,7 +48,7 @@ func addProxy(w http.ResponseWriter, r *http.Request) {
 }
 
 func addProxyWithName(w http.ResponseWriter, r *http.Request) {
-	fileName := strings.TrimPrefix(r.URL.Path, "/proxies/")
+	fileName := chi.URLParam(r, "fileName")
 
 	rawData, err := ioutil.ReadAll(r.Body)
 	if err != nil || string(rawData) == "" {
@@ -67,7 +65,7 @@ func addProxyWithName(w http.ResponseWriter, r *http.Request) {
 }
 
 func removeProxy(w http.ResponseWriter, r *http.Request) {
-	file := strings.TrimPrefix(r.URL.Path, "/proxies/")
+	file := chi.URLParam(r, "file")
 	fmt.Println(file)
 
 	err := os.Remove(configPath + "/" + file)
