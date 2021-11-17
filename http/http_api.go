@@ -1,8 +1,8 @@
 package http
 
 import (
-	"encoding/json"
 	"fmt"
+	"github.com/haveachin/infrared"
 	"io/ioutil"
 	"log"
 	"os"
@@ -40,14 +40,12 @@ func addProxy(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(400)
 	}
 
-	jsonIsValid, jsonData := checkForRequiredObjects(rawData)
+	jsonIsValid := checkJSONAndRegister(rawData, "")
 	if jsonIsValid {
-		proxyName := jsonData["domainName"]
-		filePath := configPath + "/" + fmt.Sprint(proxyName)
-		createProxyFile(filePath, rawData)
+		w.WriteHeader(200)
 	} else {
 		w.WriteHeader(400)
-		w.Write([]byte("{'error': 'domainName and proxyTo were not found'}"))
+		w.Write([]byte("{'error': 'domainName and proxyTo could not be found'}"))
 	}
 }
 
@@ -59,10 +57,9 @@ func addProxyWithName(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(400)
 	}
 
-	jsonIsValid, _ := checkForRequiredObjects(rawData)
+	jsonIsValid := checkJSONAndRegister(rawData, fileName)
 	if jsonIsValid {
-		filePath := configPath + "/" + fileName
-		createProxyFile(filePath, rawData)
+		w.WriteHeader(200)
 	} else {
 		w.WriteHeader(400)
 		w.Write([]byte("{'error': 'domainName and proxyTo could not be found'}"))
@@ -81,20 +78,35 @@ func removeProxy(w http.ResponseWriter, r *http.Request) {
 }
 
 // Helper method to check for domainName and proxyTo in a given JSON array
-func checkForRequiredObjects(rawData []byte) (successful bool, jsonData map[string]interface{}) {
-	var result map[string]interface{}
-	err := json.Unmarshal(rawData, &result)
-	if err != nil {
-		return false, nil
-	}
-
-	return result["domainName"] != nil && result["proxyTo"] != nil, result
-}
-
-// Method to create proxy file in config directory
-func createProxyFile(path string, json []byte) {
-	err := os.WriteFile(path, json, 0644)
+// If the filename is empty the domain will be used as the filename - files with the same name will be overwritten
+func checkJSONAndRegister(rawData []byte, filename string) (successful bool) {
+	tmpFile, err := ioutil.TempFile(os.TempDir(), "infraredTmpConfig_")
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	fmt.Println(tmpFile.Name())
+
+	err = os.WriteFile(tmpFile.Name(), rawData, 0644)
+	if err != nil {
+		return false
+	}
+
+	var cfg infrared.ProxyConfig
+	if err := cfg.LoadFromPath(tmpFile.Name()); err != nil {
+		return false
+	}
+
+	path := configPath + "/" + filename
+	// If fileName is empty use domainName as filename
+	if filename == "" {
+		path = configPath + "/" + cfg.DomainName
+	}
+
+	err = os.WriteFile(path, rawData, 0644)
+	if err != nil {
+		return false
+	}
+
+	return true
 }
