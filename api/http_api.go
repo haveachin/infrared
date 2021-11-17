@@ -29,6 +29,7 @@ func ListenAndServe(methodConfigPath string, apiBind string) {
 	err := http.ListenAndServe(apiBind, router)
 	if err != nil {
 		log.Fatal(err)
+		return
 	}
 }
 
@@ -36,14 +37,17 @@ func addProxy(w http.ResponseWriter, r *http.Request) {
 	rawData, err := ioutil.ReadAll(r.Body)
 	if err != nil || string(rawData) == "" {
 		w.WriteHeader(http.StatusBadRequest)
+		return
 	}
 
 	jsonIsValid := checkJSONAndRegister(rawData, "")
 	if jsonIsValid {
 		w.WriteHeader(http.StatusOK)
+		return
 	} else {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("{'error': 'domainName and proxyTo could not be found'}"))
+		return
 	}
 }
 
@@ -53,14 +57,17 @@ func addProxyWithName(w http.ResponseWriter, r *http.Request) {
 	rawData, err := ioutil.ReadAll(r.Body)
 	if err != nil || string(rawData) == "" {
 		w.WriteHeader(http.StatusBadRequest)
+		return
 	}
 
 	jsonIsValid := checkJSONAndRegister(rawData, fileName)
 	if jsonIsValid {
 		w.WriteHeader(http.StatusOK)
+		return
 	} else {
 		w.WriteHeader(http.StatusBadRequest)
 		w.Write([]byte("{'error': 'domainName and proxyTo could not be found'}"))
+		return
 	}
 }
 
@@ -72,6 +79,7 @@ func removeProxy(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte(err.Error()))
+		return
 	}
 }
 
@@ -81,6 +89,7 @@ func checkJSONAndRegister(rawData []byte, filename string) (successful bool) {
 	tmpFile, err := ioutil.TempFile(os.TempDir(), "infraredTmpConfig_")
 	if err != nil {
 		log.Fatal(err)
+		return false
 	}
 
 	fmt.Println(tmpFile.Name())
