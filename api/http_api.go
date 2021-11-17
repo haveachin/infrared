@@ -92,8 +92,6 @@ func checkJSONAndRegister(rawData []byte, filename string) (successful bool) {
 		return false
 	}
 
-	fmt.Println(tmpFile.Name())
-
 	err = os.WriteFile(tmpFile.Name(), rawData, 0644)
 	if err != nil {
 		return false
