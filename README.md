@@ -235,8 +235,22 @@ But all values (like in a normal config file) can be set.
 
 The API then will create a file with the name of the domain (if the file exists it will be overwritten) and write the body to it. The proxy can now be visited.
 
+-----
+POST `/proxies/{fileName}`\
+Body must contain:
+```json
+{
+"domainName": "mc.example.com",
+"proxyTo": ":8080"
+}
+```
+But all values (like in a normal config file) can be set.
+
+The server will create a file with the given filename (if the file exists it will be overwritten) and store the config in it.
+
+
 ### Remove config
-DELETE `/proxies/:file/`\
+DELETE `/proxies/{file}`\
 Replace `:file` with the name of the proxy configuration file.
 
 If the file was found it will be unloaded and deleted. Open connections do not close, but no new player can connect anymore.
