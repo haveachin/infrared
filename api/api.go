@@ -89,7 +89,7 @@ func removeProxy(configPath string) http.HandlerFunc {
 // If the filename is empty the domain will be used as the filename - files with the same name will be overwritten
 func checkJSONAndRegister(rawData []byte, filename string, configPath string) (successful bool) {
 	var cfg infrared.ProxyConfig
-	err := json.Unmarshal([]byte(rawData), &cfg)
+	err := json.Unmarshal(rawData, &cfg)
 	if err != nil {
 		fmt.Println(err)
 		return false
