@@ -1,15 +1,15 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
 	"github.com/haveachin/infrared"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
-
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/chi/v5/middleware"
 )
 
 // ListenAndServe StartWebserver Start Webserver if environment variable "api-enable" is set to true
@@ -88,19 +88,14 @@ func removeProxy(configPath string) http.HandlerFunc {
 // Helper method to check for domainName and proxyTo in a given JSON array
 // If the filename is empty the domain will be used as the filename - files with the same name will be overwritten
 func checkJSONAndRegister(rawData []byte, filename string, configPath string) (successful bool) {
-	tmpFile, err := ioutil.TempFile(os.TempDir(), "infraredTmpConfig_")
+	var cfg infrared.ProxyConfig
+	err := json.Unmarshal([]byte(rawData), &cfg)
 	if err != nil {
 		fmt.Println(err)
 		return false
 	}
 
-	err = os.WriteFile(tmpFile.Name(), rawData, 0644)
-	if err != nil {
-		return false
-	}
-
-	var cfg infrared.ProxyConfig
-	if err := cfg.LoadFromPath(tmpFile.Name()); err != nil {
+	if !(cfg.DomainName != "" && cfg.ProxyTo != "") {
 		return false
 	}
 
@@ -112,6 +107,7 @@ func checkJSONAndRegister(rawData []byte, filename string, configPath string) (s
 
 	err = os.WriteFile(path, rawData, 0644)
 	if err != nil {
+		fmt.Println(err)
 		return false
 	}
 
