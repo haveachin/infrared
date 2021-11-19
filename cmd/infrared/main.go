@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"github.com/haveachin/infrared/api"
 	"log"
 	"os"
 	"strconv"
@@ -13,20 +14,24 @@ const (
 	envPrefix               = "INFRARED_"
 	envConfigPath           = envPrefix + "CONFIG_PATH"
 	envReceiveProxyProtocol = envPrefix + "RECEIVE_PROXY_PROTOCOL"
+	envApiEnabled           = envPrefix + "API_ENABLED"
+	envApiBind              = envPrefix + "API_BIND"
 )
 
 const (
 	clfConfigPath           = "config-path"
 	clfReceiveProxyProtocol = "receive-proxy-protocol"
-    clfPrometheusEnabled    = "enable-prometheus"
-    clfPrometheusBind       = "prometheus-bind"
+	clfPrometheusEnabled    = "enable-prometheus"
+	clfPrometheusBind       = "prometheus-bind"
 )
 
 var (
 	configPath           = "./configs"
 	receiveProxyProtocol = false
-    prometheusEnabled    = false
-    prometheusBind       = ":9100"
+	prometheusEnabled    = false
+	prometheusBind       = ":9100"
+	apiEnabled           = false
+	apiBind              = "127.0.0.1:8080"
 )
 
 func envBool(name string, value bool) bool {
@@ -55,13 +60,15 @@ func envString(name string, value string) string {
 func initEnv() {
 	configPath = envString(envConfigPath, configPath)
 	receiveProxyProtocol = envBool(envReceiveProxyProtocol, receiveProxyProtocol)
+	apiEnabled = envBool(envApiEnabled, apiEnabled)
+	apiBind = envString(envApiBind, apiBind)
 }
 
 func initFlags() {
 	flag.StringVar(&configPath, clfConfigPath, configPath, "path of all proxy configs")
 	flag.BoolVar(&receiveProxyProtocol, clfReceiveProxyProtocol, receiveProxyProtocol, "should accept proxy protocol")
-    flag.BoolVar(&prometheusEnabled, clfPrometheusEnabled, prometheusEnabled, "should run prometheus client exposing metrics")
-    flag.StringVar(&prometheusBind, clfPrometheusBind, prometheusBind, "bind address and/or port for prometheus")
+	flag.BoolVar(&prometheusEnabled, clfPrometheusEnabled, prometheusEnabled, "should run prometheus client exposing metrics")
+	flag.StringVar(&prometheusBind, clfPrometheusBind, prometheusBind, "bind address and/or port for prometheus")
 	flag.Parse()
 }
 
@@ -108,6 +115,10 @@ func main() {
 			}
 		}
 	}()
+
+	if apiEnabled {
+		go api.ListenAndServe(configPath, apiBind)
+	}
 
 	if prometheusEnabled {
 		gateway.EnablePrometheus(prometheusBind)

@@ -24,7 +24,7 @@ var (
 
 type Gateway struct {
 	listeners            sync.Map
-	proxies              sync.Map
+	Proxies              sync.Map
 	closed               chan bool
 	wg                   sync.WaitGroup
 	receiveProxyProtocol bool
@@ -77,7 +77,7 @@ func (gateway *Gateway) Close() {
 
 func (gateway *Gateway) CloseProxy(proxyUID string) {
 	log.Println("Closing proxy with UID", proxyUID)
-	v, ok := gateway.proxies.LoadAndDelete(proxyUID)
+	v, ok := gateway.Proxies.LoadAndDelete(proxyUID)
 	if !ok {
 		return
 	}
@@ -85,7 +85,7 @@ func (gateway *Gateway) CloseProxy(proxyUID string) {
 	proxy := v.(*Proxy)
 
 	closeListener := true
-	gateway.proxies.Range(func(k, v interface{}) bool {
+	gateway.Proxies.Range(func(k, v interface{}) bool {
 		otherProxy := v.(*Proxy)
 		if proxy.ListenTo() == otherProxy.ListenTo() {
 			closeListener = false
@@ -109,7 +109,7 @@ func (gateway *Gateway) RegisterProxy(proxy *Proxy) error {
 	// Register new Proxy
 	proxyUID := proxy.UID()
 	log.Println("Registering proxy with UID", proxyUID)
-	gateway.proxies.Store(proxyUID, proxy)
+	gateway.Proxies.Store(proxyUID, proxy)
 	proxiesActive.Inc()
 
 	proxy.Config.removeCallback = func() {
@@ -201,7 +201,7 @@ func (gateway *Gateway) serve(conn Conn, addr string) error {
 	proxyUID := proxyUID(hs.ParseServerAddress(), addr)
 
 	log.Printf("[i] %s requests proxy with UID %s", connRemoteAddr, proxyUID)
-	v, ok := gateway.proxies.Load(proxyUID)
+	v, ok := gateway.Proxies.Load(proxyUID)
 	if !ok {
 		// Client send an invalid address/port; we don't have a v for that address
 		return errors.New("no proxy with uid " + proxyUID)
