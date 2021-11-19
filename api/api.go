@@ -95,7 +95,7 @@ func checkJSONAndRegister(rawData []byte, filename string, configPath string) (s
 		return false
 	}
 
-	if !(cfg.DomainName != "" && cfg.ProxyTo != "") {
+	if cfg.DomainName == "" || cfg.ProxyTo == "" {
 		return false
 	}
 
