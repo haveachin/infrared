@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -122,7 +123,7 @@ func (cfg StatusConfig) StatusResponsePacket() (protocol.Packet, error) {
 			Sample: samples,
 		},
 		Description: status.DescriptionJSON{
-			Text: cfg.MOTD,
+			Text: strings.Replace(fmt.Sprint(cfg.MOTD), "&", "§", -1),
 		},
 	}
 
