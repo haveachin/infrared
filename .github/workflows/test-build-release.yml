@@ -1,18 +1,43 @@
 # Builds and publishes a docker images
 
-name: Publish Docker Images
+name: Test, Build, Release
 
 on:
   push:
-    branches: [ master ]
+    branches: [ 'master' ]
+  pull_request:
+    branches: [ 'master','dev' ]
 
 env:
   GH_REGISTRY: ghcr.io
   REPOSITORY_NAME: ${{ github.repository }}
 
 jobs:
+
+  # Build job runs on every PR into dev and master
+  test:
+    name: Test
+    strategy:
+      matrix:
+        go-version: [ 1.16.x ]
+        os: [ ubuntu-latest, macos-latest, windows-latest ]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.go-version }}
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Test
+        run: go test ./...
+
+  # Build job runs on every PR into dev and master
+  # Depends on test job
   build:
     runs-on: ubuntu-latest
+    name: Build
+    needs: [ test ]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
@@ -20,13 +45,6 @@ jobs:
       - name: Set up Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@master
-
-      - name: Log in to the GitHub Container Registry
-        uses: docker/login-action@v1
-        with:
-          registry: ${{ env.GH_REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Extract metadata (tags, labels) for Docker
         id: meta
@@ -45,18 +63,34 @@ jobs:
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,mode=max,dest=/tmp/.buildx-cache-new
 
+  # Release job runs on every push to master
+  # Depends on build job
+  release:
+    runs-on: ubuntu-latest
+    name: Release
+    if: github.ref == 'refs/heads/master'
+    needs: [ build ]
+    steps:
       - name: Login to DockerHub
         uses: docker/login-action@v1
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v1
+        with:
+          registry: ${{ env.GH_REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build and push image to DockerHub
         uses: docker/build-push-action@v2
         with:
           context: .
           builder: ${{ steps.buildx.outputs.name }}
           push: ${{ github.event_name != 'pull_request' }}
-          tags: infraredproxy/minecraft:latest
+          tags: ${{ secrets.DOCKERHUB_REPOSITORY }}:latest
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,mode=max,dest=/tmp/.buildx-cache-new
