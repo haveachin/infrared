@@ -2,8 +2,6 @@ name: Release Docker Images
 
 on:
   create:
-    tags:
-      - 'v*'
   push:
     tags:
       - 'v*'

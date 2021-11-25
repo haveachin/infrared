@@ -71,7 +71,7 @@ jobs:
         uses: mathieudutour/github-tag-action@v5.6
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          release_branches: main
+          release_branches: master
           pre_release_branches: pre-release
 
       - name: Create a GitHub release
