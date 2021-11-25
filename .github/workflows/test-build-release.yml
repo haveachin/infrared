@@ -1,5 +1,3 @@
-# Builds and publishes a docker images
-
 name: Test, Build, Release
 
 on:
@@ -14,7 +12,7 @@ env:
 
 jobs:
 
-  # Build job runs on every PR into dev and master
+  # Build job runs on every PR into dev and master and pushes to master
   test:
     name: Test
     strategy:
@@ -32,7 +30,7 @@ jobs:
       - name: Test
         run: go test ./...
 
-  # Build job runs on every PR into dev and master
+  # Build job runs on every PR into dev and master and pushes to master
   # Depends on test job
   build:
     runs-on: ubuntu-latest
@@ -45,12 +43,6 @@ jobs:
       - name: Set up Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@master
-
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@v3
-        with:
-          images: ${{ env.GH_REGISTRY }}/${{ env.REPOSITORY_NAME }}
 
       - name: Build and push image to GHCR
         uses: docker/build-push-action@v2
@@ -71,26 +63,20 @@ jobs:
     if: github.ref == 'refs/heads/master'
     needs: [ build ]
     steps:
-      - name: Login to DockerHub
-        uses: docker/login-action@v1
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+      - name: Checkout repository
+        uses: actions/checkout@v2
 
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v1
+      - name: Bump version and push tag
+        id: tag_version
+        uses: mathieudutour/github-tag-action@v5.6
         with:
-          registry: ${{ env.GH_REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          release_branches: main
+          pre_release_branches: pre-release
 
-      - name: Build and push image to DockerHub
-        uses: docker/build-push-action@v2
+      - name: Create a GitHub release
+        uses: ncipollo/release-action@v1
         with:
-          context: .
-          builder: ${{ steps.buildx.outputs.name }}
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ secrets.DOCKERHUB_REPOSITORY }}:latest
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,mode=max,dest=/tmp/.buildx-cache-new
+          tag: ${{ steps.tag_version.outputs.new_tag }}
+          name: Release ${{ steps.tag_version.outputs.new_tag }}
+          body: ${{ steps.tag_version.outputs.changelog }}
