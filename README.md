@@ -25,7 +25,7 @@ It works similar to Nginx for those of you who are familiar.
 - [x] HAProxy Protocol Support
 - [x] TCPShield/RealIP Protocol Support
 - [X] Prometheus Support
-- [ ] REST API
+- [X] REST API
 
 ## Deploy
 
@@ -51,6 +51,9 @@ $ docker build --no-cache -t haveachin/infrared:latest https://github.com/haveac
 
 `INFRARED_CONFIG_PATH` is the path to all your server configs [default: `"./configs/"`]
 `INFRARED_RECEIVE_PROXY_PROTOCOL` if Infrared should be able to receive proxy protocol [default: `"false"`]
+
+`INFRARED_API_ENABLED` if the api should be enabled [default: `"false"`]\
+`INFRARED_API_BIND` change the http bind option [default: `"127.0.0.1:8080"`]
 
 ## Command-Line Flags
 
@@ -210,6 +213,48 @@ More info on [Portainer](https://www.portainer.io/).
 
 </details>
 
+## Rest API
+**The API should not be accessible from the internet!**
+
+### Enabling API
+To enable the API the environment variable `INFRARED_API_ENABLED` must be set to `"true"`.
+To change the http bind, set the env variable `INFRARED_API_BIND` to something like `"0.0.0.0:3000"` the default value is `"127.0.0.1:8080"`
+
+### API Methods
+#### Create new config
+
+POST `/proxies/`\
+Body must contain:
+```json
+{
+"domainName": "mc.example.com",
+"proxyTo": ":8080"
+}
+```
+But all values (like in a normal config file) can be set.
+
+The API then will create a file with the name of the domain (if the file exists it will be overwritten) and write the body to it. The proxy can now be visited.
+
+-----
+POST `/proxies/{fileName}`\
+Body must contain:
+```json
+{
+"domainName": "mc.example.com",
+"proxyTo": ":8080"
+}
+```
+But all values (like in a normal config file) can be set.
+
+The server will create a file with the given filename (if the file exists it will be overwritten) and store the config in it.
+
+
+### Remove config
+DELETE `/proxies/{fileName}`\
+Replace `:file` with the name of the proxy configuration file.
+
+If the file was found it will be unloaded and deleted. Open connections do not close, but no new player can connect anymore.
+
 ## Prometheus exporter
 The built-in prometheus exporter can be used to view metrics about infrareds operation.  
 When the command line flag `-enable-prometheus` is enabled it will bind to `:9100` by default, if you would like to use another port or use an application like [node_exporter](https://github.com/prometheus/node_exporter) that also uses port 9100 on the same machine you can change the port with the `-prometheus-bind` command line flag, example: `-prometheus-bind=":9070"`.  
@@ -233,3 +278,7 @@ scrape_configs:
   * **Example response:** `infrared_proxies{instance="vps1.example.com:9070",job="infrared"} 5`
   * **instance:** what infrared instance has that amount of active proxies.
   * **job:** what job was specified in the prometheus configuration.
+
+## Similar Projects
+
+* https://github.com/itzg/mc-router
