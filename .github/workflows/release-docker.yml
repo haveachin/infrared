@@ -1,10 +1,7 @@
 name: Release Docker Images
 
 on:
-  create:
-  push:
-    tags:
-      - 'v*'
+  create
 
 jobs:
   github-container-registry:
