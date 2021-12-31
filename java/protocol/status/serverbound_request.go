@@ -1,7 +1,7 @@
 package status
 
 import (
-	"github.com/haveachin/infrared/protocol"
+	"github.com/haveachin/infrared/java/protocol"
 )
 
 const ServerBoundRequestPacketID byte = 0x00

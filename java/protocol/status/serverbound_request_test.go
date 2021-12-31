@@ -1,8 +1,9 @@
 package status
 
 import (
-	"github.com/haveachin/infrared/protocol"
 	"testing"
+
+	"github.com/haveachin/infrared/java/protocol"
 )
 
 func TestServerBoundRequest_Marshal(t *testing.T) {

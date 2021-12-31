@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/haveachin/infrared/protocol"
+	"github.com/haveachin/infrared/java/protocol"
 )
 
 const (

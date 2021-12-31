@@ -1,7 +1,7 @@
 package login
 
 import (
-	"github.com/haveachin/infrared/protocol"
+	"github.com/haveachin/infrared/java/protocol"
 )
 
 const ClientBoundDisconnectPacketID byte = 0x00

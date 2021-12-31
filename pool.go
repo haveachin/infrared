@@ -1,27 +1,25 @@
 package infrared
 
-import "github.com/go-logr/logr"
+import (
+	"github.com/go-logr/logr"
+)
 
 type ConnPool struct {
 	Log logr.Logger
-
-	pool []ProcessedConn
 }
 
-func (cp *ConnPool) Start(poolChan <-chan ProcessedConn) {
-	cp.pool = []ProcessedConn{}
-
+func (cp *ConnPool) Start(poolChan <-chan ConnTunnel) {
 	for {
-		c, ok := <-poolChan
+		ct, ok := <-poolChan
 		if !ok {
 			break
 		}
 
-		cp.pool = append(cp.pool, c)
-		go c.StartPipe()
-	}
+		cp.Log.Info("starting tunnel",
+			"client", ct.Conn.RemoteAddr(),
+			"server", ct.RemoteConn.RemoteAddr(),
+		)
 
-	for _, c := range cp.pool {
-		c.Close()
+		go ct.Start()
 	}
 }

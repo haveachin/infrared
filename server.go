@@ -1,50 +1,31 @@
 package infrared
 
 import (
-	"encoding/json"
 	"fmt"
 	"net"
 	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
-	"github.com/haveachin/infrared/protocol"
-	"github.com/haveachin/infrared/protocol/login"
-	"github.com/haveachin/infrared/protocol/status"
 	"github.com/haveachin/infrared/webhook"
 )
 
-type Server struct {
-	ID                string
-	Domains           []string
-	Dialer            net.Dialer
-	Address           string
-	SendProxyProtocol bool
-	SendRealIP        bool
-	DisconnectMessage string
-	OnlineStatus      OnlineStatusResponse
-	OfflineStatus     OfflineStatusResponse
-	WebhookIDs        []string
-	Log               logr.Logger
+type Server interface {
+	GetID() string
+	GetDomains() []string
+	GetWebhookIDs() []string
+	ProcessConn(c net.Conn, webhooks []webhook.Webhook) (ConnTunnel, error)
+	SetLogger(log logr.Logger)
 }
 
-func (s Server) Dial() (Conn, error) {
-	c, err := s.Dialer.Dial("tcp", s.Address)
-	if err != nil {
-		return nil, err
-	}
-
-	return newConn(c), nil
-}
-
-func (s Server) replaceTemplates(c ProcessingConn, msg string) string {
+func ExecuteMessageTemplate(msg string, c ProcessedConn, s Server) string {
 	tmpls := map[string]string{
-		"username":      c.username,
+		"username":      c.Username(),
 		"now":           time.Now().Format(time.RFC822),
 		"remoteAddress": c.RemoteAddr().String(),
 		"localAddress":  c.LocalAddr().String(),
-		"domain":        c.srvHost,
-		"serverAddress": s.Address,
+		"serverAddress": c.ServerAddr(),
+		"serverID":      s.GetID(),
 	}
 
 	for k, v := range tmpls {
@@ -54,141 +35,48 @@ func (s Server) replaceTemplates(c ProcessingConn, msg string) string {
 	return msg
 }
 
-func (s Server) handleOfflineStatusRequest(c ProcessingConn) error {
-	respJSON, err := s.OfflineStatus.ResponseJSON()
-	if err != nil {
-		return err
-	}
-
-	bb, err := json.Marshal(respJSON)
-	if err != nil {
-		return err
-	}
-
-	respPk := status.ClientBoundResponse{
-		JSONResponse: protocol.String(bb),
-	}.Marshal()
-
-	if err := c.WritePacket(respPk); err != nil {
-		return err
-	}
-
-	pingPk, err := c.ReadPacket()
-	if err != nil {
-		return err
-	}
-
-	return c.WritePacket(pingPk)
-}
-
-func (s Server) handleOfflineLoginRequest(c ProcessingConn) error {
-	msg := s.replaceTemplates(c, s.DisconnectMessage)
-
-	pk := login.ClientBoundDisconnect{
-		Reason: protocol.Chat(fmt.Sprintf("{\"text\":\"%s\"}", msg)),
-	}.Marshal()
-
-	return c.WritePacket(pk)
-}
-
-func (s Server) handleOffline(c ProcessingConn) error {
-	if c.handshake.IsStatusRequest() {
-		return s.handleOfflineStatusRequest(c)
-	}
-
-	return s.handleOfflineLoginRequest(c)
-}
-
-func (s Server) overrideStatusResponse(c ProcessingConn, rc Conn) error {
-	pk, err := rc.ReadPacket()
-	if err != nil {
-		return err
-	}
-
-	respPk, err := status.UnmarshalClientBoundResponse(pk)
-	if err != nil {
-		return err
-	}
-
-	var respJSON status.ResponseJSON
-	if err := json.Unmarshal([]byte(respPk.JSONResponse), &respJSON); err != nil {
-		return err
-	}
-
-	respJSON, err = s.OnlineStatus.ResponseJSON(respJSON)
-	if err != nil {
-		return err
-	}
-
-	bb, err := json.Marshal(respJSON)
-	if err != nil {
-		return err
-	}
-
-	respPk.JSONResponse = protocol.String(bb)
-
-	if err := c.WritePacket(respPk.Marshal()); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (s Server) ProcessConnection(c ProcessingConn) (ProcessedConn, error) {
-	rc, err := s.Dial()
-	if err != nil {
-		if err := s.handleOffline(c); err != nil {
-			return ProcessedConn{}, err
-		}
-		return ProcessedConn{}, err
-	}
-
-	if err := rc.WritePackets(c.readPks...); err != nil {
-		rc.Close()
-		return ProcessedConn{}, err
-	}
-
-	if c.handshake.IsStatusRequest() {
-		if err := s.overrideStatusResponse(c, rc); err != nil {
-			rc.Close()
-			return ProcessedConn{}, err
-		}
-	}
-
-	return ProcessedConn{
-		ProcessingConn: c,
-		ServerConn:     rc,
-		ServerID:       s.ID,
-	}, nil
-}
-
 type ServerGateway struct {
-	Servers  []Server
-	Webhooks []webhook.Webhook
-	Log      logr.Logger
+	GatewayIDServerIDs map[string][]string
+	// ServerNotFoundMessages maps the GatewayID to server not found message
+	ServerNotFoundMessages map[string]string
+	Servers                []Server
+	Webhooks               []webhook.Webhook
+	Log                    logr.Logger
 
-	// Domain mapped to server
+	// "GatewayID@Domain" mapped to server
 	srvs map[string]Server
 	// Server ID mapped to webhooks
 	srvWhks map[string][]webhook.Webhook
 }
 
 func (sg *ServerGateway) indexServers() error {
+	srvs := map[string]Server{}
+	for _, srv := range sg.Servers {
+		srvs[srv.GetID()] = srv
+	}
+
 	sg.srvs = map[string]Server{}
-	for _, server := range sg.Servers {
-		for _, host := range server.Domains {
-			hostLower := strings.ToLower(host)
-			if _, exits := sg.srvs[hostLower]; exits {
-				return fmt.Errorf("duplicate server domain %q", hostLower)
+	for gID, sIDs := range sg.GatewayIDServerIDs {
+		for _, sID := range sIDs {
+			srv, ok := srvs[sID]
+			if !ok {
+				return fmt.Errorf("server with ID %q doesn't exist", sID)
 			}
-			sg.srvs[hostLower] = server
+
+			for _, domain := range srv.GetDomains() {
+				lowerDomain := strings.ToLower(domain)
+				sgID := fmt.Sprintf("%s@%s", gID, lowerDomain)
+				if _, exits := sg.srvs[sgID]; exits {
+					return fmt.Errorf("duplicate server gateway ID %q", sgID)
+				}
+				sg.srvs[sgID] = srv
+			}
 		}
 	}
 	return nil
 }
 
 // indexWebhooks indexes the webhooks that servers use.
-// This creates a map
 func (sg *ServerGateway) indexWebhooks() error {
 	whks := map[string]webhook.Webhook{}
 	for _, w := range sg.Webhooks {
@@ -196,21 +84,38 @@ func (sg *ServerGateway) indexWebhooks() error {
 	}
 
 	sg.srvWhks = map[string][]webhook.Webhook{}
-	for _, s := range sg.Servers {
-		ww := make([]webhook.Webhook, len(s.WebhookIDs))
-		for n, id := range s.WebhookIDs {
+	for _, srv := range sg.Servers {
+		ww := make([]webhook.Webhook, len(srv.GetWebhookIDs()))
+		for n, id := range srv.GetWebhookIDs() {
 			w, ok := whks[id]
 			if !ok {
-				return fmt.Errorf("no webhook with id %q", id)
+				return fmt.Errorf("webhook with ID %q doesn't exist", id)
 			}
 			ww[n] = w
 		}
-		sg.srvWhks[s.ID] = ww
+		sg.srvWhks[srv.GetID()] = ww
 	}
 	return nil
 }
 
-func (sg ServerGateway) Start(srvChan <-chan ProcessingConn, poolChan chan<- ProcessedConn) error {
+func (sg ServerGateway) executeTemplate(msg string, pc ProcessedConn) string {
+	tmpls := map[string]string{
+		"username":      pc.Username(),
+		"now":           time.Now().Format(time.RFC822),
+		"remoteAddress": pc.RemoteAddr().String(),
+		"localAddress":  pc.LocalAddr().String(),
+		"serverAddress": pc.ServerAddr(),
+		"gatewayID":     pc.GatewayID(),
+	}
+
+	for k, v := range tmpls {
+		msg = strings.Replace(msg, fmt.Sprintf("{{%s}}", k), v, -1)
+	}
+
+	return msg
+}
+
+func (sg ServerGateway) Start(srvChan <-chan ProcessedConn, poolChan chan<- ConnTunnel) error {
 	if err := sg.indexServers(); err != nil {
 		return err
 	}
@@ -220,30 +125,43 @@ func (sg ServerGateway) Start(srvChan <-chan ProcessingConn, poolChan chan<- Pro
 	}
 
 	for {
-		c, ok := <-srvChan
+		pc, ok := <-srvChan
 		if !ok {
 			break
 		}
 
-		hostLower := strings.ToLower(c.srvHost)
-		srv, ok := sg.srvs[hostLower]
+		srvAddrLower := strings.ToLower(pc.ServerAddr())
+		sgID := fmt.Sprintf("%s@%s", pc.GatewayID(), srvAddrLower)
+		srv, ok := sg.srvs[sgID]
 		if !ok {
-			sg.Log.Info("invlaid server host",
-				"serverId", hostLower,
-				"remoteAddress", c.RemoteAddr(),
+			sg.Log.Info("invalid server",
+				"serverAddress", pc.ServerAddr(),
+				"remoteAddress", pc.RemoteAddr(),
 			)
+			msg := sg.ServerNotFoundMessages[pc.GatewayID()]
+			msg = sg.executeTemplate(msg, pc)
+			_ = pc.Disconnect(msg)
 			continue
 		}
 
 		sg.Log.Info("connecting client",
-			"serverId", hostLower,
-			"remoteAddress", c.RemoteAddr(),
+			"serverId", sgID,
+			"remoteAddress", pc.RemoteAddr(),
 		)
-		pc, err := srv.ProcessConnection(c)
+
+		whks := sg.srvWhks[srv.GetID()]
+		ct, err := srv.ProcessConn(pc, whks)
 		if err != nil {
+			ct.Close()
 			continue
 		}
-		poolChan <- pc
+
+		// Shallow copy webhooks to mitigate race conditions
+		whksCopy := make([]webhook.Webhook, len(whks))
+		_ = copy(whksCopy, whks)
+		ct.Webhooks = whksCopy
+
+		poolChan <- ct
 	}
 
 	return nil

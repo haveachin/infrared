@@ -9,8 +9,23 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/go-logr/zapr"
 	"github.com/haveachin/infrared"
+	"github.com/haveachin/infrared/bedrock"
+	"github.com/haveachin/infrared/java"
 	"go.uber.org/zap"
 )
+
+const configPathEnv = "INFRARED_CONFIG_PATH"
+
+var configPath = "config.yml"
+
+func envString(name string, value string) string {
+	envString := os.Getenv(name)
+	if envString == "" {
+		return value
+	}
+
+	return envString
+}
 
 var logger logr.Logger
 
@@ -23,73 +38,37 @@ func init() {
 }
 
 func main() {
-	cpnChan := make(chan infrared.ProcessingConn, 10)
-	srvChan := make(chan infrared.ProcessingConn)
-	poolChan := make(chan infrared.ProcessedConn)
+	logger.Info("loading proxy")
 
-	startGateways(cpnChan)
-	startCPNs(cpnChan, srvChan)
-	go startServers(srvChan, poolChan)
-	startConnPool(poolChan)
+	bedrockProxy, err := infrared.NewProxy(&bedrock.Config{})
+	if err != nil {
+		logger.Error(err, "failed to load proxy")
+		return
+	}
 
-	logger.Info("done")
+	javaProxy, err := infrared.NewProxy(&java.Config{})
+	if err != nil {
+		logger.Error(err, "failed to load proxy")
+		return
+	}
+
+	logger.Info("starting proxy")
+
+	go func() {
+		if err := bedrockProxy.Start(logger); err != nil {
+			logger.Error(err, "failed to start the proxy")
+			os.Exit(1)
+		}
+	}()
+
+	go func() {
+		if err := javaProxy.Start(logger); err != nil {
+			logger.Error(err, "failed to start the proxy")
+			os.Exit(1)
+		}
+	}()
 
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
 	<-sc
-}
-
-func startGateways(cpnChan chan<- infrared.ProcessingConn) {
-	gateways, err := loadGateways()
-	if err != nil {
-		logger.Error(err, "loading gateways")
-		return
-	}
-
-	for _, gw := range gateways {
-		gw.Log = logger
-		go gw.Start(cpnChan)
-	}
-}
-
-func startCPNs(cpnChan <-chan infrared.ProcessingConn, srvChan chan<- infrared.ProcessingConn) {
-	cpns, err := loadCPNs()
-	if err != nil {
-		logger.Error(err, "loading CPNs")
-		return
-	}
-
-	for _, cpn := range cpns {
-		cpn.Log = logger
-		go cpn.Start(cpnChan, srvChan)
-	}
-}
-
-func startServers(srvChan <-chan infrared.ProcessingConn, poolChan chan<- infrared.ProcessedConn) error {
-	servers, err := loadServers()
-	if err != nil {
-		return err
-	}
-
-	for _, srv := range servers {
-		srv.Log = logger
-	}
-
-	srvGw := infrared.ServerGateway{
-		Servers: servers,
-		Log:     logger,
-	}
-
-	if err := srvGw.Start(srvChan, poolChan); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func startConnPool(poolChan <-chan infrared.ProcessedConn) {
-	pool := infrared.ConnPool{
-		Log: logger,
-	}
-	go pool.Start(poolChan)
 }

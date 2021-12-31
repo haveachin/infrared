@@ -2,8 +2,9 @@ package login
 
 import (
 	"bytes"
-	"github.com/haveachin/infrared/protocol"
 	"testing"
+
+	"github.com/haveachin/infrared/java/protocol"
 )
 
 func TestClientBoundDisconnect_Marshal(t *testing.T) {

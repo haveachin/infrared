@@ -1,4 +1,4 @@
-package infrared
+package java
 
 import (
 	"encoding/base64"
@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/haveachin/infrared/protocol/status"
+	"github.com/haveachin/infrared/java/protocol/status"
 )
 
 type PlayerSample struct {

@@ -1,8 +1,9 @@
 package login
 
 import (
-	"github.com/haveachin/infrared/protocol"
 	"testing"
+
+	"github.com/haveachin/infrared/java/protocol"
 )
 
 func TestUnmarshalServerBoundLoginStart(t *testing.T) {

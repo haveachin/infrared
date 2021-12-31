@@ -2,12 +2,13 @@ package handshaking
 
 import (
 	"bytes"
-	"github.com/haveachin/infrared/protocol"
 	"net"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/haveachin/infrared/java/protocol"
 )
 
 func TestServerBoundHandshake_Marshal(t *testing.T) {
