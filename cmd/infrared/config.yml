@@ -11,9 +11,9 @@ bedrock:
         - bind: 192.168.1.31:19132
           receive_proxy_protocol: true
         - bind: 192.168.1.21:19132
+      server_not_found_message: Sorry {{username}}, but {{serverAddress}} was not found
       servers:
         - myserver
-      server_not_found_message: Sorry {{username}}, but {{serverAddress}} was not found
   servers:
     myserver:
       domains:
@@ -31,6 +31,7 @@ java:
         - 0.0.0.0:25565
       receive_proxy_protocol: false
       receive_real_ip: false
+      server_not_found_message: Sorry {{username}}, but {{serverAddress}} was not found
       servers:
         - myserver
   servers:

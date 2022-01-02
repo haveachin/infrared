@@ -13,21 +13,23 @@ import (
 type Config struct{}
 
 type gatewayConfig struct {
-	Binds                []string      `mapstructure:"binds"`
-	ReceiveProxyProtocol bool          `mapstructure:"receive_proxy_protocol"`
-	ReceiveRealIP        bool          `mapstructure:"receive_real_ip"`
-	ClientTimeout        time.Duration `mapstructure:"client_timeout"`
-	Servers              []string      `mapstructure:"servers"`
+	Binds                 []string      `mapstructure:"binds"`
+	ReceiveProxyProtocol  bool          `mapstructure:"receive_proxy_protocol"`
+	ReceiveRealIP         bool          `mapstructure:"receive_real_ip"`
+	ClientTimeout         time.Duration `mapstructure:"client_timeout"`
+	Servers               []string      `mapstructure:"servers"`
+	ServerNotFoundMessage string        `mapstructure:"server_not_found_message"`
 }
 
 func newGateway(id string, cfg gatewayConfig) infrared.Gateway {
 	return &Gateway{
-		ID:                   id,
-		Binds:                cfg.Binds,
-		ReceiveProxyProtocol: cfg.ReceiveProxyProtocol,
-		ReceiveRealIP:        cfg.ReceiveRealIP,
-		ClientTimeout:        cfg.ClientTimeout,
-		ServerIDs:            cfg.Servers,
+		ID:                    id,
+		Binds:                 cfg.Binds,
+		ReceiveProxyProtocol:  cfg.ReceiveProxyProtocol,
+		ReceiveRealIP:         cfg.ReceiveRealIP,
+		ClientTimeout:         cfg.ClientTimeout,
+		ServerIDs:             cfg.Servers,
+		ServerNotFoundMessage: cfg.ServerNotFoundMessage,
 	}
 }
 
