@@ -22,7 +22,6 @@ func IsRecipientNotFoundErr(err error) bool {
 		if err == ErrRecipientNotFound {
 			return true
 		}
-		err = errors.Unwrap(err)
 	}
 	return false
 }
