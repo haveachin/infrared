@@ -63,7 +63,7 @@ func (p Proxy) Start(log logr.Logger) error {
 
 	for _, gw := range p.Gateways {
 		gw.SetLogger(log)
-		go gw.ListenAndServe(cpnChan)
+		go ListenAndServe(gw, cpnChan)
 	}
 
 	for _, cpn := range p.CPNs {

@@ -59,7 +59,7 @@ func (cp ConnProcessor) ProcessConn(c net.Conn) (infrared.ProcessedConn, error) 
 	}
 
 	if hs.IsStatusRequest() {
-		return nil, err
+		return &pc, nil
 	}
 
 	ls, err := login.UnmarshalServerBoundLoginStart(pks[1])

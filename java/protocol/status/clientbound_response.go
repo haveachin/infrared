@@ -34,10 +34,10 @@ func UnmarshalClientBoundResponse(packet protocol.Packet) (ClientBoundResponse, 
 }
 
 type ResponseJSON struct {
-	Version     VersionJSON     `json:"version"`
-	Players     PlayersJSON     `json:"players"`
-	Description DescriptionJSON `json:"description"`
-	Favicon     string          `json:"favicon"`
+	Version     VersionJSON `json:"version"`
+	Players     PlayersJSON `json:"players"`
+	Description interface{} `json:"description"`
+	Favicon     string      `json:"favicon"`
 }
 
 type VersionJSON struct {

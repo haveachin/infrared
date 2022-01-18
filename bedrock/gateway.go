@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -52,6 +51,8 @@ type Gateway struct {
 	ServerIDs             []string
 	Log                   logr.Logger
 	ServerNotFoundMessage string
+
+	listeners []net.Listener
 }
 
 func (gw Gateway) GetID() string {
@@ -70,56 +71,51 @@ func (gw *Gateway) SetLogger(log logr.Logger) {
 	gw.Log = log
 }
 
-func (gw *Gateway) ListenAndServe(cpnChan chan<- net.Conn) error {
+func (gw Gateway) GetLogger() logr.Logger {
+	return gw.Log
+}
+
+func (gw *Gateway) initListeners() {
+	gw.listeners = make([]net.Listener, len(gw.Listeners))
 	for n, listener := range gw.Listeners {
-		gw.Log.Info("start listener",
-			"bind", listener.Bind,
-		)
 
 		l, err := raknet.Listen(listener.Bind)
 		if err != nil {
-			return err
+			gw.Log.Info("unable to bind listener",
+				"address", listener.Bind,
+			)
+			continue
 		}
 		l.PongData(listener.PingStatus.marshal(l))
 
 		gw.Listeners[n].Listener = l
+		gw.listeners[n] = l
 	}
-
-	gw.listenAndServe(cpnChan)
-	return nil
 }
 
-func (gw Gateway) wrapConn(c net.Conn, l Listener) *Conn {
+func (gw *Gateway) GetListeners() []net.Listener {
+	if gw.listeners == nil {
+		gw.initListeners()
+	}
+
+	return gw.listeners
+}
+
+func (gw Gateway) WrapConn(c net.Conn, l net.Listener) net.Conn {
+	listener := l.(*Listener)
 	return &Conn{
 		Conn:          c.(*raknet.Conn),
 		gatewayID:     gw.ID,
-		proxyProtocol: l.ReceiveProxyProtocol,
-		realIP:        l.ReceiveRealIP,
+		proxyProtocol: listener.ReceiveProxyProtocol,
+		realIP:        listener.ReceiveRealIP,
 	}
 }
 
-func (gw *Gateway) listenAndServe(cpnChan chan<- net.Conn) {
-	wg := sync.WaitGroup{}
-	wg.Add(len(gw.Listeners))
-
-	for _, listener := range gw.Listeners {
-		l := listener
-		go func() {
-			for {
-				c, err := l.Accept()
-				if err != nil {
-					break
-				}
-
-				gw.Log.Info("new connection",
-					"remoteAddress", c.RemoteAddr(),
-				)
-
-				cpnChan <- gw.wrapConn(c, l)
-			}
-			wg.Done()
-		}()
+func (gw *Gateway) Close() error {
+	for _, l := range gw.listeners {
+		if err := l.Close(); err != nil {
+			return err
+		}
 	}
-
-	wg.Wait()
+	return nil
 }

@@ -30,8 +30,8 @@ func (ps PlayerSamples) PlayerSampleJSON() []status.PlayerSampleJSON {
 type OnlineStatusResponse struct {
 	VersionName    *string
 	ProtocolNumber *int
-	MaxPlayers     *int
-	PlayersOnline  *int
+	MaxPlayerCount     *int
+	PlayerCount  *int
 	PlayerSamples  PlayerSamples
 	IconPath       *string
 	MOTD           *string
@@ -54,12 +54,12 @@ func (r OnlineStatusResponse) ResponseJSON(resp status.ResponseJSON) (status.Res
 		resp.Version.Protocol = *r.ProtocolNumber
 	}
 
-	if r.MaxPlayers != nil {
-		resp.Players.Max = *r.MaxPlayers
+	if r.MaxPlayerCount != nil {
+		resp.Players.Max = *r.MaxPlayerCount
 	}
 
-	if r.PlayersOnline != nil {
-		resp.Players.Online = *r.PlayersOnline
+	if r.PlayerCount != nil {
+		resp.Players.Online = *r.PlayerCount
 	}
 
 	if r.PlayerSamples != nil {
@@ -67,7 +67,7 @@ func (r OnlineStatusResponse) ResponseJSON(resp status.ResponseJSON) (status.Res
 	}
 
 	if r.MOTD != nil {
-		resp.Description.Text = *r.MOTD
+		resp.Description = status.DescriptionJSON{Text: *r.MOTD}
 	}
 
 	return resp, nil
@@ -76,8 +76,8 @@ func (r OnlineStatusResponse) ResponseJSON(resp status.ResponseJSON) (status.Res
 type OfflineStatusResponse struct {
 	VersionName    string
 	ProtocolNumber int
-	MaxPlayers     int
-	PlayersOnline  int
+	MaxPlayerCount     int
+	PlayerCount  int
 	PlayerSamples  PlayerSamples
 	IconPath       string
 	MOTD           string
@@ -95,8 +95,8 @@ func (r OfflineStatusResponse) ResponseJSON() (status.ResponseJSON, error) {
 			Protocol: r.ProtocolNumber,
 		},
 		Players: status.PlayersJSON{
-			Max:    r.MaxPlayers,
-			Online: r.PlayersOnline,
+			Max:    r.MaxPlayerCount,
+			Online: r.PlayerCount,
 			Sample: r.PlayerSamples.PlayerSampleJSON(),
 		},
 		Favicon: img64,

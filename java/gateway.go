@@ -3,10 +3,10 @@ package java
 import (
 	"bufio"
 	"net"
-	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
+	"go.uber.org/multierr"
 )
 
 type Gateway struct {
@@ -38,26 +38,34 @@ func (gw *Gateway) SetLogger(log logr.Logger) {
 	gw.Log = log
 }
 
-func (gw *Gateway) ListenAndServe(cpnChan chan<- net.Conn) error {
+func (gw Gateway) GetLogger() logr.Logger {
+	return gw.Log
+}
+
+func (gw *Gateway) initListeners() {
 	gw.listeners = make([]net.Listener, len(gw.Binds))
 	for n, bind := range gw.Binds {
-		gw.Log.Info("start listener",
-			"bind", bind,
-		)
-
 		l, err := net.Listen("tcp", bind)
 		if err != nil {
-			return err
+			gw.Log.Info("unable to bind listener",
+				"address", bind,
+			)
+			continue
 		}
 
 		gw.listeners[n] = l
 	}
-
-	gw.listenAndServe(cpnChan)
-	return nil
 }
 
-func (gw Gateway) wrapConn(c net.Conn) *Conn {
+func (gw *Gateway) GetListeners() []net.Listener {
+	if gw.listeners == nil {
+		gw.initListeners()
+	}
+
+	return gw.listeners
+}
+
+func (gw Gateway) WrapConn(c net.Conn, l net.Listener) net.Conn {
 	return &Conn{
 		Conn:          c,
 		r:             bufio.NewReader(c),
@@ -68,28 +76,12 @@ func (gw Gateway) wrapConn(c net.Conn) *Conn {
 	}
 }
 
-func (gw *Gateway) listenAndServe(cpnChan chan<- net.Conn) {
-	wg := sync.WaitGroup{}
-	wg.Add(len(gw.listeners))
-
-	for _, listener := range gw.listeners {
-		l := listener
-		go func() {
-			for {
-				c, err := l.Accept()
-				if err != nil {
-					break
-				}
-
-				gw.Log.Info("connected",
-					"remoteAddress", c.RemoteAddr(),
-				)
-
-				cpnChan <- gw.wrapConn(c)
-			}
-			wg.Done()
-		}()
+func (gw *Gateway) Close() error {
+	var result error
+	for _, l := range gw.listeners {
+		if err := l.Close(); err != nil {
+			result = multierr.Append(result, err)
+		}
 	}
-
-	wg.Wait()
+	return result
 }

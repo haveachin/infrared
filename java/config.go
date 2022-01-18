@@ -67,8 +67,8 @@ type serverConfig struct {
 type onlineServerStatusConfig struct {
 	VersionName    *string                          `mapstructure:"version_name,omitempty"`
 	ProtocolNumber *int                             `mapstructure:"protocol_number,omitempty"`
-	MaxPlayer      *int                             `mapstructure:"max_players,omitempty"`
-	PlayersOnline  *int                             `mapstructure:"players_online,omitempty"`
+	MaxPlayerCount *int                             `mapstructure:"max_player_count,omitempty"`
+	PlayerCount    *int                             `mapstructure:"player_count,omitempty"`
 	PlayerSample   []serverStatusPlayerSampleConfig `mapstructure:"player_sample,omitempty"`
 	IconPath       *string                          `mapstructure:"icon_path,omitempty"`
 	MOTD           *string                          `mapstructure:"motd,omitempty"`
@@ -77,8 +77,8 @@ type onlineServerStatusConfig struct {
 type offlineServerStatusConfig struct {
 	VersionName    string                           `mapstructure:"version_name"`
 	ProtocolNumber int                              `mapstructure:"protocol_number"`
-	MaxPlayer      int                              `mapstructure:"max_players"`
-	PlayersOnline  int                              `mapstructure:"players_online"`
+	MaxPlayerCount int                              `mapstructure:"max_player_count"`
+	PlayerCount    int                              `mapstructure:"player_count"`
 	PlayerSample   []serverStatusPlayerSampleConfig `mapstructure:"player_sample"`
 	IconPath       string                           `mapstructure:"icon_path"`
 	MOTD           string                           `mapstructure:"motd"`
@@ -112,8 +112,8 @@ func newOnlineServerStatus(cfg onlineServerStatusConfig) OnlineStatusResponse {
 	return OnlineStatusResponse{
 		VersionName:    cfg.VersionName,
 		ProtocolNumber: cfg.ProtocolNumber,
-		MaxPlayers:     cfg.MaxPlayer,
-		PlayersOnline:  cfg.PlayersOnline,
+		MaxPlayerCount: cfg.MaxPlayerCount,
+		PlayerCount:    cfg.PlayerCount,
 		IconPath:       cfg.IconPath,
 		MOTD:           cfg.MOTD,
 		PlayerSamples:  newServerStatusPlayerSample(cfg.PlayerSample),
@@ -124,8 +124,8 @@ func newOfflineServerStatus(cfg offlineServerStatusConfig) OfflineStatusResponse
 	return OfflineStatusResponse{
 		VersionName:    cfg.VersionName,
 		ProtocolNumber: cfg.ProtocolNumber,
-		MaxPlayers:     cfg.MaxPlayer,
-		PlayersOnline:  cfg.PlayersOnline,
+		MaxPlayerCount: cfg.MaxPlayerCount,
+		PlayerCount:    cfg.PlayerCount,
 		IconPath:       cfg.IconPath,
 		MOTD:           cfg.MOTD,
 		PlayerSamples:  newServerStatusPlayerSample(cfg.PlayerSample),
@@ -168,7 +168,7 @@ type cpnConfig struct {
 
 func (cfg Config) LoadCPNs() ([]infrared.CPN, error) {
 	var cpnCfg cpnConfig
-	if err := viper.UnmarshalKey("processing_nodes", &cpnCfg); err != nil {
+	if err := viper.UnmarshalKey("java.processing_nodes", &cpnCfg); err != nil {
 		return nil, err
 	}
 

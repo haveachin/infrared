@@ -22,7 +22,9 @@ func (cpn *CPN) Start(cpnChan <-chan net.Conn, srvChan chan<- ProcessedConn) {
 		if !ok {
 			break
 		}
-		cpn.Log.Info("processing",
+		cpn.Log.Info("processing connection",
+			"network", c.LocalAddr().Network(),
+			"localAddress", c.LocalAddr(),
 			"remoteAddress", c.RemoteAddr(),
 		)
 

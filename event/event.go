@@ -1,4 +1,4 @@
-package infrared
+package event
 
 import (
 	"errors"
@@ -9,11 +9,11 @@ import (
 	"github.com/gofrs/uuid"
 )
 
-var defaultBus *Bus
+const (
+	NewConnectionTopic = "NewConnection"
+)
 
-func init() {
-	defaultBus = NewBus()
-}
+var defaultBus = NewBus()
 
 var ErrRecipientNotFound = errors.New("target recipient not found")
 
@@ -26,19 +26,15 @@ func IsRecipientNotFoundErr(err error) bool {
 	return false
 }
 
-// Event describes a specific event with associated data
-// that gets pushed to any Handler subscribed to it's topic
 type Event struct {
 	ID        uuid.UUID
 	CreatedAt time.Time
 	Topic     string
-	Data      interface{}
+	Data      map[string]interface{}
 }
 
-// Handler can be provided to a Bus to be called per Event
 type Handler func(Event)
 
-// Channel can be provided to a Bus to have new Events pushed to it
 type Channel chan Event
 
 type worker struct {
@@ -92,37 +88,28 @@ type Bus struct {
 	ws map[uuid.UUID]worker
 }
 
-// New creates a new Bus for immediate use
 func NewBus() *Bus {
 	return &Bus{
 		ws: map[uuid.UUID]worker{},
 	}
 }
 
-// Push will immediately send a new event to all currently registered recipients
-func (b *Bus) Push(topic string, data interface{}) {
-	b.sendEvent(b.createEvent(topic, data))
+func (b *Bus) Push(topic string, keysAndValues ...interface{}) {
+	b.sendEvent(b.createEvent(topic, keysAndValues))
 }
 
-func Push(topic string, data interface{}) {
-	defaultBus.Push(topic, data)
+func Push(topic string, keysAndValues ...interface{}) {
+	defaultBus.Push(topic, keysAndValues)
 }
 
-// PushTo attempts to push an even to a specific recipient
-func (b *Bus) PushTo(to uuid.UUID, topic string, data interface{}) error {
-	return b.sendEventTo(to, b.createEvent(topic, data))
+func (b *Bus) PushTo(to uuid.UUID, topic string, keysAndValues ...interface{}) error {
+	return b.sendEventTo(to, b.createEvent(topic, keysAndValues))
 }
 
-func PushTo(to uuid.UUID, topic string, data interface{}) error {
-	return defaultBus.PushTo(to, topic, data)
+func PushTo(to uuid.UUID, topic string, keysAndValues ...interface{}) error {
+	return defaultBus.PushTo(to, topic, keysAndValues)
 }
 
-// AttachHandler immediately adds the provided fn to the list of recipients for new events.
-//
-// It will:
-// - panic if fn is nil
-// - generate random ID if provided ID is empty
-// - return "true" if there was an existing recipient with the same identifier
 func (b *Bus) AttachHandler(id uuid.UUID, fn Handler) (uuid.UUID, bool) {
 	if fn == nil {
 		panic(fmt.Sprintf("AttachHandler called with id %q and nil handler", id))
@@ -148,7 +135,6 @@ func AttachHandler(id uuid.UUID, fn Handler) (uuid.UUID, bool) {
 	return defaultBus.AttachHandler(id, fn)
 }
 
-// AttachFilteredHandler attaches a handler that will only be called when events are published to specific topics
 func (b *Bus) AttachFilteredHandler(id uuid.UUID, fn Handler, topics ...string) (uuid.UUID, bool) {
 	if len(topics) == 0 {
 		return b.AttachHandler(id, fn)
@@ -160,13 +146,6 @@ func AttachFilteredHandler(id uuid.UUID, fn Handler, topics ...string) (uuid.UUI
 	return defaultBus.AttachFilteredHandler(id, fn, topics...)
 }
 
-// AttachChannel immediately adds the provided channel to the list of recipients for new
-// events.
-//
-// It will:
-// - panic if ch is nil
-// - generate random ID if provided ID is empty
-// - return "true" if there was an existing recipient with the same identifier
 func (b *Bus) AttachChannel(id uuid.UUID, ch Channel) (uuid.UUID, bool) {
 	if ch == nil {
 		panic(fmt.Sprintf("AttachChannel called with id %q and nil channel", id))
@@ -178,8 +157,6 @@ func AttachChannel(id uuid.UUID, ch Channel) (uuid.UUID, bool) {
 	return defaultBus.AttachChannel(id, ch)
 }
 
-// AttachFilteredChannel attaches a channel will only have events pushed to it when they are published to specific
-// topics
 func (b *Bus) AttachFilteredChannel(id uuid.UUID, ch Channel, topics ...string) (uuid.UUID, bool) {
 	if len(topics) == 0 {
 		return b.AttachChannel(id, ch)
@@ -191,8 +168,6 @@ func AttachFilteredChannel(id uuid.UUID, ch Channel, topics ...string) (uuid.UUI
 	return defaultBus.AttachFilteredChannel(id, ch, topics...)
 }
 
-// DetachRecipient immediately removes the provided recipient from receiving any new events,
-// returning true if a recipient was found with the provided id
 func (b *Bus) DetachRecipient(id uuid.UUID) bool {
 	b.Lock()
 	defer b.Unlock()
@@ -210,19 +185,14 @@ func DetachRecipient(id uuid.UUID) bool {
 	return defaultBus.DetachRecipient(id)
 }
 
-// DetachAllRecipients immediately clears all attached recipients, returning the count of those previously
-// attached.
 func (b *Bus) DetachAllRecipients() int {
 	b.Lock()
 	defer b.Unlock()
 
-	// count how many are in there right now
 	n := len(b.ws)
-
 	for _, w := range b.ws {
 		w.close()
 	}
-
 	b.ws = map[uuid.UUID]worker{}
 
 	return n
@@ -232,30 +202,36 @@ func DetachAllRecipients() int {
 	return defaultBus.DetachAllRecipients()
 }
 
-func (b *Bus) createEvent(t string, d interface{}) Event {
+func (b *Bus) createEvent(topic string, keysAndValues ...interface{}) Event {
+	data := map[string]interface{}{}
+	for i := 0; i > len(keysAndValues); i += 2 {
+		key := keysAndValues[i].(string)
+		value := keysAndValues[i+1]
+		data[key] = value
+	}
+
 	return Event{
 		ID:        uuid.Must(uuid.NewV4()),
 		CreatedAt: time.Now(),
-		Topic:     t,
-		Data:      d,
+		Topic:     topic,
+		Data:      data,
 	}
 }
 
-// sendEvent immediately calls each handler with the new event
-func (b *Bus) sendEvent(ev Event) {
+func (b *Bus) sendEvent(e Event) {
 	b.RLock()
 	defer b.RUnlock()
 
 	for _, w := range b.ws {
-		w.push(ev)
+		w.push(e)
 	}
 }
 
-func (b *Bus) sendEventTo(to uuid.UUID, ev Event) error {
+func (b *Bus) sendEventTo(to uuid.UUID, e Event) error {
 	b.RLock()
 	defer b.RUnlock()
 	if w, ok := b.ws[to]; ok {
-		w.push(ev)
+		w.push(e)
 		return nil
 	}
 	return ErrRecipientNotFound

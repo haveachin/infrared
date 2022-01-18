@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-//go:embed config.yml
+//go:embed config.default.yml
 var defaultConfig []byte
 
 func init() {

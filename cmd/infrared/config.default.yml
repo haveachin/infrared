@@ -1,0 +1,118 @@
+api:
+  bind: 0.0.0.0:8080
+  
+bedrock:
+  gateways:
+    mygateway:
+      listeners:
+        - bind: 192.168.1.31:19132
+          receive_proxy_protocol: true
+        - bind: 192.168.1.21:19132
+      server_not_found_message: Sorry {{username}}, but {{serverAddress}} was not found
+      servers:
+        - myserver
+  servers:
+    myserver:
+      domains:
+        - 192.168.1.31
+        - 192.168.1.21
+      address: example.com:19132
+      send_proxy_protocol: false
+      webhooks:
+        - mywebhook
+
+java:
+  processing_nodes:
+    count: 10
+  gateways:
+    mygateway:
+      binds:
+        - 127.0.0.1:25565
+      receive_proxy_protocol: false
+      receive_real_ip: false
+      server_not_found_message: Sorry {{username}}, but {{serverAddress}} was not found
+      servers:
+        - myserver
+  servers:
+    myserver:
+      domains:
+        - localhost
+      address: darkress.tk:25565
+      send_proxy_protocol: false
+      send_real_ip: false
+      disconnect_message: Sorry {{username}}, but the server is offline.
+      online_status: # Overrides only version name and icon of the original server
+        version_name: Infrared 1.17
+        icon_path: ./icon.png
+        max_player_count: 777777777
+        player_count: 2
+        player_sample:
+          - name: Steve
+            uuid: 8667ba71-b85a-4004-af54-457a9734eed7
+          - name: Alex
+            uuid: ec561538-f3fd-461d-aff5-086b22154bce
+      webhooks:
+        - mywebhook
+  
+webhooks:
+  mywebhook:
+    url: https://mc.example.com/callback
+    events:
+      - PlayerJoin
+      - PlayerLeave
+
+# These are default values that can be overridden
+defaults:
+  bedrock:
+    gateway:
+      listener:
+        receive_proxy_protocol: false
+        receive_real_ip: false
+        ping_status:
+          edition: MCPE
+          protocol_version: 471
+          version_name: "1.17.41"
+          player_count: 0
+          max_player_count: 10
+          game_mode: SURVIVAL
+          game_mode_numeric: 1
+          motd: |
+            BedProx
+            Join!
+    server:
+      proxy_bind: 0.0.0.0
+      dial_timeout: 1s
+      dial_timeout_message: Sorry {{username}}, but the server is currently unreachable
+      
+  java:
+    gateway:
+      binds:
+        - 0.0.0.0:25565
+      receive_proxy_protocol: true
+      receive_real_ip: false
+      servers:
+        - myserver
+    server:
+      address: 0.0.0.0:25544
+      proxy_bind: 0.0.0.0
+      dial_timeout: 1s
+      send_proxy_protocol: true
+      send_real_ip: false
+      disconnect_message: Sorry {{username}}, but the server is offline.
+      offline_status:
+        version_name: Proxy Host XY
+        protocol_number: 757
+        max_player_count: 10
+        player_count: 0
+        icon_path: ./icon.png
+        player_sample:
+          - name: Steve
+            uuid: 8667ba71-b85a-4004-af54-457a9734eed7
+          - name: Alex
+            uuid: ec561538-f3fd-461d-aff5-086b22154bce
+        motd: |
+          Proxy Host XY
+          {{requestedDomain}} is not reachable.
+
+  webhook:
+    client_timeout: 1s
