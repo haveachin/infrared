@@ -1,0 +1,23 @@
+version: "3"
+
+services:
+  infrared:
+    image: haveachin/infrared:dev
+    build:
+      context: ..
+      dockerfile: build/package/Dockerfile
+    container_name: infrared-dev
+    restart: "no"
+    ports:
+      - 25565:25565/tcp
+      - 19132:19132/udp
+    volumes:
+      - ../configs:/infrared
+    networks:
+      - infrared
+    environment:
+      INFRARED_CONFIG_PATH: "/infrared/config.yml"
+
+networks:
+  infrared:
+    name: infrared

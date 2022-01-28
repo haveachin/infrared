@@ -8,9 +8,7 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/go-logr/zapr"
-	"github.com/haveachin/infrared"
-	"github.com/haveachin/infrared/bedrock"
-	"github.com/haveachin/infrared/java"
+	"github.com/haveachin/infrared/internal/app/infrared"
 	"go.uber.org/zap"
 )
 
@@ -40,13 +38,13 @@ func init() {
 func main() {
 	logger.Info("loading proxy")
 
-	bedrockProxy, err := infrared.NewProxy(&bedrock.Config{})
+	bedrockProxy, err := infrared.NewProxy(&BedrockProxyConfig{})
 	if err != nil {
 		logger.Error(err, "failed to load proxy")
 		return
 	}
 
-	javaProxy, err := infrared.NewProxy(&java.Config{})
+	javaProxy, err := infrared.NewProxy(&JavaProxyConfig{})
 	if err != nil {
 		logger.Error(err, "failed to load proxy")
 		return

@@ -1,0 +1,115 @@
+api:
+  bind: 0.0.0.0:8080
+bedrock:
+  gateways:
+    mygateway:
+      listeners:
+      - bind: 192.168.1.31:19132
+        receive_proxy_protocol: true
+      - bind: 192.168.1.21:19132
+      server_not_found_message: Sorry {{username}}, but {{serverAddress}} was not
+        found
+      servers:
+      - myserver
+  processing_nodes:
+    count: 10
+  servers:
+    myserver:
+      address: example.com:19132
+      domains:
+      - 192.168.1.31
+      - 192.168.1.21
+      send_proxy_protocol: false
+      webhooks:
+      - mywebhook
+defaults:
+  bedrock:
+    gateway:
+      listener:
+        ping_status:
+          edition: MCPE
+          game_mode: SURVIVAL
+          game_mode_numeric: 1
+          max_player_count: 10
+          motd: |
+            BedProx
+            Join!
+          player_count: 0
+          protocol_version: 471
+          version_name: 1.17.41
+        receive_proxy_protocol: false
+        receive_real_ip: false
+    server:
+      dial_timeout: 1s
+      dial_timeout_message: Sorry {{username}}, but the server is currently unreachable
+      proxy_bind: 0.0.0.0
+  java:
+    gateway:
+      binds:
+      - 0.0.0.0:25565
+      receive_proxy_protocol: true
+      receive_real_ip: false
+      servers:
+      - myserver
+    server:
+      address: 0.0.0.0:25544
+      dial_timeout: 1s
+      disconnect_message: Sorry {{username}}, but the server is offline.
+      offline_status:
+        icon_path: ./icon.png
+        max_player_count: 10
+        motd: |
+          Proxy Host XY
+          {{requestedDomain}} is not reachable.
+        player_count: 0
+        player_sample:
+        - name: Steve
+          uuid: 8667ba71-b85a-4004-af54-457a9734eed7
+        - name: Alex
+          uuid: ec561538-f3fd-461d-aff5-086b22154bce
+        protocol_number: 757
+        version_name: Proxy Host XY
+      proxy_bind: 0.0.0.0
+      send_proxy_protocol: true
+      send_real_ip: false
+  webhook:
+    client_timeout: 1s
+java:
+  gateways:
+    mygateway:
+      binds:
+      - 127.0.0.1:25565
+      receive_proxy_protocol: false
+      receive_real_ip: false
+      server_not_found_message: Sorry {{username}}, but {{serverAddress}} was not
+        found
+      servers:
+      - myserver
+  processing_nodes:
+    count: 10
+  servers:
+    myserver:
+      address: darkress.tk:25565
+      disconnect_message: Sorry {{username}}, but the server is offline.
+      domains:
+      - localhost
+      online_status:
+        icon_path: ./icon.png
+        max_player_count: 777777777
+        player_count: 2
+        player_sample:
+        - name: Steve
+          uuid: 8667ba71-b85a-4004-af54-457a9734eed7
+        - name: Alex
+          uuid: ec561538-f3fd-461d-aff5-086b22154bce
+        version_name: Infrared 1.17
+      send_proxy_protocol: false
+      send_real_ip: false
+      webhooks:
+      - mywebhook
+webhooks:
+  mywebhook:
+    events:
+    - PlayerJoin
+    - PlayerLeave
+    url: https://mc.example.com/callback
