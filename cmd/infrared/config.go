@@ -41,7 +41,7 @@ func (cfg WebhookProxyConfig) LoadWebhooks() ([]webhook.Webhook, error) {
 	vpr := viper.Sub("defaults.webhook")
 
 	var webhooks []webhook.Webhook
-	for id, v := range viper.GetStringMap("java.webhooks") {
+	for id, v := range viper.GetStringMap("webhooks") {
 		vMap := v.(map[string]interface{})
 		if err := vpr.MergeConfigMap(vMap); err != nil {
 			return nil, err

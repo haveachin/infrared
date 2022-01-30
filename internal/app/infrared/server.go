@@ -18,14 +18,15 @@ type Server interface {
 	SetLogger(log logr.Logger)
 }
 
-func ExecuteMessageTemplate(msg string, c ProcessedConn, s Server) string {
+func ExecuteMessageTemplate(msg string, pc ProcessedConn, s Server) string {
 	tmpls := map[string]string{
-		"username":      c.Username(),
+		"username":      pc.Username(),
 		"currentTime":   time.Now().Format(time.RFC822),
-		"remoteAddress": c.RemoteAddr().String(),
-		"localAddress":  c.LocalAddr().String(),
-		"serverDomain":  c.ServerAddr(),
+		"remoteAddress": pc.RemoteAddr().String(),
+		"localAddress":  pc.LocalAddr().String(),
+		"serverDomain":  pc.ServerAddr(),
 		"serverID":      s.GetID(),
+		"gatewayID":     pc.GatewayID(),
 	}
 
 	for k, v := range tmpls {
@@ -43,37 +44,26 @@ type ServerGateway struct {
 	Webhooks               []webhook.Webhook
 	Log                    logr.Logger
 
-	// "GatewayID@Domain" mapped to server
+	// Server ID mapped to server
 	srvs map[string]Server
+	// Server ID mapped to server domains in lowercase
+	srvDomains map[string][]string
 	// Server ID mapped to webhooks
 	srvWhks map[string][]webhook.Webhook
 }
 
-func (sg *ServerGateway) indexServers() error {
-	srvs := map[string]Server{}
-	for _, srv := range sg.Servers {
-		srvs[srv.GetID()] = srv
-	}
-
+func (sg *ServerGateway) indexServers() {
 	sg.srvs = map[string]Server{}
-	for gID, sIDs := range sg.GatewayIDServerIDs {
-		for _, sID := range sIDs {
-			srv, ok := srvs[sID]
-			if !ok {
-				return fmt.Errorf("server with ID %q doesn't exist", sID)
-			}
+	sg.srvDomains = map[string][]string{}
+	for _, srv := range sg.Servers {
+		sg.srvs[srv.GetID()] = srv
 
-			for _, domain := range srv.GetDomains() {
-				lowerDomain := strings.ToLower(domain)
-				sgID := fmt.Sprintf("%s@%s", gID, lowerDomain)
-				if _, exits := sg.srvs[sgID]; exits {
-					return fmt.Errorf("duplicate server gateway ID %q", sgID)
-				}
-				sg.srvs[sgID] = srv
-			}
+		dd := make([]string, len(srv.GetDomains()))
+		for i, d := range srv.GetDomains() {
+			dd[i] = strings.ToLower(d)
 		}
+		sg.srvDomains[srv.GetID()] = dd
 	}
-	return nil
 }
 
 // indexWebhooks indexes the webhooks that servers use.
@@ -98,28 +88,26 @@ func (sg *ServerGateway) indexWebhooks() error {
 	return nil
 }
 
-func (sg ServerGateway) executeMessageTemplate(msg string, pc ProcessedConn) string {
-	tmpls := map[string]string{
-		"username":      pc.Username(),
-		"now":           time.Now().Format(time.RFC822),
-		"remoteAddress": pc.RemoteAddr().String(),
-		"localAddress":  pc.LocalAddr().String(),
-		"serverAddress": pc.ServerAddr(),
-		"gatewayID":     pc.GatewayID(),
-	}
+func (sg ServerGateway) findServer(gatewayID, domain string) Server {
+	domain = strings.ToLower(domain)
+	srvIDs := sg.GatewayIDServerIDs[gatewayID]
 
-	for k, v := range tmpls {
-		msg = strings.Replace(msg, fmt.Sprintf("{{%s}}", k), v, -1)
+	var hs int
+	var srv Server
+	for _, id := range srvIDs {
+		for _, d := range sg.srvDomains[id] {
+			cs := wildcardSimilarity(domain, d)
+			if cs > -1 && cs >= hs {
+				hs = cs
+				srv = sg.srvs[id]
+			}
+		}
 	}
-
-	return msg
+	return srv
 }
 
 func (sg ServerGateway) Start(srvChan <-chan ProcessedConn, poolChan chan<- ConnTunnel) error {
-	if err := sg.indexServers(); err != nil {
-		return err
-	}
-
+	sg.indexServers()
 	if err := sg.indexWebhooks(); err != nil {
 		return err
 	}
@@ -130,22 +118,20 @@ func (sg ServerGateway) Start(srvChan <-chan ProcessedConn, poolChan chan<- Conn
 			break
 		}
 
-		srvAddrLower := strings.ToLower(pc.ServerAddr())
-		sgID := fmt.Sprintf("%s@%s", pc.GatewayID(), srvAddrLower)
-		srv, ok := sg.srvs[sgID]
-		if !ok {
+		srv := sg.findServer(pc.GatewayID(), pc.ServerAddr())
+		if srv == nil {
 			sg.Log.Info("invalid server",
 				"serverAddress", pc.ServerAddr(),
 				"remoteAddress", pc.RemoteAddr(),
 			)
 			msg := sg.ServerNotFoundMessages[pc.GatewayID()]
-			msg = sg.executeMessageTemplate(msg, pc)
+			msg = ExecuteMessageTemplate(msg, pc, srv)
 			_ = pc.Disconnect(msg)
 			continue
 		}
 
 		sg.Log.Info("connecting client",
-			"serverId", sgID,
+			"serverId", srv.GetID(),
 			"remoteAddress", pc.RemoteAddr(),
 		)
 
@@ -165,4 +151,34 @@ func (sg ServerGateway) Start(srvChan <-chan ProcessedConn, poolChan chan<- Conn
 	}
 
 	return nil
+}
+
+// wildcardSimilarity determines the similarity of a domain to a wildcard domain
+// If the similarity ends on a '*' then the domain is compareable to the wildcard domain
+// then the it returns the length of the equal string slice.
+// Else if they are not compareable because the equal string slice ends on any rune
+// that is not '*' it returns -1
+func wildcardSimilarity(domain, wildcardDomain string) int {
+	ra, rb := []rune(domain), []rune(wildcardDomain)
+	la, lb := len(domain)-1, len(wildcardDomain)-1
+
+	// Determine shorter string length
+	var sl int
+	if la > lb {
+		sl = lb
+	} else {
+		sl = la
+	}
+
+	i := 0
+	for i = 0; i <= sl; i++ {
+		if ra[la-i] != rb[lb-i] {
+			// If the similarity does not end on a wildcard then return -1 for no compareable
+			if rb[lb-i] != '*' {
+				return -1
+			}
+			break
+		}
+	}
+	return i
 }

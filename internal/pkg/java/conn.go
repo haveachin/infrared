@@ -9,6 +9,7 @@ import (
 	"github.com/haveachin/infrared/internal/pkg/java/protocol"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol/handshaking"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol/login"
+	"github.com/haveachin/infrared/internal/pkg/java/protocol/status"
 )
 
 type PacketWriter interface {
@@ -127,9 +128,15 @@ func (c ProcessedConn) ServerAddr() string {
 func (c ProcessedConn) Disconnect(msg string) error {
 	defer c.Close()
 
-	pk := login.ClientBoundDisconnect{
-		Reason: protocol.Chat(fmt.Sprintf("{\"text\":\"%s\"}", msg)),
-	}.Marshal()
-
+	var pk protocol.Packet
+	if c.handshake.IsLoginRequest() {
+		pk = login.ClientBoundDisconnect{
+			Reason: protocol.Chat(fmt.Sprintf("{\"text\":\"%s\"}", msg)),
+		}.Marshal()
+	} else {
+		pk = status.ClientBoundResponse{
+			JSONResponse: protocol.String(msg),
+		}.Marshal()
+	}
 	return c.WritePacket(pk)
 }

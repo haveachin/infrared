@@ -13,7 +13,7 @@ bedrock:
   servers:
     myserver:
       domains:
-        - your-domain.com
+        - "*"
       address: your-server-address:19132
       webhooks:
         - mywebhook
@@ -30,7 +30,7 @@ java:
   servers:
     myserver:
       domains:
-        - your-domain.com
+        - "*"
       address: your-server-address:25565
       override_status:
         version_name: Infrared 1.17
