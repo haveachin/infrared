@@ -47,7 +47,7 @@ func (s Server) Dial() (*raknet.Conn, error) {
 	return c, nil
 }
 
-func (s Server) handleOffline(c ProcessedConn) error {
+func (s Server) handleDialTimeout(c ProcessedConn) error {
 	msg := infrared.ExecuteMessageTemplate(s.DialTimeoutMessage, c, &s)
 	return c.Disconnect(msg)
 }
@@ -56,7 +56,7 @@ func (s Server) ProcessConn(c net.Conn, webhooks []webhook.Webhook) (infrared.Co
 	pc := c.(*ProcessedConn)
 	rc, err := s.Dial()
 	if err != nil {
-		if err := s.handleOffline(*pc); err != nil {
+		if err := s.handleDialTimeout(*pc); err != nil {
 			return infrared.ConnTunnel{}, err
 		}
 		return infrared.ConnTunnel{}, err

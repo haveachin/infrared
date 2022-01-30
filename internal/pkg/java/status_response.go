@@ -27,7 +27,7 @@ func (ps PlayerSamples) PlayerSampleJSON() []status.PlayerSampleJSON {
 	return ss
 }
 
-type OnlineStatusResponse struct {
+type OverrideStatusResponse struct {
 	VersionName    *string
 	ProtocolNumber *int
 	MaxPlayerCount *int
@@ -37,7 +37,7 @@ type OnlineStatusResponse struct {
 	MOTD           *string
 }
 
-func (r OnlineStatusResponse) ResponseJSON(resp status.ResponseJSON) (status.ResponseJSON, error) {
+func (r OverrideStatusResponse) ResponseJSON(resp status.ResponseJSON) (status.ResponseJSON, error) {
 	if r.IconPath != nil {
 		var err error
 		resp.Favicon, err = loadImageAndEncodeToBase64String(*r.IconPath)
@@ -73,7 +73,7 @@ func (r OnlineStatusResponse) ResponseJSON(resp status.ResponseJSON) (status.Res
 	return resp, nil
 }
 
-type OfflineStatusResponse struct {
+type DialTimeoutStatusResponse struct {
 	VersionName    string
 	ProtocolNumber int
 	MaxPlayerCount int
@@ -83,7 +83,7 @@ type OfflineStatusResponse struct {
 	MOTD           string
 }
 
-func (r OfflineStatusResponse) ResponseJSON() (status.ResponseJSON, error) {
+func (r DialTimeoutStatusResponse) ResponseJSON() (status.ResponseJSON, error) {
 	img64, err := loadImageAndEncodeToBase64String(r.IconPath)
 	if err != nil {
 		return status.ResponseJSON{}, err

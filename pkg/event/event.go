@@ -9,10 +9,6 @@ import (
 	"github.com/gofrs/uuid"
 )
 
-const (
-	NewConnectionTopic = "NewConnection"
-)
-
 var defaultBus = NewBus()
 
 var ErrRecipientNotFound = errors.New("target recipient not found")

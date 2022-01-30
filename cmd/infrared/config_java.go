@@ -2,16 +2,16 @@ package main
 
 import (
 	"net"
-	"net/http"
 	"time"
 
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/internal/pkg/java"
-	"github.com/haveachin/infrared/pkg/webhook"
 	"github.com/spf13/viper"
 )
 
-type JavaProxyConfig struct{}
+type JavaProxyConfig struct {
+	WebhookProxyConfig
+}
 
 func (cfg JavaProxyConfig) LoadGateways() ([]infrared.Gateway, error) {
 	vpr := viper.Sub("defaults.java.gateway")
@@ -65,55 +65,36 @@ func (cfg JavaProxyConfig) LoadCPNs() ([]infrared.CPN, error) {
 	return cpns, nil
 }
 
-func (cfg JavaProxyConfig) LoadWebhooks() ([]webhook.Webhook, error) {
-	vpr := viper.Sub("defaults.java.webhook")
-
-	var webhooks []webhook.Webhook
-	for id, v := range viper.GetStringMap("java.webhooks") {
-		vMap := v.(map[string]interface{})
-		if err := vpr.MergeConfigMap(vMap); err != nil {
-			return nil, err
-		}
-		var cfg javaWebhookConfig
-		if err := vpr.Unmarshal(&cfg); err != nil {
-			return nil, err
-		}
-		webhooks = append(webhooks, newJavaWebhook(id, cfg))
-	}
-
-	return webhooks, nil
-}
-
 type javaServerConfig struct {
-	Domains           []string                  `mapstructure:"domains"`
-	Address           string                    `mapstructure:"address"`
-	ProxyBind         string                    `mapstructure:"proxy_bind"`
-	DialTimeout       time.Duration             `mapstructure:"dial_timeout"`
-	SendProxyProtocol bool                      `mapstructure:"send_proxy_protocol"`
-	SendRealIP        bool                      `mapstructure:"send_real_ip"`
-	DisconnectMessage string                    `mapstructure:"disconnect_message"`
-	OnlineStatus      javaOnlineServerStatusConfig  `mapstructure:"online_status"`
-	OfflineStatus     javaOfflineServerStatusConfig `mapstructure:"offline_status"`
+	Domains            []string                          `mapstructure:"domains"`
+	Address            string                            `mapstructure:"address"`
+	ProxyBind          string                            `mapstructure:"proxy_bind"`
+	SendProxyProtocol  bool                              `mapstructure:"send_proxy_protocol"`
+	SendRealIP         bool                              `mapstructure:"send_real_ip"`
+	DialTimeout        time.Duration                     `mapstructure:"dial_timeout"`
+	DialTimeoutMessage string                            `mapstructure:"dial_timeout_message"`
+	OverrideStatus     javaOverrideServerStatusConfig    `mapstructure:"override_status"`
+	DialTimeoutStatus  javaDialTimeoutServerStatusConfig `mapstructure:"dial_timeout_status"`
 }
 
-type javaOnlineServerStatusConfig struct {
-	VersionName    *string                          `mapstructure:"version_name,omitempty"`
-	ProtocolNumber *int                             `mapstructure:"protocol_number,omitempty"`
-	MaxPlayerCount *int                             `mapstructure:"max_player_count,omitempty"`
-	PlayerCount    *int                             `mapstructure:"player_count,omitempty"`
+type javaOverrideServerStatusConfig struct {
+	VersionName    *string                              `mapstructure:"version_name,omitempty"`
+	ProtocolNumber *int                                 `mapstructure:"protocol_number,omitempty"`
+	MaxPlayerCount *int                                 `mapstructure:"max_player_count,omitempty"`
+	PlayerCount    *int                                 `mapstructure:"player_count,omitempty"`
 	PlayerSample   []javaServerStatusPlayerSampleConfig `mapstructure:"player_sample,omitempty"`
-	IconPath       *string                          `mapstructure:"icon_path,omitempty"`
-	MOTD           *string                          `mapstructure:"motd,omitempty"`
+	IconPath       *string                              `mapstructure:"icon_path,omitempty"`
+	MOTD           *string                              `mapstructure:"motd,omitempty"`
 }
 
-type javaOfflineServerStatusConfig struct {
-	VersionName    string                           `mapstructure:"version_name"`
-	ProtocolNumber int                              `mapstructure:"protocol_number"`
-	MaxPlayerCount int                              `mapstructure:"max_player_count"`
-	PlayerCount    int                              `mapstructure:"player_count"`
+type javaDialTimeoutServerStatusConfig struct {
+	VersionName    string                               `mapstructure:"version_name"`
+	ProtocolNumber int                                  `mapstructure:"protocol_number"`
+	MaxPlayerCount int                                  `mapstructure:"max_player_count"`
+	PlayerCount    int                                  `mapstructure:"player_count"`
 	PlayerSample   []javaServerStatusPlayerSampleConfig `mapstructure:"player_sample"`
-	IconPath       string                           `mapstructure:"icon_path"`
-	MOTD           string                           `mapstructure:"motd"`
+	IconPath       string                               `mapstructure:"icon_path"`
+	MOTD           string                               `mapstructure:"motd"`
 }
 
 type javaServerStatusPlayerSampleConfig struct {
@@ -132,12 +113,6 @@ type javaGatewayConfig struct {
 
 type javaCpnConfig struct {
 	Count int `mapstructure:"count"`
-}
-
-type javaWebhookConfig struct {
-	ClientTimeout time.Duration `mapstructure:"client_timeout"`
-	URL           string        `mapstructure:"url"`
-	Events        []string      `mapstructure:"events"`
 }
 
 func newJavaGateway(id string, cfg javaGatewayConfig) infrared.Gateway {
@@ -162,17 +137,17 @@ func newJavaServer(id string, cfg javaServerConfig) infrared.Server {
 				IP: net.ParseIP(cfg.ProxyBind),
 			},
 		},
-		Address:           cfg.Address,
-		SendProxyProtocol: cfg.SendProxyProtocol,
-		SendRealIP:        cfg.SendRealIP,
-		DisconnectMessage: cfg.DisconnectMessage,
-		OnlineStatus:      newJavaOnlineServerStatus(cfg.OnlineStatus),
-		OfflineStatus:     newJavaOfflineServerStatus(cfg.OfflineStatus),
+		Address:            cfg.Address,
+		SendProxyProtocol:  cfg.SendProxyProtocol,
+		SendRealIP:         cfg.SendRealIP,
+		DialTimeoutMessage: cfg.DialTimeoutMessage,
+		OverrideStatus:     newJavaOverrideServerStatus(cfg.OverrideStatus),
+		DialTimeoutStatus:  newJavaDialTimeoutServerStatus(cfg.DialTimeoutStatus),
 	}
 }
 
-func newJavaOnlineServerStatus(cfg javaOnlineServerStatusConfig) java.OnlineStatusResponse {
-	return java.OnlineStatusResponse{
+func newJavaOverrideServerStatus(cfg javaOverrideServerStatusConfig) java.OverrideStatusResponse {
+	return java.OverrideStatusResponse{
 		VersionName:    cfg.VersionName,
 		ProtocolNumber: cfg.ProtocolNumber,
 		MaxPlayerCount: cfg.MaxPlayerCount,
@@ -183,8 +158,8 @@ func newJavaOnlineServerStatus(cfg javaOnlineServerStatusConfig) java.OnlineStat
 	}
 }
 
-func newJavaOfflineServerStatus(cfg javaOfflineServerStatusConfig) java.OfflineStatusResponse {
-	return java.OfflineStatusResponse{
+func newJavaDialTimeoutServerStatus(cfg javaDialTimeoutServerStatusConfig) java.DialTimeoutStatusResponse {
+	return java.DialTimeoutStatusResponse{
 		VersionName:    cfg.VersionName,
 		ProtocolNumber: cfg.ProtocolNumber,
 		MaxPlayerCount: cfg.MaxPlayerCount,
@@ -204,15 +179,4 @@ func newJavaServerStatusPlayerSample(cfgs []javaServerStatusPlayerSampleConfig) 
 		}
 	}
 	return playerSamples
-}
-
-func newJavaWebhook(id string, cfg javaWebhookConfig) webhook.Webhook {
-	return webhook.Webhook{
-		ID: id,
-		HTTPClient: &http.Client{
-			Timeout: cfg.ClientTimeout,
-		},
-		URL:        cfg.URL,
-		EventTypes: cfg.Events,
-	}
 }

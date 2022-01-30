@@ -13,17 +13,17 @@ import (
 )
 
 type Server struct {
-	ID                string
-	Domains           []string
-	Dialer            net.Dialer
-	Address           string
-	SendProxyProtocol bool
-	SendRealIP        bool
-	DisconnectMessage string
-	OnlineStatus      OnlineStatusResponse
-	OfflineStatus     OfflineStatusResponse
-	WebhookIDs        []string
-	Log               logr.Logger
+	ID                 string
+	Domains            []string
+	Dialer             net.Dialer
+	Address            string
+	SendProxyProtocol  bool
+	SendRealIP         bool
+	DialTimeoutMessage string
+	OverrideStatus     OverrideStatusResponse
+	DialTimeoutStatus  DialTimeoutStatusResponse
+	WebhookIDs         []string
+	Log                logr.Logger
 }
 
 func (s Server) GetID() string {
@@ -55,8 +55,8 @@ func (s Server) Dial() (Conn, error) {
 	}, nil
 }
 
-func (s Server) handleOfflineStatusRequest(c ProcessedConn) error {
-	respJSON, err := s.OfflineStatus.ResponseJSON()
+func (s Server) handleDialTimeoutStatusRequest(c ProcessedConn) error {
+	respJSON, err := s.DialTimeoutStatus.ResponseJSON()
 	if err != nil {
 		return err
 	}
@@ -82,17 +82,17 @@ func (s Server) handleOfflineStatusRequest(c ProcessedConn) error {
 	return c.WritePacket(pingPk)
 }
 
-func (s Server) handleOfflineLoginRequest(c ProcessedConn) error {
-	msg := infrared.ExecuteMessageTemplate(s.DisconnectMessage, &c, &s)
+func (s Server) handleDialTimeoutLoginRequest(c ProcessedConn) error {
+	msg := infrared.ExecuteMessageTemplate(s.DialTimeoutMessage, &c, &s)
 	return c.Disconnect(msg)
 }
 
-func (s Server) handleOffline(c ProcessedConn) error {
+func (s Server) handleDialTimeout(c ProcessedConn) error {
 	if c.handshake.IsStatusRequest() {
-		return s.handleOfflineStatusRequest(c)
+		return s.handleDialTimeoutStatusRequest(c)
 	}
 
-	return s.handleOfflineLoginRequest(c)
+	return s.handleDialTimeoutLoginRequest(c)
 }
 
 func (s Server) overrideStatusResponse(c ProcessedConn, rc Conn) error {
@@ -111,7 +111,7 @@ func (s Server) overrideStatusResponse(c ProcessedConn, rc Conn) error {
 		return err
 	}
 
-	respJSON, err = s.OnlineStatus.ResponseJSON(respJSON)
+	respJSON, err = s.OverrideStatus.ResponseJSON(respJSON)
 	if err != nil {
 		return err
 	}
@@ -134,7 +134,7 @@ func (s Server) ProcessConn(c net.Conn, webhooks []webhook.Webhook) (infrared.Co
 	pc := c.(*ProcessedConn)
 	rc, err := s.Dial()
 	if err != nil {
-		if err := s.handleOffline(*pc); err != nil {
+		if err := s.handleDialTimeout(*pc); err != nil {
 			return infrared.ConnTunnel{}, err
 		}
 		return infrared.ConnTunnel{}, err

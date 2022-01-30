@@ -55,7 +55,7 @@ func ListenAndServe(gw Gateway, cpnChan chan<- net.Conn) {
 				}
 
 				logger.Info("new connection", keysAndValues...)
-				event.Push(event.NewConnectionTopic, keysAndValues...)
+				event.Push(NewConnectionEventTopic, keysAndValues...)
 
 				cpnChan <- gw.WrapConn(c, l)
 			}

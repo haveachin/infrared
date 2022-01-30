@@ -21,10 +21,10 @@ type Server interface {
 func ExecuteMessageTemplate(msg string, c ProcessedConn, s Server) string {
 	tmpls := map[string]string{
 		"username":      c.Username(),
-		"now":           time.Now().Format(time.RFC822),
+		"currentTime":   time.Now().Format(time.RFC822),
 		"remoteAddress": c.RemoteAddr().String(),
 		"localAddress":  c.LocalAddr().String(),
-		"serverAddress": c.ServerAddr(),
+		"serverDomain":  c.ServerAddr(),
 		"serverID":      s.GetID(),
 	}
 
@@ -98,7 +98,7 @@ func (sg *ServerGateway) indexWebhooks() error {
 	return nil
 }
 
-func (sg ServerGateway) executeTemplate(msg string, pc ProcessedConn) string {
+func (sg ServerGateway) executeMessageTemplate(msg string, pc ProcessedConn) string {
 	tmpls := map[string]string{
 		"username":      pc.Username(),
 		"now":           time.Now().Format(time.RFC822),
@@ -139,7 +139,7 @@ func (sg ServerGateway) Start(srvChan <-chan ProcessedConn, poolChan chan<- Conn
 				"remoteAddress", pc.RemoteAddr(),
 			)
 			msg := sg.ServerNotFoundMessages[pc.GatewayID()]
-			msg = sg.executeTemplate(msg, pc)
+			msg = sg.executeMessageTemplate(msg, pc)
 			_ = pc.Disconnect(msg)
 			continue
 		}

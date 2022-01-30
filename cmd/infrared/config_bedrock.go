@@ -7,12 +7,13 @@ import (
 
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/internal/pkg/bedrock"
-	"github.com/haveachin/infrared/pkg/webhook"
 	"github.com/sandertv/go-raknet"
 	"github.com/spf13/viper"
 )
 
-type BedrockProxyConfig struct{}
+type BedrockProxyConfig struct {
+	WebhookProxyConfig
+}
 
 func (cfg BedrockProxyConfig) LoadGateways() ([]infrared.Gateway, error) {
 	var gateways []infrared.Gateway
@@ -66,25 +67,6 @@ func (cfg BedrockProxyConfig) LoadCPNs() ([]infrared.CPN, error) {
 	}
 
 	return cpns, nil
-}
-
-func (cfg BedrockProxyConfig) LoadWebhooks() ([]webhook.Webhook, error) {
-	vpr := viper.Sub("defaults.bedrock.webhook")
-
-	var webhooks []webhook.Webhook
-	for id, v := range viper.GetStringMap("bedrock.webhooks") {
-		vMap := v.(map[string]interface{})
-		if err := vpr.MergeConfigMap(vMap); err != nil {
-			return nil, err
-		}
-		var cfg javaWebhookConfig
-		if err := vpr.Unmarshal(&cfg); err != nil {
-			return nil, err
-		}
-		webhooks = append(webhooks, newJavaWebhook(id, cfg))
-	}
-
-	return webhooks, nil
 }
 
 type bedrockPingStatusConfig struct {
