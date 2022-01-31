@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"github.com/pires/go-proxyproto"
 	"net"
 
 	"github.com/go-logr/logr"
@@ -42,6 +43,14 @@ func (s Server) GetWebhookIDs() []string {
 
 func (s *Server) SetLogger(log logr.Logger) {
 	s.Log = log
+}
+
+func (s Server) GetSendProxyProtocol() bool {
+	return s.SendProxyProtocol
+}
+
+func (s Server) GetSendRealIP() bool {
+	return s.SendProxyProtocol
 }
 
 func (s Server) Dial() (Conn, error) {
@@ -144,6 +153,20 @@ func (s Server) ProcessConn(c net.Conn, webhooks []webhook.Webhook) (infrared.Co
 			return infrared.ConnTunnel{}, err
 		}
 		return infrared.ConnTunnel{}, err
+	}
+
+	if s.GetSendProxyProtocol() {
+		header := &proxyproto.Header{
+			Version:           2,
+			Command:           proxyproto.PROXY,
+			TransportProtocol: proxyproto.TCPv4,
+			SourceAddr:        pc.RemoteAddr(),
+			DestinationAddr:   rc.RemoteAddr(),
+		}
+
+		if _, err := header.WriteTo(&rc); err != nil {
+			return infrared.ConnTunnel{}, err
+		}
 	}
 
 	if err := rc.WritePackets(pc.readPks...); err != nil {
