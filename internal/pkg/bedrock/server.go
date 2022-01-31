@@ -48,8 +48,8 @@ func (s Server) Dial() (*raknet.Conn, error) {
 }
 
 func (s Server) handleDialTimeout(c ProcessedConn) error {
-	msg := infrared.ExecuteMessageTemplate(s.DialTimeoutMessage, c, &s)
-	return c.Disconnect(msg)
+	msg := infrared.ExecuteServerMessageTemplate(s.DialTimeoutMessage, c, &s)
+	return c.disconnect(msg)
 }
 
 func (s Server) ProcessConn(c net.Conn, webhooks []webhook.Webhook) (infrared.ConnTunnel, error) {

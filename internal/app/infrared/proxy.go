@@ -27,13 +27,6 @@ func NewProxy(cfg ProxyConfig) (Proxy, error) {
 		return Proxy{}, err
 	}
 
-	gwIDsIDs := map[string][]string{}
-	srvNotFoundMsgs := map[string]string{}
-	for _, gw := range gateways {
-		gwIDsIDs[gw.GetID()] = gw.GetServerIDs()
-		srvNotFoundMsgs[gw.GetID()] = gw.GetServerNotFoundMessage()
-	}
-
 	cpns, err := cfg.LoadCPNs()
 	if err != nil {
 		return Proxy{}, err
@@ -48,9 +41,8 @@ func NewProxy(cfg ProxyConfig) (Proxy, error) {
 		Gateways: gateways,
 		CPNs:     cpns,
 		ServerGateway: ServerGateway{
-			GatewayIDServerIDs:     gwIDsIDs,
-			ServerNotFoundMessages: srvNotFoundMsgs,
-			Servers:                servers,
+			Gateways: gateways,
+			Servers:  servers,
 		},
 		ConnPool: ConnPool{},
 	}, nil

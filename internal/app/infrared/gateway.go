@@ -15,9 +15,8 @@ type Gateway interface {
 	// GetServerIDs returns the IDs of the servers
 	// that are registered in that gateway
 	GetServerIDs() []string
-	GetServerNotFoundMessage() string
 	GetLogger() logr.Logger
-	SetLogger(log logr.Logger)
+	SetLogger(logr.Logger)
 	GetListeners() []net.Listener
 	WrapConn(net.Conn, net.Listener) net.Conn
 	Close() error

@@ -81,16 +81,16 @@ type bedrockPingStatusConfig struct {
 }
 
 type bedrockListenerConfig struct {
-	Bind                 string                  `mapstructure:"bind"`
-	PingStatus           bedrockPingStatusConfig `mapstructure:"ping_status"`
-	ReceiveProxyProtocol bool                    `mapstructure:"receive_proxy_protocol"`
-	ReceiveRealIP        bool                    `mapstructure:"receive_real_ip"`
+	Bind                  string                  `mapstructure:"bind"`
+	PingStatus            bedrockPingStatusConfig `mapstructure:"ping_status"`
+	ReceiveProxyProtocol  bool                    `mapstructure:"receive_proxy_protocol"`
+	ReceiveRealIP         bool                    `mapstructure:"receive_real_ip"`
+	ClientTimeout         time.Duration           `mapstructure:"client_timeout"`
+	ServerNotFoundMessage string                  `mapstructure:"server_not_found_message"`
 }
 
 type bedrockGatewayConfig struct {
-	ClientTimeout         time.Duration `mapstructure:"client_timeout"`
-	Servers               []string      `mapstructure:"servers"`
-	ServerNotFoundMessage string        `mapstructure:"server_not_found_message"`
+	Servers []string `mapstructure:"servers"`
 }
 
 type bedrockServerConfig struct {
@@ -121,10 +121,12 @@ func newBedrockPingStatus(cfg bedrockPingStatusConfig) bedrock.PingStatus {
 
 func newBedrockListener(cfg bedrockListenerConfig) bedrock.Listener {
 	return bedrock.Listener{
-		Bind:                 cfg.Bind,
-		PingStatus:           newBedrockPingStatus(cfg.PingStatus),
-		ReceiveProxyProtocol: cfg.ReceiveProxyProtocol,
-		ReceiveRealIP:        cfg.ReceiveRealIP,
+		Bind:                  cfg.Bind,
+		PingStatus:            newBedrockPingStatus(cfg.PingStatus),
+		ReceiveProxyProtocol:  cfg.ReceiveProxyProtocol,
+		ReceiveRealIP:         cfg.ReceiveRealIP,
+		ClientTimeout:         cfg.ClientTimeout,
+		ServerNotFoundMessage: cfg.ServerNotFoundMessage,
 	}
 }
 
@@ -135,11 +137,9 @@ func newBedrockGateway(id string, cfg bedrockGatewayConfig) (*bedrock.Gateway, e
 	}
 
 	return &bedrock.Gateway{
-		ID:                    id,
-		Listeners:             listeners,
-		ClientTimeout:         cfg.ClientTimeout,
-		ServerIDs:             cfg.Servers,
-		ServerNotFoundMessage: cfg.ServerNotFoundMessage,
+		ID:        id,
+		Listeners: listeners,
+		ServerIDs: cfg.Servers,
 	}, nil
 }
 

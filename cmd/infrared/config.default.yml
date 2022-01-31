@@ -23,14 +23,14 @@ java:
     count: 10
   gateways:
     mygateway:
-      binds:
-        - 0.0.0.0:25565
+      listeners:
+        - bind: 0.0.0.0:25565
       servers:
         - myserver
   servers:
     myserver:
       domains:
-        - "*"
+        - "haveachin.de"
       address: your-server-address:25565
       override_status:
         version_name: Infrared 1.17
@@ -75,7 +75,17 @@ defaults:
       
   java:
     gateway:
-      server_not_found_message: Sorry {{username}}, but {{serverDomain}} was not found
+      listener:
+        server_not_found_message: Sorry {{username}}, but {{serverDomain}} was not found
+        server_not_found_status:
+          version_name: Proxy Host XY
+          protocol_number: 757
+          max_player_count: 10
+          player_count: 0
+          icon_path: ./icon.png
+          motd: |
+            Proxy Host XY
+            {{serverDomain}} is not reachable.
     server:
       dial_timeout: 1s
       dial_timeout_message: Sorry {{username}}, but the server is offline.
@@ -87,7 +97,7 @@ defaults:
         icon_path: ./icon.png
         motd: |
           Proxy Host XY
-          {{requestedDomain}} is not reachable.
+          {{serverDomain}} is not reachable.
 
   webhook:
     dial_timeout: 1s

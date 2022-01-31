@@ -36,21 +36,21 @@ func (p PingStatus) marshal(l *raknet.Listener) []byte {
 }
 
 type Listener struct {
-	Bind                 string
-	ReceiveProxyProtocol bool
-	ReceiveRealIP        bool
-	PingStatus           PingStatus
+	Bind                  string
+	ReceiveProxyProtocol  bool
+	ReceiveRealIP         bool
+	PingStatus            PingStatus
+	ClientTimeout         time.Duration
+	ServerNotFoundMessage string
 
 	raknet.Listener
 }
 
 type Gateway struct {
-	ID                    string
-	Listeners             []Listener
-	ClientTimeout         time.Duration
-	ServerIDs             []string
-	Log                   logr.Logger
-	ServerNotFoundMessage string
+	ID        string
+	Listeners []Listener
+	ServerIDs []string
+	Log       logr.Logger
 
 	listeners []net.Listener
 }
@@ -61,10 +61,6 @@ func (gw Gateway) GetID() string {
 
 func (gw Gateway) GetServerIDs() []string {
 	return gw.ServerIDs
-}
-
-func (gw Gateway) GetServerNotFoundMessage() string {
-	return gw.ServerNotFoundMessage
 }
 
 func (gw *Gateway) SetLogger(log logr.Logger) {
@@ -103,10 +99,11 @@ func (gw *Gateway) GetListeners() []net.Listener {
 func (gw Gateway) WrapConn(c net.Conn, l net.Listener) net.Conn {
 	listener := l.(*Listener)
 	return &Conn{
-		Conn:          c.(*raknet.Conn),
-		gatewayID:     gw.ID,
-		proxyProtocol: listener.ReceiveProxyProtocol,
-		realIP:        listener.ReceiveRealIP,
+		Conn:                  c.(*raknet.Conn),
+		gatewayID:             gw.ID,
+		proxyProtocol:         listener.ReceiveProxyProtocol,
+		realIP:                listener.ReceiveRealIP,
+		serverNotFoundMessage: listener.ServerNotFoundMessage,
 	}
 }
 

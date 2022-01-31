@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"net"
 	"time"
 
@@ -26,7 +27,11 @@ func (cfg JavaProxyConfig) LoadGateways() ([]infrared.Gateway, error) {
 		if err := vpr.Unmarshal(&cfg); err != nil {
 			return nil, err
 		}
-		gateways = append(gateways, newJavaGateway(id, cfg))
+		gateway, err := newJavaGateway(id, cfg)
+		if err != nil {
+			return nil, err
+		}
+		gateways = append(gateways, gateway)
 	}
 
 	return gateways, nil
@@ -102,8 +107,17 @@ type javaServerStatusPlayerSampleConfig struct {
 	UUID string `mapstructure:"uuid"`
 }
 
+type javaListenerConfig struct {
+	Bind                  string                            `mapstructure:"bind"`
+	ReceiveProxyProtocol  bool                              `mapstructure:"receive_proxy_protocol"`
+	ReceiveRealIP         bool                              `mapstructure:"receive_real_ip"`
+	ClientTimeout         time.Duration                     `mapstructure:"client_timeout"`
+	ServerNotFoundMessage string                            `mapstructure:"server_not_found_message"`
+	ServerNotFoundStatus  javaDialTimeoutServerStatusConfig `mapstructure:"server_not_found_status"`
+}
+
 type javaGatewayConfig struct {
-	Binds                 []string      `mapstructure:"binds"`
+	Binds                 []string      `mapstructure:"bind"`
 	ReceiveProxyProtocol  bool          `mapstructure:"receive_proxy_protocol"`
 	ReceiveRealIP         bool          `mapstructure:"receive_real_ip"`
 	ClientTimeout         time.Duration `mapstructure:"client_timeout"`
@@ -115,16 +129,28 @@ type javaCpnConfig struct {
 	Count int `mapstructure:"count"`
 }
 
-func newJavaGateway(id string, cfg javaGatewayConfig) infrared.Gateway {
-	return &java.Gateway{
-		ID:                    id,
-		Binds:                 cfg.Binds,
+func newJavaListener(cfg javaListenerConfig) java.Listener {
+	return java.Listener{
+		Bind:                  cfg.Bind,
 		ReceiveProxyProtocol:  cfg.ReceiveProxyProtocol,
 		ReceiveRealIP:         cfg.ReceiveRealIP,
 		ClientTimeout:         cfg.ClientTimeout,
-		ServerIDs:             cfg.Servers,
 		ServerNotFoundMessage: cfg.ServerNotFoundMessage,
+		ServerNotFoundStatus:  newJavaDialTimeoutServerStatus(cfg.ServerNotFoundStatus),
 	}
+}
+
+func newJavaGateway(id string, cfg javaGatewayConfig) (infrared.Gateway, error) {
+	listeners, err := loadJavaListeners(id)
+	if err != nil {
+		return nil, err
+	}
+
+	return &java.Gateway{
+		ID:        id,
+		Listeners: listeners,
+		ServerIDs: cfg.Servers,
+	}, nil
 }
 
 func newJavaServer(id string, cfg javaServerConfig) infrared.Server {
@@ -179,4 +205,28 @@ func newJavaServerStatusPlayerSample(cfgs []javaServerStatusPlayerSampleConfig) 
 		}
 	}
 	return playerSamples
+}
+
+func loadJavaListeners(gatewayID string) ([]java.Listener, error) {
+	key := fmt.Sprintf("java.gateways.%s.listeners", gatewayID)
+	ll, ok := viper.Get(key).([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("gateway %q is missing listeners", gatewayID)
+	}
+
+	listeners := make([]java.Listener, len(ll))
+	for n := range ll {
+		vpr := viper.Sub("defaults.java.gateway.listener")
+		lKey := fmt.Sprintf("%s.%d", key, n)
+		vMap := viper.GetStringMap(lKey)
+		if err := vpr.MergeConfigMap(vMap); err != nil {
+			return nil, err
+		}
+		var cfg javaListenerConfig
+		if err := vpr.Unmarshal(&cfg); err != nil {
+			return nil, err
+		}
+		listeners[n] = newJavaListener(cfg)
+	}
+	return listeners, nil
 }

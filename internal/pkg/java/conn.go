@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 
+	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol/handshaking"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol/login"
@@ -29,9 +30,11 @@ type PacketPeeker interface {
 
 type Conn struct {
 	net.Conn
-	gatewayID     string
-	proxyProtocol bool
-	realIP        bool
+	gatewayID                string
+	proxyProtocol            bool
+	realIP                   bool
+	serverNotFoundMessage    string
+	serverNotFoundStatusJSON string
 
 	r *bufio.Reader
 	w io.Writer
@@ -109,34 +112,36 @@ type ProcessedConn struct {
 	realIP        bool
 }
 
-func (c ProcessedConn) RemoteAddr() net.Addr {
-	return c.remoteAddr
+func (pc ProcessedConn) RemoteAddr() net.Addr {
+	return pc.remoteAddr
 }
 
-func (c ProcessedConn) GatewayID() string {
-	return c.gatewayID
+func (pc ProcessedConn) GatewayID() string {
+	return pc.gatewayID
 }
 
-func (c ProcessedConn) Username() string {
-	return c.username
+func (pc ProcessedConn) Username() string {
+	return pc.username
 }
 
-func (c ProcessedConn) ServerAddr() string {
-	return c.serverAddr
+func (pc ProcessedConn) ServerAddr() string {
+	return pc.serverAddr
 }
 
-func (c ProcessedConn) Disconnect(msg string) error {
-	defer c.Close()
+func (pc ProcessedConn) DisconnectServerNotFound() error {
+	defer pc.Close()
 
 	var pk protocol.Packet
-	if c.handshake.IsLoginRequest() {
+	if pc.handshake.IsLoginRequest() {
+		msg := infrared.ExecuteMessageTemplate(pc.serverNotFoundMessage, &pc)
 		pk = login.ClientBoundDisconnect{
 			Reason: protocol.Chat(fmt.Sprintf("{\"text\":\"%s\"}", msg)),
 		}.Marshal()
 	} else {
+		msg := infrared.ExecuteMessageTemplate(pc.serverNotFoundStatusJSON, &pc)
 		pk = status.ClientBoundResponse{
 			JSONResponse: protocol.String(msg),
 		}.Marshal()
 	}
-	return c.WritePacket(pk)
+	return pc.WritePacket(pk)
 }

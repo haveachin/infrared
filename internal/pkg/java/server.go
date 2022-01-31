@@ -3,11 +3,13 @@ package java
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"net"
 
 	"github.com/go-logr/logr"
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol"
+	"github.com/haveachin/infrared/internal/pkg/java/protocol/login"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol/status"
 	"github.com/haveachin/infrared/pkg/webhook"
 )
@@ -66,8 +68,9 @@ func (s Server) handleDialTimeoutStatusRequest(c ProcessedConn) error {
 		return err
 	}
 
+	msg := infrared.ExecuteServerMessageTemplate(string(bb), &c, &s)
 	respPk := status.ClientBoundResponse{
-		JSONResponse: protocol.String(bb),
+		JSONResponse: protocol.String(msg),
 	}.Marshal()
 
 	if err := c.WritePacket(respPk); err != nil {
@@ -82,9 +85,12 @@ func (s Server) handleDialTimeoutStatusRequest(c ProcessedConn) error {
 	return c.WritePacket(pingPk)
 }
 
-func (s Server) handleDialTimeoutLoginRequest(c ProcessedConn) error {
-	msg := infrared.ExecuteMessageTemplate(s.DialTimeoutMessage, &c, &s)
-	return c.Disconnect(msg)
+func (s Server) handleDialTimeoutLoginRequest(pc ProcessedConn) error {
+	msg := infrared.ExecuteMessageTemplate(s.DialTimeoutMessage, &pc)
+	pk := login.ClientBoundDisconnect{
+		Reason: protocol.Chat(fmt.Sprintf("{\"text\":\"%s\"}", msg)),
+	}.Marshal()
+	return pc.WritePacket(pk)
 }
 
 func (s Server) handleDialTimeout(c ProcessedConn) error {

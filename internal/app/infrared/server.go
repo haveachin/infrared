@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net"
 	"strings"
-	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/haveachin/infrared/pkg/webhook"
@@ -18,32 +17,27 @@ type Server interface {
 	SetLogger(log logr.Logger)
 }
 
-func ExecuteMessageTemplate(msg string, pc ProcessedConn, s Server) string {
+func ExecuteServerMessageTemplate(msg string, pc ProcessedConn, s Server) string {
 	tmpls := map[string]string{
-		"username":      pc.Username(),
-		"currentTime":   time.Now().Format(time.RFC822),
-		"remoteAddress": pc.RemoteAddr().String(),
-		"localAddress":  pc.LocalAddr().String(),
-		"serverDomain":  pc.ServerAddr(),
-		"serverID":      s.GetID(),
-		"gatewayID":     pc.GatewayID(),
+		"serverID": s.GetID(),
 	}
 
 	for k, v := range tmpls {
 		msg = strings.Replace(msg, fmt.Sprintf("{{%s}}", k), v, -1)
 	}
 
-	return msg
+	return ExecuteMessageTemplate(msg, pc)
 }
 
 type ServerGateway struct {
-	GatewayIDServerIDs map[string][]string
-	// ServerNotFoundMessages maps the GatewayID to server not found message
-	ServerNotFoundMessages map[string]string
-	Servers                []Server
-	Webhooks               []webhook.Webhook
-	Log                    logr.Logger
+	Gateways []Gateway
+	Servers  []Server
+	Webhooks []webhook.Webhook
+	Log      logr.Logger
 
+	gwIDSrvIDs map[string][]string
+	// Gateway ID mapped to gateway
+	gws map[string]Gateway
 	// Server ID mapped to server
 	srvs map[string]Server
 	// Server ID mapped to server domains in lowercase
@@ -53,6 +47,13 @@ type ServerGateway struct {
 }
 
 func (sg *ServerGateway) indexServers() {
+	sg.gwIDSrvIDs = map[string][]string{}
+	sg.gws = map[string]Gateway{}
+	for _, gw := range sg.Gateways {
+		sg.gwIDSrvIDs[gw.GetID()] = gw.GetServerIDs()
+		sg.gws[gw.GetID()] = gw
+	}
+
 	sg.srvs = map[string]Server{}
 	sg.srvDomains = map[string][]string{}
 	for _, srv := range sg.Servers {
@@ -90,7 +91,7 @@ func (sg *ServerGateway) indexWebhooks() error {
 
 func (sg ServerGateway) findServer(gatewayID, domain string) Server {
 	domain = strings.ToLower(domain)
-	srvIDs := sg.GatewayIDServerIDs[gatewayID]
+	srvIDs := sg.gwIDSrvIDs[gatewayID]
 
 	var hs int
 	var srv Server
@@ -124,9 +125,7 @@ func (sg ServerGateway) Start(srvChan <-chan ProcessedConn, poolChan chan<- Conn
 				"serverAddress", pc.ServerAddr(),
 				"remoteAddress", pc.RemoteAddr(),
 			)
-			msg := sg.ServerNotFoundMessages[pc.GatewayID()]
-			msg = ExecuteMessageTemplate(msg, pc, srv)
-			_ = pc.Disconnect(msg)
+			_ = pc.DisconnectServerNotFound()
 			continue
 		}
 
@@ -155,7 +154,8 @@ func (sg ServerGateway) Start(srvChan <-chan ProcessedConn, poolChan chan<- Conn
 
 // wildcardSimilarity determines the similarity of a domain to a wildcard domain
 // If the similarity ends on a '*' then the domain is compareable to the wildcard domain
-// then the it returns the length of the equal string slice.
+// then the it returns the length of the equal string slice. If it is an exact match
+// then it returns the length of the domain string + 1.
 // Else if they are not compareable because the equal string slice ends on any rune
 // that is not '*' it returns -1
 func wildcardSimilarity(domain, wildcardDomain string) int {
@@ -180,5 +180,11 @@ func wildcardSimilarity(domain, wildcardDomain string) int {
 			break
 		}
 	}
+
+	// If it is an exact match then make it the most similar
+	if i == lb {
+		i++
+	}
+
 	return i
 }

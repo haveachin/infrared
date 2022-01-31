@@ -11,9 +11,10 @@ import (
 type Conn struct {
 	*raknet.Conn
 
-	gatewayID     string
-	proxyProtocol bool
-	realIP        bool
+	gatewayID             string
+	proxyProtocol         bool
+	realIP                bool
+	serverNotFoundMessage string
 }
 
 type ProcessedConn struct {
@@ -25,24 +26,28 @@ type ProcessedConn struct {
 	proxyProtocol bool
 }
 
-func (c ProcessedConn) RemoteAddr() net.Addr {
-	return c.remoteAddr
+func (pc ProcessedConn) RemoteAddr() net.Addr {
+	return pc.remoteAddr
 }
 
-func (c ProcessedConn) GatewayID() string {
-	return c.gatewayID
+func (pc ProcessedConn) GatewayID() string {
+	return pc.gatewayID
 }
 
-func (c ProcessedConn) Username() string {
-	return c.username
+func (pc ProcessedConn) Username() string {
+	return pc.username
 }
 
-func (c ProcessedConn) ServerAddr() string {
-	return c.serverAddr
+func (pc ProcessedConn) ServerAddr() string {
+	return pc.serverAddr
 }
 
-func (c ProcessedConn) Disconnect(msg string) error {
-	defer c.Close()
+func (pc ProcessedConn) DisconnectServerNotFound() error {
+	return pc.disconnect(pc.serverNotFoundMessage)
+}
+
+func (pc ProcessedConn) disconnect(msg string) error {
+	defer pc.Close()
 	pk := protocol.Disconnect{
 		HideDisconnectionScreen: msg == "",
 		Message:                 msg,
@@ -53,7 +58,7 @@ func (c ProcessedConn) Disconnect(msg string) error {
 		return err
 	}
 
-	if _, err := c.Write(b); err != nil {
+	if _, err := pc.Write(b); err != nil {
 		return err
 	}
 

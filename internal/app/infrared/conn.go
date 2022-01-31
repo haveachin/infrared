@@ -1,8 +1,11 @@
 package infrared
 
 import (
+	"fmt"
 	"io"
 	"net"
+	"strings"
+	"time"
 
 	"github.com/haveachin/infrared/pkg/webhook"
 )
@@ -16,9 +19,25 @@ type ProcessedConn interface {
 	// ServerAddr returns the exact Server Address string
 	// that the client send to the server
 	ServerAddr() string
-	// Disconnect sends the client a disconnect message
-	// and closes the connection
-	Disconnect(msg string) error
+	// DisconnectServerNotFound disconnects the client when the server is not found
+	DisconnectServerNotFound() error
+}
+
+func ExecuteMessageTemplate(msg string, pc ProcessedConn) string {
+	tmpls := map[string]string{
+		"username":      pc.Username(),
+		"currentTime":   time.Now().Format(time.RFC822),
+		"remoteAddress": pc.RemoteAddr().String(),
+		"localAddress":  pc.LocalAddr().String(),
+		"serverDomain":  pc.ServerAddr(),
+		"gatewayID":     pc.GatewayID(),
+	}
+
+	for k, v := range tmpls {
+		msg = strings.Replace(msg, fmt.Sprintf("{{%s}}", k), v, -1)
+	}
+
+	return msg
 }
 
 type ConnTunnel struct {
