@@ -16,3 +16,4 @@
 
 .idea
 .vscode
+configs/config.dev.yml

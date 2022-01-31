@@ -1,12 +1,12 @@
 dev-run:
-	go run ./cmd/infrared -config-path=./config/config.dev.yml
+	go run ./cmd/infrared -config-path=./configs/config.dev.yml
 
-docker-dev-build:
+dev-build-docker:
 	docker-compose -p infrared -f deployments/docker-compose.dev.yml build --no-cache --force-rm
 
-docker-dev-run:
+dev-run-docker:
 	docker-compose -p infrared -f deployments/docker-compose.dev.yml up --force-recreate --remove-orphans
 
-docker-dev:
-	make docker-dev-build
-	make docker-dev-run
+dev-docker:
+	make dev-build-docker
+	make dev-run-docker

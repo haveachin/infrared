@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"os"
 	"os/signal"
@@ -12,9 +13,16 @@ import (
 	"go.uber.org/zap"
 )
 
-const configPathEnv = "INFRARED_CONFIG_PATH"
+const (
+	envPrefix     = "INFRARED_"
+	envConfigPath = envPrefix + "CONFIG_PATH"
 
-var configPath = "config.yml"
+	clfConfigPath = "config-path"
+)
+
+var (
+	configPath = "config.yml"
+)
 
 func envString(name string, value string) string {
 	envString := os.Getenv(name)
@@ -25,9 +33,22 @@ func envString(name string, value string) string {
 	return envString
 }
 
+func initEnv() {
+	configPath = envString(envConfigPath, configPath)
+}
+
+func initFlags() {
+	flag.StringVar(&configPath, clfConfigPath, configPath, "path of all proxy configs")
+	flag.Parse()
+}
+
 var logger logr.Logger
 
 func init() {
+	initEnv()
+	initFlags()
+	initConfig()
+
 	zapLog, err := zap.NewDevelopment()
 	if err != nil {
 		log.Fatalf("Failed to init logger; err: %s", err)
@@ -36,7 +57,9 @@ func init() {
 }
 
 func main() {
-	logger.Info("loading proxy")
+	logger.Info("loading proxy",
+		"configFile", configPath,
+	)
 
 	bedrockProxy, err := infrared.NewProxy(&BedrockProxyConfig{})
 	if err != nil {

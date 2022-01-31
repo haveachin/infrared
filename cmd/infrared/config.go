@@ -18,9 +18,7 @@ import (
 //go:embed config.default.yml
 var defaultConfig []byte
 
-func init() {
-	configPath = envString(configPathEnv, configPath)
-
+func initConfig() {
 	viper.SetConfigFile(configPath)
 	if err := viper.ReadConfig(bytes.NewBuffer(defaultConfig)); err != nil {
 		log.Fatal(err)

@@ -16,7 +16,7 @@ services:
     networks:
       - infrared
     environment:
-      INFRARED_CONFIG_PATH: "/infrared/config.yml"
+      INFRARED_CONFIG_PATH: "/infrared/config.dev.yml"
 
 networks:
   infrared:
