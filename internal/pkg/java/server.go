@@ -50,7 +50,7 @@ func (s Server) GetSendProxyProtocol() bool {
 }
 
 func (s Server) GetSendRealIP() bool {
-	return s.SendProxyProtocol
+	return s.SendRealIP
 }
 
 func (s Server) Dial() (Conn, error) {
