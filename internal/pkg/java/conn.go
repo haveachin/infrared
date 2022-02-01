@@ -143,14 +143,5 @@ func (pc ProcessedConn) DisconnectServerNotFound() error {
 			JSONResponse: protocol.String(msg),
 		}.Marshal()
 	}
-	if err := pc.WritePacket(pk); err != nil {
-		return err
-	}
-
-	pingPk, err := pc.ReadPacket()
-	if err != nil {
-		return err
-	}
-
-	return pc.WritePacket(pingPk)
+	return pc.WritePackets(pk, pc.readPks[1])
 }
