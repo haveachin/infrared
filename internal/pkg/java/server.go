@@ -45,14 +45,6 @@ func (s *Server) SetLogger(log logr.Logger) {
 	s.Log = log
 }
 
-func (s Server) GetSendProxyProtocol() bool {
-	return s.SendProxyProtocol
-}
-
-func (s Server) GetSendRealIP() bool {
-	return s.SendRealIP
-}
-
 func (s Server) Dial() (Conn, error) {
 	c, err := s.Dialer.Dial("tcp", s.Address)
 	if err != nil {
@@ -155,7 +147,7 @@ func (s Server) ProcessConn(c net.Conn, webhooks []webhook.Webhook) (infrared.Co
 		return infrared.ConnTunnel{}, err
 	}
 
-	if s.GetSendProxyProtocol() {
+	if s.SendProxyProtocol {
 		header := &proxyproto.Header{
 			Version:           2,
 			Command:           proxyproto.PROXY,

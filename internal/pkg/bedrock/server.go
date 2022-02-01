@@ -22,10 +22,6 @@ type Server struct {
 	Log                logr.Logger
 }
 
-func (s Server) GetSendProxyProtocol() bool {
-	return s.SendProxyProtocol
-}
-
 func (s Server) GetID() string {
 	return s.ID
 }

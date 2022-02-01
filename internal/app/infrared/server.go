@@ -15,7 +15,6 @@ type Server interface {
 	GetWebhookIDs() []string
 	ProcessConn(c net.Conn, webhooks []webhook.Webhook) (ConnTunnel, error)
 	SetLogger(log logr.Logger)
-	GetSendProxyProtocol() bool
 }
 
 func ExecuteServerMessageTemplate(msg string, pc ProcessedConn, s Server) string {
