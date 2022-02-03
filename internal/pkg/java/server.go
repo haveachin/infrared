@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
-	"github.com/pires/go-proxyproto"
 	"net"
+	"time"
+
+	"github.com/pires/go-proxyproto"
 
 	"github.com/go-logr/logr"
 	"github.com/haveachin/infrared/internal/app/infrared"
@@ -159,6 +161,11 @@ func (s Server) ProcessConn(c net.Conn, webhooks []webhook.Webhook) (infrared.Co
 		if _, err := header.WriteTo(&rc); err != nil {
 			return infrared.ConnTunnel{}, err
 		}
+	}
+
+	if s.SendRealIP {
+		pc.handshake.UpgradeToRealIP(pc.RemoteAddr(), time.Now())
+		pc.readPks[0] = pc.handshake.Marshal()
 	}
 
 	if err := rc.WritePackets(pc.readPks...); err != nil {
