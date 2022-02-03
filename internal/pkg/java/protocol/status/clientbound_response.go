@@ -35,7 +35,7 @@ type ResponseJSON struct {
 	Version     VersionJSON `json:"version"`
 	Players     PlayersJSON `json:"players"`
 	Description interface{} `json:"description"`
-	Favicon     string      `json:"favicon"`
+	Favicon     string      `json:"favicon,omitempty"`
 }
 
 type VersionJSON struct {

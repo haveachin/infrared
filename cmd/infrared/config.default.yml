@@ -41,7 +41,7 @@ java:
         - "*"
       address: your-server-address:25565
       override_status:
-        version_name: Infrared 1.17
+        version_name: Infrared
         icon_path: ./icon.png
         max_player_count: 777777777
         player_count: 2
@@ -74,7 +74,7 @@ defaults:
           game_mode: SURVIVAL
           game_mode_numeric: 1
           motd: |
-            Proxy Host XY
+            Infrared 2.0
             Join!
       server_not_found_message: Sorry {{username}}, but {{serverDomain}} was not found.
     server:
@@ -86,25 +86,25 @@ defaults:
       listener:
         server_not_found_message: Sorry {{username}}, but {{serverDomain}} was not found.
         server_not_found_status:
-          version_name: Proxy Host XY
-          protocol_number: 757
-          max_player_count: 10
+          version_name: Infrared
+          protocol_number: 0
+          max_player_count: 0
           player_count: 0
           icon_path: ./icon.png
           motd: |
-            Proxy Host XY
+            Infrared 2.0
             {{serverDomain}} was not found.
     server:
       dial_timeout: 1s
       dial_timeout_message: Sorry {{username}}, but the server is not reachable.
       dial_timeout_status:
-        version_name: Proxy Host XY
-        protocol_number: 757
-        max_player_count: 10
+        version_name: Infrared
+        protocol_number: 0
+        max_player_count: 0
         player_count: 0
         icon_path: ./icon.png
         motd: |
-          Proxy Host XY
+          Infrared 2.0
           {{serverDomain}} is not reachable.
 
   webhook:
