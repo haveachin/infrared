@@ -64,10 +64,16 @@ func (s Server) ProcessConn(c net.Conn, webhooks []webhook.Webhook) (infrared.Co
 	}
 
 	if s.SendProxyProtocol {
+		tp := proxyproto.UDPv4
+		addr := pc.RemoteAddr().(*net.UDPAddr)
+		if addr.IP.To4() == nil {
+			tp = proxyproto.UDPv6
+		}
+
 		header := &proxyproto.Header{
 			Version:           2,
 			Command:           proxyproto.PROXY,
-			TransportProtocol: proxyproto.TCPv4,
+			TransportProtocol: tp,
 			SourceAddr:        pc.RemoteAddr(),
 			DestinationAddr:   rc.RemoteAddr(),
 		}
