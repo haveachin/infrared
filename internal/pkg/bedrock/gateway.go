@@ -38,7 +38,6 @@ func (p PingStatus) marshal(l *raknet.Listener) []byte {
 type Listener struct {
 	Bind                  string
 	ReceiveProxyProtocol  bool
-	ReceiveRealIP         bool
 	PingStatus            PingStatus
 	ClientTimeout         time.Duration
 	ServerNotFoundMessage string
@@ -102,7 +101,6 @@ func (gw Gateway) WrapConn(c net.Conn, l net.Listener) net.Conn {
 		Conn:                  c.(*raknet.Conn),
 		gatewayID:             gw.ID,
 		proxyProtocol:         listener.ReceiveProxyProtocol,
-		realIP:                listener.ReceiveRealIP,
 		serverNotFoundMessage: listener.ServerNotFoundMessage,
 	}
 }

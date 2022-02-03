@@ -13,7 +13,6 @@ type Conn struct {
 
 	gatewayID             string
 	proxyProtocol         bool
-	realIP                bool
 	serverNotFoundMessage string
 }
 

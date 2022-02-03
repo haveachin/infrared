@@ -84,7 +84,6 @@ type bedrockListenerConfig struct {
 	Bind                  string                  `mapstructure:"bind"`
 	PingStatus            bedrockPingStatusConfig `mapstructure:"ping_status"`
 	ReceiveProxyProtocol  bool                    `mapstructure:"receive_proxy_protocol"`
-	ReceiveRealIP         bool                    `mapstructure:"receive_real_ip"`
 	ClientTimeout         time.Duration           `mapstructure:"client_timeout"`
 	ServerNotFoundMessage string                  `mapstructure:"server_not_found_message"`
 }
@@ -124,7 +123,6 @@ func newBedrockListener(cfg bedrockListenerConfig) bedrock.Listener {
 		Bind:                  cfg.Bind,
 		PingStatus:            newBedrockPingStatus(cfg.PingStatus),
 		ReceiveProxyProtocol:  cfg.ReceiveProxyProtocol,
-		ReceiveRealIP:         cfg.ReceiveRealIP,
 		ClientTimeout:         cfg.ClientTimeout,
 		ServerNotFoundMessage: cfg.ServerNotFoundMessage,
 	}
