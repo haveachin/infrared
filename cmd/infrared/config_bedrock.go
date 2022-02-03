@@ -19,6 +19,9 @@ func (cfg BedrockProxyConfig) LoadGateways() ([]infrared.Gateway, error) {
 	var gateways []infrared.Gateway
 	for id, v := range viper.GetStringMap("bedrock.gateways") {
 		vpr := viper.Sub("defaults.bedrock.gateway")
+		if vpr == nil {
+			vpr = viper.New()
+		}
 		vMap := v.(map[string]interface{})
 		if err := vpr.MergeConfigMap(vMap); err != nil {
 			return nil, err
@@ -41,6 +44,9 @@ func (cfg BedrockProxyConfig) LoadServers() ([]infrared.Server, error) {
 	var servers []infrared.Server
 	for id, v := range viper.GetStringMap("bedrock.servers") {
 		vpr := viper.Sub("defaults.bedrock.server")
+		if vpr == nil {
+			vpr = viper.New()
+		}
 		vMap := v.(map[string]interface{})
 		if err := vpr.MergeConfigMap(vMap); err != nil {
 			return nil, err
@@ -67,6 +73,15 @@ func (cfg BedrockProxyConfig) LoadCPNs() ([]infrared.CPN, error) {
 	}
 
 	return cpns, nil
+}
+
+func (cfg BedrockProxyConfig) LoadChanCaps() (infrared.ProxyChanCaps, error) {
+	var chanCapsCfg bedrockChanCapsConfig
+	if err := viper.UnmarshalKey("bedrock.chan_caps", &chanCapsCfg); err != nil {
+		return infrared.ProxyChanCaps{}, err
+	}
+
+	return newBedrockChanCaps(chanCapsCfg), nil
 }
 
 type bedrockPingStatusConfig struct {
@@ -103,6 +118,12 @@ type bedrockServerConfig struct {
 
 type bedrockCPNConfig struct {
 	Count int `mapstructure:"count"`
+}
+
+type bedrockChanCapsConfig struct {
+	CPN      int `mapstructure:"cpn"`
+	Server   int `mapstructure:"server"`
+	ConnPool int `mapstructure:"conn_pool"`
 }
 
 func newBedrockPingStatus(cfg bedrockPingStatusConfig) bedrock.PingStatus {
@@ -159,6 +180,14 @@ func newBedrockServer(id string, cfg bedrockServerConfig) *bedrock.Server {
 	}
 }
 
+func newBedrockChanCaps(cfg bedrockChanCapsConfig) infrared.ProxyChanCaps {
+	return infrared.ProxyChanCaps{
+		CPN:      cfg.CPN,
+		Server:   cfg.Server,
+		ConnPool: cfg.ConnPool,
+	}
+}
+
 func loadBedrockListeners(gatewayID string) ([]bedrock.Listener, error) {
 	key := fmt.Sprintf("bedrock.gateways.%s.listeners", gatewayID)
 	ll, ok := viper.Get(key).([]interface{})
@@ -169,6 +198,9 @@ func loadBedrockListeners(gatewayID string) ([]bedrock.Listener, error) {
 	listeners := make([]bedrock.Listener, len(ll))
 	for n := range ll {
 		vpr := viper.Sub("defaults.bedrock.gateway.listener")
+		if vpr == nil {
+			vpr = viper.New()
+		}
 		lKey := fmt.Sprintf("%s.%d", key, n)
 		vMap := viper.GetStringMap(lKey)
 		if err := vpr.MergeConfigMap(vMap); err != nil {

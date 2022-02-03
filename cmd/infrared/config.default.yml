@@ -2,6 +2,10 @@ api:
   bind: 0.0.0.0:8080
 
 bedrock:
+  chan_caps:
+    cpn: 100
+    server: 100
+    conn_pool: 10
   processing_nodes:
     count: 10
   gateways:
@@ -19,6 +23,10 @@ bedrock:
         - mywebhook
 
 java:
+  chan_caps:
+    cpn: 100
+    server: 100
+    conn_pool: 10
   processing_nodes:
     count: 10
   gateways:
@@ -30,7 +38,7 @@ java:
   servers:
     myserver:
       domains:
-        - "haveachin.de"
+        - "*"
       address: your-server-address:25565
       override_status:
         version_name: Infrared 1.17
@@ -68,15 +76,15 @@ defaults:
           motd: |
             Proxy Host XY
             Join!
-      server_not_found_message: Sorry {{username}}, but {{serverDomain}} was not found
+      server_not_found_message: Sorry {{username}}, but {{serverDomain}} was not found.
     server:
       dial_timeout: 1s
-      dial_timeout_message: Sorry {{username}}, but the server is currently unreachable
+      dial_timeout_message: Sorry {{username}}, but the server is not reachable.
       
   java:
     gateway:
       listener:
-        server_not_found_message: Sorry {{username}}, but {{serverDomain}} was not found
+        server_not_found_message: Sorry {{username}}, but {{serverDomain}} was not found.
         server_not_found_status:
           version_name: Proxy Host XY
           protocol_number: 757
@@ -85,10 +93,10 @@ defaults:
           icon_path: ./icon.png
           motd: |
             Proxy Host XY
-            {{serverDomain}} is not reachable.
+            {{serverDomain}} was not found.
     server:
       dial_timeout: 1s
-      dial_timeout_message: Sorry {{username}}, but the server is offline.
+      dial_timeout_message: Sorry {{username}}, but the server is not reachable.
       dial_timeout_status:
         version_name: Proxy Host XY
         protocol_number: 757

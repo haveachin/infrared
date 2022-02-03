@@ -12,6 +12,13 @@ type ProxyConfig interface {
 	LoadServers() ([]Server, error)
 	LoadCPNs() ([]CPN, error)
 	LoadWebhooks() ([]webhook.Webhook, error)
+	LoadChanCaps() (ProxyChanCaps, error)
+}
+
+type ProxyChanCaps struct {
+	CPN      int
+	Server   int
+	ConnPool int
 }
 
 type Proxy struct {
@@ -19,6 +26,7 @@ type Proxy struct {
 	CPNs          []CPN
 	ServerGateway ServerGateway
 	ConnPool      ConnPool
+	ChanCaps      ProxyChanCaps
 }
 
 func NewProxy(cfg ProxyConfig) (Proxy, error) {
@@ -49,9 +57,9 @@ func NewProxy(cfg ProxyConfig) (Proxy, error) {
 }
 
 func (p Proxy) Start(log logr.Logger) error {
-	cpnChan := make(chan net.Conn, 10)
-	srvChan := make(chan ProcessedConn, 10)
-	poolChan := make(chan ConnTunnel, 10)
+	cpnChan := make(chan net.Conn, p.ChanCaps.CPN)
+	srvChan := make(chan ProcessedConn, p.ChanCaps.Server)
+	poolChan := make(chan ConnTunnel, p.ChanCaps.ConnPool)
 
 	for _, gw := range p.Gateways {
 		gw.SetLogger(log)

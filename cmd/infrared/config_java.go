@@ -15,10 +15,12 @@ type JavaProxyConfig struct {
 }
 
 func (cfg JavaProxyConfig) LoadGateways() ([]infrared.Gateway, error) {
-	vpr := viper.Sub("defaults.java.gateway")
-
 	var gateways []infrared.Gateway
 	for id, v := range viper.GetStringMap("java.gateways") {
+		vpr := viper.Sub("defaults.java.gateway")
+		if vpr == nil {
+			vpr = viper.New()
+		}
 		vMap := v.(map[string]interface{})
 		if err := vpr.MergeConfigMap(vMap); err != nil {
 			return nil, err
@@ -38,10 +40,12 @@ func (cfg JavaProxyConfig) LoadGateways() ([]infrared.Gateway, error) {
 }
 
 func (cfg JavaProxyConfig) LoadServers() ([]infrared.Server, error) {
-	vpr := viper.Sub("defaults.java.server")
-
 	var servers []infrared.Server
 	for id, v := range viper.GetStringMap("java.servers") {
+		vpr := viper.Sub("defaults.java.server")
+		if vpr == nil {
+			vpr = viper.New()
+		}
 		vMap := v.(map[string]interface{})
 		if err := vpr.MergeConfigMap(vMap); err != nil {
 			return nil, err
@@ -68,6 +72,15 @@ func (cfg JavaProxyConfig) LoadCPNs() ([]infrared.CPN, error) {
 	}
 
 	return cpns, nil
+}
+
+func (cfg JavaProxyConfig) LoadChanCaps() (infrared.ProxyChanCaps, error) {
+	var chanCapsCfg javaChanCapsConfig
+	if err := viper.UnmarshalKey("java.chan_caps", &chanCapsCfg); err != nil {
+		return infrared.ProxyChanCaps{}, err
+	}
+
+	return newJavaChanCaps(chanCapsCfg), nil
 }
 
 type javaServerConfig struct {
@@ -127,6 +140,12 @@ type javaGatewayConfig struct {
 
 type javaCpnConfig struct {
 	Count int `mapstructure:"count"`
+}
+
+type javaChanCapsConfig struct {
+	CPN      int `mapstructure:"cpn"`
+	Server   int `mapstructure:"server"`
+	ConnPool int `mapstructure:"conn_pool"`
 }
 
 func newJavaListener(cfg javaListenerConfig) java.Listener {
@@ -207,6 +226,14 @@ func newJavaServerStatusPlayerSample(cfgs []javaServerStatusPlayerSampleConfig) 
 	return playerSamples
 }
 
+func newJavaChanCaps(cfg javaChanCapsConfig) infrared.ProxyChanCaps {
+	return infrared.ProxyChanCaps{
+		CPN:      cfg.CPN,
+		Server:   cfg.Server,
+		ConnPool: cfg.ConnPool,
+	}
+}
+
 func loadJavaListeners(gatewayID string) ([]java.Listener, error) {
 	key := fmt.Sprintf("java.gateways.%s.listeners", gatewayID)
 	ll, ok := viper.Get(key).([]interface{})
@@ -217,6 +244,9 @@ func loadJavaListeners(gatewayID string) ([]java.Listener, error) {
 	listeners := make([]java.Listener, len(ll))
 	for n := range ll {
 		vpr := viper.Sub("defaults.java.gateway.listener")
+		if vpr == nil {
+			vpr = viper.New()
+		}
 		lKey := fmt.Sprintf("%s.%d", key, n)
 		vMap := viper.GetStringMap(lKey)
 		if err := vpr.MergeConfigMap(vMap); err != nil {
