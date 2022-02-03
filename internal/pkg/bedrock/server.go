@@ -7,6 +7,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/pkg/webhook"
+	"github.com/pires/go-proxyproto"
 	"github.com/sandertv/go-raknet"
 )
 
@@ -60,6 +61,20 @@ func (s Server) ProcessConn(c net.Conn, webhooks []webhook.Webhook) (infrared.Co
 			return infrared.ConnTunnel{}, err
 		}
 		return infrared.ConnTunnel{}, err
+	}
+
+	if s.SendProxyProtocol {
+		header := &proxyproto.Header{
+			Version:           2,
+			Command:           proxyproto.PROXY,
+			TransportProtocol: proxyproto.TCPv4,
+			SourceAddr:        pc.RemoteAddr(),
+			DestinationAddr:   rc.RemoteAddr(),
+		}
+
+		if _, err := header.WriteTo(rc); err != nil {
+			return infrared.ConnTunnel{}, err
+		}
 	}
 
 	if _, err := rc.Write(pc.readBytes); err != nil {
