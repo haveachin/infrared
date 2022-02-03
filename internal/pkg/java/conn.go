@@ -143,5 +143,5 @@ func (pc ProcessedConn) DisconnectServerNotFound() error {
 			JSONResponse: protocol.String(msg),
 		}.Marshal()
 	}
-	return pc.WritePacket(pk)
+	return pc.WritePackets(pk, pc.readPks[1])
 }
