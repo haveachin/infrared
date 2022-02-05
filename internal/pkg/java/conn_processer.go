@@ -37,7 +37,6 @@ func (cp ConnProcessor) ProcessConn(c net.Conn) (infrared.ProcessedConn, error) 
 	if err != nil {
 		return nil, err
 	}
-	pc.SetReadDeadline(time.Time{})
 	pc.readPks = pks
 
 	hs, err := handshaking.UnmarshalServerBoundHandshake(pks[0])
