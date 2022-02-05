@@ -8,6 +8,7 @@ bedrock:
     conn_pool: 10
   processing_nodes:
     count: 10
+    client_timeout: 50ms
   gateways:
     mygateway:
       listeners:
@@ -29,6 +30,7 @@ java:
     conn_pool: 10
   processing_nodes:
     count: 10
+    client_timeout: 50ms
   gateways:
     mygateway:
       listeners:

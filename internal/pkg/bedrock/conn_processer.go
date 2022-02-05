@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/internal/pkg/bedrock/protocol"
@@ -13,8 +14,13 @@ import (
 	"github.com/pires/go-proxyproto"
 )
 
-// Processing Node
-type ConnProcessor struct{}
+type ConnProcessor struct {
+	ClientTimeout time.Duration
+}
+
+func (cp ConnProcessor) GetClientTimeout() time.Duration {
+	return cp.ClientTimeout
+}
 
 func (cp ConnProcessor) ProcessConn(c net.Conn) (infrared.ProcessedConn, error) {
 	pc := ProcessedConn{

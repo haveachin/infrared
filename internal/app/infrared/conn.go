@@ -30,7 +30,7 @@ func ExecuteMessageTemplate(msg string, pc ProcessedConn) string {
 		"remoteAddress": pc.RemoteAddr().String(),
 		"localAddress":  pc.LocalAddr().String(),
 		"serverDomain":  pc.ServerAddr(),
-		"gatewayID":     pc.GatewayID(),
+		"gatewayId":     pc.GatewayID(),
 	}
 
 	for k, v := range tmpls {

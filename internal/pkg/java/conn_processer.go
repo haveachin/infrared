@@ -11,16 +11,20 @@ import (
 	"github.com/pires/go-proxyproto"
 )
 
-type ConnProcessor struct{}
+type ConnProcessor struct {
+	ClientTimeout time.Duration
+}
+
+func (cp ConnProcessor) GetClientTimeout() time.Duration {
+	return cp.ClientTimeout
+}
 
 func (cp ConnProcessor) ProcessConn(c net.Conn) (infrared.ProcessedConn, error) {
-	// TODO: Add client timeout config setting
 	pc := ProcessedConn{
 		Conn:       *c.(*Conn),
 		remoteAddr: c.RemoteAddr(),
 	}
 
-	pc.SetReadDeadline(time.Now().Add(time.Second))
 	if pc.proxyProtocol {
 		header, err := proxyproto.Read(pc.r)
 		if err != nil {

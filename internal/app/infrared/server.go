@@ -19,7 +19,7 @@ type Server interface {
 
 func ExecuteServerMessageTemplate(msg string, pc ProcessedConn, s Server) string {
 	tmpls := map[string]string{
-		"serverID": s.GetID(),
+		"serverId": s.GetID(),
 	}
 
 	for k, v := range tmpls {

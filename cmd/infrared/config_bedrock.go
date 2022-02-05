@@ -69,7 +69,9 @@ func (cfg BedrockProxyConfig) LoadCPNs() ([]infrared.CPN, error) {
 
 	cpns := make([]infrared.CPN, cpnCfg.Count)
 	for n := range cpns {
-		cpns[n].ConnProcessor = bedrock.ConnProcessor{}
+		cpns[n].ConnProcessor = bedrock.ConnProcessor{
+			ClientTimeout: cpnCfg.ClientTimeout,
+		}
 	}
 
 	return cpns, nil
@@ -117,7 +119,8 @@ type bedrockServerConfig struct {
 }
 
 type bedrockCPNConfig struct {
-	Count int `mapstructure:"count"`
+	Count         int           `mapstructure:"count"`
+	ClientTimeout time.Duration `mapstructure:"client_timeout"`
 }
 
 type bedrockChanCapsConfig struct {

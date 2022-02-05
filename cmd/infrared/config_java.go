@@ -68,7 +68,9 @@ func (cfg JavaProxyConfig) LoadCPNs() ([]infrared.CPN, error) {
 
 	cpns := make([]infrared.CPN, cpnCfg.Count)
 	for n := range cpns {
-		cpns[n].ConnProcessor = java.ConnProcessor{}
+		cpns[n].ConnProcessor = java.ConnProcessor{
+			ClientTimeout: cpnCfg.ClientTimeout,
+		}
 	}
 
 	return cpns, nil
@@ -139,7 +141,8 @@ type javaGatewayConfig struct {
 }
 
 type javaCpnConfig struct {
-	Count int `mapstructure:"count"`
+	Count          int           `mapstructure:"count"`
+	ClientTimeout time.Duration `mapstructure:"client_timeout"`
 }
 
 type javaChanCapsConfig struct {

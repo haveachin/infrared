@@ -1,5 +1,6 @@
 package infrared
 
 const (
-	NewConnectionEventTopic = "NewConnection"
+	NewConnectionEventTopic  = "NewConnection"
+	ConnProcessingEventTopic = "ConnProcessing"
 )
