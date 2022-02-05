@@ -223,7 +223,7 @@ To change the http bind, set the env variable `INFRARED_API_BIND` to something l
 ### API Methods
 #### Create new config
 
-POST `/proxies/`\
+POST `/proxies`\
 Body must contain:
 ```json
 {
