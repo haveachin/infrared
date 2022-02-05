@@ -16,6 +16,8 @@ const (
 	envReceiveProxyProtocol = envPrefix + "RECEIVE_PROXY_PROTOCOL"
 	envApiEnabled           = envPrefix + "API_ENABLED"
 	envApiBind              = envPrefix + "API_BIND"
+	envPrometheusEnabled    = envPrefix + "PROMETHEUS_ENABLED"
+	envPrometheusBind       = envPrefix + "PROMETHEUS_BIND"
 )
 
 const (
@@ -62,6 +64,8 @@ func initEnv() {
 	receiveProxyProtocol = envBool(envReceiveProxyProtocol, receiveProxyProtocol)
 	apiEnabled = envBool(envApiEnabled, apiEnabled)
 	apiBind = envString(envApiBind, apiBind)
+	prometheusEnabled = envBool(envPrometheusEnabled, prometheusEnabled)
+	prometheusBind = envString(envPrometheusBind, prometheusBind)
 }
 
 func initFlags() {
