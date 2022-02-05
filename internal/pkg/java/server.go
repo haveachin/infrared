@@ -14,7 +14,6 @@ import (
 	"github.com/haveachin/infrared/internal/pkg/java/protocol"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol/login"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol/status"
-	"github.com/haveachin/infrared/pkg/webhook"
 )
 
 type Server struct {
@@ -98,13 +97,24 @@ func (s Server) handleDialTimeoutLoginRequest(pc ProcessedConn) error {
 
 func (s Server) handleDialTimeout(c ProcessedConn) error {
 	if c.handshake.IsStatusRequest() {
-		return s.handleDialTimeoutStatusRequest(c)
+		if err := s.handleDialTimeoutStatusRequest(c); err != nil {
+			return err
+		}
+		return infrared.ErrClientStatusRequest
 	}
 
 	return s.handleDialTimeoutLoginRequest(c)
 }
 
-func (s Server) overrideStatusResponse(c ProcessedConn, rc Conn) error {
+func (s Server) handleStatusPing(pc ProcessedConn, rc Conn) error {
+	if err := s.overrideStatusResponse(pc, rc); err != nil {
+		return err
+	}
+
+	return pc.WritePacket(pc.readPks[1])
+}
+
+func (s Server) overrideStatusResponse(pc ProcessedConn, rc Conn) error {
 	pk, err := rc.ReadPacket()
 	if err != nil {
 		return err
@@ -132,14 +142,14 @@ func (s Server) overrideStatusResponse(c ProcessedConn, rc Conn) error {
 
 	respPk.JSONResponse = protocol.String(bb)
 
-	if err := c.WritePacket(respPk.Marshal()); err != nil {
+	if err := pc.WritePacket(respPk.Marshal()); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (s Server) ProcessConn(c net.Conn, webhooks []webhook.Webhook) (infrared.ConnTunnel, error) {
+func (s Server) ProcessConn(c net.Conn) (infrared.ConnTunnel, error) {
 	pc := c.(*ProcessedConn)
 	rc, err := s.Dial()
 	if err != nil {
@@ -174,16 +184,18 @@ func (s Server) ProcessConn(c net.Conn, webhooks []webhook.Webhook) (infrared.Co
 		pc.readPks[0] = pc.handshake.Marshal()
 	}
 
+	// TODO: Cache server status response
 	if err := rc.WritePackets(pc.readPks...); err != nil {
 		rc.Close()
 		return infrared.ConnTunnel{}, err
 	}
 
 	if pc.handshake.IsStatusRequest() {
-		if err := s.overrideStatusResponse(*pc, rc); err != nil {
-			rc.Close()
+		defer rc.Close()
+		if err := s.handleStatusPing(*pc, rc); err != nil {
 			return infrared.ConnTunnel{}, err
 		}
+		return infrared.ConnTunnel{}, infrared.ErrClientStatusRequest
 	}
 
 	return infrared.ConnTunnel{

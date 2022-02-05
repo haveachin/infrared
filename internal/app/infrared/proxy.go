@@ -56,7 +56,7 @@ func NewProxy(cfg ProxyConfig) (Proxy, error) {
 	}, nil
 }
 
-func (p Proxy) Start(log logr.Logger) error {
+func (p Proxy) Start(log logr.Logger) {
 	cpnChan := make(chan net.Conn, p.ChanCaps.CPN)
 	srvChan := make(chan ProcessedConn, p.ChanCaps.Server)
 	poolChan := make(chan ConnTunnel, p.ChanCaps.ConnPool)
@@ -79,9 +79,5 @@ func (p Proxy) Start(log logr.Logger) error {
 	}
 
 	p.ServerGateway.Log = log
-	if err := p.ServerGateway.Start(srvChan, poolChan); err != nil {
-		return err
-	}
-
-	return nil
+	p.ServerGateway.Start(srvChan, poolChan)
 }

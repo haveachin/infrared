@@ -75,19 +75,8 @@ func main() {
 
 	logger.Info("starting proxy")
 
-	go func() {
-		if err := bedrockProxy.Start(logger); err != nil {
-			logger.Error(err, "failed to start the proxy")
-			os.Exit(1)
-		}
-	}()
-
-	go func() {
-		if err := javaProxy.Start(logger); err != nil {
-			logger.Error(err, "failed to start the proxy")
-			os.Exit(1)
-		}
-	}()
+	go bedrockProxy.Start(logger)
+	go javaProxy.Start(logger)
 
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)

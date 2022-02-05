@@ -6,7 +6,6 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/haveachin/infrared/internal/app/infrared"
-	"github.com/haveachin/infrared/pkg/webhook"
 	"github.com/pires/go-proxyproto"
 	"github.com/sandertv/go-raknet"
 )
@@ -53,7 +52,7 @@ func (s Server) handleDialTimeout(c ProcessedConn) error {
 	return c.disconnect(msg)
 }
 
-func (s Server) ProcessConn(c net.Conn, webhooks []webhook.Webhook) (infrared.ConnTunnel, error) {
+func (s Server) ProcessConn(c net.Conn) (infrared.ConnTunnel, error) {
 	pc := c.(*ProcessedConn)
 	rc, err := s.Dial()
 	if err != nil {

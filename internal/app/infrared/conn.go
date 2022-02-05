@@ -6,8 +6,6 @@ import (
 	"net"
 	"strings"
 	"time"
-
-	"github.com/haveachin/infrared/pkg/webhook"
 )
 
 type ProcessedConn interface {
@@ -43,7 +41,6 @@ func ExecuteMessageTemplate(msg string, pc ProcessedConn) string {
 type ConnTunnel struct {
 	Conn       ProcessedConn
 	RemoteConn net.Conn
-	Webhooks   []webhook.Webhook
 }
 
 func (t ConnTunnel) Start() {

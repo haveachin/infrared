@@ -1,19 +1,22 @@
 package infrared
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"strings"
 
 	"github.com/go-logr/logr"
-	"github.com/haveachin/infrared/pkg/webhook"
+	"github.com/haveachin/infrared/pkg/event"
 )
+
+var ErrClientStatusRequest = errors.New("disconnect after status")
 
 type Server interface {
 	GetID() string
 	GetDomains() []string
 	GetWebhookIDs() []string
-	ProcessConn(c net.Conn, webhooks []webhook.Webhook) (ConnTunnel, error)
+	ProcessConn(c net.Conn) (ConnTunnel, error)
 	SetLogger(log logr.Logger)
 }
 
@@ -32,7 +35,6 @@ func ExecuteServerMessageTemplate(msg string, pc ProcessedConn, s Server) string
 type ServerGateway struct {
 	Gateways []Gateway
 	Servers  []Server
-	Webhooks []webhook.Webhook
 	Log      logr.Logger
 
 	gwIDSrvIDs map[string][]string
@@ -42,8 +44,6 @@ type ServerGateway struct {
 	srvs map[string]Server
 	// Server ID mapped to server domains in lowercase
 	srvDomains map[string][]string
-	// Server ID mapped to webhooks
-	srvWhks map[string][]webhook.Webhook
 }
 
 func (sg *ServerGateway) indexServers() {
@@ -67,28 +67,6 @@ func (sg *ServerGateway) indexServers() {
 	}
 }
 
-// indexWebhooks indexes the webhooks that servers use.
-func (sg *ServerGateway) indexWebhooks() error {
-	whks := map[string]webhook.Webhook{}
-	for _, w := range sg.Webhooks {
-		whks[w.ID] = w
-	}
-
-	sg.srvWhks = map[string][]webhook.Webhook{}
-	for _, srv := range sg.Servers {
-		ww := make([]webhook.Webhook, len(srv.GetWebhookIDs()))
-		for n, id := range srv.GetWebhookIDs() {
-			w, ok := whks[id]
-			if !ok {
-				return fmt.Errorf("webhook with ID %q doesn't exist", id)
-			}
-			ww[n] = w
-		}
-		sg.srvWhks[srv.GetID()] = ww
-	}
-	return nil
-}
-
 func (sg ServerGateway) findServer(gatewayID, domain string) Server {
 	domain = strings.ToLower(domain)
 	srvIDs := sg.gwIDSrvIDs[gatewayID]
@@ -107,11 +85,8 @@ func (sg ServerGateway) findServer(gatewayID, domain string) Server {
 	return srv
 }
 
-func (sg ServerGateway) Start(srvChan <-chan ProcessedConn, poolChan chan<- ConnTunnel) error {
+func (sg ServerGateway) Start(srvChan <-chan ProcessedConn, poolChan chan<- ConnTunnel) {
 	sg.indexServers()
-	if err := sg.indexWebhooks(); err != nil {
-		return err
-	}
 
 	for {
 		pc, ok := <-srvChan
@@ -119,42 +94,59 @@ func (sg ServerGateway) Start(srvChan <-chan ProcessedConn, poolChan chan<- Conn
 			break
 		}
 
+		keysAndValues := []interface{}{
+			"network", pc.LocalAddr().Network(),
+			"localAddr", pc.LocalAddr(),
+			"remoteAddr", pc.RemoteAddr(),
+			"serverAddr", pc.ServerAddr(),
+			"username", pc.Username(),
+			"gatewayId", pc.GatewayID(),
+		}
+
+		sg.Log.Info("looking up server address", keysAndValues...)
+
 		srv := sg.findServer(pc.GatewayID(), pc.ServerAddr())
 		if srv == nil {
-			sg.Log.Info("invalid server",
-				"serverAddress", pc.ServerAddr(),
-				"remoteAddress", pc.RemoteAddr(),
-			)
+			sg.Log.Info("failed to find server; disconnecting client", keysAndValues)
 			_ = pc.DisconnectServerNotFound()
 			continue
 		}
 
-		sg.Log.Info("connecting client",
+		keysAndValues = append(keysAndValues,
 			"serverId", srv.GetID(),
-			"remoteAddress", pc.RemoteAddr(),
+			"serverDomains", srv.GetDomains(),
+			"serverWebhookIds", srv.GetWebhookIDs(),
 		)
 
-		whks := sg.srvWhks[srv.GetID()]
-		ct, err := srv.ProcessConn(pc, whks)
+		sg.Log.Info("starting proxy tunnel", keysAndValues...)
+		event.Push(PreServerConnConnectingEventTopic, keysAndValues...)
+
+		ct, err := srv.ProcessConn(pc)
 		if err != nil {
+			if errors.Is(err, ErrClientStatusRequest) {
+				sg.Log.Info("disconnecting client; was status request", keysAndValues...)
+			} else {
+				sg.Log.Error(err, "failed to create proxy tunnel", keysAndValues...)
+			}
 			ct.Close()
 			continue
 		}
 
-		// Shallow copy webhooks to mitigate race conditions
-		whksCopy := make([]webhook.Webhook, len(whks))
-		_ = copy(whksCopy, whks)
-		ct.Webhooks = whksCopy
+		keysAndValues = append(keysAndValues,
+			"serverLocalAddr", ct.RemoteConn.LocalAddr(),
+			"serverRemoteAddr", ct.RemoteConn.RemoteAddr(),
+		)
+
+		sg.Log.Info("adding proxy tunnel to pool", keysAndValues...)
+		event.Push(ClientJoinEventTopic, keysAndValues...)
 
 		poolChan <- ct
 	}
-
-	return nil
 }
 
 // wildcardSimilarity determines the similarity of a domain to a wildcard domain
 // If the similarity ends on a '*' then the domain is compareable to the wildcard domain
-// then the it returns the length of the equal string slice. If it is an exact match
+// then it returns the length of the equal string slice. If it is an exact match
 // then it returns the length of the domain string + 1.
 // Else if they are not compareable because the equal string slice ends on any rune
 // that is not '*' it returns -1
