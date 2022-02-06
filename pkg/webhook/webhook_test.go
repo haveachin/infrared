@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/haveachin/infrared/pkg/webhook"
 )
@@ -43,19 +44,22 @@ func TestWebhook_DispatchEvent(t *testing.T) {
 	tt := []struct {
 		name                  string
 		webhook               webhook.Webhook
-		event                 webhook.Event
+		event                 webhook.EventLog
 		shouldDispatch        bool
 		httpRequestShouldFail bool
 	}{
 		{
 			name: "WithExactlyTheAllowedEvent",
 			webhook: webhook.Webhook{
-				URL:        "https://example.com",
-				EventTypes: []string{webhook.EventTypeError},
+				URL:               "https://example.com",
+				AllowedEventTypes: []string{"Error"},
 			},
-			event: webhook.EventError{
-				Error:    "my error message",
-				ProxyUID: "example.com@1.2.3.4:25565",
+			event: webhook.EventLog{
+				Type:       "Error",
+				OccurredAt: time.Now(),
+				Data: map[string]interface{}{
+					"message": "Oops!",
+				},
 			},
 			shouldDispatch:        true,
 			httpRequestShouldFail: false,
@@ -63,14 +67,15 @@ func TestWebhook_DispatchEvent(t *testing.T) {
 		{
 			name: "WithOneOfTheAllowedEvents",
 			webhook: webhook.Webhook{
-				URL:        "https://example.com",
-				EventTypes: []string{webhook.EventTypePlayerJoin, webhook.EventTypePlayerLeave},
+				URL:               "https://example.com",
+				AllowedEventTypes: []string{"PlayerJoin", "PlayerLeave"},
 			},
-			event: webhook.EventPlayerJoin{
-				Username:      "notch",
-				RemoteAddress: "1.2.3.4",
-				TargetAddress: "1.2.3.4",
-				ProxyUID:      "example.com@1.2.3.4:25565",
+			event: webhook.EventLog{
+				Type:       "PlayerJoin",
+				OccurredAt: time.Now(),
+				Data: map[string]interface{}{
+					"username": "notch",
+				},
 			},
 			shouldDispatch:        true,
 			httpRequestShouldFail: false,
@@ -78,14 +83,15 @@ func TestWebhook_DispatchEvent(t *testing.T) {
 		{
 			name: "ErrorsWithOneDeniedEvent",
 			webhook: webhook.Webhook{
-				URL:        "https://example.com",
-				EventTypes: []string{webhook.EventTypeError, webhook.EventTypePlayerLeave},
+				URL:               "https://example.com",
+				AllowedEventTypes: []string{"Error", "PlayerLeave"},
 			},
-			event: webhook.EventPlayerJoin{
-				Username:      "notch",
-				RemoteAddress: "1.2.3.4",
-				TargetAddress: "1.2.3.4",
-				ProxyUID:      "example.com@1.2.3.4:25565",
+			event: webhook.EventLog{
+				Type:       "PlayerJoin",
+				OccurredAt: time.Now(),
+				Data: map[string]interface{}{
+					"username": "notch",
+				},
 			},
 			shouldDispatch:        false,
 			httpRequestShouldFail: false,
@@ -93,12 +99,15 @@ func TestWebhook_DispatchEvent(t *testing.T) {
 		{
 			name: "ErrorsWithFailedHTTPRequest",
 			webhook: webhook.Webhook{
-				URL:        "https://example.com",
-				EventTypes: []string{webhook.EventTypeError},
+				URL:               "https://example.com",
+				AllowedEventTypes: []string{"Error"},
 			},
-			event: webhook.EventError{
-				Error:    "my error message",
-				ProxyUID: "example.com@1.2.3.4:25565",
+			event: webhook.EventLog{
+				Type:       "Error",
+				OccurredAt: time.Now(),
+				Data: map[string]interface{}{
+					"message": "Oops!",
+				},
 			},
 			shouldDispatch:        true,
 			httpRequestShouldFail: true,
@@ -116,7 +125,7 @@ func TestWebhook_DispatchEvent(t *testing.T) {
 			}
 
 			if err := tc.webhook.DispatchEvent(tc.event); err != nil {
-				if errors.Is(err, webhook.ErrEventNotAllowed) && !tc.shouldDispatch ||
+				if errors.Is(err, webhook.ErrEventTypeNotAllowed) && !tc.shouldDispatch ||
 					errors.Is(err, errHTTPRequestFailed) && tc.httpRequestShouldFail {
 					return
 				}

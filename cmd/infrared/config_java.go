@@ -10,9 +10,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-type JavaProxyConfig struct {
-	WebhookProxyConfig
-}
+type JavaProxyConfig struct{}
 
 func (cfg JavaProxyConfig) LoadGateways() ([]infrared.Gateway, error) {
 	var gateways []infrared.Gateway
@@ -95,6 +93,7 @@ type javaServerConfig struct {
 	DialTimeoutMessage string                            `mapstructure:"dial_timeout_message"`
 	OverrideStatus     javaOverrideServerStatusConfig    `mapstructure:"override_status"`
 	DialTimeoutStatus  javaDialTimeoutServerStatusConfig `mapstructure:"dial_timeout_status"`
+	Webhooks           []string                          `mapstructure:"webhooks"`
 }
 
 type javaOverrideServerStatusConfig struct {
@@ -141,7 +140,7 @@ type javaGatewayConfig struct {
 }
 
 type javaCpnConfig struct {
-	Count          int           `mapstructure:"count"`
+	Count         int           `mapstructure:"count"`
 	ClientTimeout time.Duration `mapstructure:"client_timeout"`
 }
 
@@ -191,6 +190,7 @@ func newJavaServer(id string, cfg javaServerConfig) infrared.Server {
 		DialTimeoutMessage: cfg.DialTimeoutMessage,
 		OverrideStatus:     newJavaOverrideServerStatus(cfg.OverrideStatus),
 		DialTimeoutStatus:  newJavaDialTimeoutServerStatus(cfg.DialTimeoutStatus),
+		WebhookIDs:         cfg.Webhooks,
 	}
 }
 

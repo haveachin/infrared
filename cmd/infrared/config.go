@@ -33,9 +33,7 @@ func initConfig() {
 	}
 }
 
-type WebhookProxyConfig struct{}
-
-func (cfg WebhookProxyConfig) LoadWebhooks() ([]webhook.Webhook, error) {
+func LoadWebhooks() ([]webhook.Webhook, error) {
 	vpr := viper.Sub("defaults.webhook")
 
 	var webhooks []webhook.Webhook
@@ -76,7 +74,7 @@ func newWebhook(id string, cfg webhookConfig) webhook.Webhook {
 		HTTPClient: &http.Client{
 			Timeout: cfg.DialTimeout,
 		},
-		URL:        cfg.URL,
-		EventTypes: cfg.Events,
+		URL:               cfg.URL,
+		AllowedEventTypes: cfg.Events,
 	}
 }

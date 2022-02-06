@@ -8,9 +8,7 @@ import (
 	"time"
 )
 
-var (
-	ErrEventNotAllowed = errors.New("event not allowed")
-)
+var ErrEventTypeNotAllowed = errors.New("event type not allowed")
 
 // HTTPClient represents an interface for the Webhook to send events with.
 type HTTPClient interface {
@@ -19,25 +17,25 @@ type HTTPClient interface {
 
 // EventLog is the struct that will be send to the Webhook.URL
 type EventLog struct {
-	EventType string    `json:"eventType"`
-	Timestamp time.Time `json:"timestamp"`
-	Event     Event     `json:"event"`
+	Type       string                 `json:"type"`
+	OccurredAt time.Time              `json:"occurredAt"`
+	Data       map[string]interface{} `json:"data"`
 }
 
 // Webhook can send a Event via POST Request to a specified URL.
 // There are two ways to use a Webhook. You can directly call
 // DispatchEvent or Serve to attach a channel to the Webhook.
 type Webhook struct {
-	ID         string
-	HTTPClient HTTPClient
-	URL        string
-	EventTypes []string
+	ID                string
+	HTTPClient        HTTPClient
+	URL               string
+	AllowedEventTypes []string
 }
 
 // hasEvent checks if Webhook.EventTypes contain the given event's type.
-func (webhook Webhook) hasEvent(event Event) bool {
-	for _, eventType := range webhook.EventTypes {
-		if eventType == event.EventType() {
+func (webhook Webhook) hasEvent(e EventLog) bool {
+	for _, t := range webhook.AllowedEventTypes {
+		if t == e.Type {
 			return true
 		}
 	}
@@ -46,18 +44,12 @@ func (webhook Webhook) hasEvent(event Event) bool {
 
 // DispatchEvent wraps the given Event in an EventLog and marshals it into JSON
 // before sending it in a POST Request to the Webhook.URL.
-func (webhook Webhook) DispatchEvent(event Event) error {
-	if !webhook.hasEvent(event) {
-		return ErrEventNotAllowed
+func (webhook Webhook) DispatchEvent(e EventLog) error {
+	if !webhook.hasEvent(e) {
+		return ErrEventTypeNotAllowed
 	}
 
-	eventLog := EventLog{
-		EventType: event.EventType(),
-		Timestamp: time.Now(),
-		Event:     event,
-	}
-
-	bb, err := json.Marshal(eventLog)
+	bb, err := json.Marshal(e)
 	if err != nil {
 		return err
 	}

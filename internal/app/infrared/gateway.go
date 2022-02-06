@@ -31,7 +31,7 @@ func ListenAndServe(gw Gateway, cpnChan chan<- net.Conn) {
 	for _, listener := range listeners {
 		keysAndValues := []interface{}{
 			"network", listener.Addr().Network(),
-			"listenerAddr", listener.Addr(),
+			"listenerAddr", listener.Addr().String(),
 		}
 		logger.Info("starting to listen on", keysAndValues...)
 
@@ -47,8 +47,8 @@ func ListenAndServe(gw Gateway, cpnChan chan<- net.Conn) {
 				}
 
 				keysAndValues = append(keysAndValues,
-					"localAddr", c.LocalAddr(),
-					"remoteAddr", c.RemoteAddr(),
+					"localAddr", c.LocalAddr().String(),
+					"remoteAddr", c.RemoteAddr().String(),
 					"gatewayId", gw.GetID(),
 				)
 				logger.Info("accepting new connection", keysAndValues...)

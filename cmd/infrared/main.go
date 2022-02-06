@@ -10,6 +10,7 @@ import (
 	"github.com/go-logr/logr"
 	"github.com/go-logr/zapr"
 	"github.com/haveachin/infrared/internal/app/infrared"
+	"github.com/haveachin/infrared/internal/plugin/webhook"
 	"go.uber.org/zap"
 )
 
@@ -84,6 +85,16 @@ func main() {
 		logger.Error(err, "failed to load plugins")
 		return
 	}
+
+	webhooks, err := LoadWebhooks()
+	if err != nil {
+		logger.Error(err, "failed to load webhooks")
+		return
+	}
+
+	plugins = append(plugins, &webhook.WebhookPlugin{
+		Webhooks: webhooks,
+	})
 
 	pluginManager := infrared.PluginManager{
 		Proxies: []infrared.Proxy{bedrockProxy, javaProxy},

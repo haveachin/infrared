@@ -4,14 +4,12 @@ import (
 	"net"
 
 	"github.com/go-logr/logr"
-	"github.com/haveachin/infrared/pkg/webhook"
 )
 
 type ProxyConfig interface {
 	LoadGateways() ([]Gateway, error)
 	LoadServers() ([]Server, error)
 	LoadCPNs() ([]CPN, error)
-	LoadWebhooks() ([]webhook.Webhook, error)
 	LoadChanCaps() (ProxyChanCaps, error)
 }
 

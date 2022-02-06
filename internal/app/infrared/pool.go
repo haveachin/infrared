@@ -18,13 +18,14 @@ func (cp *ConnPool) Start(poolChan <-chan ConnTunnel) {
 
 		keysAndValues := []interface{}{
 			"network", ct.Conn.LocalAddr().Network(),
-			"localAddr", ct.Conn.LocalAddr(),
-			"remoteAddr", ct.Conn.RemoteAddr(),
+			"localAddr", ct.Conn.LocalAddr().String(),
+			"remoteAddr", ct.Conn.RemoteAddr().String(),
 			"serverAddr", ct.Conn.ServerAddr(),
 			"username", ct.Conn.Username(),
 			"gatewayId", ct.Conn.GatewayID(),
-			"serverLocalAddr", ct.RemoteConn.LocalAddr(),
-			"serverRemoteAddr", ct.RemoteConn.RemoteAddr(),
+			"serverLocalAddr", ct.RemoteConn.LocalAddr().String(),
+			"serverRemoteAddr", ct.RemoteConn.RemoteAddr().String(),
+			"serverWebhookIds", ct.WebhookIds,
 		}
 
 		cp.Log.Info("starting tunnel", keysAndValues...)

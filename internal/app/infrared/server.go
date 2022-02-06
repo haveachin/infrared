@@ -96,8 +96,8 @@ func (sg ServerGateway) Start(srvChan <-chan ProcessedConn, poolChan chan<- Conn
 
 		keysAndValues := []interface{}{
 			"network", pc.LocalAddr().Network(),
-			"localAddr", pc.LocalAddr(),
-			"remoteAddr", pc.RemoteAddr(),
+			"localAddr", pc.LocalAddr().String(),
+			"remoteAddr", pc.RemoteAddr().String(),
 			"serverAddr", pc.ServerAddr(),
 			"username", pc.Username(),
 			"gatewayId", pc.GatewayID(),
@@ -131,10 +131,11 @@ func (sg ServerGateway) Start(srvChan <-chan ProcessedConn, poolChan chan<- Conn
 			ct.Close()
 			continue
 		}
+		ct.WebhookIds = srv.GetWebhookIDs()
 
 		keysAndValues = append(keysAndValues,
-			"serverLocalAddr", ct.RemoteConn.LocalAddr(),
-			"serverRemoteAddr", ct.RemoteConn.RemoteAddr(),
+			"serverLocalAddr", ct.RemoteConn.LocalAddr().String(),
+			"serverRemoteAddr", ct.RemoteConn.RemoteAddr().String(),
 		)
 
 		sg.Log.Info("adding proxy tunnel to pool", keysAndValues...)

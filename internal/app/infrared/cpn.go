@@ -30,8 +30,8 @@ func (cpn *CPN) Start(cpnChan <-chan net.Conn, srvChan chan<- ProcessedConn) {
 
 		keysAndValues := []interface{}{
 			"network", c.LocalAddr().Network(),
-			"localAddr", c.LocalAddr(),
-			"remoteAddr", c.RemoteAddr(),
+			"localAddr", c.LocalAddr().String(),
+			"remoteAddr", c.RemoteAddr().String(),
 		}
 		cpn.Log.Info("starting to process connection", keysAndValues...)
 		event.Push(PreConnProcessingEventTopic, keysAndValues...)

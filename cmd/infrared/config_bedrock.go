@@ -11,9 +11,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-type BedrockProxyConfig struct {
-	WebhookProxyConfig
-}
+type BedrockProxyConfig struct{}
 
 func (cfg BedrockProxyConfig) LoadGateways() ([]infrared.Gateway, error) {
 	var gateways []infrared.Gateway
@@ -116,6 +114,7 @@ type bedrockServerConfig struct {
 	DialTimeout        time.Duration `mapstructure:"dial_timeout"`
 	SendProxyProtocol  bool          `mapstructure:"send_proxy_protocol"`
 	DialTimeoutMessage string        `mapstructure:"dial_timeout_message"`
+	Webhooks           []string      `mapstructure:"webhooks"`
 }
 
 type bedrockCPNConfig struct {
@@ -180,6 +179,7 @@ func newBedrockServer(id string, cfg bedrockServerConfig) *bedrock.Server {
 		Address:            cfg.Address,
 		SendProxyProtocol:  cfg.SendProxyProtocol,
 		DialTimeoutMessage: cfg.DialTimeoutMessage,
+		WebhookIDs:         cfg.Webhooks,
 	}
 }
 
