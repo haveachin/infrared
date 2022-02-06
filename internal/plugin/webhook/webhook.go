@@ -5,16 +5,9 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/gofrs/uuid"
-	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/pkg/event"
 	"github.com/haveachin/infrared/pkg/webhook"
 )
-
-var Plugin infrared.Plugin
-
-func init() {
-	Plugin = &WebhookPlugin{}
-}
 
 type WebhookPlugin struct {
 	Webhooks []webhook.Webhook
