@@ -9,7 +9,7 @@ import (
 	"github.com/gofrs/uuid"
 )
 
-var defaultBus = NewBus()
+var DefaultBus = NewBus()
 
 var ErrRecipientNotFound = errors.New("target recipient not found")
 
@@ -91,19 +91,19 @@ func NewBus() *Bus {
 }
 
 func (b *Bus) Push(topic string, keysAndValues ...interface{}) {
-	b.sendEvent(b.createEvent(topic, keysAndValues))
+	b.sendEvent(b.createEvent(topic, keysAndValues...))
 }
 
 func Push(topic string, keysAndValues ...interface{}) {
-	defaultBus.Push(topic, keysAndValues)
+	DefaultBus.Push(topic, keysAndValues...)
 }
 
 func (b *Bus) PushTo(to uuid.UUID, topic string, keysAndValues ...interface{}) error {
-	return b.sendEventTo(to, b.createEvent(topic, keysAndValues))
+	return b.sendEventTo(to, b.createEvent(topic, keysAndValues...))
 }
 
 func PushTo(to uuid.UUID, topic string, keysAndValues ...interface{}) error {
-	return defaultBus.PushTo(to, topic, keysAndValues)
+	return DefaultBus.PushTo(to, topic, keysAndValues...)
 }
 
 func (b *Bus) AttachHandler(id uuid.UUID, fn Handler) (uuid.UUID, bool) {
@@ -128,7 +128,7 @@ func (b *Bus) AttachHandler(id uuid.UUID, fn Handler) (uuid.UUID, bool) {
 }
 
 func AttachHandler(id uuid.UUID, fn Handler) (uuid.UUID, bool) {
-	return defaultBus.AttachHandler(id, fn)
+	return DefaultBus.AttachHandler(id, fn)
 }
 
 func (b *Bus) AttachFilteredHandler(id uuid.UUID, fn Handler, topics ...string) (uuid.UUID, bool) {
@@ -139,7 +139,7 @@ func (b *Bus) AttachFilteredHandler(id uuid.UUID, fn Handler, topics ...string) 
 }
 
 func AttachFilteredHandler(id uuid.UUID, fn Handler, topics ...string) (uuid.UUID, bool) {
-	return defaultBus.AttachFilteredHandler(id, fn, topics...)
+	return DefaultBus.AttachFilteredHandler(id, fn, topics...)
 }
 
 func (b *Bus) AttachChannel(id uuid.UUID, ch Channel) (uuid.UUID, bool) {
@@ -150,7 +150,7 @@ func (b *Bus) AttachChannel(id uuid.UUID, ch Channel) (uuid.UUID, bool) {
 }
 
 func AttachChannel(id uuid.UUID, ch Channel) (uuid.UUID, bool) {
-	return defaultBus.AttachChannel(id, ch)
+	return DefaultBus.AttachChannel(id, ch)
 }
 
 func (b *Bus) AttachFilteredChannel(id uuid.UUID, ch Channel, topics ...string) (uuid.UUID, bool) {
@@ -161,7 +161,7 @@ func (b *Bus) AttachFilteredChannel(id uuid.UUID, ch Channel, topics ...string) 
 }
 
 func AttachFilteredChannel(id uuid.UUID, ch Channel, topics ...string) (uuid.UUID, bool) {
-	return defaultBus.AttachFilteredChannel(id, ch, topics...)
+	return DefaultBus.AttachFilteredChannel(id, ch, topics...)
 }
 
 func (b *Bus) DetachRecipient(id uuid.UUID) bool {
@@ -178,7 +178,7 @@ func (b *Bus) DetachRecipient(id uuid.UUID) bool {
 }
 
 func DetachRecipient(id uuid.UUID) bool {
-	return defaultBus.DetachRecipient(id)
+	return DefaultBus.DetachRecipient(id)
 }
 
 func (b *Bus) DetachAllRecipients() int {
@@ -195,12 +195,12 @@ func (b *Bus) DetachAllRecipients() int {
 }
 
 func DetachAllRecipients() int {
-	return defaultBus.DetachAllRecipients()
+	return DefaultBus.DetachAllRecipients()
 }
 
 func (b *Bus) createEvent(topic string, keysAndValues ...interface{}) Event {
 	data := map[string]interface{}{}
-	for i := 0; i > len(keysAndValues); i += 2 {
+	for i := 0; i < len(keysAndValues); i += 2 {
 		key := keysAndValues[i].(string)
 		value := keysAndValues[i+1]
 		data[key] = value

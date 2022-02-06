@@ -14,14 +14,17 @@ import (
 )
 
 const (
-	envPrefix     = "INFRARED_"
-	envConfigPath = envPrefix + "CONFIG_PATH"
+	envPrefix      = "INFRARED_"
+	envConfigPath  = envPrefix + "CONFIG_PATH"
+	envPluginsPath = envPrefix + "PLUGINS_PATH"
 
-	clfConfigPath = "config-path"
+	clfConfigPath  = "config-path"
+	clfPluginsPath = "plugins-path"
 )
 
 var (
-	configPath = "config.yml"
+	configPath  = "config.yml"
+	pluginsPath = "plugins"
 )
 
 func envString(name string, value string) string {
@@ -35,10 +38,12 @@ func envString(name string, value string) string {
 
 func initEnv() {
 	configPath = envString(envConfigPath, configPath)
+	pluginsPath = envString(envPluginsPath, pluginsPath)
 }
 
 func initFlags() {
-	flag.StringVar(&configPath, clfConfigPath, configPath, "path of all proxy configs")
+	flag.StringVar(&configPath, clfConfigPath, configPath, "path of the config file")
+	flag.StringVar(&pluginsPath, clfPluginsPath, pluginsPath, "path to the plugins folder")
 	flag.Parse()
 }
 
@@ -48,6 +53,7 @@ func init() {
 	initEnv()
 	initFlags()
 	initConfig()
+	initPlugins()
 
 	zapLog, err := zap.NewDevelopment()
 	if err != nil {
@@ -73,6 +79,23 @@ func main() {
 		return
 	}
 
+	plugins, err := infrared.LoadPluginsFromDir(pluginsPath)
+	if err != nil {
+		logger.Error(err, "failed to load plugins")
+		return
+	}
+
+	pluginManager := infrared.PluginManager{
+		Proxies: []infrared.Proxy{bedrockProxy, javaProxy},
+		Plugins: plugins,
+		Log:     logger,
+	}
+
+	if err := pluginManager.EnablePlugins(); err != nil {
+		logger.Error(err, "failed to enable plugins")
+		return
+	}
+
 	logger.Info("starting proxy")
 
 	go bedrockProxy.Start(logger)
@@ -81,4 +104,6 @@ func main() {
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
 	<-sc
+
+	pluginManager.DisablePlugins()
 }
