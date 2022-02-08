@@ -11,20 +11,20 @@ import (
 
 type Gateway interface {
 	// GetID resturns the ID of the gateway
-	GetID() string
+	ID() string
 	// GetServerIDs returns the IDs of the servers
 	// that are registered in that gateway
-	GetServerIDs() []string
-	GetLogger() logr.Logger
+	ServerIDs() []string
 	SetLogger(logr.Logger)
-	GetListeners() []net.Listener
+	Logger() logr.Logger
+	Listeners() []net.Listener
 	WrapConn(net.Conn, net.Listener) net.Conn
 	Close() error
 }
 
 func ListenAndServe(gw Gateway, cpnChan chan<- net.Conn) {
-	logger := gw.GetLogger()
-	listeners := gw.GetListeners()
+	logger := gw.Logger()
+	listeners := gw.Listeners()
 	wg := sync.WaitGroup{}
 	wg.Add(len(listeners))
 
@@ -49,7 +49,7 @@ func ListenAndServe(gw Gateway, cpnChan chan<- net.Conn) {
 				keysAndValues = append(keysAndValues,
 					"localAddr", c.LocalAddr().String(),
 					"remoteAddr", c.RemoteAddr().String(),
-					"gatewayId", gw.GetID(),
+					"gatewayId", gw.ID(),
 				)
 				logger.Info("accepting new connection", keysAndValues...)
 				event.Push(NewConnectionEventTopic, keysAndValues...)

@@ -167,30 +167,34 @@ func newJavaGateway(id string, cfg javaGatewayConfig) (infrared.Gateway, error) 
 		return nil, err
 	}
 
-	return &java.Gateway{
-		ID:        id,
-		Listeners: listeners,
-		ServerIDs: cfg.Servers,
+	return &java.InfraredGateway{
+		Gateway: java.Gateway{
+			ID:        id,
+			Listeners: listeners,
+			ServerIDs: cfg.Servers,
+		},
 	}, nil
 }
 
 func newJavaServer(id string, cfg javaServerConfig) infrared.Server {
-	return &java.Server{
-		ID:      id,
-		Domains: cfg.Domains,
-		Dialer: net.Dialer{
-			Timeout: cfg.DialTimeout,
-			LocalAddr: &net.TCPAddr{
-				IP: net.ParseIP(cfg.ProxyBind),
+	return &java.InfraredServer{
+		Server: java.Server{
+			ID:      id,
+			Domains: cfg.Domains,
+			Dialer: net.Dialer{
+				Timeout: cfg.DialTimeout,
+				LocalAddr: &net.TCPAddr{
+					IP: net.ParseIP(cfg.ProxyBind),
+				},
 			},
+			Address:            cfg.Address,
+			SendProxyProtocol:  cfg.SendProxyProtocol,
+			SendRealIP:         cfg.SendRealIP,
+			DialTimeoutMessage: cfg.DialTimeoutMessage,
+			OverrideStatus:     newJavaOverrideServerStatus(cfg.OverrideStatus),
+			DialTimeoutStatus:  newJavaDialTimeoutServerStatus(cfg.DialTimeoutStatus),
+			WebhookIDs:         cfg.Webhooks,
 		},
-		Address:            cfg.Address,
-		SendProxyProtocol:  cfg.SendProxyProtocol,
-		SendRealIP:         cfg.SendRealIP,
-		DialTimeoutMessage: cfg.DialTimeoutMessage,
-		OverrideStatus:     newJavaOverrideServerStatus(cfg.OverrideStatus),
-		DialTimeoutStatus:  newJavaDialTimeoutServerStatus(cfg.DialTimeoutStatus),
-		WebhookIDs:         cfg.Webhooks,
 	}
 }
 

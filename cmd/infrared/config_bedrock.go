@@ -151,35 +151,39 @@ func newBedrockListener(cfg bedrockListenerConfig) bedrock.Listener {
 	}
 }
 
-func newBedrockGateway(id string, cfg bedrockGatewayConfig) (*bedrock.Gateway, error) {
+func newBedrockGateway(id string, cfg bedrockGatewayConfig) (infrared.Gateway, error) {
 	listeners, err := loadBedrockListeners(id)
 	if err != nil {
 		return nil, err
 	}
 
-	return &bedrock.Gateway{
-		ID:        id,
-		Listeners: listeners,
-		ServerIDs: cfg.Servers,
+	return &bedrock.InfraredGateway{
+		Gateway: bedrock.Gateway{
+			ID:        id,
+			Listeners: listeners,
+			ServerIDs: cfg.Servers,
+		},
 	}, nil
 }
 
-func newBedrockServer(id string, cfg bedrockServerConfig) *bedrock.Server {
-	return &bedrock.Server{
-		ID:      id,
-		Domains: cfg.Domains,
-		Dialer: raknet.Dialer{
-			UpstreamDialer: &net.Dialer{
-				LocalAddr: &net.UDPAddr{
-					IP: net.ParseIP(cfg.ProxyBind),
+func newBedrockServer(id string, cfg bedrockServerConfig) infrared.Server {
+	return &bedrock.InfraredServer{
+		Server: bedrock.Server{
+			ID:      id,
+			Domains: cfg.Domains,
+			Dialer: raknet.Dialer{
+				UpstreamDialer: &net.Dialer{
+					LocalAddr: &net.UDPAddr{
+						IP: net.ParseIP(cfg.ProxyBind),
+					},
 				},
 			},
+			DialTimeout:        cfg.DialTimeout,
+			Address:            cfg.Address,
+			SendProxyProtocol:  cfg.SendProxyProtocol,
+			DialTimeoutMessage: cfg.DialTimeoutMessage,
+			WebhookIDs:         cfg.Webhooks,
 		},
-		DialTimeout:        cfg.DialTimeout,
-		Address:            cfg.Address,
-		SendProxyProtocol:  cfg.SendProxyProtocol,
-		DialTimeoutMessage: cfg.DialTimeoutMessage,
-		WebhookIDs:         cfg.Webhooks,
 	}
 }
 

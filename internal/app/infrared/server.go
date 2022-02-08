@@ -13,16 +13,16 @@ import (
 var ErrClientStatusRequest = errors.New("disconnect after status")
 
 type Server interface {
-	GetID() string
-	GetDomains() []string
-	GetWebhookIDs() []string
+	ID() string
+	Domains() []string
+	WebhookIDs() []string
 	ProcessConn(c net.Conn) (ConnTunnel, error)
 	SetLogger(log logr.Logger)
 }
 
 func ExecuteServerMessageTemplate(msg string, pc ProcessedConn, s Server) string {
 	tmpls := map[string]string{
-		"serverId": s.GetID(),
+		"serverId": s.ID(),
 	}
 
 	for k, v := range tmpls {
@@ -50,20 +50,20 @@ func (sg *ServerGateway) indexServers() {
 	sg.gwIDSrvIDs = map[string][]string{}
 	sg.gws = map[string]Gateway{}
 	for _, gw := range sg.Gateways {
-		sg.gwIDSrvIDs[gw.GetID()] = gw.GetServerIDs()
-		sg.gws[gw.GetID()] = gw
+		sg.gwIDSrvIDs[gw.ID()] = gw.ServerIDs()
+		sg.gws[gw.ID()] = gw
 	}
 
 	sg.srvs = map[string]Server{}
 	sg.srvDomains = map[string][]string{}
 	for _, srv := range sg.Servers {
-		sg.srvs[srv.GetID()] = srv
+		sg.srvs[srv.ID()] = srv
 
-		dd := make([]string, len(srv.GetDomains()))
-		for i, d := range srv.GetDomains() {
+		dd := make([]string, len(srv.Domains()))
+		for i, d := range srv.Domains() {
 			dd[i] = strings.ToLower(d)
 		}
-		sg.srvDomains[srv.GetID()] = dd
+		sg.srvDomains[srv.ID()] = dd
 	}
 }
 
@@ -113,9 +113,9 @@ func (sg ServerGateway) Start(srvChan <-chan ProcessedConn, poolChan chan<- Conn
 		}
 
 		keysAndValues = append(keysAndValues,
-			"serverId", srv.GetID(),
-			"serverDomains", srv.GetDomains(),
-			"serverWebhookIds", srv.GetWebhookIDs(),
+			"serverId", srv.ID(),
+			"serverDomains", srv.Domains(),
+			"serverWebhookIds", srv.WebhookIDs(),
 		)
 
 		sg.Log.Info("starting proxy tunnel", keysAndValues...)
@@ -131,7 +131,7 @@ func (sg ServerGateway) Start(srvChan <-chan ProcessedConn, poolChan chan<- Conn
 			ct.Close()
 			continue
 		}
-		ct.WebhookIds = srv.GetWebhookIDs()
+		ct.WebhookIds = srv.WebhookIDs()
 
 		keysAndValues = append(keysAndValues,
 			"serverLocalAddr", ct.RemoteConn.LocalAddr().String(),

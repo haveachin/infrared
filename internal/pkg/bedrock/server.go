@@ -22,23 +22,27 @@ type Server struct {
 	Log                logr.Logger
 }
 
-func (s Server) GetID() string {
-	return s.ID
+type InfraredServer struct {
+	Server
 }
 
-func (s Server) GetDomains() []string {
-	return s.Domains
+func (s InfraredServer) ID() string {
+	return s.Server.ID
 }
 
-func (s Server) GetWebhookIDs() []string {
-	return s.WebhookIDs
+func (s InfraredServer) Domains() []string {
+	return s.Server.Domains
 }
 
-func (s *Server) SetLogger(log logr.Logger) {
-	s.Log = log
+func (s InfraredServer) WebhookIDs() []string {
+	return s.Server.WebhookIDs
 }
 
-func (s Server) Dial() (*raknet.Conn, error) {
+func (s *InfraredServer) SetLogger(log logr.Logger) {
+	s.Server.Log = log
+}
+
+func (s InfraredServer) Dial() (*raknet.Conn, error) {
 	c, err := s.Dialer.DialTimeout(s.Address, s.DialTimeout)
 	if err != nil {
 		return nil, err
@@ -47,12 +51,7 @@ func (s Server) Dial() (*raknet.Conn, error) {
 	return c, nil
 }
 
-func (s Server) handleDialTimeout(c ProcessedConn) error {
-	msg := infrared.ExecuteServerMessageTemplate(s.DialTimeoutMessage, c, &s)
-	return c.disconnect(msg)
-}
-
-func (s Server) ProcessConn(c net.Conn) (infrared.ConnTunnel, error) {
+func (s InfraredServer) ProcessConn(c net.Conn) (infrared.ConnTunnel, error) {
 	pc := c.(*ProcessedConn)
 	rc, err := s.Dial()
 	if err != nil {
@@ -63,21 +62,7 @@ func (s Server) ProcessConn(c net.Conn) (infrared.ConnTunnel, error) {
 	}
 
 	if s.SendProxyProtocol {
-		tp := proxyproto.UDPv4
-		addr := pc.RemoteAddr().(*net.UDPAddr)
-		if addr.IP.To4() == nil {
-			tp = proxyproto.UDPv6
-		}
-
-		header := &proxyproto.Header{
-			Version:           2,
-			Command:           proxyproto.PROXY,
-			TransportProtocol: tp,
-			SourceAddr:        pc.RemoteAddr(),
-			DestinationAddr:   rc.RemoteAddr(),
-		}
-
-		if _, err := header.WriteTo(rc); err != nil {
+		if err := writeProxyProtocolHeader(pc, rc); err != nil {
 			return infrared.ConnTunnel{}, err
 		}
 	}
@@ -91,4 +76,30 @@ func (s Server) ProcessConn(c net.Conn) (infrared.ConnTunnel, error) {
 		Conn:       pc,
 		RemoteConn: rc,
 	}, nil
+}
+
+func (s InfraredServer) handleDialTimeout(c ProcessedConn) error {
+	msg := infrared.ExecuteServerMessageTemplate(s.DialTimeoutMessage, c, &s)
+	return c.disconnect(msg)
+}
+
+func writeProxyProtocolHeader(c, rc net.Conn) error {
+	tp := proxyproto.UDPv4
+	addr := c.RemoteAddr().(*net.UDPAddr)
+	if addr.IP.To4() == nil {
+		tp = proxyproto.UDPv6
+	}
+
+	header := &proxyproto.Header{
+		Version:           2,
+		Command:           proxyproto.PROXY,
+		TransportProtocol: tp,
+		SourceAddr:        c.RemoteAddr(),
+		DestinationAddr:   rc.RemoteAddr(),
+	}
+
+	if _, err := header.WriteTo(rc); err != nil {
+		return err
+	}
+	return nil
 }
