@@ -41,6 +41,10 @@ func (pc ProcessedConn) ServerAddr() string {
 	return pc.serverAddr
 }
 
+func (pc ProcessedConn) IsLoginRequest() bool {
+	return true
+}
+
 func (pc ProcessedConn) DisconnectServerNotFound() error {
 	return pc.disconnect(pc.serverNotFoundMessage)
 }

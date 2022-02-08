@@ -19,6 +19,7 @@ type ProcessedConn interface {
 	ServerAddr() string
 	// DisconnectServerNotFound disconnects the client when the server is not found
 	DisconnectServerNotFound() error
+	IsLoginRequest() bool
 }
 
 func ExecuteMessageTemplate(msg string, pc ProcessedConn) string {

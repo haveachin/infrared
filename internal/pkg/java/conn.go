@@ -128,6 +128,10 @@ func (pc ProcessedConn) ServerAddr() string {
 	return pc.serverAddr
 }
 
+func (pc ProcessedConn) IsLoginRequest() bool {
+	return pc.handshake.IsLoginRequest()
+}
+
 func (pc ProcessedConn) DisconnectServerNotFound() error {
 	defer pc.Close()
 

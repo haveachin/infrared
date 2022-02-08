@@ -53,6 +53,7 @@ func (cpn *CPN) Start(cpnChan <-chan net.Conn, srvChan chan<- ProcessedConn) {
 			"serverAddr", pc.ServerAddr(),
 			"username", pc.Username(),
 			"gatewayId", pc.GatewayID(),
+			"isLoginRequest", pc.IsLoginRequest(),
 		)
 		cpn.Log.Info("sending client to server gateway", keysAndValues...)
 		event.Push(PostConnProcessingEventTopic, keysAndValues...)

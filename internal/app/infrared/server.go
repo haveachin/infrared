@@ -101,6 +101,7 @@ func (sg ServerGateway) Start(srvChan <-chan ProcessedConn, poolChan chan<- Conn
 			"serverAddr", pc.ServerAddr(),
 			"username", pc.Username(),
 			"gatewayId", pc.GatewayID(),
+			"isLoginRequest", pc.IsLoginRequest(),
 		}
 
 		sg.Log.Info("looking up server address", keysAndValues...)
