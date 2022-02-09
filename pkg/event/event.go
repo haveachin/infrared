@@ -13,15 +13,6 @@ var DefaultBus = NewBus()
 
 var ErrRecipientNotFound = errors.New("target recipient not found")
 
-func IsRecipientNotFoundErr(err error) bool {
-	for err != nil {
-		if err == ErrRecipientNotFound {
-			return true
-		}
-	}
-	return false
-}
-
 type Event struct {
 	ID        uuid.UUID
 	CreatedAt time.Time
@@ -106,9 +97,13 @@ func PushTo(to uuid.UUID, topic string, keysAndValues ...interface{}) error {
 	return DefaultBus.PushTo(to, topic, keysAndValues...)
 }
 
-func (b *Bus) AttachHandler(id uuid.UUID, fn Handler) (uuid.UUID, bool) {
+func (b *Bus) AttachHandler(id uuid.UUID, fn Handler, topics ...string) (uuid.UUID, bool) {
 	if fn == nil {
 		panic(fmt.Sprintf("AttachHandler called with id %q and nil handler", id))
+	}
+
+	if len(topics) > 0 {
+		fn = eventFilterFunc(topics, fn)
 	}
 
 	if id == uuid.Nil {
@@ -127,41 +122,19 @@ func (b *Bus) AttachHandler(id uuid.UUID, fn Handler) (uuid.UUID, bool) {
 	return id, replaced
 }
 
-func AttachHandler(id uuid.UUID, fn Handler) (uuid.UUID, bool) {
-	return DefaultBus.AttachHandler(id, fn)
+func AttachHandler(id uuid.UUID, fn Handler, topics ...string) (uuid.UUID, bool) {
+	return DefaultBus.AttachHandler(id, fn, topics...)
 }
 
-func (b *Bus) AttachFilteredHandler(id uuid.UUID, fn Handler, topics ...string) (uuid.UUID, bool) {
-	if len(topics) == 0 {
-		return b.AttachHandler(id, fn)
-	}
-	return b.AttachHandler(id, eventFilterFunc(topics, fn))
-}
-
-func AttachFilteredHandler(id uuid.UUID, fn Handler, topics ...string) (uuid.UUID, bool) {
-	return DefaultBus.AttachFilteredHandler(id, fn, topics...)
-}
-
-func (b *Bus) AttachChannel(id uuid.UUID, ch Channel) (uuid.UUID, bool) {
-	if ch == nil {
-		panic(fmt.Sprintf("AttachChannel called with id %q and nil channel", id))
-	}
-	return b.AttachHandler(id, eventChanFunc(ch))
-}
-
-func AttachChannel(id uuid.UUID, ch Channel) (uuid.UUID, bool) {
-	return DefaultBus.AttachChannel(id, ch)
-}
-
-func (b *Bus) AttachFilteredChannel(id uuid.UUID, ch Channel, topics ...string) (uuid.UUID, bool) {
+func (b *Bus) AttachChannel(id uuid.UUID, ch Channel, topics ...string) (uuid.UUID, bool) {
 	if len(topics) == 0 {
 		return b.AttachChannel(id, ch)
 	}
 	return b.AttachHandler(id, eventChanFilterFunc(topics, ch))
 }
 
-func AttachFilteredChannel(id uuid.UUID, ch Channel, topics ...string) (uuid.UUID, bool) {
-	return DefaultBus.AttachFilteredChannel(id, ch, topics...)
+func AttachChannel(id uuid.UUID, ch Channel, topics ...string) (uuid.UUID, bool) {
+	return DefaultBus.AttachChannel(id, ch, topics...)
 }
 
 func (b *Bus) DetachRecipient(id uuid.UUID) bool {
@@ -231,12 +204,6 @@ func (b *Bus) sendEventTo(to uuid.UUID, e Event) error {
 		return nil
 	}
 	return ErrRecipientNotFound
-}
-
-func eventChanFunc(ch Channel) Handler {
-	return func(event Event) {
-		ch <- event
-	}
 }
 
 func eventFilterFunc(topics []string, fn Handler) Handler {

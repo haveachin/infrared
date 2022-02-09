@@ -57,7 +57,7 @@ func (p *greeterPlugin) Enable(log logr.Logger, eb *event.Bus) error {
 	// registered in that event bus under that id.
 	// If we supply uuid.Nil as UUID it generate a new uuid for us, that we can use later to remove
 	// the event channel again.
-	id, _ := eb.AttachFilteredChannel(uuid.Nil, playerJoinChannel, infrared.ClientJoinEventTopic)
+	id, _ := eb.AttachChannel(uuid.Nil, playerJoinChannel, infrared.ClientJoinEventTopic)
 	// Now we safe the event channel with the generared UUID
 	p.ec[id] = playerJoinChannel
 
