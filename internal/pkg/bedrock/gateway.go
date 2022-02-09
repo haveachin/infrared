@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net"
 	"strings"
-	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/sandertv/go-raknet"
@@ -39,7 +38,6 @@ type Listener struct {
 	Bind                  string
 	ReceiveProxyProtocol  bool
 	PingStatus            PingStatus
-	ClientTimeout         time.Duration
 	ServerNotFoundMessage string
 
 	raknet.Listener

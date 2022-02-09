@@ -2,13 +2,13 @@ api:
   bind: 0.0.0.0:8080
 
 bedrock:
-  chan_caps:
+  chanCaps:
     cpn: 100
     server: 100
-    conn_pool: 10
-  processing_nodes:
+    connPool: 10
+  processingNodes:
     count: 10
-    client_timeout: 50ms
+    clientTimeout: 100ms
   gateways:
     mygateway:
       listeners:
@@ -24,13 +24,13 @@ bedrock:
         - mywebhook
 
 java:
-  chan_caps:
+  chanCaps:
     cpn: 100
     server: 100
-    conn_pool: 10
-  processing_nodes:
+    connPool: 10
+  processingNodes:
     count: 10
-    client_timeout: 50ms
+    clientTimeout: 50ms
   gateways:
     mygateway:
       listeners:
@@ -42,18 +42,16 @@ java:
       domains:
         - "*"
       address: your-server-address:25565
-      override_status:
-        version_name: Infrared
-        icon_path: ./icon.png
-        max_player_count: 777777777
-        player_count: 2
-        player_sample:
+      overrideStatus:
+        versionName: Infrared
+        iconPath: ./icon.png
+        maxPlayerCount: 777777777
+        playerCount: 2
+        playerSample:
           - name: Steve
             uuid: 8667ba71-b85a-4004-af54-457a9734eed7
           - name: Alex
             uuid: ec561538-f3fd-461d-aff5-086b22154bce
-      webhooks:
-        - mywebhook
 
 webhooks:
   mywebhook:
@@ -67,47 +65,47 @@ defaults:
   bedrock:
     gateway:
       listener:
-        ping_status:
+        pingStatus:
           edition: MCPE
-          protocol_version: 471
-          version_name: "1.17.41"
-          player_count: 0
-          max_player_count: 10
-          game_mode: SURVIVAL
-          game_mode_numeric: 1
+          protocolVersion: 471
+          versionName: "1.17.41"
+          playerCount: 0
+          maxPlayerCount: 10
+          gameMode: SURVIVAL
+          gameModeNumeric: 1
           motd: |
             Infrared 2.0
             Join!
-      server_not_found_message: Sorry {{username}}, but {{serverDomain}} was not found.
+      serverNotFoundMessage: Sorry {{username}}, but {{serverDomain}} was not found.
     server:
-      dial_timeout: 1s
-      dial_timeout_message: Sorry {{username}}, but the server is not reachable.
+      dialTimeout: 1s
+      dialTimeoutMessage: Sorry {{username}}, but the server is not reachable.
       
   java:
     gateway:
       listener:
-        server_not_found_message: Sorry {{username}}, but {{serverDomain}} was not found.
-        server_not_found_status:
-          version_name: Infrared
-          protocol_number: 0
-          max_player_count: 0
-          player_count: 0
-          icon_path: ./icon.png
+        serverNotFoundMessage: Sorry {{username}}, but {{serverDomain}} was not found.
+        serverNotFoundStatus:
+          versionName: Infrared
+          protocolNumber: 0
+          maxPlayerCount: 0
+          playerCount: 0
+          iconPath: ./icon.png
           motd: |
             Infrared 2.0
             {{serverDomain}} was not found.
     server:
-      dial_timeout: 1s
-      dial_timeout_message: Sorry {{username}}, but the server is not reachable.
-      dial_timeout_status:
-        version_name: Infrared
-        protocol_number: 0
-        max_player_count: 0
-        player_count: 0
-        icon_path: ./icon.png
+      dialTimeout: 1s
+      dialTimeoutMessage: Sorry {{username}}, but the server is not reachable.
+      dialTimeoutStatus:
+        versionName: Infrared
+        protocolNumber: 0
+        maxPlayerCount: 0
+        playerCount: 0
+        iconPath: ./icon.png
         motd: |
           Infrared 2.0
           {{serverDomain}} is not reachable.
 
   webhook:
-    dial_timeout: 1s
+    dialTimeout: 1s

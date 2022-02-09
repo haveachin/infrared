@@ -33,6 +33,16 @@ func initConfig() {
 	}
 }
 
+func createConfigIfNonExist(path string) error {
+	if _, err := os.Stat(path); err == nil {
+		return nil
+	} else if !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+
+	return ioutil.WriteFile(path, defaultConfig, 0644)
+}
+
 func LoadWebhooks() ([]webhook.Webhook, error) {
 	vpr := viper.Sub("defaults.webhook")
 
@@ -50,16 +60,6 @@ func LoadWebhooks() ([]webhook.Webhook, error) {
 	}
 
 	return webhooks, nil
-}
-
-func createConfigIfNonExist(path string) error {
-	if _, err := os.Stat(path); err == nil {
-		return nil
-	} else if !errors.Is(err, os.ErrNotExist) {
-		return err
-	}
-
-	return ioutil.WriteFile(path, defaultConfig, 0644)
 }
 
 type webhookConfig struct {

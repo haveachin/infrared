@@ -61,7 +61,7 @@ func (cfg BedrockProxyConfig) LoadServers() ([]infrared.Server, error) {
 
 func (cfg BedrockProxyConfig) LoadCPNs() ([]infrared.CPN, error) {
 	var cpnCfg bedrockCPNConfig
-	if err := viper.UnmarshalKey("bedrock.processing_nodes", &cpnCfg); err != nil {
+	if err := viper.UnmarshalKey("bedrock.processingNodes", &cpnCfg); err != nil {
 		return nil, err
 	}
 
@@ -77,7 +77,7 @@ func (cfg BedrockProxyConfig) LoadCPNs() ([]infrared.CPN, error) {
 
 func (cfg BedrockProxyConfig) LoadChanCaps() (infrared.ProxyChanCaps, error) {
 	var chanCapsCfg bedrockChanCapsConfig
-	if err := viper.UnmarshalKey("bedrock.chan_caps", &chanCapsCfg); err != nil {
+	if err := viper.UnmarshalKey("bedrock.chanCaps", &chanCapsCfg); err != nil {
 		return infrared.ProxyChanCaps{}, err
 	}
 
@@ -85,47 +85,46 @@ func (cfg BedrockProxyConfig) LoadChanCaps() (infrared.ProxyChanCaps, error) {
 }
 
 type bedrockPingStatusConfig struct {
-	Edition         string `mapstructure:"edition"`
-	ProtocolVersion int    `mapstructure:"protocol_version,omitempty"`
-	VersionName     string `mapstructure:"version_name,omitempty"`
-	PlayerCount     int    `mapstructure:"player_count,omitempty"`
-	MaxPlayerCount  int    `mapstructure:"max_player_count,omitempty"`
-	GameMode        string `mapstructure:"game_mode"`
-	GameModeNumeric int    `mapstructure:"game_mode_numeric"`
-	MOTD            string `mapstructure:"motd,omitempty"`
+	Edition         string
+	ProtocolVersion int
+	VersionName     string
+	PlayerCount     int
+	MaxPlayerCount  int
+	GameMode        string
+	GameModeNumeric int
+	MOTD            string
 }
 
 type bedrockListenerConfig struct {
-	Bind                  string                  `mapstructure:"bind"`
-	PingStatus            bedrockPingStatusConfig `mapstructure:"ping_status"`
-	ReceiveProxyProtocol  bool                    `mapstructure:"receive_proxy_protocol"`
-	ClientTimeout         time.Duration           `mapstructure:"client_timeout"`
-	ServerNotFoundMessage string                  `mapstructure:"server_not_found_message"`
+	Bind                  string
+	PingStatus            bedrockPingStatusConfig
+	ReceiveProxyProtocol  bool
+	ServerNotFoundMessage string
 }
 
 type bedrockGatewayConfig struct {
-	Servers []string `mapstructure:"servers"`
+	Servers []string
 }
 
 type bedrockServerConfig struct {
-	Domains            []string      `mapstructure:"domains"`
-	Address            string        `mapstructure:"address"`
-	ProxyBind          string        `mapstructure:"proxy_bind"`
-	DialTimeout        time.Duration `mapstructure:"dial_timeout"`
-	SendProxyProtocol  bool          `mapstructure:"send_proxy_protocol"`
-	DialTimeoutMessage string        `mapstructure:"dial_timeout_message"`
-	Webhooks           []string      `mapstructure:"webhooks"`
+	Domains            []string
+	Address            string
+	ProxyBind          string
+	DialTimeout        time.Duration
+	SendProxyProtocol  bool
+	DialTimeoutMessage string
+	Webhooks           []string
 }
 
 type bedrockCPNConfig struct {
-	Count         int           `mapstructure:"count"`
-	ClientTimeout time.Duration `mapstructure:"client_timeout"`
+	Count         int
+	ClientTimeout time.Duration
 }
 
 type bedrockChanCapsConfig struct {
-	CPN      int `mapstructure:"cpn"`
-	Server   int `mapstructure:"server"`
-	ConnPool int `mapstructure:"conn_pool"`
+	CPN      int
+	Server   int
+	ConnPool int
 }
 
 func newBedrockPingStatus(cfg bedrockPingStatusConfig) bedrock.PingStatus {
@@ -146,7 +145,6 @@ func newBedrockListener(cfg bedrockListenerConfig) bedrock.Listener {
 		Bind:                  cfg.Bind,
 		PingStatus:            newBedrockPingStatus(cfg.PingStatus),
 		ReceiveProxyProtocol:  cfg.ReceiveProxyProtocol,
-		ClientTimeout:         cfg.ClientTimeout,
 		ServerNotFoundMessage: cfg.ServerNotFoundMessage,
 	}
 }

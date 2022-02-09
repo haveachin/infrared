@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"encoding/json"
 	"net"
-	"time"
 
 	"github.com/go-logr/logr"
 	"go.uber.org/multierr"
@@ -14,7 +13,6 @@ type Listener struct {
 	Bind                     string
 	ReceiveProxyProtocol     bool
 	ReceiveRealIP            bool
-	ClientTimeout            time.Duration
 	ServerNotFoundMessage    string
 	ServerNotFoundStatus     DialTimeoutStatusResponse
 	serverNotFoundStatusJSON string

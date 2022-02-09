@@ -60,7 +60,7 @@ func (cfg JavaProxyConfig) LoadServers() ([]infrared.Server, error) {
 
 func (cfg JavaProxyConfig) LoadCPNs() ([]infrared.CPN, error) {
 	var cpnCfg javaCpnConfig
-	if err := viper.UnmarshalKey("java.processing_nodes", &cpnCfg); err != nil {
+	if err := viper.UnmarshalKey("java.processingNodes", &cpnCfg); err != nil {
 		return nil, err
 	}
 
@@ -76,7 +76,7 @@ func (cfg JavaProxyConfig) LoadCPNs() ([]infrared.CPN, error) {
 
 func (cfg JavaProxyConfig) LoadChanCaps() (infrared.ProxyChanCaps, error) {
 	var chanCapsCfg javaChanCapsConfig
-	if err := viper.UnmarshalKey("java.chan_caps", &chanCapsCfg); err != nil {
+	if err := viper.UnmarshalKey("java.chanCaps", &chanCapsCfg); err != nil {
 		return infrared.ProxyChanCaps{}, err
 	}
 
@@ -84,70 +84,69 @@ func (cfg JavaProxyConfig) LoadChanCaps() (infrared.ProxyChanCaps, error) {
 }
 
 type javaServerConfig struct {
-	Domains            []string                          `mapstructure:"domains"`
-	Address            string                            `mapstructure:"address"`
-	ProxyBind          string                            `mapstructure:"proxy_bind"`
-	SendProxyProtocol  bool                              `mapstructure:"send_proxy_protocol"`
-	SendRealIP         bool                              `mapstructure:"send_real_ip"`
-	DialTimeout        time.Duration                     `mapstructure:"dial_timeout"`
-	DialTimeoutMessage string                            `mapstructure:"dial_timeout_message"`
-	OverrideStatus     javaOverrideServerStatusConfig    `mapstructure:"override_status"`
-	DialTimeoutStatus  javaDialTimeoutServerStatusConfig `mapstructure:"dial_timeout_status"`
-	Webhooks           []string                          `mapstructure:"webhooks"`
+	Domains            []string
+	Address            string
+	ProxyBind          string
+	SendProxyProtocol  bool
+	SendRealIP         bool
+	DialTimeout        time.Duration
+	DialTimeoutMessage string
+	OverrideStatus     javaOverrideServerStatusConfig
+	DialTimeoutStatus  javaDialTimeoutServerStatusConfig
+	Webhooks           []string
 }
 
 type javaOverrideServerStatusConfig struct {
-	VersionName    *string                              `mapstructure:"version_name,omitempty"`
-	ProtocolNumber *int                                 `mapstructure:"protocol_number,omitempty"`
-	MaxPlayerCount *int                                 `mapstructure:"max_player_count,omitempty"`
-	PlayerCount    *int                                 `mapstructure:"player_count,omitempty"`
-	PlayerSample   []javaServerStatusPlayerSampleConfig `mapstructure:"player_sample,omitempty"`
-	IconPath       *string                              `mapstructure:"icon_path,omitempty"`
-	MOTD           *string                              `mapstructure:"motd,omitempty"`
+	VersionName    *string
+	ProtocolNumber *int
+	MaxPlayerCount *int
+	PlayerCount    *int
+	PlayerSample   []javaServerStatusPlayerSampleConfig
+	IconPath       *string
+	MOTD           *string
 }
 
 type javaDialTimeoutServerStatusConfig struct {
-	VersionName    string                               `mapstructure:"version_name"`
-	ProtocolNumber int                                  `mapstructure:"protocol_number"`
-	MaxPlayerCount int                                  `mapstructure:"max_player_count"`
-	PlayerCount    int                                  `mapstructure:"player_count"`
-	PlayerSample   []javaServerStatusPlayerSampleConfig `mapstructure:"player_sample"`
-	IconPath       string                               `mapstructure:"icon_path"`
-	MOTD           string                               `mapstructure:"motd"`
+	VersionName    string
+	ProtocolNumber int
+	MaxPlayerCount int
+	PlayerCount    int
+	PlayerSample   []javaServerStatusPlayerSampleConfig
+	IconPath       string
+	MOTD           string
 }
 
 type javaServerStatusPlayerSampleConfig struct {
-	Name string `mapstructure:"name"`
-	UUID string `mapstructure:"uuid"`
+	Name string
+	UUID string
 }
 
 type javaListenerConfig struct {
-	Bind                  string                            `mapstructure:"bind"`
-	ReceiveProxyProtocol  bool                              `mapstructure:"receive_proxy_protocol"`
-	ReceiveRealIP         bool                              `mapstructure:"receive_real_ip"`
-	ClientTimeout         time.Duration                     `mapstructure:"client_timeout"`
-	ServerNotFoundMessage string                            `mapstructure:"server_not_found_message"`
-	ServerNotFoundStatus  javaDialTimeoutServerStatusConfig `mapstructure:"server_not_found_status"`
+	Bind                  string
+	ReceiveProxyProtocol  bool
+	ReceiveRealIP         bool
+	ServerNotFoundMessage string
+	ServerNotFoundStatus  javaDialTimeoutServerStatusConfig
 }
 
 type javaGatewayConfig struct {
-	Binds                 []string      `mapstructure:"bind"`
-	ReceiveProxyProtocol  bool          `mapstructure:"receive_proxy_protocol"`
-	ReceiveRealIP         bool          `mapstructure:"receive_real_ip"`
-	ClientTimeout         time.Duration `mapstructure:"client_timeout"`
-	Servers               []string      `mapstructure:"servers"`
-	ServerNotFoundMessage string        `mapstructure:"server_not_found_message"`
+	Binds                 []string
+	ReceiveProxyProtocol  bool
+	ReceiveRealIP         bool
+	ClientTimeout         time.Duration
+	Servers               []string
+	ServerNotFoundMessage string
 }
 
 type javaCpnConfig struct {
-	Count         int           `mapstructure:"count"`
-	ClientTimeout time.Duration `mapstructure:"client_timeout"`
+	Count         int
+	ClientTimeout time.Duration
 }
 
 type javaChanCapsConfig struct {
-	CPN      int `mapstructure:"cpn"`
-	Server   int `mapstructure:"server"`
-	ConnPool int `mapstructure:"conn_pool"`
+	CPN      int
+	Server   int
+	ConnPool int
 }
 
 func newJavaListener(cfg javaListenerConfig) java.Listener {
@@ -155,7 +154,6 @@ func newJavaListener(cfg javaListenerConfig) java.Listener {
 		Bind:                  cfg.Bind,
 		ReceiveProxyProtocol:  cfg.ReceiveProxyProtocol,
 		ReceiveRealIP:         cfg.ReceiveRealIP,
-		ClientTimeout:         cfg.ClientTimeout,
 		ServerNotFoundMessage: cfg.ServerNotFoundMessage,
 		ServerNotFoundStatus:  newJavaDialTimeoutServerStatus(cfg.ServerNotFoundStatus),
 	}
