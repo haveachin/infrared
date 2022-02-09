@@ -55,6 +55,9 @@ $ docker build --no-cache -t haveachin/infrared:latest https://github.com/haveac
 `INFRARED_API_ENABLED` if the api should be enabled [default: `"false"`]\
 `INFRARED_API_BIND` change the http bind option [default: `"127.0.0.1:8080"`]
 
+`INFRARED_PROMETHEUS_ENABLED` enables the Prometheus stats exporter [default: `"false"`]\
+`INFRARED_PROMETHEUS_BIND` specifies what the Prometheus HTTP server should bind to [default: `":9100"`]
+
 ## Command-Line Flags
 
 `-config-path` specifies the path to all your server configs [default: `"./configs/"`]
