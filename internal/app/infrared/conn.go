@@ -42,7 +42,7 @@ func ExecuteMessageTemplate(msg string, pc ProcessedConn) string {
 type ConnTunnel struct {
 	Conn       ProcessedConn
 	RemoteConn net.Conn
-	WebhookIds []string
+	Metadata   []interface{}
 }
 
 func (t ConnTunnel) Start() {

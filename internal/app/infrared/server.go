@@ -132,7 +132,6 @@ func (sg ServerGateway) Start(srvChan <-chan ProcessedConn, poolChan chan<- Conn
 			ct.Close()
 			continue
 		}
-		ct.WebhookIds = srv.WebhookIDs()
 
 		keysAndValues = append(keysAndValues,
 			"serverLocalAddr", ct.RemoteConn.LocalAddr().String(),
@@ -142,6 +141,7 @@ func (sg ServerGateway) Start(srvChan <-chan ProcessedConn, poolChan chan<- Conn
 		sg.Log.Info("adding proxy tunnel to pool", keysAndValues...)
 		event.Push(ClientJoinEventTopic, keysAndValues...)
 
+		ct.Metadata = keysAndValues
 		poolChan <- ct
 	}
 }
