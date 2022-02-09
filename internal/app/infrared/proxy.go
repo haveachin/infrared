@@ -43,6 +43,11 @@ func NewProxy(cfg ProxyConfig) (Proxy, error) {
 		return Proxy{}, err
 	}
 
+	chanCaps, err := cfg.LoadChanCaps()
+	if err != nil {
+		return Proxy{}, err
+	}
+
 	return Proxy{
 		Gateways: gateways,
 		CPNs:     cpns,
@@ -51,6 +56,7 @@ func NewProxy(cfg ProxyConfig) (Proxy, error) {
 			Servers:  servers,
 		},
 		ConnPool: ConnPool{},
+		ChanCaps: chanCaps,
 	}, nil
 }
 
