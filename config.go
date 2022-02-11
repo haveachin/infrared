@@ -33,6 +33,7 @@ type ProxyConfig struct {
 	ListenTo          string               `json:"listenTo"`
 	ProxyTo           string               `json:"proxyTo"`
 	ProxyBind         string               `json:"proxyBind"`
+	SpoofForcedHost   string               `json:"spoofForcedHost"`
 	ProxyProtocol     bool                 `json:"proxyProtocol"`
 	RealIP            bool                 `json:"realIp"`
 	Timeout           int                  `json:"timeout"`
