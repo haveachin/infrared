@@ -133,6 +133,12 @@ func (proxy *Proxy) DockerTimeout() time.Duration {
 	return time.Millisecond * time.Duration(proxy.Config.Docker.Timeout)
 }
 
+func (proxy *Proxy) SpoofForcedHost() string {
+	proxy.Config.RLock()
+	defer proxy.Config.RUnlock()
+	return proxy.Config.SpoofForcedHost
+}
+
 func (proxy *Proxy) ProxyProtocol() bool {
 	proxy.Config.RLock()
 	defer proxy.Config.RUnlock()
@@ -220,6 +226,12 @@ func (proxy *Proxy) handleConn(conn Conn, connRemoteAddr net.Addr) error {
 
 	if hs.IsStatusRequest() && proxy.IsOnlineStatusConfigured() {
 		return proxy.handleStatusRequest(conn, true)
+	}
+
+	spoofForcedHost := proxy.SpoofForcedHost()
+	if spoofForcedHost != "" {
+		hs.ServerAddress = protocol.String(spoofForcedHost)
+		pk = hs.Marshal()
 	}
 
 	if proxy.ProxyProtocol() {
