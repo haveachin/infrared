@@ -13,7 +13,7 @@ type WebhookPlugin struct {
 	Webhooks []webhook.Webhook
 
 	log logr.Logger
-	eb  *event.Bus
+	eb  event.Bus
 	ec  map[uuid.UUID]event.Channel
 }
 
@@ -25,7 +25,7 @@ func (p WebhookPlugin) Version() string {
 	return "internal"
 }
 
-func (p *WebhookPlugin) Enable(log logr.Logger, eb *event.Bus) error {
+func (p *WebhookPlugin) Enable(log logr.Logger, eb event.Bus) error {
 	p.log = log
 	p.eb = eb
 	p.ec = map[uuid.UUID]event.Channel{}
@@ -55,15 +55,16 @@ func (p WebhookPlugin) start(ch event.Channel) {
 	}
 
 	for e := range ch {
-		ids, ok := e.Data["serverWebhookIds"].([]string)
+		data := e.Data.(map[string]interface{})
+		ids, ok := data["serverWebhookIds"].([]string)
 		if !ok {
 			continue
 		}
 
 		el := webhook.EventLog{
 			Type:       e.Topic,
-			OccurredAt: e.CreatedAt,
-			Data:       e.Data,
+			OccurredAt: e.OccurredAt,
+			Data:       data,
 		}
 
 		for _, id := range ids {

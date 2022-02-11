@@ -17,7 +17,7 @@ var ErrInvalidPluginImplementation = errors.New("invalid plugin implementation")
 type Plugin interface {
 	Name() string
 	Version() string
-	Enable(logr.Logger, *event.Bus) error
+	Enable(logr.Logger, event.Bus) error
 	Disable() error
 }
 
@@ -27,17 +27,17 @@ func LoadPluginFromFile(path string) (Plugin, error) {
 		return nil, err
 	}
 
-	v, err := p.Lookup("Plugin")
+	v, err := p.Lookup("New")
 	if err != nil {
 		return nil, err
 	}
 
-	pv, ok := v.(*Plugin)
+	newPlugin, ok := v.(func() Plugin)
 	if !ok {
 		return nil, ErrInvalidPluginImplementation
 	}
 
-	return *pv, nil
+	return newPlugin(), nil
 }
 
 func LoadPluginsFromDir(path string) ([]Plugin, error) {

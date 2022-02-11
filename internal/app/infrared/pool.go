@@ -21,7 +21,7 @@ func (cp *ConnPool) Start(poolChan <-chan ConnTunnel) {
 		go func() {
 			ct.Start()
 			cp.Log.Info("disconnecting client", ct.Metadata...)
-			event.Push(ClientLeaveEventTopic, ct.Metadata...)
+			event.Push(ClientLeaveEventTopic, ct.Metadata)
 		}()
 	}
 }

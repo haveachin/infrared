@@ -9,14 +9,11 @@ import (
 	"github.com/haveachin/infrared/pkg/event"
 )
 
-// Each Plugin must have an exported Plugin field.
-// We also declare this field as infrared.Plugin to ensure
+// This function creates our plugin.
+// We also declare this function with a return type of infrared.Plugin to ensure
 // that we have implemented the Plugin interface correctly.
-var Plugin infrared.Plugin
-
-func init() {
-	println("init")
-	Plugin = &greeterPlugin{}
+func New() infrared.Plugin {
+	return &greeterPlugin{}
 }
 
 // This is our main plugin class that will implement the infrared.Plugin interface.
@@ -26,7 +23,7 @@ type greeterPlugin struct {
 	// but you are able to use the same logger as Infrared to keep consistency.
 	log logr.Logger
 	// This is the event bus that Infrared will use to push all occuring events to.
-	eb *event.Bus
+	eb event.Bus
 
 	ec map[uuid.UUID]event.Channel
 }
@@ -40,7 +37,7 @@ func (p greeterPlugin) Version() string {
 }
 
 // This is called once right before the proxies are started.
-func (p *greeterPlugin) Enable(log logr.Logger, eb *event.Bus) error {
+func (p *greeterPlugin) Enable(log logr.Logger, eb event.Bus) error {
 	// We safe these in our struct for later use.
 	p.log = log
 	p.eb = eb
@@ -80,7 +77,7 @@ func (p greeterPlugin) Disable() error {
 
 func (p greeterPlugin) greetPlayer(ch event.Channel) {
 	for e := range ch {
-		username := e.Data["username"].(string)
+		username := e.ID //e.Data["username"].(string)
 		greeting := fmt.Sprintf("Hello, %s", username)
 		p.log.Info(greeting)
 	}

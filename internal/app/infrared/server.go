@@ -120,7 +120,7 @@ func (sg ServerGateway) Start(srvChan <-chan ProcessedConn, poolChan chan<- Conn
 		)
 
 		sg.Log.Info("starting proxy tunnel", keysAndValues...)
-		event.Push(PreServerConnConnectingEventTopic, keysAndValues...)
+		event.Push(PreServerConnConnectingEventTopic, keysAndValues)
 
 		ct, err := srv.ProcessConn(pc)
 		if err != nil {
@@ -139,7 +139,7 @@ func (sg ServerGateway) Start(srvChan <-chan ProcessedConn, poolChan chan<- Conn
 		)
 
 		sg.Log.Info("adding proxy tunnel to pool", keysAndValues...)
-		event.Push(ClientJoinEventTopic, keysAndValues...)
+		event.Push(ClientJoinEventTopic, keysAndValues)
 
 		ct.Metadata = keysAndValues
 		poolChan <- ct

@@ -34,7 +34,7 @@ func (cpn *CPN) Start(cpnChan <-chan net.Conn, srvChan chan<- ProcessedConn) {
 			"remoteAddr", c.RemoteAddr().String(),
 		}
 		cpn.Log.Info("starting to process connection", keysAndValues...)
-		event.Push(PreConnProcessingEventTopic, keysAndValues...)
+		event.Push(PreConnProcessingEventTopic, keysAndValues)
 
 		c.SetDeadline(time.Now().Add(cpn.GetClientTimeout()))
 		pc, err := cpn.ProcessConn(c)
@@ -56,7 +56,7 @@ func (cpn *CPN) Start(cpnChan <-chan net.Conn, srvChan chan<- ProcessedConn) {
 			"isLoginRequest", pc.IsLoginRequest(),
 		)
 		cpn.Log.Info("sending client to server gateway", keysAndValues...)
-		event.Push(PostConnProcessingEventTopic, keysAndValues...)
+		event.Push(PostConnProcessingEventTopic, keysAndValues)
 
 		srvChan <- pc
 	}
