@@ -80,26 +80,20 @@ func main() {
 		return
 	}
 
-	plugins, err := infrared.LoadPluginsFromDir(pluginsPath)
-	if err != nil {
-		logger.Error(err, "failed to load plugins")
-		return
-	}
-
 	webhooks, err := LoadWebhooks()
 	if err != nil {
 		logger.Error(err, "failed to load webhooks")
 		return
 	}
 
-	plugins = append(plugins, &webhook.WebhookPlugin{
-		Webhooks: webhooks,
-	})
-
 	pluginManager := infrared.PluginManager{
 		Proxies: []infrared.Proxy{bedrockProxy, javaProxy},
-		Plugins: plugins,
-		Log:     logger,
+		Plugins: []infrared.Plugin{
+			&webhook.Plugin{
+				Webhooks: webhooks,
+			},
+		},
+		Log: logger,
 	}
 
 	if err := pluginManager.EnablePlugins(); err != nil {

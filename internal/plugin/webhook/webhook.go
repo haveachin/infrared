@@ -5,79 +5,109 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/gofrs/uuid"
+	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/pkg/event"
 	"github.com/haveachin/infrared/pkg/webhook"
 )
 
-type WebhookPlugin struct {
+type Plugin struct {
 	Webhooks []webhook.Webhook
 
-	log logr.Logger
-	eb  event.Bus
-	ec  map[uuid.UUID]event.Channel
+	log      logr.Logger
+	eventBus event.Bus
+	eventChs map[uuid.UUID]event.Channel
+	webhooks map[string]webhook.Webhook
 }
 
-func (p WebhookPlugin) Name() string {
+func (p Plugin) Name() string {
 	return "Webhook Plugin"
 }
 
-func (p WebhookPlugin) Version() string {
+func (p Plugin) Version() string {
 	return "internal"
 }
 
-func (p *WebhookPlugin) Enable(log logr.Logger, eb event.Bus) error {
-	p.log = log
-	p.eb = eb
-	p.ec = map[uuid.UUID]event.Channel{}
+func (p *Plugin) Enable(api infrared.PluginAPI) error {
+	p.log = api.Logger()
+	p.eventBus = api.EventBus()
+	p.eventChs = map[uuid.UUID]event.Channel{}
 
-	c := make(event.Channel, 10)
-	id, _ := eb.AttachChannel(uuid.Nil, c)
-	p.ec[id] = c
+	ch := make(event.Channel, 10)
+	id, _ := p.eventBus.AttachChannel(uuid.Nil, ch)
+	p.eventChs[id] = ch
 
-	go p.start(c)
+	go p.start(ch)
 
 	return nil
 }
 
-func (p WebhookPlugin) Disable() error {
-	for id, c := range p.ec {
-		p.eb.DetachRecipient(id)
+func (p Plugin) Disable() error {
+	for id, c := range p.eventChs {
+		p.eventBus.DetachRecipient(id)
 		close(c)
 	}
 
 	return nil
 }
 
-func (p WebhookPlugin) start(ch event.Channel) {
-	whks := map[string]webhook.Webhook{}
+func (p Plugin) start(ch event.Channel) {
+	p.webhooks = map[string]webhook.Webhook{}
 	for _, h := range p.Webhooks {
-		whks[h.ID] = h
+		p.webhooks[h.ID] = h
 	}
 
 	for e := range ch {
-		data := e.Data.(map[string]interface{})
-		ids, ok := data["serverWebhookIds"].([]string)
+		p.handleEvent(e)
+	}
+}
+
+func (p Plugin) handleEvent(e event.Event) {
+	data, ok := parseMap(e.Data)
+	if !ok {
+		p.log.Info("failed processing event data",
+			"eventTopic", e.Topic,
+		)
+		return
+	}
+
+	ids, ok := data["serverWebhookIds"].([]string)
+	if !ok {
+		return
+	}
+
+	el := webhook.EventLog{
+		Type:       e.Topic,
+		OccurredAt: e.OccurredAt,
+		Data:       data,
+	}
+
+	for _, id := range ids {
+		wh, ok := p.webhooks[id]
 		if !ok {
 			continue
 		}
 
-		el := webhook.EventLog{
-			Type:       e.Topic,
-			OccurredAt: e.OccurredAt,
-			Data:       data,
-		}
-
-		for _, id := range ids {
-			h, ok := whks[id]
-			if !ok {
-				continue
-			}
-
-			if err := h.DispatchEvent(el); err != nil && !errors.Is(err, webhook.ErrEventTypeNotAllowed) {
-				p.log.Error(err, "dispatching webhook event",
-					"webhookId", h.ID,
-				)
-			}
+		if err := wh.DispatchEvent(el); err != nil && !errors.Is(err, webhook.ErrEventTypeNotAllowed) {
+			p.log.Error(err, "dispatching webhook event",
+				"webhookId", id,
+			)
 		}
 	}
+}
+
+func parseMap(v interface{}) (map[string]interface{}, bool) {
+	kvs, ok := v.([]interface{})
+	if !ok || len(kvs)%2 != 0 {
+		return nil, false
+	}
+
+	data := map[string]interface{}{}
+	for i := 0; i < len(kvs); i += 2 {
+		k, ok := kvs[i].(string)
+		if !ok {
+			return nil, false
+		}
+		data[k] = kvs[i+1]
+	}
+	return data, true
 }

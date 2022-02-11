@@ -1,72 +1,35 @@
 package infrared
 
 import (
-	"errors"
-	"io/ioutil"
-	"path/filepath"
-	"plugin"
-	"strings"
-
 	"github.com/go-logr/logr"
 	"github.com/haveachin/infrared/pkg/event"
 	"go.uber.org/multierr"
 )
 
-var ErrInvalidPluginImplementation = errors.New("invalid plugin implementation")
+type PluginAPI interface {
+	EventBus() event.Bus
+	Logger() logr.Logger
+}
 
 type Plugin interface {
 	Name() string
 	Version() string
-	Enable(logr.Logger, event.Bus) error
+	Enable(PluginAPI) error
 	Disable() error
-}
-
-func LoadPluginFromFile(path string) (Plugin, error) {
-	p, err := plugin.Open(path)
-	if err != nil {
-		return nil, err
-	}
-
-	v, err := p.Lookup("New")
-	if err != nil {
-		return nil, err
-	}
-
-	newPlugin, ok := v.(func() Plugin)
-	if !ok {
-		return nil, ErrInvalidPluginImplementation
-	}
-
-	return newPlugin(), nil
-}
-
-func LoadPluginsFromDir(path string) ([]Plugin, error) {
-	files, err := ioutil.ReadDir(path)
-	if err != nil {
-		return nil, err
-	}
-
-	var pp []Plugin
-	for _, f := range files {
-		name := f.Name()
-		if f.IsDir() || !strings.HasSuffix(name, ".so") {
-			continue
-		}
-
-		filePath := filepath.Join(path, name)
-		p, err := LoadPluginFromFile(filePath)
-		if err != nil {
-			return nil, err
-		}
-		pp = append(pp, p)
-	}
-	return pp, nil
 }
 
 type PluginManager struct {
 	Proxies []Proxy
 	Plugins []Plugin
 	Log     logr.Logger
+}
+
+func (pm PluginManager) EventBus() event.Bus {
+	return event.DefaultBus
+}
+
+func (pm PluginManager) Logger() logr.Logger {
+	return pm.Log
 }
 
 func (pm PluginManager) EnablePlugins() error {
@@ -76,7 +39,7 @@ func (pm PluginManager) EnablePlugins() error {
 			"pluginName", p.Name(),
 			"pluginVersion", p.Version(),
 		)
-		if err := p.Enable(pm.Log, event.DefaultBus); err != nil {
+		if err := p.Enable(&pm); err != nil {
 			result = multierr.Append(result, err)
 		}
 	}
