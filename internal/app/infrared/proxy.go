@@ -4,6 +4,7 @@ import (
 	"net"
 
 	"github.com/go-logr/logr"
+	"github.com/haveachin/infrared/pkg/event"
 )
 
 type ProxyConfig interface {
@@ -70,11 +71,11 @@ func (p Proxy) Start(log logr.Logger) {
 		go ListenAndServe(gw, p.cpnCh)
 	}
 
-	for i := 0; i < len(p.cpns); i++ {
-		cpn := p.cpns[i]
+	for _, cpn := range p.cpns {
 		cpn.Log = log
 		cpn.In = p.cpnCh
 		cpn.Out = p.srvCh
+		cpn.EventBus = event.DefaultBus
 		go cpn.ListenAndServe()
 	}
 

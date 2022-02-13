@@ -1,8 +1,10 @@
-example-build-plugin:
-	go build -buildmode=plugin -o ./plugins/greeter-plugin.so ./examples/plugin
+test:
+	go install github.com/golang/mock/mockgen@v1.6.0
+	go generate ./...
+	go test -race -timeout 30s ./...
 
 dev-run:
-	go run ./cmd/infrared -config-path=./configs/config.dev.yml -plugins-path=./plugins
+	go run -race ./cmd/infrared -config-path=./configs/config.dev.yml -plugins-path=./plugins
 
 dev-build-docker:
 	docker-compose -p infrared -f deployments/docker-compose.dev.yml build --no-cache --force-rm
