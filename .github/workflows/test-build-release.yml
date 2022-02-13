@@ -125,6 +125,7 @@ jobs:
           prerelease: ${{ github.ref == 'refs/heads/pre-release' }}
 
       # Build Go Release
+      - run: git tag ${{ steps.tag_version.outputs.new_tag }}
       - name: Set up Go
         uses: actions/setup-go@v2
         with:
