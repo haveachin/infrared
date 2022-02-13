@@ -117,12 +117,12 @@ jobs:
 
       # Create GitHub release once images have been pushed
       - name: Create a GitHub release ${{ steps.tag_version.outputs.new_tag }}
-        uses: ncipollo/release-action@v1
+        uses: ncipollo/release-action@v1.9
         with:
           tag: ${{ steps.tag_version.outputs.new_tag }}
           name: Release ${{ steps.tag_version.outputs.new_tag }}
           body: ${{ steps.tag_version.outputs.changelog }}
-          prerelease: github.ref == 'refs/heads/pre-release'
+          prerelease: contains( ${{ steps.tag_version.outputs.release_type }} , 'pre' )
 
       # Build Go Release
       - run: git tag ${{ steps.tag_version.outputs.new_tag }}
