@@ -104,7 +104,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push version ${{ steps.tag_version.outputs.new_tag }} to GHCR
+      - name: Build and push version ${{ steps.tag_version.outputs.new_tag }}
         uses: docker/build-push-action@v2
         with:
           context: .
@@ -115,11 +115,26 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # Build Go Release
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.16
+      - name: Run GoReleaser ${{ steps.tag_version.outputs.new_tag }}
+        uses: goreleaser/goreleaser-action@v2
+        with:
+          version: ${{ steps.tag_version.outputs.new_tag }}
+          args: release --rm-dist
+          workdir: ./cmd/infrared/.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       # Create GitHub release once images have been pushed
-      - name: Create a GitHub release
+      - name: Create a GitHub release ${{ steps.tag_version.outputs.new_tag }}
         uses: ncipollo/release-action@v1
         with:
           tag: ${{ steps.tag_version.outputs.new_tag }}
           name: Release ${{ steps.tag_version.outputs.new_tag }}
           body: ${{ steps.tag_version.outputs.changelog }}
           prerelease: ${{ github.ref == 'refs/heads/pre-release' }}
+          artifacts: ./cmd/infrared/dist/*
