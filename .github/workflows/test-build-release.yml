@@ -122,7 +122,7 @@ jobs:
           tag: ${{ steps.tag_version.outputs.new_tag }}
           name: Release ${{ steps.tag_version.outputs.new_tag }}
           body: ${{ steps.tag_version.outputs.changelog }}
-          prerelease: ${{ github.ref == 'refs/heads/pre-release' }}
+          prerelease: github.ref == 'refs/heads/pre-release'
 
       # Build Go Release
       - run: git tag ${{ steps.tag_version.outputs.new_tag }}
