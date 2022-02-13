@@ -8,7 +8,6 @@ on:
 
 env:
   GH_REGISTRY: ghcr.io
-  DH_ORGANIZATION: infraredproxy
   REPOSITORY_NAME: ${{ github.repository }}
 
 jobs:
@@ -88,7 +87,7 @@ jobs:
         with:
           images: | 
             ${{ env.GH_REGISTRY }}/${{ env.REPOSITORY_NAME }}
-            ${{ env.DH_ORGANIZATION }}/${{ env.REPOSITORY_NAME }}
+            ${{ env.REPOSITORY_NAME }}
           tags: |
             type=semver,pattern={{version}},value=${{ steps.tag_version.outputs.new_tag }}
 
