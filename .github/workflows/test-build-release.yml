@@ -2,7 +2,7 @@ name: Test, Build, Release
 
 on:
   push:
-    branches: [ 'master' ]
+    branches: [ 'master', 'ci' ]
   pull_request:
     branches: [ 'master','dev' ]
 
@@ -32,7 +32,7 @@ jobs:
 
   # Build job runs on every PR into dev and master and pushes to master
   # Depends on test job
-  build:
+  build-docker:
     runs-on: ubuntu-latest
     name: Build
     needs: [ test ]
@@ -49,19 +49,20 @@ jobs:
         with:
           context: .
           builder: ${{ steps.buildx.outputs.name }}
+          pull: true
           push: false
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,mode=max,dest=/tmp/.buildx-cache-new
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   # Release job runs on every push to master
   # Depends on build job
-  release:
+  release-docker:
     runs-on: ubuntu-latest
     name: Release
     if: github.ref == 'refs/heads/master'
-    needs: [ build ]
+    needs: [ build-docker ]
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
