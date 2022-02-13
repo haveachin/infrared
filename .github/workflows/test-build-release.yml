@@ -2,7 +2,7 @@ name: Test, Build, Release
 
 on:
   push:
-    branches: [ 'master', 'ci' ]
+    branches: [ 'master', 'pre-release' ]
   pull_request:
     branches: [ 'master','dev' ]
 
@@ -61,7 +61,7 @@ jobs:
   release-docker:
     runs-on: ubuntu-latest
     name: Release
-    if: github.ref == 'refs/heads/master'
+    if: ${{ github.ref == 'refs/heads/master' || github.ref == 'refs/heads/pre-release' }}
     needs: [ build-docker ]
     steps:
       - name: Checkout repository
@@ -103,6 +103,7 @@ jobs:
           builder: ${{ steps.buildx.outputs.name }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          push: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -113,3 +114,4 @@ jobs:
           tag: ${{ steps.tag_version.outputs.new_tag }}
           name: Release ${{ steps.tag_version.outputs.new_tag }}
           body: ${{ steps.tag_version.outputs.changelog }}
+          prerelease: ${{ github.ref == 'refs/heads/pre-release' }}
