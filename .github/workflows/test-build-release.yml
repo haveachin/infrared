@@ -134,7 +134,8 @@ jobs:
       - name: Create a GitHub release ${{ steps.tag_version.outputs.new_tag }}
         uses: ncipollo/release-action@v1
         with:
-          tag: ${{ steps.tag_version.outputs.new_tag }}
+          commit: ${{ github.ref }}
+          # tag: ${{ steps.tag_version.outputs.new_tag }}
           name: Release ${{ steps.tag_version.outputs.new_tag }}
           body: ${{ steps.tag_version.outputs.changelog }}
           prerelease: ${{ github.ref == 'refs/heads/pre-release' }}
