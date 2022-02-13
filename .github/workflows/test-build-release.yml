@@ -123,7 +123,7 @@ jobs:
       - name: Run GoReleaser ${{ steps.tag_version.outputs.new_tag }}
         uses: goreleaser/goreleaser-action@v2
         with:
-          version: ${{ steps.tag_version.outputs.new_tag }}
+          version: latest
           args: release --rm-dist
           workdir: ./cmd/infrared/.
         env:
@@ -137,4 +137,4 @@ jobs:
           name: Release ${{ steps.tag_version.outputs.new_tag }}
           body: ${{ steps.tag_version.outputs.changelog }}
           prerelease: ${{ github.ref == 'refs/heads/pre-release' }}
-          artifacts: ./cmd/infrared/dist/*
+          artifacts: dist/*
