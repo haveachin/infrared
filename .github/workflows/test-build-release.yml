@@ -114,6 +114,8 @@ jobs:
           push: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - run: |
+          git tag ${{ steps.tag_version.outputs.new_tag }}
 
       # Build Go Release
       - name: Set up Go
@@ -124,7 +126,7 @@ jobs:
         uses: goreleaser/goreleaser-action@v2
         with:
           version: latest
-          args: release --rm-dist
+          args: release
           workdir: ./cmd/infrared/.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
