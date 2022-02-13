@@ -20,11 +20,13 @@ type ProxyChanCaps struct {
 }
 
 type Proxy struct {
-	Gateways      []Gateway
-	CPNs          []CPN
-	ServerGateway ServerGateway
-	ConnPool      ConnPool
-	ChanCaps      ProxyChanCaps
+	gateways      []Gateway
+	cpns          []CPN
+	serverGateway ServerGateway
+	connPool      ConnPool
+	cpnCh         chan net.Conn
+	srvCh         chan ProcessedConn
+	poolCh        chan ConnTunnel
 }
 
 func NewProxy(cfg ProxyConfig) (Proxy, error) {
@@ -49,39 +51,40 @@ func NewProxy(cfg ProxyConfig) (Proxy, error) {
 	}
 
 	return Proxy{
-		Gateways: gateways,
-		CPNs:     cpns,
-		ServerGateway: ServerGateway{
+		gateways: gateways,
+		cpns:     cpns,
+		serverGateway: ServerGateway{
 			Gateways: gateways,
 			Servers:  servers,
 		},
-		ConnPool: ConnPool{},
-		ChanCaps: chanCaps,
+		connPool: ConnPool{},
+		cpnCh:    make(chan net.Conn, chanCaps.CPN),
+		srvCh:    make(chan ProcessedConn, chanCaps.Server),
+		poolCh:   make(chan ConnTunnel, chanCaps.ConnPool),
 	}, nil
 }
 
 func (p Proxy) Start(log logr.Logger) {
-	cpnChan := make(chan net.Conn, p.ChanCaps.CPN)
-	srvChan := make(chan ProcessedConn, p.ChanCaps.Server)
-	poolChan := make(chan ConnTunnel, p.ChanCaps.ConnPool)
-
-	for _, gw := range p.Gateways {
+	for _, gw := range p.gateways {
 		gw.SetLogger(log)
-		go ListenAndServe(gw, cpnChan)
+		go ListenAndServe(gw, p.cpnCh)
 	}
 
-	for _, cpn := range p.CPNs {
+	for i := 0; i < len(p.cpns); i++ {
+		cpn := p.cpns[i]
 		cpn.Log = log
-		go cpn.Start(cpnChan, srvChan)
+		cpn.In = p.cpnCh
+		cpn.Out = p.srvCh
+		go cpn.ListenAndServe()
 	}
 
-	p.ConnPool.Log = log
-	go p.ConnPool.Start(poolChan)
+	p.connPool.Log = log
+	go p.connPool.Start(p.poolCh)
 
-	for _, srv := range p.ServerGateway.Servers {
+	for _, srv := range p.serverGateway.Servers {
 		srv.SetLogger(log)
 	}
 
-	p.ServerGateway.Log = log
-	p.ServerGateway.Start(srvChan, poolChan)
+	p.serverGateway.Log = log
+	p.serverGateway.Start(p.srvCh, p.poolCh)
 }
