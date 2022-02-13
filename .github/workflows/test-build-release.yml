@@ -117,7 +117,7 @@ jobs:
 
       # Create GitHub release once images have been pushed
       - name: Create a GitHub release ${{ steps.tag_version.outputs.new_tag }}
-        uses: ncipollo/release-action@v1.9
+        uses: ncipollo/release-action@v1
         with:
           tag: ${{ steps.tag_version.outputs.new_tag }}
           name: Release ${{ steps.tag_version.outputs.new_tag }}
