@@ -33,6 +33,7 @@ type ProxyConfig struct {
 	ListenTo          string               `json:"listenTo"`
 	ProxyTo           string               `json:"proxyTo"`
 	ProxyBind         string               `json:"proxyBind"`
+	SpoofForcedHost   string               `json:"spoofForcedHost"`
 	ProxyProtocol     bool                 `json:"proxyProtocol"`
 	RealIP            bool                 `json:"realIp"`
 	Timeout           int                  `json:"timeout"`
@@ -189,8 +190,8 @@ func DefaultProxyConfig() ProxyConfig {
 			Timeout:   300000,
 		},
 		OfflineStatus: StatusConfig{
-			VersionName:    "Infrared 1.17",
-			ProtocolNumber: 755,
+			VersionName:    "Infrared 1.18",
+			ProtocolNumber: 757,
 			MaxPlayers:     20,
 			MOTD:           "Powered by Infrared",
 		},

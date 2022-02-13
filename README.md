@@ -55,6 +55,9 @@ $ docker build --no-cache -t haveachin/infrared:latest https://github.com/haveac
 `INFRARED_API_ENABLED` if the api should be enabled [default: `"false"`]\
 `INFRARED_API_BIND` change the http bind option [default: `"127.0.0.1:8080"`]
 
+`INFRARED_PROMETHEUS_ENABLED` enables the Prometheus stats exporter [default: `"false"`]\
+`INFRARED_PROMETHEUS_BIND` specifies what the Prometheus HTTP server should bind to [default: `":9100"`]
+
 ## Command-Line Flags
 
 `-config-path` specifies the path to all your server configs [default: `"./configs/"`]
@@ -70,7 +73,6 @@ $ docker build --no-cache -t haveachin/infrared:latest https://github.com/haveac
 `./infrared -config-path="." -receive-proxy-protocol=true -enable-prometheus -prometheus-bind="localhost:9123"`
 
 ## Proxy Config
-
 | Field Name        | Type    | Required | Default                                        | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 |-------------------|---------|----------|------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | domainName        | String  | true     | localhost                                      | Should be [fully qualified domain name](https://en.wikipedia.org/wiki/Domain_name). <br>Note: Every string is accepted. So `localhost` is also valid.                                                                                                                                                                                                                                                                                                                                                                                                                                      |
@@ -79,10 +81,9 @@ $ docker build --no-cache -t haveachin/infrared:latest https://github.com/haveac
 | proxyBind         | String  | false    |                                                | The local IP that is being used to dail to the server on `proxyTo`. (Same as Nginx `proxy-bind`)                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | disconnectMessage | String  | false    | Sorry {{username}}, but the server is offline. | The message a client sees when he gets disconnected from Infrared due to the server on `proxyTo` won't respond. Currently available placeholders:<br>- `username` the username of player that tries to connect<br>- `now` the current server time<br>- `remoteAddress` the address of the client that tries to connect<br>- `localAddress` the local address of the server<br>- `domain` the domain of the proxy (same as `domainName`)<br>- `proxyTo` the address that the proxy proxies to (same as `proxyTo`)<br>- `listenTo` the address that Infrared listens on (same as `listenTo`) |
 | timeout           | Integer | true     | 1000                                           | The time in milliseconds for the proxy to wait for a ping response before the host (the address you proxyTo) will be declared as offline. This "online check" will be resend for every new connection.                                                                                                                                                                                                                                                                                                                                                                                     |
-| proxyProtocol     | Boolean | false    | false                                          | If Infrared should use HAProxy's Proxy Protocol for IP **
-forwarding**.<br>Warning: You should only ever set this to true if you now that the server you `proxyTo` is compatible.                                                                                                                                                                                                                                                                                                                                                                                                           |
-| realIp            | Boolean | false    | false                                          | If Infrared should use TCPShield/RealIP Protocol for IP **
-forwarding**.<br>Warning: You should only ever set this to true if you now that the server you `proxyTo` is compatible.                                                                                                                                                                                                                                                                                                                                                                                                          |
+| spoofForcedHost       | String  | false    |                                                | If Infrared should modify the handshake packet to spoof BungeeCords forced_hosts option.                                                                                                                                                                                                                                                                                                                                                                                                        |
+| proxyProtocol     | Boolean | false    | false                                          | If Infrared should use HAProxy's Proxy Protocol for IP **forwarding**.<br>Warning: You should only ever set this to true if you now that the server you `proxyTo` is compatible.                                                                                                                                                                                                                                                                                                                                                                                                           |
+| realIp            | Boolean | false    | false                                          | If Infrared should use TCPShield/RealIP Protocol for IP **forwarding**.<br>Warning: You should only ever set this to true if you now that the server you `proxyTo` is compatible.                                                                                                                                                                                                                                                                                                                                                                                                          |
 | docker            | Object  | false    | See [Docker](#Docker)                          | Optional Docker configuration to automatically start a container and stop it again if unused.  <br>Note: Infrared will not take direct connections into account. Be sure to route all traffic that connects to the container through Infrared.                                                                                                                                                                                                                                                                                                                                             |
 | onlineStatus      | Object  | false    |                                                | This is the response that Infrared will give when a client asks for the server status and the server is online.                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | offlineStatus     | Object  | false    | See [Response Status](#response-status)        | This is the response that Infrared will give when a client asks for the server status and the server is offline.                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
@@ -111,8 +112,8 @@ More info on [Portainer](https://www.portainer.io/).
 
 | Field Name     | Type    | Required | Default         | Description                                                                                                                                          |
 |----------------|---------|----------|-----------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
-| versionName    | String  | false    | Infrared 1.17 | The version name of the Minecraft Server.                                                                                                            |
-| protocolNumber | Integer | true     | 755             | The protocol version number.                                                                                                                         |
+| versionName    | String  | false    | Infrared 1.18 | The version name of the Minecraft Server.                                                                                                            |
+| protocolNumber | Integer | true     | 757             | The protocol version number.                                                                                                                         |
 | maxPlayers     | Integer | false    | 20              | The maximum number of players that can join the server.<br>Note: Infrared will not limit more players from joining. This number is just for display. |
 | playersOnline  | Integer | false    | 0               | The number of online players.<br>Note: Infrared will not that this number is also just for display.                                                  |
 | playerSamples  | Array   | false    |                 | An array of player samples. See [Player Sample](#Player Sample).                                                                                     |
@@ -176,8 +177,8 @@ More info on [Portainer](https://www.portainer.io/).
     }
   },
   "onlineStatus": {
-    "versionName": "1.17",
-    "protocolNumber": 755,
+    "versionName": "1.18",
+    "protocolNumber": 757,
     "maxPlayers": 20,
     "playersOnline": 2,
     "playerSamples": [
@@ -193,8 +194,8 @@ More info on [Portainer](https://www.portainer.io/).
     "motd": "Join us!"
   },
   "offlineStatus": {
-    "versionName": "1.17",
-    "protocolNumber": 755,
+    "versionName": "1.18",
+    "protocolNumber": 757,
     "maxPlayers": 20,
     "playersOnline": 0,
     "motd": "Server is currently offline"
@@ -227,7 +228,7 @@ the env variable `INFRARED_API_BIND` to something like `"0.0.0.0:3000"` the defa
 
 #### Create new config
 
-POST `/proxies/`\
+POST `/proxies`\
 Body must contain:
 ```json
 {
