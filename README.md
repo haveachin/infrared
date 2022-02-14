@@ -73,7 +73,6 @@ $ docker build --no-cache -t haveachin/infrared:latest https://github.com/haveac
 `./infrared -config-path="." -receive-proxy-protocol=true -enable-prometheus -prometheus-bind="localhost:9123"`
 
 ## Proxy Config
-
 | Field Name        | Type    | Required | Default                                        | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 |-------------------|---------|----------|------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | domainName        | String  | true     | localhost                                      | Should be [fully qualified domain name](https://en.wikipedia.org/wiki/Domain_name). <br>Note: Every string is accepted. So `localhost` is also valid.                                                                                                                                                                                                                                                                                                                                                                                                                                      |
@@ -134,7 +133,6 @@ More info on [Portainer](https://www.portainer.io/).
 |------------|--------|----------|---------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | url        | String | true     |         | URL of the callback server URL.                                                                                                                                                                                                                                                         |
 | events     | Array  | true     |         | A string array of event names. Currently available event names are:<br>- `Error` will send error logs<br>- `PlayerJoin` will send player joins<br>- `PlayerLeave` will send player leaves<br>- `ContainerStart` will send container starts<br>- `ContainerStop` will send container stops |
-
 
 ### Examples
 
@@ -218,13 +216,16 @@ More info on [Portainer](https://www.portainer.io/).
 </details>
 
 ## Rest API
+
 **The API should not be accessible from the internet!**
 
 ### Enabling API
-To enable the API the environment variable `INFRARED_API_ENABLED` must be set to `"true"`.
-To change the http bind, set the env variable `INFRARED_API_BIND` to something like `"0.0.0.0:3000"` the default value is `"127.0.0.1:8080"`
+
+To enable the API the environment variable `INFRARED_API_ENABLED` must be set to `"true"`. To change the http bind, set
+the env variable `INFRARED_API_BIND` to something like `"0.0.0.0:3000"` the default value is `"127.0.0.1:8080"`
 
 ### API Methods
+
 #### Create new config
 
 POST `/proxies`\
@@ -282,6 +283,36 @@ scrape_configs:
   * **Example response:** `infrared_proxies{instance="vps1.example.com:9070",job="infrared"} 5`
   * **instance:** what infrared instance has that amount of active proxies.
   * **job:** what job was specified in the prometheus configuration.
+
+## Coding Guidelines
+
+### Commit Messages
+
+When contributing to this project please follow the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) 
+specification for writing commit messages, so that changelogs and release versions can be generated automatically.
+
+**Example commit message**
+
+```
+fix: prevent racing of requests
+
+Introduce a request id and a reference to latest request. Dismiss
+incoming responses other than from latest request.
+
+Remove timeouts which were used to mitigate the racing issue but are
+obsolete now.
+
+Reviewed-by: Z
+Refs: #123
+```
+
+Some tooling that can help you author those commit messages are the following plugins:
+
+* JetBrains Plugin [Conventional Commit](https://plugins.jetbrains.com/plugin/13389-conventional-commit)
+  by [Edoardo Luppi](https://github.com/lppedd)
+* Visual Studio
+  Plugin [Conventional Commits](https://marketplace.visualstudio.com/items?itemName=vivaxy.vscode-conventional-commits)
+  by [vivaxy](https://marketplace.visualstudio.com/publishers/vivaxy)
 
 ## Similar Projects
 
