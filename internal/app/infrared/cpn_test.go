@@ -68,9 +68,7 @@ func TestCPN_ListenAndServe(t *testing.T) {
 			}
 
 			in := make(chan net.Conn)
-			defer close(in)
 			out := make(chan infrared.ProcessedConn)
-			defer close(out)
 			cpn := infrared.CPN{
 				ConnProcessor: cp,
 				In:            in,
