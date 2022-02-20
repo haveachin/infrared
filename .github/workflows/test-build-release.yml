@@ -76,7 +76,7 @@ jobs:
           release_branches: master
           pre_release_branches: pre-release
 
-      # Build Docker Images for GHCR
+      # Build Docker Images
       - name: Set up Docker Buildx
         id: buildx
         uses: docker/setup-buildx-action@master
