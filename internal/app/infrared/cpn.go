@@ -12,14 +12,9 @@ import (
 	"github.com/haveachin/infrared/pkg/event"
 )
 
-var (
-	ErrIsAlreadyRunning = errors.New("is already running")
-	ErrChannelClosed    = errors.New("channel closed")
-)
-
 type ConnProcessor interface {
 	ProcessConn(c net.Conn) (ProcessedConn, error)
-	GetClientTimeout() time.Duration
+	ClientTimeout() time.Duration
 }
 
 // CPN is a connection processing node
@@ -29,75 +24,104 @@ type CPN struct {
 	Out      chan<- ProcessedConn
 	Log      logr.Logger
 	EventBus event.Bus
-
-	errorLocker
-	ctx context.Context
-
-	mu     sync.Mutex
-	cancel context.CancelFunc
 }
 
-func (cpn *CPN) ListenAndServe() error {
-	if err := cpn.lock(); err != nil {
-		return err
-	}
-	defer cpn.unlock()
+func (cpn CPN) ListenAndServe(ctx context.Context) {
+	for c := range cpn.In {
+		keysAndValues := []interface{}{
+			"network", c.LocalAddr().Network(),
+			"localAddr", c.LocalAddr().String(),
+			"remoteAddr", c.RemoteAddr().String(),
+		}
+		cpn.Log.Info("starting to process connection", keysAndValues...)
+		cpn.EventBus.Push(PreConnProcessingEventTopic, keysAndValues)
 
-	cpn.mu.Lock()
-	cpn.ctx, cpn.cancel = context.WithCancel(context.Background())
-	cpn.mu.Unlock()
+		c.SetDeadline(time.Now().Add(cpn.ClientTimeout()))
+		pc, err := cpn.ConnProcessor.ProcessConn(c)
+		if err != nil {
+			if errors.Is(err, os.ErrDeadlineExceeded) {
+				cpn.Log.Info("disconnecting connection; exceeded processing deadline", keysAndValues...)
+			} else {
+				cpn.Log.Error(err, "disconnecting connection; processing failed", keysAndValues...)
+			}
+			c.Close()
+			continue
+		}
+		c.SetDeadline(time.Time{})
 
-	for {
+		keysAndValues = append(keysAndValues,
+			"serverAddr", pc.ServerAddr(),
+			"username", pc.Username(),
+			"gatewayId", pc.GatewayID(),
+			"isLoginRequest", pc.IsLoginRequest(),
+		)
+		cpn.Log.Info("sending client to server gateway", keysAndValues...)
+		cpn.EventBus.Push(PostConnProcessingEventTopic, keysAndValues)
+
+		cpn.Out <- pc
+
 		select {
-		case <-cpn.ctx.Done():
-			return nil
-		case c, ok := <-cpn.In:
-			if !ok {
-				return ErrChannelClosed
-			}
-
-			keysAndValues := []interface{}{
-				"network", c.LocalAddr().Network(),
-				"localAddr", c.LocalAddr().String(),
-				"remoteAddr", c.RemoteAddr().String(),
-			}
-			cpn.Log.Info("starting to process connection", keysAndValues...)
-			cpn.EventBus.Push(PreConnProcessingEventTopic, keysAndValues)
-
-			c.SetDeadline(time.Now().Add(cpn.GetClientTimeout()))
-			pc, err := cpn.ConnProcessor.ProcessConn(c)
-			if err != nil {
-				if errors.Is(err, os.ErrDeadlineExceeded) {
-					cpn.Log.Info("disconnecting connection; exceeded processing deadline", keysAndValues...)
-				} else {
-					cpn.Log.Error(err, "disconnecting connection; processing failed", keysAndValues...)
-				}
-				c.Close()
-				continue
-			}
-			c.SetDeadline(time.Time{})
-
-			keysAndValues = append(keysAndValues,
-				"serverAddr", pc.ServerAddr(),
-				"username", pc.Username(),
-				"gatewayId", pc.GatewayID(),
-				"isLoginRequest", pc.IsLoginRequest(),
-			)
-			cpn.Log.Info("sending client to server gateway", keysAndValues...)
-			cpn.EventBus.Push(PostConnProcessingEventTopic, keysAndValues)
-
-			cpn.Out <- pc
+		case <-ctx.Done():
+			return
+		default:
 		}
 	}
 }
 
-func (cpn *CPN) Close() {
-	cpn.mu.Lock()
-	defer cpn.mu.Unlock()
+type CPNPool struct {
+	CPN CPN
 
-	if cpn.cancel == nil {
+	mu  sync.Mutex
+	cfs []context.CancelFunc
+}
+
+func (p *CPNPool) Start(n int) {
+	ctx, cancel := context.WithCancel(context.Background())
+	p.CPN.ListenAndServe(ctx)
+
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.cfs == nil {
+		p.cfs = make([]context.CancelFunc, n)
+	}
+
+	p.cfs = append(p.cfs, cancel)
+}
+
+func (p *CPNPool) Stop(n int) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.cfs == nil || len(p.cfs) == 0 {
 		return
 	}
 
-	cpn.cancel()
+	l := len(p.cfs)
+	if n > l {
+		n = l
+	}
+	size := l - n
+
+	for ; n > size; n-- {
+		p.cfs[n]()
+	}
+
+	p.cfs = append(p.cfs, p.cfs[:size]...)
+}
+
+func (p *CPNPool) Size() int {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.cfs == nil {
+		return 0
+	}
+
+	return len(p.cfs)
+}
+
+func (p *CPNPool) Close() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	for _, cf := range p.cfs {
+		cf()
+	}
 }

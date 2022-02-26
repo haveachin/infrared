@@ -88,12 +88,7 @@ func (sg ServerGateway) findServer(gatewayID, domain string) Server {
 func (sg ServerGateway) Start(srvChan <-chan ProcessedConn, poolChan chan<- ConnTunnel) {
 	sg.indexServers()
 
-	for {
-		pc, ok := <-srvChan
-		if !ok {
-			break
-		}
-
+	for pc := range srvChan {
 		keysAndValues := []interface{}{
 			"network", pc.LocalAddr().Network(),
 			"localAddr", pc.LocalAddr().String(),

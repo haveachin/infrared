@@ -10,7 +10,7 @@ import (
 type ProxyConfig interface {
 	LoadGateways() ([]Gateway, error)
 	LoadServers() ([]Server, error)
-	LoadCPNs() ([]CPN, error)
+	LoadCPN() (CPN, error)
 	LoadChanCaps() (ProxyChanCaps, error)
 }
 
@@ -21,13 +21,13 @@ type ProxyChanCaps struct {
 }
 
 type Proxy struct {
-	gateways      []Gateway
-	cpns          []CPN
-	serverGateway ServerGateway
-	connPool      ConnPool
 	cpnCh         chan net.Conn
 	srvCh         chan ProcessedConn
 	poolCh        chan ConnTunnel
+	gateways      []Gateway
+	cpnPool       CPNPool
+	serverGateway ServerGateway
+	connPool      ConnPool
 }
 
 func NewProxy(cfg ProxyConfig) (Proxy, error) {
@@ -36,7 +36,7 @@ func NewProxy(cfg ProxyConfig) (Proxy, error) {
 		return Proxy{}, err
 	}
 
-	cpns, err := cfg.LoadCPNs()
+	cpn, err := cfg.LoadCPN()
 	if err != nil {
 		return Proxy{}, err
 	}
@@ -53,7 +53,9 @@ func NewProxy(cfg ProxyConfig) (Proxy, error) {
 
 	return Proxy{
 		gateways: gateways,
-		cpns:     cpns,
+		cpnPool: CPNPool{
+			CPN: cpn,
+		},
 		serverGateway: ServerGateway{
 			Gateways: gateways,
 			Servers:  servers,
@@ -71,13 +73,11 @@ func (p Proxy) Start(log logr.Logger) {
 		go ListenAndServe(gw, p.cpnCh)
 	}
 
-	for _, cpn := range p.cpns {
-		cpn.Log = log
-		cpn.In = p.cpnCh
-		cpn.Out = p.srvCh
-		cpn.EventBus = event.DefaultBus
-		go cpn.ListenAndServe()
-	}
+	p.cpnPool.CPN.Log = log
+	p.cpnPool.CPN.In = p.cpnCh
+	p.cpnPool.CPN.Out = p.srvCh
+	p.cpnPool.CPN.EventBus = event.DefaultBus
+	p.cpnPool.Start(2)
 
 	p.connPool.Log = log
 	go p.connPool.Start(p.poolCh)

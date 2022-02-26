@@ -39,7 +39,7 @@ func TestCPN_ListenAndServe(t *testing.T) {
 			procDur: time.Millisecond,
 		},
 		{
-			name:    "ProcessConn_ConnTimeout",
+			name:    "ProcessConn_ConnTimesOut",
 			in:      mockConn(ctrl),
 			procDur: time.Millisecond * 2,
 			procErr: errors.New(""),
@@ -88,6 +88,10 @@ func TestCPN_ListenAndServe(t *testing.T) {
 				wg.Done()
 			}()
 			in <- tc.in
+
+			if !errors.Is(cpn.ListenAndServe(), infrared.ErrIsAlreadyRunning) {
+				t.Error("expected cpn to block")
+			}
 			cpn.Close()
 
 			if tc.out != nil {
