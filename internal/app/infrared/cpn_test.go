@@ -2,6 +2,7 @@
 package infrared_test
 
 import (
+	"context"
 	"errors"
 	"net"
 	"sync"
@@ -49,7 +50,7 @@ func TestCPN_ListenAndServe(t *testing.T) {
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
 			cp := NewMockConnProcessor(ctrl)
-			cp.EXPECT().GetClientTimeout().Times(1).Return(time.Duration(0))
+			cp.EXPECT().ClientTimeout().Times(1).Return(time.Duration(0))
 			cp.EXPECT().ProcessConn(tc.in).Times(1).Return(tc.out, tc.procErr)
 			bus := NewMockBus(ctrl)
 			bus.EXPECT().Push(infrared.PreConnProcessingEventTopic, gomock.Any()).
@@ -77,22 +78,15 @@ func TestCPN_ListenAndServe(t *testing.T) {
 				EventBus:      bus,
 			}
 
+			ctx, cancel := context.WithCancel(context.Background())
 			wg := sync.WaitGroup{}
 			wg.Add(1)
 			go func() {
-				if err := cpn.ListenAndServe(); err != nil {
-					if errors.Is(err, tc.err) {
-						t.Error(err)
-					}
-				}
+				cpn.ListenAndServe(ctx)
 				wg.Done()
 			}()
 			in <- tc.in
-
-			if !errors.Is(cpn.ListenAndServe(), infrared.ErrIsAlreadyRunning) {
-				t.Error("expected cpn to block")
-			}
-			cpn.Close()
+			cancel()
 
 			if tc.out != nil {
 				if <-out != tc.out {

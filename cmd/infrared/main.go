@@ -103,8 +103,8 @@ func main() {
 
 	logger.Info("starting proxy")
 
-	go bedrockProxy.Start(logger)
-	go javaProxy.Start(logger)
+	go bedrockProxy.ListenAndServe(logger)
+	go javaProxy.ListenAndServe(logger)
 
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)

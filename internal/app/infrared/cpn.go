@@ -28,43 +28,46 @@ type CPN struct {
 }
 
 func (cpn CPN) ListenAndServe(ctx context.Context) {
-	for c := range cpn.In {
-		keysAndValues := []interface{}{
-			"network", c.LocalAddr().Network(),
-			"localAddr", c.LocalAddr().String(),
-			"remoteAddr", c.RemoteAddr().String(),
-		}
-		cpn.Log.Info("starting to process connection", keysAndValues...)
-		cpn.EventBus.Push(PreConnProcessingEventTopic, keysAndValues)
-
-		c.SetDeadline(time.Now().Add(cpn.ClientTimeout()))
-		pc, err := cpn.ConnProcessor.ProcessConn(c)
-		if err != nil {
-			if errors.Is(err, os.ErrDeadlineExceeded) {
-				cpn.Log.Info("disconnecting connection; exceeded processing deadline", keysAndValues...)
-			} else {
-				cpn.Log.Error(err, "disconnecting connection; processing failed", keysAndValues...)
-			}
-			c.Close()
-			continue
-		}
-		c.SetDeadline(time.Time{})
-
-		keysAndValues = append(keysAndValues,
-			"serverAddr", pc.ServerAddr(),
-			"username", pc.Username(),
-			"gatewayId", pc.GatewayID(),
-			"isLoginRequest", pc.IsLoginRequest(),
-		)
-		cpn.Log.Info("sending client to server gateway", keysAndValues...)
-		cpn.EventBus.Push(PostConnProcessingEventTopic, keysAndValues)
-
-		cpn.Out <- pc
-
+	for {
 		select {
+		case c, ok := <-cpn.In:
+			if !ok {
+				return
+			}
+
+			keysAndValues := []interface{}{
+				"network", c.LocalAddr().Network(),
+				"localAddr", c.LocalAddr().String(),
+				"remoteAddr", c.RemoteAddr().String(),
+			}
+			cpn.Log.Info("starting to process connection", keysAndValues...)
+			cpn.EventBus.Push(PreConnProcessingEventTopic, keysAndValues)
+
+			c.SetDeadline(time.Now().Add(cpn.ClientTimeout()))
+			pc, err := cpn.ConnProcessor.ProcessConn(c)
+			if err != nil {
+				if errors.Is(err, os.ErrDeadlineExceeded) {
+					cpn.Log.Info("disconnecting connection; exceeded processing deadline", keysAndValues...)
+				} else {
+					cpn.Log.Error(err, "disconnecting connection; processing failed", keysAndValues...)
+				}
+				c.Close()
+				continue
+			}
+			c.SetDeadline(time.Time{})
+
+			keysAndValues = append(keysAndValues,
+				"serverAddr", pc.ServerAddr(),
+				"username", pc.Username(),
+				"gatewayId", pc.GatewayID(),
+				"isLoginRequest", pc.IsLoginRequest(),
+			)
+			cpn.Log.Info("sending client to server gateway", keysAndValues...)
+			cpn.EventBus.Push(PostConnProcessingEventTopic, keysAndValues)
+
+			cpn.Out <- pc
 		case <-ctx.Done():
 			return
-		default:
 		}
 	}
 }
@@ -76,22 +79,37 @@ type CPNPool struct {
 	cfs []context.CancelFunc
 }
 
-func (p *CPNPool) Start(n int) {
-	ctx, cancel := context.WithCancel(context.Background())
-	p.CPN.ListenAndServe(ctx)
-
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.cfs == nil {
-		p.cfs = make([]context.CancelFunc, n)
+func (p *CPNPool) SetSize(n int) {
+	if n < 0 {
+		n = 0
 	}
 
-	p.cfs = append(p.cfs, cancel)
-}
-
-func (p *CPNPool) Stop(n int) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+	len := len(p.cfs)
+	if len > n {
+		p.remove(len - n)
+	} else if len < n {
+		p.add(n - len)
+	}
+}
+
+func (p *CPNPool) add(n int) {
+	cfs := make([]context.CancelFunc, n)
+	for i := 0; i < n; i++ {
+		ctx, cancel := context.WithCancel(context.Background())
+		go p.CPN.ListenAndServe(ctx)
+		cfs[i] = cancel
+	}
+
+	if p.cfs == nil {
+		p.cfs = cfs
+	} else {
+		p.cfs = append(p.cfs, cfs...)
+	}
+}
+
+func (p *CPNPool) remove(n int) {
 	if p.cfs == nil || len(p.cfs) == 0 {
 		return
 	}
@@ -125,4 +143,5 @@ func (p *CPNPool) Close() {
 	for _, cf := range p.cfs {
 		cf()
 	}
+	p.cfs = nil
 }

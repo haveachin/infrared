@@ -58,29 +58,27 @@ func (cfg JavaProxyConfig) LoadServers() ([]infrared.Server, error) {
 	return servers, nil
 }
 
-func (cfg JavaProxyConfig) LoadCPNs() ([]infrared.CPN, error) {
-	var cpnCfg javaCpnConfig
-	if err := viper.UnmarshalKey("java.processingNodes", &cpnCfg); err != nil {
+func (cfg JavaProxyConfig) LoadConnProcessor() (infrared.ConnProcessor, error) {
+	var cpnCfg javaConnProcessorConfig
+	if err := viper.UnmarshalKey("java.processingNode", &cpnCfg); err != nil {
 		return nil, err
 	}
 
-	cpns := make([]infrared.CPN, cpnCfg.Count)
-	for n := range cpns {
-		cpns[n].ConnProcessor = java.ConnProcessor{
+	return &java.InfraredConnProcessor{
+		ConnProcessor: java.ConnProcessor{
 			ClientTimeout: cpnCfg.ClientTimeout,
-		}
-	}
-
-	return cpns, nil
+		},
+	}, nil
 }
 
-func (cfg JavaProxyConfig) LoadChanCaps() (infrared.ProxyChanCaps, error) {
+func (cfg JavaProxyConfig) LoadProxySettings() (infrared.ProxySettings, error) {
 	var chanCapsCfg javaChanCapsConfig
-	if err := viper.UnmarshalKey("java.chanCaps", &chanCapsCfg); err != nil {
-		return infrared.ProxyChanCaps{}, err
+	if err := viper.UnmarshalKey("java.chanCap", &chanCapsCfg); err != nil {
+		return infrared.ProxySettings{}, err
 	}
+	cpnCount := viper.GetInt("java.processingNode.count")
 
-	return newJavaChanCaps(chanCapsCfg), nil
+	return newJavaChanCaps(chanCapsCfg, cpnCount), nil
 }
 
 type javaServerConfig struct {
@@ -138,15 +136,15 @@ type javaGatewayConfig struct {
 	ServerNotFoundMessage string
 }
 
-type javaCpnConfig struct {
+type javaConnProcessorConfig struct {
 	Count         int
 	ClientTimeout time.Duration
 }
 
 type javaChanCapsConfig struct {
-	CPN      int
-	Server   int
-	ConnPool int
+	ConnProcessor int
+	Server        int
+	ConnPool      int
 }
 
 func newJavaListener(cfg javaListenerConfig) java.Listener {
@@ -231,11 +229,14 @@ func newJavaServerStatusPlayerSample(cfgs []javaServerStatusPlayerSampleConfig) 
 	return playerSamples
 }
 
-func newJavaChanCaps(cfg javaChanCapsConfig) infrared.ProxyChanCaps {
-	return infrared.ProxyChanCaps{
-		CPN:      cfg.CPN,
-		Server:   cfg.Server,
-		ConnPool: cfg.ConnPool,
+func newJavaChanCaps(cfg javaChanCapsConfig, cpnCount int) infrared.ProxySettings {
+	return infrared.ProxySettings{
+		CPNCount: cpnCount,
+		ChannelCaps: infrared.ProxyChannelCaps{
+			ConnProcessor: cfg.ConnProcessor,
+			Server:        cfg.Server,
+			ConnPool:      cfg.ConnPool,
+		},
 	}
 }
 

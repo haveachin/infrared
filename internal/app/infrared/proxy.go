@@ -10,74 +10,88 @@ import (
 type ProxyConfig interface {
 	LoadGateways() ([]Gateway, error)
 	LoadServers() ([]Server, error)
-	LoadCPN() (CPN, error)
-	LoadChanCaps() (ProxyChanCaps, error)
+	LoadConnProcessor() (ConnProcessor, error)
+	LoadProxySettings() (ProxySettings, error)
 }
 
-type ProxyChanCaps struct {
-	CPN      int
-	Server   int
-	ConnPool int
+type ProxyChannelCaps struct {
+	ConnProcessor int
+	Server        int
+	ConnPool      int
+}
+
+type ProxySettings struct {
+	ChannelCaps ProxyChannelCaps
+	CPNCount    int
 }
 
 type Proxy struct {
-	cpnCh         chan net.Conn
-	srvCh         chan ProcessedConn
-	poolCh        chan ConnTunnel
+	settings      ProxySettings
 	gateways      []Gateway
 	cpnPool       CPNPool
 	serverGateway ServerGateway
 	connPool      ConnPool
+	cpnCh         chan net.Conn
+	srvCh         chan ProcessedConn
+	poolCh        chan ConnTunnel
 }
 
 func NewProxy(cfg ProxyConfig) (Proxy, error) {
-	gateways, err := cfg.LoadGateways()
+	gws, err := cfg.LoadGateways()
 	if err != nil {
 		return Proxy{}, err
 	}
 
-	cpn, err := cfg.LoadCPN()
+	cp, err := cfg.LoadConnProcessor()
 	if err != nil {
 		return Proxy{}, err
 	}
 
-	servers, err := cfg.LoadServers()
+	srvs, err := cfg.LoadServers()
 	if err != nil {
 		return Proxy{}, err
 	}
 
-	chanCaps, err := cfg.LoadChanCaps()
+	stg, err := cfg.LoadProxySettings()
 	if err != nil {
 		return Proxy{}, err
 	}
+
+	chCaps := stg.ChannelCaps
+	cpnCh := make(chan net.Conn, chCaps.ConnProcessor)
+	srvCh := make(chan ProcessedConn, chCaps.Server)
+	poolCh := make(chan ConnTunnel, chCaps.ConnPool)
 
 	return Proxy{
-		gateways: gateways,
+		settings: stg,
+		gateways: gws,
 		cpnPool: CPNPool{
-			CPN: cpn,
+			CPN: CPN{
+				ConnProcessor: cp,
+				In:            cpnCh,
+				Out:           srvCh,
+			},
 		},
 		serverGateway: ServerGateway{
-			Gateways: gateways,
-			Servers:  servers,
+			Gateways: gws,
+			Servers:  srvs,
 		},
 		connPool: ConnPool{},
-		cpnCh:    make(chan net.Conn, chanCaps.CPN),
-		srvCh:    make(chan ProcessedConn, chanCaps.Server),
-		poolCh:   make(chan ConnTunnel, chanCaps.ConnPool),
+		cpnCh:    cpnCh,
+		srvCh:    srvCh,
+		poolCh:   poolCh,
 	}, nil
 }
 
-func (p Proxy) Start(log logr.Logger) {
+func (p *Proxy) ListenAndServe(log logr.Logger) {
+	p.cpnPool.CPN.Log = log
+	p.cpnPool.CPN.EventBus = event.DefaultBus
+	p.cpnPool.SetSize(p.settings.CPNCount)
+
 	for _, gw := range p.gateways {
 		gw.SetLogger(log)
 		go ListenAndServe(gw, p.cpnCh)
 	}
-
-	p.cpnPool.CPN.Log = log
-	p.cpnPool.CPN.In = p.cpnCh
-	p.cpnPool.CPN.Out = p.srvCh
-	p.cpnPool.CPN.EventBus = event.DefaultBus
-	p.cpnPool.Start(2)
 
 	p.connPool.Log = log
 	go p.connPool.Start(p.poolCh)

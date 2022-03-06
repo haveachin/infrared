@@ -42,9 +42,8 @@ func (p *Plugin) Enable(api infrared.PluginAPI) error {
 }
 
 func (p Plugin) Disable() error {
-	for id, c := range p.eventChs {
+	for id := range p.eventChs {
 		p.eventBus.DetachRecipient(id)
-		close(c)
 	}
 
 	return nil

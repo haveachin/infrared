@@ -2,6 +2,7 @@ package java
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -85,7 +86,7 @@ type DialTimeoutStatusResponse struct {
 
 func (r DialTimeoutStatusResponse) ResponseJSON() (status.ResponseJSON, error) {
 	img64, err := loadImageAndEncodeToBase64String(r.IconPath)
-	if err != nil {
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		return status.ResponseJSON{}, err
 	}
 

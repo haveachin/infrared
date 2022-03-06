@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync"
 
 	"github.com/go-logr/logr"
 	"github.com/haveachin/infrared/pkg/event"
@@ -37,6 +38,7 @@ type ServerGateway struct {
 	Servers  []Server
 	Log      logr.Logger
 
+	mu         sync.Mutex
 	gwIDSrvIDs map[string][]string
 	// Gateway ID mapped to gateway
 	gws map[string]Gateway
@@ -47,6 +49,9 @@ type ServerGateway struct {
 }
 
 func (sg *ServerGateway) indexServers() {
+	sg.mu.Lock()
+	defer sg.mu.Unlock()
+
 	sg.gwIDSrvIDs = map[string][]string{}
 	sg.gws = map[string]Gateway{}
 	for _, gw := range sg.Gateways {
@@ -67,7 +72,7 @@ func (sg *ServerGateway) indexServers() {
 	}
 }
 
-func (sg ServerGateway) findServer(gatewayID, domain string) Server {
+func (sg *ServerGateway) findServer(gatewayID, domain string) Server {
 	domain = strings.ToLower(domain)
 	srvIDs := sg.gwIDSrvIDs[gatewayID]
 
@@ -85,7 +90,7 @@ func (sg ServerGateway) findServer(gatewayID, domain string) Server {
 	return srv
 }
 
-func (sg ServerGateway) Start(srvChan <-chan ProcessedConn, poolChan chan<- ConnTunnel) {
+func (sg *ServerGateway) Start(srvChan <-chan ProcessedConn, poolChan chan<- ConnTunnel) {
 	sg.indexServers()
 
 	for pc := range srvChan {

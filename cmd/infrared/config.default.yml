@@ -2,11 +2,11 @@ api:
   bind: 0.0.0.0:8080
 
 bedrock:
-  chanCaps:
-    cpn: 100
+  chanCap:
+    connProcessor: 100
     server: 100
     connPool: 10
-  processingNodes:
+  processingNode:
     count: 10
     clientTimeout: 100ms
   gateways:
@@ -24,11 +24,11 @@ bedrock:
         - mywebhook
 
 java:
-  chanCaps:
-    cpn: 100
+  chanCap:
+    connProcessor: 100
     server: 100
     connPool: 10
-  processingNodes:
+  processingNode:
     count: 10
     clientTimeout: 50ms
   gateways:

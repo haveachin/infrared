@@ -3,6 +3,7 @@ package java
 import (
 	"net"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/haveachin/infrared/internal/app/infrared"
@@ -11,12 +12,19 @@ import (
 	"github.com/pires/go-proxyproto"
 )
 
-type ConnProcessor struct {
-	ClientTimeout time.Duration
+type InfraredConnProcessor struct {
+	ConnProcessor
+	mu sync.RWMutex
 }
 
-func (cp ConnProcessor) GetClientTimeout() time.Duration {
-	return cp.ClientTimeout
+func (cp *InfraredConnProcessor) ClientTimeout() time.Duration {
+	cp.mu.RLock()
+	defer cp.mu.RUnlock()
+	return cp.ConnProcessor.ClientTimeout
+}
+
+type ConnProcessor struct {
+	ClientTimeout time.Duration
 }
 
 func (cp ConnProcessor) ProcessConn(c net.Conn) (infrared.ProcessedConn, error) {

@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync"
 
 	"github.com/go-logr/logr"
 	"github.com/sandertv/go-raknet"
+	"go.uber.org/multierr"
 )
 
 type PingStatus struct {
@@ -70,34 +72,49 @@ func (gw *Gateway) initListeners() {
 }
 
 type InfraredGateway struct {
-	Gateway
+	mu      sync.RWMutex
+	Gateway Gateway
 }
 
-func (gw InfraredGateway) ID() string {
+func (gw *InfraredGateway) ID() string {
+	gw.mu.RLock()
+	defer gw.mu.RUnlock()
 	return gw.Gateway.ID
 }
 
-func (gw InfraredGateway) ServerIDs() []string {
-	return gw.Gateway.ServerIDs
+func (gw *InfraredGateway) ServerIDs() []string {
+	gw.mu.RLock()
+	defer gw.mu.RUnlock()
+	srvIDs := make([]string, len(gw.Gateway.ServerIDs))
+	copy(srvIDs, gw.Gateway.ServerIDs)
+	return srvIDs
 }
 
 func (gw *InfraredGateway) SetLogger(log logr.Logger) {
+	gw.mu.Lock()
+	defer gw.mu.Unlock()
 	gw.Gateway.Log = log
 }
 
-func (gw InfraredGateway) Logger() logr.Logger {
+func (gw *InfraredGateway) Logger() logr.Logger {
+	gw.mu.RLock()
+	defer gw.mu.RUnlock()
 	return gw.Gateway.Log
 }
 
 func (gw *InfraredGateway) Listeners() []net.Listener {
-	if gw.listeners == nil {
-		gw.initListeners()
+	gw.mu.Lock()
+	defer gw.mu.Unlock()
+	if gw.Gateway.listeners == nil {
+		gw.Gateway.initListeners()
 	}
 
-	return gw.listeners
+	ll := make([]net.Listener, len(gw.Gateway.ServerIDs))
+	copy(ll, gw.Gateway.listeners)
+	return ll
 }
 
-func (gw InfraredGateway) WrapConn(c net.Conn, l net.Listener) net.Conn {
+func (gw *InfraredGateway) WrapConn(c net.Conn, l net.Listener) net.Conn {
 	listener := l.(*Listener)
 	return &Conn{
 		Conn:                  c.(*raknet.Conn),
@@ -108,10 +125,13 @@ func (gw InfraredGateway) WrapConn(c net.Conn, l net.Listener) net.Conn {
 }
 
 func (gw *InfraredGateway) Close() error {
-	for _, l := range gw.listeners {
+	gw.mu.RLock()
+	defer gw.mu.RUnlock()
+	var result error
+	for _, l := range gw.Gateway.listeners {
 		if err := l.Close(); err != nil {
-			return err
+			result = multierr.Append(result, err)
 		}
 	}
-	return nil
+	return result
 }

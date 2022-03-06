@@ -59,29 +59,26 @@ func (cfg BedrockProxyConfig) LoadServers() ([]infrared.Server, error) {
 	return servers, nil
 }
 
-func (cfg BedrockProxyConfig) LoadCPNs() ([]infrared.CPN, error) {
+func (cfg BedrockProxyConfig) LoadConnProcessor() (infrared.ConnProcessor, error) {
 	var cpnCfg bedrockCPNConfig
 	if err := viper.UnmarshalKey("bedrock.processingNodes", &cpnCfg); err != nil {
 		return nil, err
 	}
-
-	cpns := make([]infrared.CPN, cpnCfg.Count)
-	for n := range cpns {
-		cpns[n].ConnProcessor = bedrock.ConnProcessor{
+	return &bedrock.InfraredConnProcessor{
+		ConnProcessor: bedrock.ConnProcessor{
 			ClientTimeout: cpnCfg.ClientTimeout,
-		}
-	}
-
-	return cpns, nil
+		},
+	}, nil
 }
 
-func (cfg BedrockProxyConfig) LoadChanCaps() (infrared.ProxyChanCaps, error) {
+func (cfg BedrockProxyConfig) LoadProxySettings() (infrared.ProxySettings, error) {
 	var chanCapsCfg bedrockChanCapsConfig
-	if err := viper.UnmarshalKey("bedrock.chanCaps", &chanCapsCfg); err != nil {
-		return infrared.ProxyChanCaps{}, err
+	if err := viper.UnmarshalKey("bedrock.chanCap", &chanCapsCfg); err != nil {
+		return infrared.ProxySettings{}, err
 	}
+	cpnCount := viper.GetInt("bedrock.processingNode.count")
 
-	return newBedrockChanCaps(chanCapsCfg), nil
+	return newBedrockChanCaps(chanCapsCfg, cpnCount), nil
 }
 
 type bedrockPingStatusConfig struct {
@@ -122,9 +119,9 @@ type bedrockCPNConfig struct {
 }
 
 type bedrockChanCapsConfig struct {
-	CPN      int
-	Server   int
-	ConnPool int
+	ConnProcessor int
+	Server        int
+	ConnPool      int
 }
 
 func newBedrockPingStatus(cfg bedrockPingStatusConfig) bedrock.PingStatus {
@@ -185,11 +182,14 @@ func newBedrockServer(id string, cfg bedrockServerConfig) infrared.Server {
 	}
 }
 
-func newBedrockChanCaps(cfg bedrockChanCapsConfig) infrared.ProxyChanCaps {
-	return infrared.ProxyChanCaps{
-		CPN:      cfg.CPN,
-		Server:   cfg.Server,
-		ConnPool: cfg.ConnPool,
+func newBedrockChanCaps(cfg bedrockChanCapsConfig, cpnCount int) infrared.ProxySettings {
+	return infrared.ProxySettings{
+		CPNCount: cpnCount,
+		ChannelCaps: infrared.ProxyChannelCaps{
+			ConnProcessor: cfg.ConnProcessor,
+			Server:        cfg.Server,
+			ConnPool:      cfg.ConnPool,
+		},
 	}
 }
 

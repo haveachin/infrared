@@ -3,7 +3,7 @@ test:
 	go generate ./...
 	go test -race -timeout 30s ./...
 
-dev-run:
+run:
 	go run -race ./cmd/infrared -config-path=./configs/config.dev.yml -plugins-path=./plugins
 
 dev-build-docker:
