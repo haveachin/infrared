@@ -9,19 +9,29 @@ import (
 	"github.com/haveachin/infrared/pkg/event"
 )
 
+// Gateway is an interface representation of a Minecraft specifc Gateways implementation.
+// All methods need to be thread-safe
 type Gateway interface {
 	// GetID resturns the ID of the gateway
 	ID() string
 	// GetServerIDs returns the IDs of the servers
 	// that are registered in that gateway
 	ServerIDs() []string
+	// Sets the logr.Logger implementation of the Gateway
 	SetLogger(logr.Logger)
+	// Logger returns the logr.Logger implementation of the Gateway
 	Logger() logr.Logger
+	// Returns alls the listener that the Gateway has
 	Listeners() []net.Listener
+	// WrapConn extends the net.Conn interface with a implementation
+	// specific struct to append extra information to the connection
+	// and prepares it for processing
 	WrapConn(net.Conn, net.Listener) net.Conn
+	// Close closes all the underlying listeners
 	Close() error
 }
 
+// ListenAndServe starts the listening process of all listernes of a Gateway
 func ListenAndServe(gw Gateway, cpnChan chan<- net.Conn) {
 	logger := gw.Logger()
 	listeners := gw.Listeners()

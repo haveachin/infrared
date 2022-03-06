@@ -12,6 +12,7 @@ import (
 	"github.com/haveachin/infrared/pkg/event"
 )
 
+// ConnProcessor represents a
 type ConnProcessor interface {
 	ProcessConn(c net.Conn) (ProcessedConn, error)
 	ClientTimeout() time.Duration
