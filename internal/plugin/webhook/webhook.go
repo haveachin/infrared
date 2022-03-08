@@ -3,17 +3,17 @@ package webhook
 import (
 	"errors"
 
-	"github.com/go-logr/logr"
 	"github.com/gofrs/uuid"
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/pkg/event"
 	"github.com/haveachin/infrared/pkg/webhook"
+	"go.uber.org/zap"
 )
 
 type Plugin struct {
 	Webhooks []webhook.Webhook
 
-	log      logr.Logger
+	log      *zap.Logger
 	eventBus event.Bus
 	eventChs map[uuid.UUID]event.Channel
 	webhooks map[string]webhook.Webhook
@@ -61,10 +61,15 @@ func (p Plugin) start(ch event.Channel) {
 }
 
 func (p Plugin) handleEvent(e event.Event) {
+	return
+	if e.Data == nil {
+		return
+	}
+
 	data, ok := parseMap(e.Data)
 	if !ok {
 		p.log.Info("failed processing event data",
-			"eventTopic", e.Topic,
+			zap.String("eventTopic", e.Topic),
 		)
 		return
 	}
@@ -87,8 +92,9 @@ func (p Plugin) handleEvent(e event.Event) {
 		}
 
 		if err := wh.DispatchEvent(el); err != nil && !errors.Is(err, webhook.ErrEventTypeNotAllowed) {
-			p.log.Error(err, "dispatching webhook event",
-				"webhookId", id,
+			p.log.Error("dispatching webhook event",
+				zap.Error(err),
+				zap.String("webhookId", id),
 			)
 		}
 	}

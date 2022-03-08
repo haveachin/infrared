@@ -8,13 +8,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-logr/logr"
 	"github.com/haveachin/infrared/pkg/event"
+	"go.uber.org/zap"
 )
 
 // ConnProcessor represents a
 type ConnProcessor interface {
-	ProcessConn(c net.Conn) (ProcessedConn, error)
+	ProcessConn(c net.Conn) (net.Conn, error)
 	ClientTimeout() time.Duration
 }
 
@@ -23,7 +23,7 @@ type CPN struct {
 	ConnProcessor
 	In       <-chan net.Conn
 	Out      chan<- ProcessedConn
-	Log      logr.Logger
+	Logger   *zap.Logger
 	EventBus event.Bus
 }
 
@@ -35,37 +35,27 @@ func (cpn CPN) ListenAndServe(ctx context.Context) {
 				return
 			}
 
-			keysAndValues := []interface{}{
-				"network", c.LocalAddr().Network(),
-				"localAddr", c.LocalAddr().String(),
-				"remoteAddr", c.RemoteAddr().String(),
-			}
-			cpn.Log.Info("starting to process connection", keysAndValues...)
-			cpn.EventBus.Push(PreConnProcessingEventTopic, keysAndValues)
+			connLogger := cpn.Logger.With(logConn(c)...)
+			connLogger.Debug("starting to process connection")
+			cpn.EventBus.Push(PreConnProcessingEventTopic, c)
 
 			c.SetDeadline(time.Now().Add(cpn.ClientTimeout()))
 			pc, err := cpn.ConnProcessor.ProcessConn(c)
 			if err != nil {
 				if errors.Is(err, os.ErrDeadlineExceeded) {
-					cpn.Log.Info("disconnecting connection; exceeded processing deadline", keysAndValues...)
+					connLogger.Info("disconnecting connection; exceeded processing deadline")
 				} else {
-					cpn.Log.Error(err, "disconnecting connection; processing failed", keysAndValues...)
+					connLogger.Debug("disconnecting connection; processing failed", zap.Error(err))
 				}
 				c.Close()
 				continue
 			}
 			c.SetDeadline(time.Time{})
 
-			keysAndValues = append(keysAndValues,
-				"serverAddr", pc.ServerAddr(),
-				"username", pc.Username(),
-				"gatewayId", pc.GatewayID(),
-				"isLoginRequest", pc.IsLoginRequest(),
-			)
-			cpn.Log.Info("sending client to server gateway", keysAndValues...)
-			cpn.EventBus.Push(PostConnProcessingEventTopic, keysAndValues)
+			connLogger.Debug("sending client to server gateway")
+			cpn.EventBus.Push(PostConnProcessingEventTopic, c)
 
-			cpn.Out <- pc
+			cpn.Out <- pc.(ProcessedConn)
 		case <-ctx.Done():
 			return
 		}

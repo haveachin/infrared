@@ -4,7 +4,6 @@ import (
 	"net"
 	"time"
 
-	"github.com/go-logr/logr"
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/pires/go-proxyproto"
 	"github.com/sandertv/go-raknet"
@@ -19,7 +18,6 @@ type Server struct {
 	SendProxyProtocol  bool
 	DialTimeoutMessage string
 	WebhookIDs         []string
-	Log                logr.Logger
 }
 
 type InfraredServer struct {
@@ -38,10 +36,6 @@ func (s InfraredServer) WebhookIDs() []string {
 	return s.Server.WebhookIDs
 }
 
-func (s *InfraredServer) SetLogger(log logr.Logger) {
-	s.Server.Log = log
-}
-
 func (s InfraredServer) Dial() (*raknet.Conn, error) {
 	c, err := s.Dialer.DialTimeout(s.Address, s.DialTimeout)
 	if err != nil {
@@ -51,31 +45,28 @@ func (s InfraredServer) Dial() (*raknet.Conn, error) {
 	return c, nil
 }
 
-func (s InfraredServer) ProcessConn(c net.Conn) (infrared.ConnTunnel, error) {
+func (s InfraredServer) ProcessConn(c net.Conn) (net.Conn, error) {
 	pc := c.(*ProcessedConn)
 	rc, err := s.Dial()
 	if err != nil {
 		if err := s.handleDialTimeout(*pc); err != nil {
-			return infrared.ConnTunnel{}, err
+			return nil, err
 		}
-		return infrared.ConnTunnel{}, err
+		return nil, err
 	}
 
 	if s.SendProxyProtocol {
 		if err := writeProxyProtocolHeader(pc, rc); err != nil {
-			return infrared.ConnTunnel{}, err
+			return nil, err
 		}
 	}
 
 	if _, err := rc.Write(pc.readBytes); err != nil {
 		rc.Close()
-		return infrared.ConnTunnel{}, err
+		return nil, err
 	}
 
-	return infrared.ConnTunnel{
-		Conn:       pc,
-		RemoteConn: rc,
-	}, nil
+	return rc, nil
 }
 
 func (s InfraredServer) handleDialTimeout(c ProcessedConn) error {

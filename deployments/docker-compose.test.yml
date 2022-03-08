@@ -1,0 +1,30 @@
+version: "3"
+
+services:
+  infrared:
+    image: haveachin/infrared:dev
+    build:
+      context: ..
+      dockerfile: build/package/Dockerfile
+    container_name: infrared
+    restart: "no"
+    ports:
+      - 25565:25565/tcp
+      - 19132:19132/udp
+    volumes:
+      - ../configs:/infrared
+    networks:
+      - infrared
+    environment:
+      INFRARED_CONFIG_PATH: "/infrared/config.dev.yml"
+
+  minecraft-server:
+    image: itzg/minecraft-server:java17
+    container_name: minecraft-server
+    restart: "no"
+    environment:
+      EULA: "TRUE"
+
+networks:
+  infrared:
+    name: infrared

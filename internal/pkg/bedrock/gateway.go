@@ -6,9 +6,9 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/go-logr/logr"
 	"github.com/sandertv/go-raknet"
 	"go.uber.org/multierr"
+	"go.uber.org/zap"
 )
 
 type PingStatus struct {
@@ -49,7 +49,7 @@ type Gateway struct {
 	ID        string
 	Listeners []Listener
 	ServerIDs []string
-	Log       logr.Logger
+	Logger    *zap.Logger
 
 	listeners []net.Listener
 }
@@ -59,8 +59,9 @@ func (gw *Gateway) initListeners() {
 	for n, listener := range gw.Listeners {
 		l, err := raknet.Listen(listener.Bind)
 		if err != nil {
-			gw.Log.Info("unable to bind listener",
-				"address", listener.Bind,
+			gw.Logger.Error("unable to bind listener",
+				zap.Error(err),
+				zap.String("address", listener.Bind),
 			)
 			continue
 		}
@@ -90,16 +91,16 @@ func (gw *InfraredGateway) ServerIDs() []string {
 	return srvIDs
 }
 
-func (gw *InfraredGateway) SetLogger(log logr.Logger) {
+func (gw *InfraredGateway) SetLogger(log *zap.Logger) {
 	gw.mu.Lock()
 	defer gw.mu.Unlock()
-	gw.Gateway.Log = log
+	gw.Gateway.Logger = log
 }
 
-func (gw *InfraredGateway) Logger() logr.Logger {
+func (gw *InfraredGateway) Logger() *zap.Logger {
 	gw.mu.RLock()
 	defer gw.mu.RUnlock()
-	return gw.Gateway.Log
+	return gw.Gateway.Logger
 }
 
 func (gw *InfraredGateway) Listeners() []net.Listener {

@@ -3,8 +3,8 @@ package infrared
 import (
 	"net"
 
-	"github.com/go-logr/logr"
 	"github.com/haveachin/infrared/pkg/event"
+	"go.uber.org/zap"
 )
 
 type ProxyConfig interface {
@@ -83,23 +83,19 @@ func NewProxy(cfg ProxyConfig) (Proxy, error) {
 	}, nil
 }
 
-func (p *Proxy) ListenAndServe(log logr.Logger) {
-	p.cpnPool.CPN.Log = log
+func (p *Proxy) ListenAndServe(logger *zap.Logger) {
+	p.cpnPool.CPN.Logger = logger
 	p.cpnPool.CPN.EventBus = event.DefaultBus
 	p.cpnPool.SetSize(p.settings.CPNCount)
 
 	for _, gw := range p.gateways {
-		gw.SetLogger(log)
+		gw.SetLogger(logger)
 		go ListenAndServe(gw, p.cpnCh)
 	}
 
-	p.connPool.Log = log
+	p.connPool.Logger = logger
 	go p.connPool.Start(p.poolCh)
 
-	for _, srv := range p.serverGateway.Servers {
-		srv.SetLogger(log)
-	}
-
-	p.serverGateway.Log = log
+	p.serverGateway.Log = logger
 	p.serverGateway.Start(p.srvCh, p.poolCh)
 }

@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-logr/logr"
 	"github.com/golang/mock/gomock"
 	"github.com/haveachin/infrared/internal/app/infrared"
+	"go.uber.org/zap"
 )
 
 func mockProcessConn(ctrl *gomock.Controller) *MockProcessedConn {
@@ -74,7 +74,7 @@ func TestCPN_ListenAndServe(t *testing.T) {
 				ConnProcessor: cp,
 				In:            in,
 				Out:           out,
-				Log:           logr.Discard(),
+				Logger:           zap.NewNop(),
 				EventBus:      bus,
 			}
 

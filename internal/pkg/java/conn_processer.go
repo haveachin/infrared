@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol/handshaking"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol/login"
 	"github.com/pires/go-proxyproto"
@@ -27,7 +26,7 @@ type ConnProcessor struct {
 	ClientTimeout time.Duration
 }
 
-func (cp ConnProcessor) ProcessConn(c net.Conn) (infrared.ProcessedConn, error) {
+func (cp ConnProcessor) ProcessConn(c net.Conn) (net.Conn, error) {
 	pc := ProcessedConn{
 		Conn:       *c.(*Conn),
 		remoteAddr: c.RemoteAddr(),

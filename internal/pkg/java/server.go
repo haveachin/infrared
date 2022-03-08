@@ -9,7 +9,6 @@ import (
 
 	"github.com/pires/go-proxyproto"
 
-	"github.com/go-logr/logr"
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol/login"
@@ -27,7 +26,6 @@ type Server struct {
 	OverrideStatus     OverrideStatusResponse
 	DialTimeoutStatus  DialTimeoutStatusResponse
 	WebhookIDs         []string
-	Log                logr.Logger
 }
 
 type InfraredServer struct {
@@ -46,10 +44,6 @@ func (s InfraredServer) WebhookIDs() []string {
 	return s.Server.WebhookIDs
 }
 
-func (s *InfraredServer) SetLogger(log logr.Logger) {
-	s.Server.Log = log
-}
-
 func (s InfraredServer) Dial() (*Conn, error) {
 	c, err := s.Dialer.Dial("tcp", s.Address)
 	if err != nil {
@@ -63,19 +57,20 @@ func (s InfraredServer) Dial() (*Conn, error) {
 	}, nil
 }
 
-func (s InfraredServer) ProcessConn(c net.Conn) (infrared.ConnTunnel, error) {
+func (s InfraredServer) ProcessConn(c net.Conn) (net.Conn, error) {
 	pc := c.(*ProcessedConn)
 	rc, err := s.Dial()
 	if err != nil {
 		if err := s.handleDialTimeout(*pc); err != nil {
-			return infrared.ConnTunnel{}, err
+			return nil, err
 		}
-		return infrared.ConnTunnel{}, err
+		return nil, err
 	}
 
 	if s.SendProxyProtocol {
 		if err := writeProxyProtocolHeader(pc, rc); err != nil {
-			return infrared.ConnTunnel{}, err
+			rc.Close()
+			return nil, err
 		}
 	}
 
@@ -87,21 +82,18 @@ func (s InfraredServer) ProcessConn(c net.Conn) (infrared.ConnTunnel, error) {
 	// TODO: Cache server status response
 	if err := rc.WritePackets(pc.readPks...); err != nil {
 		rc.Close()
-		return infrared.ConnTunnel{}, err
+		return nil, err
 	}
 
 	if pc.handshake.IsStatusRequest() {
 		defer rc.Close()
 		if err := s.handleStatusPing(*pc, *rc); err != nil {
-			return infrared.ConnTunnel{}, err
+			return nil, err
 		}
-		return infrared.ConnTunnel{}, infrared.ErrClientStatusRequest
+		return nil, infrared.ErrClientStatusRequest
 	}
 
-	return infrared.ConnTunnel{
-		Conn:       pc,
-		RemoteConn: rc.Conn,
-	}, nil
+	return rc, nil
 }
 
 func (s InfraredServer) handleDialTimeoutStatusRequest(c ProcessedConn) error {

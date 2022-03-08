@@ -7,8 +7,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/go-logr/logr"
-	"github.com/go-logr/zapr"
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/internal/plugin/webhook"
 	"go.uber.org/zap"
@@ -48,46 +46,44 @@ func initFlags() {
 	flag.Parse()
 }
 
-var logger logr.Logger
+var logger *zap.Logger
 
 func init() {
 	initEnv()
 	initFlags()
 	initConfig()
-	initPlugins()
 
-	zapLog, err := zap.NewProduction()
+	var err error
+	logger, err = zap.NewProduction()
 	if err != nil {
 		log.Fatalf("Failed to init logger; err: %s", err)
 	}
-	logger = zapr.NewLogger(zapLog)
 }
 
 func main() {
-	logger.Info("loading proxy",
-		"configFile", configPath,
+	logger.Info("loading proxy from config",
+		zap.String("config", configPath),
 	)
 
 	bedrockProxy, err := infrared.NewProxy(&BedrockProxyConfig{})
 	if err != nil {
-		logger.Error(err, "failed to load proxy")
+		logger.Error("failed to load proxy", zap.Error(err))
 		return
 	}
 
 	javaProxy, err := infrared.NewProxy(&JavaProxyConfig{})
 	if err != nil {
-		logger.Error(err, "failed to load proxy")
+		logger.Error("failed to load proxy", zap.Error(err))
 		return
 	}
 
 	webhooks, err := LoadWebhooks()
 	if err != nil {
-		logger.Error(err, "failed to load webhooks")
+		logger.Error("failed to load webhooks", zap.Error(err))
 		return
 	}
 
 	pluginManager := infrared.PluginManager{
-		Proxies: []infrared.Proxy{bedrockProxy, javaProxy},
 		Plugins: []infrared.Plugin{
 			&webhook.Plugin{
 				Webhooks: webhooks,
@@ -97,7 +93,7 @@ func main() {
 	}
 
 	if err := pluginManager.EnablePlugins(); err != nil {
-		logger.Error(err, "failed to enable plugins")
+		logger.Error("failed to enable plugins", zap.Error(err))
 		return
 	}
 
@@ -110,5 +106,6 @@ func main() {
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
 	<-sc
 
+	logger.Info("disabeling plugins")
 	pluginManager.DisablePlugins()
 }

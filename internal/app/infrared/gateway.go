@@ -5,8 +5,8 @@ import (
 	"net"
 	"sync"
 
-	"github.com/go-logr/logr"
 	"github.com/haveachin/infrared/pkg/event"
+	"go.uber.org/zap"
 )
 
 // Gateway is an interface representation of a Minecraft specifc Gateways implementation.
@@ -18,9 +18,9 @@ type Gateway interface {
 	// that are registered in that gateway
 	ServerIDs() []string
 	// Sets the logr.Logger implementation of the Gateway
-	SetLogger(logr.Logger)
+	SetLogger(*zap.Logger)
 	// Logger returns the logr.Logger implementation of the Gateway
-	Logger() logr.Logger
+	Logger() *zap.Logger
 	// Returns alls the listener that the Gateway has
 	Listeners() []net.Listener
 	// WrapConn extends the net.Conn interface with a implementation
@@ -34,20 +34,14 @@ type Gateway interface {
 // ListenAndServe starts the listening process of all listernes of a Gateway
 func ListenAndServe(gw Gateway, cpnChan chan<- net.Conn) {
 	logger := gw.Logger()
-	listeners := gw.Listeners()
 	wg := sync.WaitGroup{}
-	wg.Add(len(listeners))
 
-	for _, listener := range listeners {
-		keysAndValues := []interface{}{
-			"network", listener.Addr().Network(),
-			"listenerAddr", listener.Addr().String(),
-			"test", "test",
-		}
-		logger.Info("starting to listen on", keysAndValues...)
+	for _, listener := range gw.Listeners() {
+		listenerLogger := logger.With(logListener(listener)...)
+		listenerLogger.Info("starting listener")
 
-		l := listener
-		go func() {
+		wg.Add(1)
+		go func(l net.Listener, logger *zap.Logger) {
 			for {
 				c, err := l.Accept()
 				if err != nil {
@@ -57,18 +51,13 @@ func ListenAndServe(gw Gateway, cpnChan chan<- net.Conn) {
 					continue
 				}
 
-				keysAndValues = append(keysAndValues,
-					"localAddr", c.LocalAddr().String(),
-					"remoteAddr", c.RemoteAddr().String(),
-					"gatewayId", gw.ID(),
-				)
-				logger.Info("accepting new connection", keysAndValues...)
-				event.Push(NewConnectionEventTopic, keysAndValues)
+				logger.Debug("accepting new connection", logConn(c)...)
+				event.Push(NewConnEventTopic, c)
 
 				cpnChan <- gw.WrapConn(c, l)
 			}
 			wg.Done()
-		}()
+		}(listener, listenerLogger)
 	}
 
 	wg.Wait()

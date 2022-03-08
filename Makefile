@@ -3,15 +3,12 @@ test:
 	go generate ./...
 	go test -race -timeout 30s ./...
 
+dev:
+	docker-compose -p infrared -f deployments/docker-compose.dev.yml up
+
 run:
-	go run -race ./cmd/infrared -config-path=./configs/config.dev.yml -plugins-path=./plugins
+	go run -race ./cmd/infrared -config-path=./configs/config.dev.yml
 
-dev-build-docker:
-	docker-compose -p infrared -f deployments/docker-compose.dev.yml build --no-cache --force-rm
-
-dev-run-docker:
-	docker-compose -p infrared -f deployments/docker-compose.dev.yml up --force-recreate --remove-orphans
-
-dev-docker:
-	make dev-build-docker
-	make dev-run-docker
+test-docker:
+	docker-compose -p infrared -f deployments/docker-compose.test.yml build --no-cache --force-rm
+	docker-compose -p infrared -f deployments/docker-compose.test.yml up --force-recreate --remove-orphans

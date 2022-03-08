@@ -7,8 +7,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/go-logr/logr"
 	"github.com/haveachin/infrared/pkg/event"
+	"go.uber.org/zap"
 )
 
 var ErrClientStatusRequest = errors.New("disconnect after status")
@@ -17,8 +17,7 @@ type Server interface {
 	ID() string
 	Domains() []string
 	WebhookIDs() []string
-	ProcessConn(c net.Conn) (ConnTunnel, error)
-	SetLogger(log logr.Logger)
+	ProcessConn(c net.Conn) (net.Conn, error)
 }
 
 func ExecuteServerMessageTemplate(msg string, pc ProcessedConn, s Server) string {
@@ -36,7 +35,7 @@ func ExecuteServerMessageTemplate(msg string, pc ProcessedConn, s Server) string
 type ServerGateway struct {
 	Gateways []Gateway
 	Servers  []Server
-	Log      logr.Logger
+	Log      *zap.Logger
 
 	mu         sync.Mutex
 	gwIDSrvIDs map[string][]string
@@ -94,55 +93,38 @@ func (sg *ServerGateway) Start(srvChan <-chan ProcessedConn, poolChan chan<- Con
 	sg.indexServers()
 
 	for pc := range srvChan {
-		keysAndValues := []interface{}{
-			"network", pc.LocalAddr().Network(),
-			"localAddr", pc.LocalAddr().String(),
-			"remoteAddr", pc.RemoteAddr().String(),
-			"serverAddr", pc.ServerAddr(),
-			"username", pc.Username(),
-			"gatewayId", pc.GatewayID(),
-			"isLoginRequest", pc.IsLoginRequest(),
-		}
-
-		sg.Log.Info("looking up server address", keysAndValues...)
+		pcLogger := sg.Log.With(logProcessedConn(pc)...)
+		pcLogger.Debug("looking up server address")
 
 		srv := sg.findServer(pc.GatewayID(), pc.ServerAddr())
 		if srv == nil {
-			sg.Log.Info("failed to find server; disconnecting client", keysAndValues)
+			pcLogger.Debug("failed to find server; disconnecting client")
 			_ = pc.DisconnectServerNotFound()
 			continue
 		}
 
-		keysAndValues = append(keysAndValues,
-			"serverId", srv.ID(),
-			"serverDomains", srv.Domains(),
-			"serverWebhookIds", srv.WebhookIDs(),
-		)
+		pcLogger = pcLogger.With(logServer(srv)...)
+		pcLogger.Info("starting to proxy connection")
+		event.Push(PreServerConnConnectingEventTopic, nil)
 
-		sg.Log.Info("starting proxy tunnel", keysAndValues...)
-		event.Push(PreServerConnConnectingEventTopic, keysAndValues)
-
-		ct, err := srv.ProcessConn(pc)
+		rc, err := srv.ProcessConn(pc)
 		if err != nil {
 			if errors.Is(err, ErrClientStatusRequest) {
-				sg.Log.Info("disconnecting client; was status request", keysAndValues...)
+				pcLogger.Info("disconnecting client; was status request")
 			} else {
-				sg.Log.Error(err, "failed to create proxy tunnel", keysAndValues...)
+				pcLogger.Info("failed to proxy client", zap.Error(err))
 			}
-			ct.Close()
+			pc.Close()
 			continue
 		}
 
-		keysAndValues = append(keysAndValues,
-			"serverLocalAddr", ct.RemoteConn.LocalAddr().String(),
-			"serverRemoteAddr", ct.RemoteConn.RemoteAddr().String(),
-		)
+		pcLogger.Debug("adding proxy tunnel to pool")
+		event.Push(ClientJoinEventTopic, nil)
 
-		sg.Log.Info("adding proxy tunnel to pool", keysAndValues...)
-		event.Push(ClientJoinEventTopic, keysAndValues)
-
-		ct.Metadata = keysAndValues
-		poolChan <- ct
+		poolChan <- ConnTunnel{
+			Conn:       pc,
+			RemoteConn: rc,
+		}
 	}
 }
 

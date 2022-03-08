@@ -1,16 +1,14 @@
 package infrared
 
 import (
-	"sync"
-
-	"github.com/go-logr/logr"
 	"github.com/haveachin/infrared/pkg/event"
 	"go.uber.org/multierr"
+	"go.uber.org/zap"
 )
 
 type PluginAPI interface {
 	EventBus() event.Bus
-	Logger() logr.Logger
+	Logger() *zap.Logger
 }
 
 type Plugin interface {
@@ -20,27 +18,22 @@ type Plugin interface {
 	Disable() error
 }
 
-type pluginManagerAPI struct {
-	mu sync.RWMutex
-	pm PluginManager
+type pluginAPI struct {
+	eventBus event.Bus
+	logger   *zap.Logger
 }
 
-func (api *pluginManagerAPI) EventBus() event.Bus {
-	api.mu.RLock()
-	defer api.mu.RUnlock()
-	return api.pm.EventBus
+func (api *pluginAPI) EventBus() event.Bus {
+	return api.eventBus
 }
 
-func (api *pluginManagerAPI) Logger() logr.Logger {
-	api.mu.RLock()
-	defer api.mu.RUnlock()
-	return api.pm.Log
+func (api *pluginAPI) Logger() *zap.Logger {
+	return api.logger
 }
 
 type PluginManager struct {
-	Proxies  []Proxy
 	Plugins  []Plugin
-	Log      logr.Logger
+	Log      *zap.Logger
 	EventBus event.Bus
 }
 
@@ -48,15 +41,20 @@ func (pm PluginManager) EnablePlugins() error {
 	if pm.EventBus == nil {
 		pm.EventBus = event.DefaultBus
 	}
-	api := &pluginManagerAPI{pm: pm}
 
 	var result error
 	for _, p := range pm.Plugins {
-		pm.Log.Info("loading plugin",
-			"pluginName", p.Name(),
-			"pluginVersion", p.Version(),
+		pluginLogger := pm.Log.With(
+			zap.String("pluginName", p.Name()),
+			zap.String("pluginVersion", p.Version()),
 		)
-		if err := p.Enable(api); err != nil {
+		api := pluginAPI{
+			eventBus: pm.EventBus,
+			logger:   pluginLogger,
+		}
+
+		pluginLogger.Info("loading plugin")
+		if err := p.Enable(&api); err != nil {
 			result = multierr.Append(result, err)
 		}
 	}

@@ -2,7 +2,6 @@ package java
 
 import (
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -42,7 +41,7 @@ func (r OverrideStatusResponse) ResponseJSON(resp status.ResponseJSON) (status.R
 	if r.IconPath != nil {
 		var err error
 		resp.Favicon, err = loadImageAndEncodeToBase64String(*r.IconPath)
-		if err != nil {
+		if err != nil && !os.IsNotExist(err) {
 			return status.ResponseJSON{}, err
 		}
 	}
@@ -86,7 +85,7 @@ type DialTimeoutStatusResponse struct {
 
 func (r DialTimeoutStatusResponse) ResponseJSON() (status.ResponseJSON, error) {
 	img64, err := loadImageAndEncodeToBase64String(r.IconPath)
-	if err != nil && !errors.Is(err, os.ErrNotExist) {
+	if err != nil && !os.IsNotExist(err) {
 		return status.ResponseJSON{}, err
 	}
 

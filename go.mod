@@ -3,8 +3,6 @@ module github.com/haveachin/infrared
 go 1.17
 
 require (
-	github.com/go-logr/logr v1.1.0
-	github.com/go-logr/zapr v1.1.0
 	github.com/gofrs/uuid v4.0.0+incompatible
 	github.com/golang-jwt/jwt/v4 v4.2.0
 	github.com/golang/mock v1.6.0
@@ -21,6 +19,7 @@ require (
 	github.com/magiconair/properties v1.8.5 // indirect
 	github.com/mitchellh/mapstructure v1.4.2 // indirect
 	github.com/pelletier/go-toml v1.9.4 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/spf13/afero v1.6.0 // indirect
 	github.com/spf13/cast v1.4.1 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect

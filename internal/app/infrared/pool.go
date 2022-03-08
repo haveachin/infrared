@@ -1,12 +1,12 @@
 package infrared
 
 import (
-	"github.com/go-logr/logr"
 	"github.com/haveachin/infrared/pkg/event"
+	"go.uber.org/zap"
 )
 
 type ConnPool struct {
-	Log logr.Logger
+	Logger *zap.Logger
 }
 
 func (cp *ConnPool) Start(poolChan <-chan ConnTunnel) {
@@ -16,11 +16,11 @@ func (cp *ConnPool) Start(poolChan <-chan ConnTunnel) {
 			break
 		}
 
-		cp.Log.Info("starting tunnel", ct.Metadata...)
+		cp.Logger.Info("starting tunnel", logConn(ct.Conn)...)
 
 		go func() {
 			ct.Start()
-			cp.Log.Info("disconnecting client", ct.Metadata...)
+			cp.Logger.Info("disconnecting client", logConn(ct.Conn)...)
 			event.Push(ClientLeaveEventTopic, ct.Metadata)
 		}()
 	}
