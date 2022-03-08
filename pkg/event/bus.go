@@ -177,7 +177,8 @@ func newWorker(id uuid.UUID, fn Handler) worker {
 
 func (w *worker) close() {
 	close(w.in)
-	close(w.out)
+	for range w.in {
+	}
 }
 
 func (w *worker) publish() {
@@ -193,6 +194,7 @@ func (w *worker) process() {
 	for n := range w.out {
 		w.fn(n)
 	}
+	close(w.out)
 }
 
 func (w *worker) push(n Event) {
