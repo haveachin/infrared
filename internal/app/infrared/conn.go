@@ -43,28 +43,31 @@ func ExecuteMessageTemplate(msg string, pc ProcessedConn) string {
 	return msg
 }
 
+type ServerConnector interface {
+}
+
 // ConnTunnel is a proxy tunnel between a a client and a server.
 // Similar to net.Pipe
 type ConnTunnel struct {
-	Conn       ProcessedConn
-	RemoteConn net.Conn
-	Metadata   []interface{}
+	Conn   ProcessedConn
+	Server Server
 }
 
 // Start starts the proxing of the tunnel
-func (t ConnTunnel) Start() {
-	defer t.Close()
+func (ct ConnTunnel) ProcessConn() error {
+	rc, err := ct.Server.ProcessConn(ct.Conn)
+	if err != nil {
+		return err
+	}
+	defer rc.Close()
+	defer ct.Conn.Close()
 
-	go io.Copy(t.Conn, t.RemoteConn)
-	io.Copy(t.RemoteConn, t.Conn)
+	go io.Copy(ct.Conn, rc)
+	_, err = io.Copy(rc, ct.Conn)
+	return err
 }
 
-// Close closes both connections in the tunnel
-func (t ConnTunnel) Close() {
-	if t.Conn != nil {
-		_ = t.Conn.Close()
-	}
-	if t.RemoteConn != nil {
-		_ = t.RemoteConn.Close()
-	}
+// Close the proxy tunnel
+func (ct ConnTunnel) Close() error {
+	return ct.Conn.Close()
 }

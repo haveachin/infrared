@@ -107,23 +107,9 @@ func (sg *ServerGateway) Start(srvChan <-chan ProcessedConn, poolChan chan<- Con
 		pcLogger.Info("starting to proxy connection")
 		event.Push(PreServerConnConnectingEventTopic, nil)
 
-		rc, err := srv.ProcessConn(pc)
-		if err != nil {
-			if errors.Is(err, ErrClientStatusRequest) {
-				pcLogger.Info("disconnecting client; was status request")
-			} else {
-				pcLogger.Info("failed to proxy client", zap.Error(err))
-			}
-			pc.Close()
-			continue
-		}
-
-		pcLogger.Debug("adding proxy tunnel to pool")
-		event.Push(ClientJoinEventTopic, nil)
-
 		poolChan <- ConnTunnel{
-			Conn:       pc,
-			RemoteConn: rc,
+			Conn:   pc,
+			Server: srv,
 		}
 	}
 }

@@ -2,7 +2,10 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"errors"
+	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -77,4 +80,24 @@ func newWebhook(id string, cfg webhookConfig) webhook.Webhook {
 		URL:               cfg.URL,
 		AllowedEventTypes: cfg.Events,
 	}
+}
+
+func loadImageAndEncodeToBase64String(path string) (string, error) {
+	if path == "" {
+		return "", nil
+	}
+
+	imgFile, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer imgFile.Close()
+
+	bb, err := io.ReadAll(imgFile)
+	if err != nil {
+		return "", err
+	}
+	img64 := base64.StdEncoding.EncodeToString(bb)
+
+	return fmt.Sprintf("data:image/png;base64,%s", img64), nil
 }

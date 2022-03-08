@@ -44,11 +44,7 @@ func (gw *Gateway) initListeners() {
 		gw.Listeners[n].Listener = l
 		gw.listeners[n] = &gw.Listeners[n]
 
-		rJSON, err := listener.ServerNotFoundStatus.ResponseJSON()
-		if err != nil {
-			continue
-		}
-
+		rJSON := listener.ServerNotFoundStatus.ResponseJSON()
 		bb, err := json.Marshal(rJSON)
 		if err != nil {
 			continue

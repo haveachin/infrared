@@ -16,12 +16,21 @@ func (cp *ConnPool) Start(poolChan <-chan ConnTunnel) {
 			break
 		}
 
-		cp.Logger.Info("starting tunnel", logConn(ct.Conn)...)
+		connLogger := cp.Logger.With(logProcessedConn(ct.Conn)...)
+		connLogger.Info("starting server processing")
 
-		go func() {
-			ct.Start()
-			cp.Logger.Info("disconnecting client", logConn(ct.Conn)...)
-			event.Push(ClientLeaveEventTopic, ct.Metadata)
-		}()
+		go func(logger *zap.Logger) {
+			if ct.Conn.IsLoginRequest() {
+				event.Push(ClientJoinEventTopic, nil)
+			}
+
+			if err := ct.ProcessConn(); err != nil {
+				logger.Debug("failed to process client", zap.Error(err))
+				return
+			}
+
+			logger.Info("disconnecting client")
+			event.Push(ClientLeaveEventTopic, nil)
+		}(connLogger)
 	}
 }

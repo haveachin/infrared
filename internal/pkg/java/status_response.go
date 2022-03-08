@@ -1,11 +1,6 @@
 package java
 
 import (
-	"encoding/base64"
-	"fmt"
-	"io"
-	"os"
-
 	"github.com/haveachin/infrared/internal/pkg/java/protocol/status"
 )
 
@@ -33,17 +28,13 @@ type OverrideStatusResponse struct {
 	MaxPlayerCount *int
 	PlayerCount    *int
 	PlayerSamples  PlayerSamples
-	IconPath       *string
+	Icon           *string
 	MOTD           *string
 }
 
-func (r OverrideStatusResponse) ResponseJSON(resp status.ResponseJSON) (status.ResponseJSON, error) {
-	if r.IconPath != nil {
-		var err error
-		resp.Favicon, err = loadImageAndEncodeToBase64String(*r.IconPath)
-		if err != nil && !os.IsNotExist(err) {
-			return status.ResponseJSON{}, err
-		}
+func (r OverrideStatusResponse) ResponseJSON(resp status.ResponseJSON) status.ResponseJSON {
+	if r.Icon != nil {
+		resp.Favicon = *r.Icon
 	}
 
 	if r.VersionName != nil {
@@ -70,7 +61,7 @@ func (r OverrideStatusResponse) ResponseJSON(resp status.ResponseJSON) (status.R
 		resp.Description = status.DescriptionJSON{Text: *r.MOTD}
 	}
 
-	return resp, nil
+	return resp
 }
 
 type DialTimeoutStatusResponse struct {
@@ -79,16 +70,11 @@ type DialTimeoutStatusResponse struct {
 	MaxPlayerCount int
 	PlayerCount    int
 	PlayerSamples  PlayerSamples
-	IconPath       string
+	Icon           string
 	MOTD           string
 }
 
-func (r DialTimeoutStatusResponse) ResponseJSON() (status.ResponseJSON, error) {
-	img64, err := loadImageAndEncodeToBase64String(r.IconPath)
-	if err != nil && !os.IsNotExist(err) {
-		return status.ResponseJSON{}, err
-	}
-
+func (r DialTimeoutStatusResponse) ResponseJSON() status.ResponseJSON {
 	return status.ResponseJSON{
 		Version: status.VersionJSON{
 			Name:     r.VersionName,
@@ -99,29 +85,9 @@ func (r DialTimeoutStatusResponse) ResponseJSON() (status.ResponseJSON, error) {
 			Online: r.PlayerCount,
 			Sample: r.PlayerSamples.PlayerSampleJSON(),
 		},
-		Favicon: img64,
+		Favicon: r.Icon,
 		Description: status.DescriptionJSON{
 			Text: r.MOTD,
 		},
-	}, nil
-}
-
-func loadImageAndEncodeToBase64String(path string) (string, error) {
-	if path == "" {
-		return "", nil
 	}
-
-	imgFile, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer imgFile.Close()
-
-	bb, err := io.ReadAll(imgFile)
-	if err != nil {
-		return "", err
-	}
-	img64 := base64.StdEncoding.EncodeToString(bb)
-
-	return fmt.Sprintf("data:image/png;base64,%s", img64), nil
 }

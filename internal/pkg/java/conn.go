@@ -135,17 +135,27 @@ func (pc ProcessedConn) IsLoginRequest() bool {
 func (pc ProcessedConn) DisconnectServerNotFound() error {
 	defer pc.Close()
 
-	var pk protocol.Packet
 	if pc.handshake.IsLoginRequest() {
 		msg := infrared.ExecuteMessageTemplate(pc.serverNotFoundMessage, &pc)
-		pk = login.ClientBoundDisconnect{
+		pk := login.ClientBoundDisconnect{
 			Reason: protocol.Chat(fmt.Sprintf("{\"text\":\"%s\"}", msg)),
 		}.Marshal()
-	} else {
-		msg := infrared.ExecuteMessageTemplate(pc.serverNotFoundStatusJSON, &pc)
-		pk = status.ClientBoundResponse{
-			JSONResponse: protocol.String(msg),
-		}.Marshal()
+		return pc.WritePacket(pk)
 	}
-	return pc.WritePackets(pk, pc.readPks[1])
+
+	msg := infrared.ExecuteMessageTemplate(pc.serverNotFoundStatusJSON, &pc)
+	pk := status.ClientBoundResponse{
+		JSONResponse: protocol.String(msg),
+	}.Marshal()
+
+	if err := pc.WritePacket(pk); err != nil {
+		return err
+	}
+
+	ping, err := pc.ReadPacket()
+	if err != nil {
+		return err
+	}
+
+	return pc.WritePacket(ping)
 }

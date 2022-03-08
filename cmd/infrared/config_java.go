@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"time"
@@ -52,7 +53,11 @@ func (cfg JavaProxyConfig) LoadServers() ([]infrared.Server, error) {
 		if err := vpr.Unmarshal(&cfg); err != nil {
 			return nil, err
 		}
-		servers = append(servers, newJavaServer(id, cfg))
+		srv, err := newJavaServer(id, cfg)
+		if err != nil {
+			return nil, err
+		}
+		servers = append(servers, srv)
 	}
 
 	return servers, nil
@@ -147,14 +152,19 @@ type javaChanCapsConfig struct {
 	ConnPool      int
 }
 
-func newJavaListener(cfg javaListenerConfig) java.Listener {
+func newJavaListener(cfg javaListenerConfig) (java.Listener, error) {
+	status, err := newJavaDialTimeoutServerStatus(cfg.ServerNotFoundStatus)
+	if err != nil {
+		return java.Listener{}, err
+	}
+
 	return java.Listener{
 		Bind:                  cfg.Bind,
 		ReceiveProxyProtocol:  cfg.ReceiveProxyProtocol,
 		ReceiveRealIP:         cfg.ReceiveRealIP,
 		ServerNotFoundMessage: cfg.ServerNotFoundMessage,
-		ServerNotFoundStatus:  newJavaDialTimeoutServerStatus(cfg.ServerNotFoundStatus),
-	}
+		ServerNotFoundStatus:  status,
+	}, nil
 }
 
 func newJavaGateway(id string, cfg javaGatewayConfig) (infrared.Gateway, error) {
@@ -172,7 +182,23 @@ func newJavaGateway(id string, cfg javaGatewayConfig) (infrared.Gateway, error) 
 	}, nil
 }
 
-func newJavaServer(id string, cfg javaServerConfig) infrared.Server {
+func newJavaServer(id string, cfg javaServerConfig) (infrared.Server, error) {
+	overrideStatus, err := newJavaOverrideServerStatus(cfg.OverrideStatus)
+	if err != nil {
+		return nil, err
+	}
+
+	dialTimeoutStatus, err := newJavaDialTimeoutServerStatus(cfg.DialTimeoutStatus)
+	if err != nil {
+		return nil, err
+	}
+
+	respJSON := dialTimeoutStatus.ResponseJSON()
+	bb, err := json.Marshal(respJSON)
+	if err != nil {
+		return nil, err
+	}
+
 	return &java.InfraredServer{
 		Server: java.Server{
 			ID:      id,
@@ -183,39 +209,52 @@ func newJavaServer(id string, cfg javaServerConfig) infrared.Server {
 					IP: net.ParseIP(cfg.ProxyBind),
 				},
 			},
-			Address:            cfg.Address,
-			SendProxyProtocol:  cfg.SendProxyProtocol,
-			SendRealIP:         cfg.SendRealIP,
-			DialTimeoutMessage: cfg.DialTimeoutMessage,
-			OverrideStatus:     newJavaOverrideServerStatus(cfg.OverrideStatus),
-			DialTimeoutStatus:  newJavaDialTimeoutServerStatus(cfg.DialTimeoutStatus),
-			WebhookIDs:         cfg.Webhooks,
+			Addr:                  cfg.Address,
+			SendProxyProtocol:     cfg.SendProxyProtocol,
+			SendRealIP:            cfg.SendRealIP,
+			DialTimeoutMessage:    cfg.DialTimeoutMessage,
+			OverrideStatus:        overrideStatus,
+			DialTimeoutStatusJSON: string(bb),
+			WebhookIDs:            cfg.Webhooks,
 		},
-	}
+	}, nil
 }
 
-func newJavaOverrideServerStatus(cfg javaOverrideServerStatusConfig) java.OverrideStatusResponse {
+func newJavaOverrideServerStatus(cfg javaOverrideServerStatusConfig) (java.OverrideStatusResponse, error) {
+	var icon string
+	if cfg.IconPath != nil {
+		var err error
+		icon, err = loadImageAndEncodeToBase64String(*cfg.IconPath)
+		if err != nil {
+			return java.OverrideStatusResponse{}, err
+		}
+	}
+
 	return java.OverrideStatusResponse{
 		VersionName:    cfg.VersionName,
 		ProtocolNumber: cfg.ProtocolNumber,
 		MaxPlayerCount: cfg.MaxPlayerCount,
 		PlayerCount:    cfg.PlayerCount,
-		IconPath:       cfg.IconPath,
+		Icon:           &icon,
 		MOTD:           cfg.MOTD,
 		PlayerSamples:  newJavaServerStatusPlayerSample(cfg.PlayerSample),
-	}
+	}, nil
 }
 
-func newJavaDialTimeoutServerStatus(cfg javaDialTimeoutServerStatusConfig) java.DialTimeoutStatusResponse {
+func newJavaDialTimeoutServerStatus(cfg javaDialTimeoutServerStatusConfig) (java.DialTimeoutStatusResponse, error) {
+	icon, err := loadImageAndEncodeToBase64String(cfg.IconPath)
+	if err != nil {
+		return java.DialTimeoutStatusResponse{}, err
+	}
 	return java.DialTimeoutStatusResponse{
 		VersionName:    cfg.VersionName,
 		ProtocolNumber: cfg.ProtocolNumber,
 		MaxPlayerCount: cfg.MaxPlayerCount,
 		PlayerCount:    cfg.PlayerCount,
-		IconPath:       cfg.IconPath,
+		Icon:           icon,
 		MOTD:           cfg.MOTD,
 		PlayerSamples:  newJavaServerStatusPlayerSample(cfg.PlayerSample),
-	}
+	}, nil
 }
 
 func newJavaServerStatusPlayerSample(cfgs []javaServerStatusPlayerSampleConfig) []java.PlayerSample {
@@ -262,7 +301,11 @@ func loadJavaListeners(gatewayID string) ([]java.Listener, error) {
 		if err := vpr.Unmarshal(&cfg); err != nil {
 			return nil, err
 		}
-		listeners[n] = newJavaListener(cfg)
+		var err error
+		listeners[n], err = newJavaListener(cfg)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return listeners, nil
 }
