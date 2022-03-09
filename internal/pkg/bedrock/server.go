@@ -45,7 +45,7 @@ func (s InfraredServer) Dial() (*raknet.Conn, error) {
 	return c, nil
 }
 
-func (s InfraredServer) ProcessConn(c net.Conn) (net.Conn, error) {
+func (s InfraredServer) HandleConn(c net.Conn) (net.Conn, error) {
 	pc := c.(*ProcessedConn)
 	rc, err := s.Dial()
 	if err != nil {

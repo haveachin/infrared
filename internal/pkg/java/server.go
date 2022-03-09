@@ -60,7 +60,7 @@ func (s InfraredServer) Dial() (*Conn, error) {
 	}, nil
 }
 
-func (s InfraredServer) ProcessConn(c net.Conn) (net.Conn, error) {
+func (s InfraredServer) HandleConn(c net.Conn) (net.Conn, error) {
 	pc := c.(*ProcessedConn)
 	rc, err := s.Dial()
 	if err != nil {
@@ -72,7 +72,8 @@ func (s InfraredServer) ProcessConn(c net.Conn) (net.Conn, error) {
 
 	if s.Server.SendProxyProtocol {
 		if err := writeProxyProtocolHeader(pc, rc); err != nil {
-			return nil, rc.Close()
+			defer rc.Close()
+			return nil, err
 		}
 	}
 
@@ -81,16 +82,18 @@ func (s InfraredServer) ProcessConn(c net.Conn) (net.Conn, error) {
 		pc.readPks[0] = pc.handshake.Marshal()
 	}
 
+	// Sends the handshake and the request or login packet to the server
+	if err := rc.WritePackets(pc.readPks...); err != nil {
+		defer rc.Close()
+		return nil, err
+	}
+
 	if pc.handshake.IsStatusRequest() {
 		defer rc.Close()
-		if err := s.handleStatusPing(*pc, *rc); err != nil {
+		if err := s.handleStatusPing(pc, rc); err != nil {
 			return nil, err
 		}
 		return nil, infrared.ErrClientStatusRequest
-	}
-
-	if err := rc.WritePackets(pc.readPks...); err != nil {
-		return nil, rc.Close()
 	}
 
 	return rc, nil
@@ -133,7 +136,7 @@ func (s InfraredServer) handleDialTimeout(c *ProcessedConn) error {
 	return s.handleDialTimeoutLoginRequest(c)
 }
 
-func (s InfraredServer) handleStatusPing(pc ProcessedConn, rc Conn) error {
+func (s InfraredServer) handleStatusPing(pc *ProcessedConn, rc *Conn) error {
 	if err := s.overrideStatusResponse(pc, rc); err != nil {
 		return err
 	}
@@ -146,11 +149,7 @@ func (s InfraredServer) handleStatusPing(pc ProcessedConn, rc Conn) error {
 	return pc.WritePacket(ping)
 }
 
-func (s InfraredServer) overrideStatusResponse(pc ProcessedConn, rc Conn) error {
-	if err := rc.WritePacket(pc.readPks[0]); err != nil {
-		return err
-	}
-
+func (s InfraredServer) overrideStatusResponse(pc *ProcessedConn, rc *Conn) error {
 	pk, err := rc.ReadPacket()
 	if err != nil {
 		return err

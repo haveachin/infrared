@@ -44,7 +44,7 @@ java:
       address: your-server-address:25565
       overrideStatus:
         versionName: Infrared
-        iconPath: ./icon.png
+#       iconPath: ./icon.png
         maxPlayerCount: 777777777
         playerCount: 2
         playerSample:
@@ -90,7 +90,7 @@ defaults:
           protocolNumber: 0
           maxPlayerCount: 0
           playerCount: 0
-          iconPath: ./icon.png
+#         iconPath: ./icon.png
           motd: |
             Infrared 2.0
             {{serverDomain}} was not found.
@@ -102,7 +102,7 @@ defaults:
         protocolNumber: 0
         maxPlayerCount: 0
         playerCount: 0
-        iconPath: ./icon.png
+#       iconPath: ./icon.png
         motd: |
           Infrared 2.0
           {{serverDomain}} is not reachable.

@@ -55,7 +55,7 @@ type ConnTunnel struct {
 
 // Start starts the proxing of the tunnel
 func (ct ConnTunnel) ProcessConn() error {
-	rc, err := ct.Server.ProcessConn(ct.Conn)
+	rc, err := ct.Server.HandleConn(ct.Conn)
 	if err != nil {
 		return err
 	}
