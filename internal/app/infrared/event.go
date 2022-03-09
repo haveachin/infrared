@@ -1,20 +1,39 @@
 package infrared
 
-import "net"
-
 const (
 	NewConnEventTopic                  = "NewConn"
 	PreConnProcessingEventTopic        = "PreConnProcessing"
 	PostConnProcessingEventTopic       = "PostConnProcessing"
-	PreServerConnConnectingEventTopic  = "PreServerConnConnecting"
+	PreConnConnectingEventTopic        = "PreConnConnecting"
 	PostServerConnConnectingEventTopic = "PostServerConnConnecting"
 
-	ClientJoinEventTopic  = "PlayerJoin"
-	ClientLeaveEventTopic = "PlayerLeave"
+	PlayerJoinEventTopic  = "PlayerJoin"
+	PlayerLeaveEventTopic = "PlayerLeave"
 )
 
-type NewConnectionEvent struct {
-	Gateway  Gateway
-	Listener net.Listener
-	Conn     net.Conn
+type NewConnEvent struct {
+	Conn Conn
+}
+
+type PreConnProcessingEvent struct {
+	Conn Conn
+}
+
+type PostConnProcessingEvent struct {
+	ProcessedConn ProcessedConn
+}
+
+type PreConnConnectingEvent struct {
+	ProcessedConn ProcessedConn
+	Server        Server
+}
+
+type PlayerJoinEvent struct {
+	ProcessedConn ProcessedConn
+	Server        Server
+}
+
+type PlayerLeaveEvent struct {
+	ProcessedConn ProcessedConn
+	Server        Server
 }

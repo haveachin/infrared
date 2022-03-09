@@ -53,12 +53,15 @@ java:
           - name: Alex
             uuid: ec561538-f3fd-461d-aff5-086b22154bce
 
-webhooks:
-  mywebhook:
-    url: https://your-domain.com/callback
-    events:
-      - PlayerJoin
-      - PlayerLeave
+java:
+  webhooks:
+    mywebhook:
+      gatewayIds:
+        - mygateway
+      url: https://your-domain.com/callback
+      events:
+        - PlayerJoin
+        - PlayerLeave
 
 # These are default values that can be overridden
 defaults:

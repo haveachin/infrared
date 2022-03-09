@@ -1,8 +1,6 @@
 package infrared
 
 import (
-	"net"
-
 	"github.com/haveachin/infrared/pkg/event"
 	"go.uber.org/zap"
 )
@@ -31,7 +29,7 @@ type Proxy struct {
 	cpnPool       CPNPool
 	serverGateway ServerGateway
 	connPool      ConnPool
-	cpnCh         chan net.Conn
+	cpnCh         chan Conn
 	srvCh         chan ProcessedConn
 	poolCh        chan ConnTunnel
 }
@@ -58,7 +56,7 @@ func NewProxy(cfg ProxyConfig) (Proxy, error) {
 	}
 
 	chCaps := stg.ChannelCaps
-	cpnCh := make(chan net.Conn, chCaps.ConnProcessor)
+	cpnCh := make(chan Conn, chCaps.ConnProcessor)
 	srvCh := make(chan ProcessedConn, chCaps.Server)
 	poolCh := make(chan ConnTunnel, chCaps.ConnPool)
 

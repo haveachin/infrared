@@ -51,8 +51,8 @@ func (p Plugin) Disable() error {
 
 func (p Plugin) start(ch event.Channel) {
 	p.webhooks = map[string]webhook.Webhook{}
-	for _, h := range p.Webhooks {
-		p.webhooks[h.ID] = h
+	for _, wh := range p.Webhooks {
+		p.webhooks[wh.ID] = wh
 	}
 
 	for e := range ch {
@@ -60,17 +60,43 @@ func (p Plugin) start(ch event.Channel) {
 	}
 }
 
-func (p Plugin) handleEvent(e event.Event) {
-	return
-	if e.Data == nil {
-		return
-	}
+func mapConn(data map[string]interface{}, c infrared.Conn) {
+	data["connNetwork"] = c.LocalAddr().Network()
+	data["connLocalAddr"] = c.LocalAddr().String()
+	data["connRemoteAddr"] = c.LocalAddr().String()
+	data["gatewayId"] = c.LocalAddr().String()
+}
 
-	data, ok := parseMap(e.Data)
-	if !ok {
-		p.log.Info("failed processing event data",
-			zap.String("eventTopic", e.Topic),
-		)
+func mapProcessedConn(data map[string]interface{}, pc infrared.ProcessedConn) {
+	mapConn(data, pc)
+	data["requestedServerAddr"] = pc.ServerAddr()
+	data["username"] = pc.Username()
+	data["isLoginRequest"] = pc.IsLoginRequest()
+}
+
+func mapServer(data map[string]interface{}, s infrared.Server) {
+	data["serverId"] = s.ID()
+}
+
+func (p Plugin) handleEvent(e event.Event) {
+	data := map[string]interface{}{}
+	switch e := e.Data.(type) {
+	case infrared.NewConnEvent:
+		mapConn(data, e.Conn)
+	case infrared.PreConnProcessingEvent:
+		mapConn(data, e.Conn)
+	case infrared.PostConnProcessingEvent:
+		mapProcessedConn(data, e.ProcessedConn)
+	case infrared.PreConnConnectingEvent:
+		mapProcessedConn(data, e.ProcessedConn)
+		mapServer(data, e.Server)
+	case infrared.PlayerJoinEvent:
+		mapProcessedConn(data, e.ProcessedConn)
+		mapServer(data, e.Server)
+	case infrared.PlayerLeaveEvent:
+		mapProcessedConn(data, e.ProcessedConn)
+		mapServer(data, e.Server)
+	default:
 		return
 	}
 
@@ -98,21 +124,4 @@ func (p Plugin) handleEvent(e event.Event) {
 			)
 		}
 	}
-}
-
-func parseMap(v interface{}) (map[string]interface{}, bool) {
-	kvs, ok := v.([]interface{})
-	if !ok || len(kvs)%2 != 0 {
-		return nil, false
-	}
-
-	data := map[string]interface{}{}
-	for i := 0; i < len(kvs); i += 2 {
-		k, ok := kvs[i].(string)
-		if !ok {
-			return nil, false
-		}
-		data[k] = kvs[i+1]
-	}
-	return data, true
 }

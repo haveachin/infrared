@@ -16,6 +16,10 @@ type Conn struct {
 	serverNotFoundMessage string
 }
 
+func (c *Conn) GatewayID() string {
+	return c.gatewayID
+}
+
 type ProcessedConn struct {
 	*Conn
 	readBytes     []byte
@@ -27,10 +31,6 @@ type ProcessedConn struct {
 
 func (pc ProcessedConn) RemoteAddr() net.Addr {
 	return pc.remoteAddr
-}
-
-func (pc ProcessedConn) GatewayID() string {
-	return pc.gatewayID
 }
 
 func (pc ProcessedConn) Username() string {

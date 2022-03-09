@@ -32,7 +32,7 @@ type Gateway interface {
 }
 
 // ListenAndServe starts the listening process of all listernes of a Gateway
-func ListenAndServe(gw Gateway, cpnChan chan<- net.Conn) {
+func ListenAndServe(gw Gateway, cpnChan chan<- Conn) {
 	logger := gw.Logger()
 	wg := sync.WaitGroup{}
 
@@ -51,10 +51,14 @@ func ListenAndServe(gw Gateway, cpnChan chan<- net.Conn) {
 					continue
 				}
 
-				logger.Debug("accepting new connection", logConn(c)...)
-				event.Push(NewConnEventTopic, c)
+				conn := gw.WrapConn(c, l).(Conn)
 
-				cpnChan <- gw.WrapConn(c, l)
+				logger.Debug("accepting new connection", logConn(c)...)
+				event.Push(NewConnEventTopic, NewConnEvent{
+					Conn: conn,
+				})
+
+				cpnChan <- conn
 			}
 			wg.Done()
 		}(listener, listenerLogger)

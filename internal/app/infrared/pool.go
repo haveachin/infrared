@@ -21,7 +21,10 @@ func (cp *ConnPool) Start(poolChan <-chan ConnTunnel) {
 
 		go func(logger *zap.Logger) {
 			if ct.Conn.IsLoginRequest() {
-				event.Push(ClientJoinEventTopic, nil)
+				event.Push(PlayerJoinEventTopic, PlayerJoinEvent{
+					ProcessedConn: ct.Conn,
+					Server:        ct.Server,
+				})
 			}
 
 			if err := ct.ProcessConn(); err != nil {
@@ -30,7 +33,10 @@ func (cp *ConnPool) Start(poolChan <-chan ConnTunnel) {
 			}
 
 			logger.Info("disconnecting client")
-			event.Push(ClientLeaveEventTopic, nil)
+			event.Push(PlayerLeaveEventTopic, PlayerLeaveEvent{
+				ProcessedConn: ct.Conn,
+				Server:        ct.Server,
+			})
 		}(connLogger)
 	}
 }

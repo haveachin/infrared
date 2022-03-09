@@ -54,7 +54,7 @@ func init() {
 	initConfig()
 
 	var err error
-	logger, err = zap.NewProduction()
+	logger, err = zap.NewDevelopment()
 	if err != nil {
 		log.Fatalf("Failed to init logger; err: %s", err)
 	}

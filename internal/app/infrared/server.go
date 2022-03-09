@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"strings"
-	"sync"
 
 	"github.com/haveachin/infrared/pkg/event"
 	"go.uber.org/zap"
@@ -37,10 +36,7 @@ type ServerGateway struct {
 	Servers  []Server
 	Log      *zap.Logger
 
-	mu         sync.Mutex
 	gwIDSrvIDs map[string][]string
-	// Gateway ID mapped to gateway
-	gws map[string]Gateway
 	// Server ID mapped to server
 	srvs map[string]Server
 	// Server ID mapped to server domains in lowercase
@@ -48,14 +44,9 @@ type ServerGateway struct {
 }
 
 func (sg *ServerGateway) indexServers() {
-	sg.mu.Lock()
-	defer sg.mu.Unlock()
-
 	sg.gwIDSrvIDs = map[string][]string{}
-	sg.gws = map[string]Gateway{}
 	for _, gw := range sg.Gateways {
 		sg.gwIDSrvIDs[gw.ID()] = gw.ServerIDs()
-		sg.gws[gw.ID()] = gw
 	}
 
 	sg.srvs = map[string]Server{}
@@ -105,7 +96,10 @@ func (sg *ServerGateway) Start(srvChan <-chan ProcessedConn, poolChan chan<- Con
 
 		pcLogger = pcLogger.With(logServer(srv)...)
 		pcLogger.Info("starting to proxy connection")
-		event.Push(PreServerConnConnectingEventTopic, nil)
+		event.Push(PreConnConnectingEventTopic, PreConnConnectingEvent{
+			ProcessedConn: pc,
+			Server:        srv,
+		})
 
 		poolChan <- ConnTunnel{
 			Conn:   pc,

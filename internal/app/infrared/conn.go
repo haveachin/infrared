@@ -8,12 +8,16 @@ import (
 	"time"
 )
 
-// ProcessedConn is a already processed connection that waits to be handles by a server
-// All methods need to be thread-safe
-type ProcessedConn interface {
+type Conn interface {
 	net.Conn
 	// GatewayID is the ID of the gateway that they connected through
 	GatewayID() string
+}
+
+// ProcessedConn is a already processed connection that waits to be handles by a server
+// All methods need to be thread-safe
+type ProcessedConn interface {
+	Conn
 	// Username returns the username of the connecting player
 	Username() string
 	// ServerAddr returns the exact Server Address string

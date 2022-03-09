@@ -40,6 +40,10 @@ type Conn struct {
 	w io.Writer
 }
 
+func (c Conn) GatewayID() string {
+	return c.gatewayID
+}
+
 func (c *Conn) Read(b []byte) (int, error) {
 	return c.r.Read(b)
 }
@@ -114,10 +118,6 @@ type ProcessedConn struct {
 
 func (pc ProcessedConn) RemoteAddr() net.Addr {
 	return pc.remoteAddr
-}
-
-func (pc ProcessedConn) GatewayID() string {
-	return pc.gatewayID
 }
 
 func (pc ProcessedConn) Username() string {

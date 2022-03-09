@@ -4,7 +4,6 @@ package infrared_test
 import (
 	"context"
 	"errors"
-	"net"
 	"sync"
 	"testing"
 	"time"
@@ -68,13 +67,13 @@ func TestCPN_ListenAndServe(t *testing.T) {
 					Times(1).Return()
 			}
 
-			in := make(chan net.Conn)
+			in := make(chan infrared.Conn)
 			out := make(chan infrared.ProcessedConn)
 			cpn := infrared.CPN{
 				ConnProcessor: cp,
 				In:            in,
 				Out:           out,
-				Logger:           zap.NewNop(),
+				Logger:        zap.NewNop(),
 				EventBus:      bus,
 			}
 

@@ -21,7 +21,7 @@ type ConnProcessor interface {
 // CPN is a connection processing node
 type CPN struct {
 	ConnProcessor
-	In       <-chan net.Conn
+	In       <-chan Conn
 	Out      chan<- ProcessedConn
 	Logger   *zap.Logger
 	EventBus event.Bus
@@ -37,7 +37,9 @@ func (cpn CPN) ListenAndServe(ctx context.Context) {
 
 			connLogger := cpn.Logger.With(logConn(c)...)
 			connLogger.Debug("starting to process connection")
-			cpn.EventBus.Push(PreConnProcessingEventTopic, c)
+			cpn.EventBus.Push(PreConnProcessingEventTopic, PreConnProcessingEvent{
+				Conn: c,
+			})
 
 			c.SetDeadline(time.Now().Add(cpn.ClientTimeout()))
 			pc, err := cpn.ConnProcessor.ProcessConn(c)
@@ -51,11 +53,14 @@ func (cpn CPN) ListenAndServe(ctx context.Context) {
 				continue
 			}
 			c.SetDeadline(time.Time{})
+			procConn := pc.(ProcessedConn)
 
 			connLogger.Debug("sending client to server gateway")
-			cpn.EventBus.Push(PostConnProcessingEventTopic, c)
+			cpn.EventBus.Push(PostConnProcessingEventTopic, PostConnProcessingEvent{
+				ProcessedConn: procConn,
+			})
 
-			cpn.Out <- pc.(ProcessedConn)
+			cpn.Out <- procConn
 		case <-ctx.Done():
 			return
 		}
