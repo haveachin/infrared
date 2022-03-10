@@ -23,11 +23,11 @@ var (
 )
 
 type Gateway struct {
+	ReceiveProxyProtocol bool
 	listeners            sync.Map
 	Proxies              sync.Map
 	closed               chan bool
 	wg                   sync.WaitGroup
-	receiveProxyProtocol bool
 }
 
 func (gateway *Gateway) ListenAndServe(proxies []*Proxy) error {
@@ -180,7 +180,7 @@ func (gateway *Gateway) listenAndServe(listener Listener, addr string) error {
 
 func (gateway *Gateway) serve(conn Conn, addr string) error {
 	connRemoteAddr := conn.RemoteAddr()
-	if gateway.receiveProxyProtocol {
+	if gateway.ReceiveProxyProtocol {
 		header, err := proxyproto.Read(conn.Reader())
 		if err != nil {
 			return err
