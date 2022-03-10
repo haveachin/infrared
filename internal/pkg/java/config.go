@@ -1,22 +1,26 @@
-package main
+package java
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
+	"os"
 	"time"
 
 	"github.com/haveachin/infrared/internal/app/infrared"
-	"github.com/haveachin/infrared/internal/pkg/java"
 	"github.com/spf13/viper"
 )
 
-type JavaProxyConfig struct{}
+type ProxyConfig struct {
+	Viper *viper.Viper
+}
 
-func (cfg JavaProxyConfig) LoadGateways() ([]infrared.Gateway, error) {
+func (cfg ProxyConfig) LoadGateways() ([]infrared.Gateway, error) {
 	var gateways []infrared.Gateway
-	for id, v := range viper.GetStringMap("java.gateways") {
-		vpr := viper.Sub("defaults.java.gateway")
+	for id, v := range cfg.Viper.GetStringMap("java.gateways") {
+		vpr := cfg.Viper.Sub("defaults.java.gateway")
 		if vpr == nil {
 			vpr = viper.New()
 		}
@@ -24,11 +28,11 @@ func (cfg JavaProxyConfig) LoadGateways() ([]infrared.Gateway, error) {
 		if err := vpr.MergeConfigMap(vMap); err != nil {
 			return nil, err
 		}
-		var cfg javaGatewayConfig
-		if err := vpr.Unmarshal(&cfg); err != nil {
+		var c gatewayConfig
+		if err := vpr.Unmarshal(&c); err != nil {
 			return nil, err
 		}
-		gateway, err := newJavaGateway(id, cfg)
+		gateway, err := newGateway(cfg.Viper, id, c)
 		if err != nil {
 			return nil, err
 		}
@@ -38,10 +42,10 @@ func (cfg JavaProxyConfig) LoadGateways() ([]infrared.Gateway, error) {
 	return gateways, nil
 }
 
-func (cfg JavaProxyConfig) LoadServers() ([]infrared.Server, error) {
+func (cfg ProxyConfig) LoadServers() ([]infrared.Server, error) {
 	var servers []infrared.Server
-	for id, v := range viper.GetStringMap("java.servers") {
-		vpr := viper.Sub("defaults.java.server")
+	for id, v := range cfg.Viper.GetStringMap("java.servers") {
+		vpr := cfg.Viper.Sub("defaults.java.server")
 		if vpr == nil {
 			vpr = viper.New()
 		}
@@ -49,11 +53,11 @@ func (cfg JavaProxyConfig) LoadServers() ([]infrared.Server, error) {
 		if err := vpr.MergeConfigMap(vMap); err != nil {
 			return nil, err
 		}
-		var cfg javaServerConfig
+		var cfg serverConfig
 		if err := vpr.Unmarshal(&cfg); err != nil {
 			return nil, err
 		}
-		srv, err := newJavaServer(id, cfg)
+		srv, err := newServer(id, cfg)
 		if err != nil {
 			return nil, err
 		}
@@ -63,30 +67,30 @@ func (cfg JavaProxyConfig) LoadServers() ([]infrared.Server, error) {
 	return servers, nil
 }
 
-func (cfg JavaProxyConfig) LoadConnProcessor() (infrared.ConnProcessor, error) {
-	var cpnCfg javaConnProcessorConfig
-	if err := viper.UnmarshalKey("java.processingNode", &cpnCfg); err != nil {
+func (cfg ProxyConfig) LoadConnProcessor() (infrared.ConnProcessor, error) {
+	var cpnCfg connProcessorConfig
+	if err := cfg.Viper.UnmarshalKey("java.processingNode", &cpnCfg); err != nil {
 		return nil, err
 	}
 
-	return &java.InfraredConnProcessor{
-		ConnProcessor: java.ConnProcessor{
+	return &InfraredConnProcessor{
+		ConnProcessor: ConnProcessor{
 			ClientTimeout: cpnCfg.ClientTimeout,
 		},
 	}, nil
 }
 
-func (cfg JavaProxyConfig) LoadProxySettings() (infrared.ProxySettings, error) {
-	var chanCapsCfg javaChanCapsConfig
-	if err := viper.UnmarshalKey("java.chanCap", &chanCapsCfg); err != nil {
+func (cfg ProxyConfig) LoadProxySettings() (infrared.ProxySettings, error) {
+	var chanCapsCfg chanCapsConfig
+	if err := cfg.Viper.UnmarshalKey("java.chanCap", &chanCapsCfg); err != nil {
 		return infrared.ProxySettings{}, err
 	}
-	cpnCount := viper.GetInt("java.processingNode.count")
+	cpnCount := cfg.Viper.GetInt("java.processingNode.count")
 
-	return newJavaChanCaps(chanCapsCfg, cpnCount), nil
+	return newChanCaps(chanCapsCfg, cpnCount), nil
 }
 
-type javaServerConfig struct {
+type serverConfig struct {
 	Domains            []string
 	Address            string
 	ProxyBind          string
@@ -94,45 +98,45 @@ type javaServerConfig struct {
 	SendRealIP         bool
 	DialTimeout        time.Duration
 	DialTimeoutMessage string
-	OverrideStatus     javaOverrideServerStatusConfig
-	DialTimeoutStatus  javaDialTimeoutServerStatusConfig
+	OverrideStatus     overrideServerStatusConfig
+	DialTimeoutStatus  dialTimeoutServerStatusConfig
 	Webhooks           []string
 }
 
-type javaOverrideServerStatusConfig struct {
+type overrideServerStatusConfig struct {
 	VersionName    *string
 	ProtocolNumber *int
 	MaxPlayerCount *int
 	PlayerCount    *int
-	PlayerSample   []javaServerStatusPlayerSampleConfig
+	PlayerSample   []serverStatusPlayerSampleConfig
 	IconPath       *string
 	MOTD           *string
 }
 
-type javaDialTimeoutServerStatusConfig struct {
+type dialTimeoutServerStatusConfig struct {
 	VersionName    string
 	ProtocolNumber int
 	MaxPlayerCount int
 	PlayerCount    int
-	PlayerSample   []javaServerStatusPlayerSampleConfig
+	PlayerSample   []serverStatusPlayerSampleConfig
 	IconPath       string
 	MOTD           string
 }
 
-type javaServerStatusPlayerSampleConfig struct {
+type serverStatusPlayerSampleConfig struct {
 	Name string
 	UUID string
 }
 
-type javaListenerConfig struct {
+type listenerConfig struct {
 	Bind                  string
 	ReceiveProxyProtocol  bool
 	ReceiveRealIP         bool
 	ServerNotFoundMessage string
-	ServerNotFoundStatus  javaDialTimeoutServerStatusConfig
+	ServerNotFoundStatus  dialTimeoutServerStatusConfig
 }
 
-type javaGatewayConfig struct {
+type gatewayConfig struct {
 	Binds                 []string
 	ReceiveProxyProtocol  bool
 	ReceiveRealIP         bool
@@ -141,24 +145,24 @@ type javaGatewayConfig struct {
 	ServerNotFoundMessage string
 }
 
-type javaConnProcessorConfig struct {
+type connProcessorConfig struct {
 	Count         int
 	ClientTimeout time.Duration
 }
 
-type javaChanCapsConfig struct {
+type chanCapsConfig struct {
 	ConnProcessor int
 	Server        int
 	ConnPool      int
 }
 
-func newJavaListener(cfg javaListenerConfig) (java.Listener, error) {
-	status, err := newJavaDialTimeoutServerStatus(cfg.ServerNotFoundStatus)
+func newListener(cfg listenerConfig) (Listener, error) {
+	status, err := newDialTimeoutServerStatus(cfg.ServerNotFoundStatus)
 	if err != nil {
-		return java.Listener{}, err
+		return Listener{}, err
 	}
 
-	return java.Listener{
+	return Listener{
 		Bind:                  cfg.Bind,
 		ReceiveProxyProtocol:  cfg.ReceiveProxyProtocol,
 		ReceiveRealIP:         cfg.ReceiveRealIP,
@@ -167,14 +171,14 @@ func newJavaListener(cfg javaListenerConfig) (java.Listener, error) {
 	}, nil
 }
 
-func newJavaGateway(id string, cfg javaGatewayConfig) (infrared.Gateway, error) {
-	listeners, err := loadJavaListeners(id)
+func newGateway(v *viper.Viper, id string, cfg gatewayConfig) (infrared.Gateway, error) {
+	listeners, err := loadListeners(v, id)
 	if err != nil {
 		return nil, err
 	}
 
-	return &java.InfraredGateway{
-		Gateway: java.Gateway{
+	return &InfraredGateway{
+		Gateway: Gateway{
 			ID:        id,
 			Listeners: listeners,
 			ServerIDs: cfg.Servers,
@@ -182,13 +186,13 @@ func newJavaGateway(id string, cfg javaGatewayConfig) (infrared.Gateway, error) 
 	}, nil
 }
 
-func newJavaServer(id string, cfg javaServerConfig) (infrared.Server, error) {
-	overrideStatus, err := newJavaOverrideServerStatus(cfg.OverrideStatus)
+func newServer(id string, cfg serverConfig) (infrared.Server, error) {
+	overrideStatus, err := newOverrideServerStatus(cfg.OverrideStatus)
 	if err != nil {
 		return nil, err
 	}
 
-	dialTimeoutStatus, err := newJavaDialTimeoutServerStatus(cfg.DialTimeoutStatus)
+	dialTimeoutStatus, err := newDialTimeoutServerStatus(cfg.DialTimeoutStatus)
 	if err != nil {
 		return nil, err
 	}
@@ -199,8 +203,8 @@ func newJavaServer(id string, cfg javaServerConfig) (infrared.Server, error) {
 		return nil, err
 	}
 
-	return &java.InfraredServer{
-		Server: java.Server{
+	return &InfraredServer{
+		Server: Server{
 			ID:      id,
 			Domains: cfg.Domains,
 			Dialer: net.Dialer{
@@ -220,47 +224,47 @@ func newJavaServer(id string, cfg javaServerConfig) (infrared.Server, error) {
 	}, nil
 }
 
-func newJavaOverrideServerStatus(cfg javaOverrideServerStatusConfig) (java.OverrideStatusResponse, error) {
+func newOverrideServerStatus(cfg overrideServerStatusConfig) (OverrideStatusResponse, error) {
 	var icon string
 	if cfg.IconPath != nil {
 		var err error
 		icon, err = loadImageAndEncodeToBase64String(*cfg.IconPath)
 		if err != nil {
-			return java.OverrideStatusResponse{}, err
+			return OverrideStatusResponse{}, err
 		}
 	}
 
-	return java.OverrideStatusResponse{
+	return OverrideStatusResponse{
 		VersionName:    cfg.VersionName,
 		ProtocolNumber: cfg.ProtocolNumber,
 		MaxPlayerCount: cfg.MaxPlayerCount,
 		PlayerCount:    cfg.PlayerCount,
 		Icon:           &icon,
 		MOTD:           cfg.MOTD,
-		PlayerSamples:  newJavaServerStatusPlayerSample(cfg.PlayerSample),
+		PlayerSamples:  newServerStatusPlayerSample(cfg.PlayerSample),
 	}, nil
 }
 
-func newJavaDialTimeoutServerStatus(cfg javaDialTimeoutServerStatusConfig) (java.DialTimeoutStatusResponse, error) {
+func newDialTimeoutServerStatus(cfg dialTimeoutServerStatusConfig) (DialTimeoutStatusResponse, error) {
 	icon, err := loadImageAndEncodeToBase64String(cfg.IconPath)
 	if err != nil {
-		return java.DialTimeoutStatusResponse{}, err
+		return DialTimeoutStatusResponse{}, err
 	}
-	return java.DialTimeoutStatusResponse{
+	return DialTimeoutStatusResponse{
 		VersionName:    cfg.VersionName,
 		ProtocolNumber: cfg.ProtocolNumber,
 		MaxPlayerCount: cfg.MaxPlayerCount,
 		PlayerCount:    cfg.PlayerCount,
 		Icon:           icon,
 		MOTD:           cfg.MOTD,
-		PlayerSamples:  newJavaServerStatusPlayerSample(cfg.PlayerSample),
+		PlayerSamples:  newServerStatusPlayerSample(cfg.PlayerSample),
 	}, nil
 }
 
-func newJavaServerStatusPlayerSample(cfgs []javaServerStatusPlayerSampleConfig) []java.PlayerSample {
-	playerSamples := make([]java.PlayerSample, len(cfgs))
+func newServerStatusPlayerSample(cfgs []serverStatusPlayerSampleConfig) []PlayerSample {
+	playerSamples := make([]PlayerSample, len(cfgs))
 	for n, cfg := range cfgs {
-		playerSamples[n] = java.PlayerSample{
+		playerSamples[n] = PlayerSample{
 			Name: cfg.Name,
 			UUID: cfg.UUID,
 		}
@@ -268,7 +272,7 @@ func newJavaServerStatusPlayerSample(cfgs []javaServerStatusPlayerSampleConfig) 
 	return playerSamples
 }
 
-func newJavaChanCaps(cfg javaChanCapsConfig, cpnCount int) infrared.ProxySettings {
+func newChanCaps(cfg chanCapsConfig, cpnCount int) infrared.ProxySettings {
 	return infrared.ProxySettings{
 		CPNCount: cpnCount,
 		ChannelCaps: infrared.ProxyChannelCaps{
@@ -279,33 +283,53 @@ func newJavaChanCaps(cfg javaChanCapsConfig, cpnCount int) infrared.ProxySetting
 	}
 }
 
-func loadJavaListeners(gatewayID string) ([]java.Listener, error) {
+func loadListeners(v *viper.Viper, gatewayID string) ([]Listener, error) {
 	key := fmt.Sprintf("java.gateways.%s.listeners", gatewayID)
-	ll, ok := viper.Get(key).([]interface{})
+	ll, ok := v.Get(key).([]interface{})
 	if !ok {
 		return nil, fmt.Errorf("gateway %q is missing listeners", gatewayID)
 	}
 
-	listeners := make([]java.Listener, len(ll))
+	listeners := make([]Listener, len(ll))
 	for n := range ll {
-		vpr := viper.Sub("defaults.java.gateway.listener")
+		vpr := v.Sub("defaults.java.gateway.listener")
 		if vpr == nil {
 			vpr = viper.New()
 		}
 		lKey := fmt.Sprintf("%s.%d", key, n)
-		vMap := viper.GetStringMap(lKey)
+		vMap := v.GetStringMap(lKey)
 		if err := vpr.MergeConfigMap(vMap); err != nil {
 			return nil, err
 		}
-		var cfg javaListenerConfig
+		var cfg listenerConfig
 		if err := vpr.Unmarshal(&cfg); err != nil {
 			return nil, err
 		}
 		var err error
-		listeners[n], err = newJavaListener(cfg)
+		listeners[n], err = newListener(cfg)
 		if err != nil {
 			return nil, err
 		}
 	}
 	return listeners, nil
+}
+
+func loadImageAndEncodeToBase64String(path string) (string, error) {
+	if path == "" {
+		return "", nil
+	}
+
+	imgFile, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer imgFile.Close()
+
+	bb, err := io.ReadAll(imgFile)
+	if err != nil {
+		return "", err
+	}
+	img64 := base64.StdEncoding.EncodeToString(bb)
+
+	return fmt.Sprintf("data:image/png;base64,%s", img64), nil
 }

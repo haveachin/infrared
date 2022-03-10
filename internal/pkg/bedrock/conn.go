@@ -3,6 +3,7 @@ package bedrock
 import (
 	"net"
 
+	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/internal/pkg/bedrock/protocol"
 	"github.com/sandertv/go-raknet"
 )
@@ -18,6 +19,10 @@ type Conn struct {
 
 func (c *Conn) GatewayID() string {
 	return c.gatewayID
+}
+
+func (c *Conn) Edition() infrared.Edition {
+	return infrared.BedrockEdition
 }
 
 type ProcessedConn struct {

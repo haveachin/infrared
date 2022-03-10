@@ -8,6 +8,8 @@ import (
 	"syscall"
 
 	"github.com/haveachin/infrared/internal/app/infrared"
+	"github.com/haveachin/infrared/internal/pkg/bedrock"
+	"github.com/haveachin/infrared/internal/pkg/java"
 	"github.com/haveachin/infrared/internal/plugin/webhook"
 	"go.uber.org/zap"
 )
@@ -65,28 +67,22 @@ func main() {
 		zap.String("config", configPath),
 	)
 
-	bedrockProxy, err := infrared.NewProxy(&BedrockProxyConfig{})
+	bedrockProxy, err := infrared.NewProxy(&bedrock.ProxyConfig{Viper: v})
 	if err != nil {
 		logger.Error("failed to load proxy", zap.Error(err))
 		return
 	}
 
-	javaProxy, err := infrared.NewProxy(&JavaProxyConfig{})
+	javaProxy, err := infrared.NewProxy(&java.ProxyConfig{Viper: v})
 	if err != nil {
 		logger.Error("failed to load proxy", zap.Error(err))
-		return
-	}
-
-	webhooks, err := LoadWebhooks()
-	if err != nil {
-		logger.Error("failed to load webhooks", zap.Error(err))
 		return
 	}
 
 	pluginManager := infrared.PluginManager{
 		Plugins: []infrared.Plugin{
 			&webhook.Plugin{
-				Webhooks: webhooks,
+				Viper: v,
 			},
 		},
 		Log: logger,

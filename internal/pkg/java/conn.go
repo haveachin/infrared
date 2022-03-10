@@ -44,6 +44,10 @@ func (c Conn) GatewayID() string {
 	return c.gatewayID
 }
 
+func (c Conn) Edition() infrared.Edition {
+	return infrared.JavaEdition
+}
+
 func (c *Conn) Read(b []byte) (int, error) {
 	return c.r.Read(b)
 }

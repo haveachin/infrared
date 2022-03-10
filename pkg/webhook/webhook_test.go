@@ -52,10 +52,10 @@ func TestWebhook_DispatchEvent(t *testing.T) {
 			name: "WithExactlyTheAllowedEvent",
 			webhook: webhook.Webhook{
 				URL:               "https://example.com",
-				AllowedEventTypes: []string{"Error"},
+				AllowedTopics: []string{"Error"},
 			},
 			event: webhook.EventLog{
-				Type:       "Error",
+				Topic:       "Error",
 				OccurredAt: time.Now(),
 				Data: map[string]interface{}{
 					"message": "Oops!",
@@ -68,10 +68,10 @@ func TestWebhook_DispatchEvent(t *testing.T) {
 			name: "WithOneOfTheAllowedEvents",
 			webhook: webhook.Webhook{
 				URL:               "https://example.com",
-				AllowedEventTypes: []string{"PlayerJoin", "PlayerLeave"},
+				AllowedTopics: []string{"PlayerJoin", "PlayerLeave"},
 			},
 			event: webhook.EventLog{
-				Type:       "PlayerJoin",
+				Topic:       "PlayerJoin",
 				OccurredAt: time.Now(),
 				Data: map[string]interface{}{
 					"username": "notch",
@@ -84,10 +84,10 @@ func TestWebhook_DispatchEvent(t *testing.T) {
 			name: "ErrorsWithOneDeniedEvent",
 			webhook: webhook.Webhook{
 				URL:               "https://example.com",
-				AllowedEventTypes: []string{"Error", "PlayerLeave"},
+				AllowedTopics: []string{"Error", "PlayerLeave"},
 			},
 			event: webhook.EventLog{
-				Type:       "PlayerJoin",
+				Topic:       "PlayerJoin",
 				OccurredAt: time.Now(),
 				Data: map[string]interface{}{
 					"username": "notch",
@@ -100,10 +100,10 @@ func TestWebhook_DispatchEvent(t *testing.T) {
 			name: "ErrorsWithFailedHTTPRequest",
 			webhook: webhook.Webhook{
 				URL:               "https://example.com",
-				AllowedEventTypes: []string{"Error"},
+				AllowedTopics: []string{"Error"},
 			},
 			event: webhook.EventLog{
-				Type:       "Error",
+				Topic:       "Error",
 				OccurredAt: time.Now(),
 				Data: map[string]interface{}{
 					"message": "Oops!",

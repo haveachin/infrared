@@ -8,10 +8,29 @@ import (
 	"time"
 )
 
+type Edition byte
+
+const (
+	JavaEdition Edition = iota
+	BedrockEdition
+)
+
+func (e Edition) String() string {
+	switch e {
+	case JavaEdition:
+		return "java"
+	case BedrockEdition:
+		return "bedrock"
+	default:
+		return "unknown"
+	}
+}
+
 type Conn interface {
 	net.Conn
 	// GatewayID is the ID of the gateway that they connected through
 	GatewayID() string
+	Edition() Edition
 }
 
 // ProcessedConn is a already processed connection that waits to be handles by a server

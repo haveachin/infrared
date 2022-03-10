@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-var ErrEventTypeNotAllowed = errors.New("event type not allowed")
+var ErrEventTypeNotAllowed = errors.New("event topic not allowed")
 
 // HTTPClient represents an interface for the Webhook to send events with.
 type HTTPClient interface {
@@ -17,25 +17,25 @@ type HTTPClient interface {
 
 // EventLog is the struct that will be send to the Webhook.URL
 type EventLog struct {
-	Type       string                 `json:"type"`
-	OccurredAt time.Time              `json:"occurredAt"`
-	Data       map[string]interface{} `json:"data"`
+	Topic      string      `json:"topic"`
+	OccurredAt time.Time   `json:"occurredAt"`
+	Data       interface{} `json:"data"`
 }
 
 // Webhook can send a Event via POST Request to a specified URL.
 // There are two ways to use a Webhook. You can directly call
 // DispatchEvent or Serve to attach a channel to the Webhook.
 type Webhook struct {
-	ID                string
-	HTTPClient        HTTPClient
-	URL               string
-	AllowedEventTypes []string
+	ID            string
+	HTTPClient    HTTPClient
+	URL           string
+	AllowedTopics []string
 }
 
 // hasEvent checks if Webhook.EventTypes contain the given event's type.
 func (webhook Webhook) hasEvent(e EventLog) bool {
-	for _, t := range webhook.AllowedEventTypes {
-		if t == e.Type {
+	for _, t := range webhook.AllowedTopics {
+		if t == e.Topic {
 			return true
 		}
 	}
