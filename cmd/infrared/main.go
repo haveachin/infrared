@@ -2,10 +2,11 @@ package main
 
 import (
 	"flag"
-	"github.com/haveachin/infrared/api"
 	"log"
 	"os"
 	"strconv"
+
+	"github.com/haveachin/infrared/api"
 
 	"github.com/haveachin/infrared"
 )
@@ -105,7 +106,7 @@ func main() {
 		}
 	}()
 
-	gateway := infrared.Gateway{}
+	gateway := infrared.Gateway{ReceiveProxyProtocol: receiveProxyProtocol}
 	go func() {
 		for {
 			cfg, ok := <-outCfgs

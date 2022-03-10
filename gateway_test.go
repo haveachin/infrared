@@ -417,7 +417,7 @@ func TestProxyProtocol(t *testing.T) {
 			go func(wg *sync.WaitGroup) {
 				config := createProxyProtocolConfig(tc.portEnd, tc.proxyproto)
 				gateway := Gateway{
-					receiveProxyProtocol: tc.receiveProxyproto,
+					ReceiveProxyProtocol: tc.receiveProxyproto,
 				}
 				proxies := configToProxies(config)
 				if err := gateway.ListenAndServe(proxies); err != nil {
