@@ -16,7 +16,7 @@ services:
     networks:
       - infrared
     environment:
-      INFRARED_CONFIG_PATH: "/infrared/config.dev.yml"
+      INFRARED_CONFIG: "/infrared/config.dev.yml"
 
   minecraft-server:
     image: itzg/minecraft-server:java17

@@ -2,7 +2,7 @@ version: "3"
 
 services:
   infrared:
-    image: ghcr.io/haveachin/infrared:latest
+    image: haveachin/infrared:latest
     container_name: infrared
     restart: always
     ports:
@@ -16,7 +16,7 @@ services:
       - infrared
     environment:
       # Only change this if you know what you are doing
-      INFRARED_CONFIG_PATH: "/infrared/config.yml"
+      INFRARED_CONFIG: "/infrared/config.yml"
 
 networks:
   infrared:

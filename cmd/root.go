@@ -95,6 +95,7 @@ func init() {
 	v.AutomaticEnv()
 
 	rootCmd.Flags().StringVarP(&configPath, "config", "c", "config.yml", "path of the config file")
+	viper.BindPFlag("CONFIG", rootCmd.Flags().Lookup("config"))
 }
 
 // Execute executes the root command.
