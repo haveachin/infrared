@@ -26,6 +26,7 @@ var (
 	files embed.FS
 
 	configPath string
+	workingDir string
 
 	rootCmd = &cobra.Command{
 		Use:   "infrared",
@@ -34,6 +35,10 @@ var (
 			logger, err := zap.NewDevelopment()
 			if err != nil {
 				return fmt.Errorf("failed to init logger; err: %s", err)
+			}
+
+			if err := os.Chdir(workingDir); err != nil {
+				return err
 			}
 
 			logger.Info("loading proxy from config",
@@ -97,6 +102,7 @@ func init() {
 	v.AutomaticEnv()
 
 	rootCmd.Flags().StringVarP(&configPath, "config", "c", "config.yml", "path of the config file")
+	rootCmd.Flags().StringVarP(&workingDir, "working-dir", "w", ".", "set the working directory")
 	viper.BindPFlag("CONFIG", rootCmd.Flags().Lookup("config"))
 
 	rootCmd.AddCommand(licenseCmd)

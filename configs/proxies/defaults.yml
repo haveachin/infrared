@@ -21,8 +21,6 @@ defaults:
           maxPlayerCount: 10
           gameMode: SURVIVAL
           gameModeNumeric: 1
-          # The documentation describes 2 lines in the MOTD,
-          # but client normally don't see the second line
           motd: |
             Powered by Infrared
             Join!

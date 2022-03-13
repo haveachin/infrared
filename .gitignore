@@ -19,7 +19,7 @@
 .vscode
 
 # Dev config file
-configs/config.dev.yml
+/dev
 
 # Generated files
 *_mock_test.go

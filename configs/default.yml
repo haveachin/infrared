@@ -52,7 +52,7 @@ bedrock:
     connPool: 10
   processingNode:
     count: 10
-    clientTimeout: 250ms
+    clientTimeout: 1000ms
 
 defaults:
   webhook:
