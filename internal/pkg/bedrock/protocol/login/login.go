@@ -33,7 +33,7 @@ func Parse(request []byte) (IdentityData, ClientData, error) {
 	switch len(req.Chain) {
 	case 1:
 		// Player was not authenticated with XBOX Live, meaning the one token in here is self-signed.
-		_, _, err = jwtParser.ParseUnverified(req.Chain[2], &identityClaims)
+		_, _, err = jwtParser.ParseUnverified(req.Chain[0], &identityClaims)
 		if err != nil {
 			return IdentityData{}, ClientData{}, err
 		}

@@ -16,12 +16,12 @@ type ProxyConfig struct {
 
 func (cfg ProxyConfig) LoadGateways() ([]infrared.Gateway, error) {
 	var gateways []infrared.Gateway
-	for id, v := range cfg.Viper.GetStringMap("bedrock.gateways") {
+	for id, data := range cfg.Viper.GetStringMap("bedrock.gateways") {
 		vpr := cfg.Viper.Sub("defaults.bedrock.gateway")
 		if vpr == nil {
 			vpr = viper.New()
 		}
-		vMap := v.(map[string]interface{})
+		vMap := data.(map[string]interface{})
 		if err := vpr.MergeConfigMap(vMap); err != nil {
 			return nil, err
 		}
@@ -41,12 +41,12 @@ func (cfg ProxyConfig) LoadGateways() ([]infrared.Gateway, error) {
 
 func (cfg ProxyConfig) LoadServers() ([]infrared.Server, error) {
 	var servers []infrared.Server
-	for id, v := range cfg.Viper.GetStringMap("bedrock.servers") {
+	for id, data := range cfg.Viper.GetStringMap("bedrock.servers") {
 		vpr := cfg.Viper.Sub("defaults.bedrock.server")
 		if vpr == nil {
 			vpr = viper.New()
 		}
-		vMap := v.(map[string]interface{})
+		vMap := data.(map[string]interface{})
 		if err := vpr.MergeConfigMap(vMap); err != nil {
 			return nil, err
 		}
@@ -61,8 +61,8 @@ func (cfg ProxyConfig) LoadServers() ([]infrared.Server, error) {
 }
 
 func (cfg ProxyConfig) LoadConnProcessor() (infrared.ConnProcessor, error) {
-	var cpnCfg cpnConfig
-	if err := cfg.Viper.UnmarshalKey("bedrock.processingNodes", &cpnCfg); err != nil {
+	var cpnCfg connProcessorConfig
+	if err := cfg.Viper.UnmarshalKey("bedrock.processingNode", &cpnCfg); err != nil {
 		return nil, err
 	}
 	return &InfraredConnProcessor{
@@ -114,7 +114,7 @@ type serverConfig struct {
 	Webhooks           []string
 }
 
-type cpnConfig struct {
+type connProcessorConfig struct {
 	Count         int
 	ClientTimeout time.Duration
 }
@@ -138,8 +138,9 @@ func newPingStatus(cfg pingStatusConfig) PingStatus {
 	}
 }
 
-func newListener(cfg listenerConfig) Listener {
+func newListener(id string, cfg listenerConfig) Listener {
 	return Listener{
+		ID:                    id,
 		Bind:                  cfg.Bind,
 		PingStatus:            newPingStatus(cfg.PingStatus),
 		ReceiveProxyProtocol:  cfg.ReceiveProxyProtocol,
@@ -196,19 +197,13 @@ func newChanCaps(cfg chanCapsConfig, cpnCount int) infrared.ProxySettings {
 
 func loadListeners(v *viper.Viper, gatewayID string) ([]Listener, error) {
 	key := fmt.Sprintf("bedrock.gateways.%s.listeners", gatewayID)
-	ll, ok := v.Get(key).([]interface{})
-	if !ok {
-		return nil, fmt.Errorf("gateway %q is missing listeners", gatewayID)
-	}
-
-	listeners := make([]Listener, len(ll))
-	for n := range ll {
+	var listeners []Listener
+	for id, data := range v.GetStringMap(key) {
 		vpr := v.Sub("defaults.bedrock.gateway.listener")
 		if vpr == nil {
 			vpr = viper.New()
 		}
-		lKey := fmt.Sprintf("%s.%d", key, n)
-		vMap := v.GetStringMap(lKey)
+		vMap := data.(map[string]interface{})
 		if err := vpr.MergeConfigMap(vMap); err != nil {
 			return nil, err
 		}
@@ -216,7 +211,7 @@ func loadListeners(v *viper.Viper, gatewayID string) ([]Listener, error) {
 		if err := vpr.Unmarshal(&cfg); err != nil {
 			return nil, err
 		}
-		listeners[n] = newListener(cfg)
+		listeners = append(listeners, newListener(id, cfg))
 	}
 	return listeners, nil
 }

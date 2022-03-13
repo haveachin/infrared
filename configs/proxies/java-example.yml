@@ -1,0 +1,31 @@
+java:
+  gateways:
+    mygateway:
+      listeners:
+        mylistener:
+          bind: 0.0.0.0:25565
+      servers:
+        - myserver
+  servers:
+    myserver:
+      domains:
+        - "*"
+      address: your-server-address:25565
+      overrideStatus:
+        versionName: Infrared
+        maxPlayerCount: 777777777
+        playerCount: 2
+  # Configuration for webhooks
+  webhooks:
+    # A webhook defined by an ID. In this case "mywebhook"
+    mywebhook:
+      # Gateway IDs to listen for events to. All events that the connection triggers
+      # have also the gateway ID attached to them.
+      gatewayIds:
+        - mygateway
+      # The URL to POST the JSON to
+      url: https://your-domain.com/callback
+      # Event Topics to listen for
+      events:
+        - PlayerJoin
+        - PlayerLeave

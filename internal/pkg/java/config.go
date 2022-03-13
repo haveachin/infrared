@@ -19,12 +19,12 @@ type ProxyConfig struct {
 
 func (cfg ProxyConfig) LoadGateways() ([]infrared.Gateway, error) {
 	var gateways []infrared.Gateway
-	for id, v := range cfg.Viper.GetStringMap("java.gateways") {
+	for id, data := range cfg.Viper.GetStringMap("java.gateways") {
 		vpr := cfg.Viper.Sub("defaults.java.gateway")
 		if vpr == nil {
 			vpr = viper.New()
 		}
-		vMap := v.(map[string]interface{})
+		vMap := data.(map[string]interface{})
 		if err := vpr.MergeConfigMap(vMap); err != nil {
 			return nil, err
 		}
@@ -38,18 +38,17 @@ func (cfg ProxyConfig) LoadGateways() ([]infrared.Gateway, error) {
 		}
 		gateways = append(gateways, gateway)
 	}
-
 	return gateways, nil
 }
 
 func (cfg ProxyConfig) LoadServers() ([]infrared.Server, error) {
 	var servers []infrared.Server
-	for id, v := range cfg.Viper.GetStringMap("java.servers") {
+	for id, data := range cfg.Viper.GetStringMap("java.servers") {
 		vpr := cfg.Viper.Sub("defaults.java.server")
 		if vpr == nil {
 			vpr = viper.New()
 		}
-		vMap := v.(map[string]interface{})
+		vMap := data.(map[string]interface{})
 		if err := vpr.MergeConfigMap(vMap); err != nil {
 			return nil, err
 		}
@@ -63,7 +62,6 @@ func (cfg ProxyConfig) LoadServers() ([]infrared.Server, error) {
 		}
 		servers = append(servers, srv)
 	}
-
 	return servers, nil
 }
 
@@ -156,13 +154,14 @@ type chanCapsConfig struct {
 	ConnPool      int
 }
 
-func newListener(cfg listenerConfig) (Listener, error) {
+func newListener(cfg listenerConfig, id string) (Listener, error) {
 	status, err := newDialTimeoutServerStatus(cfg.ServerNotFoundStatus)
 	if err != nil {
 		return Listener{}, err
 	}
 
 	return Listener{
+		ID:                    id,
 		Bind:                  cfg.Bind,
 		ReceiveProxyProtocol:  cfg.ReceiveProxyProtocol,
 		ReceiveRealIP:         cfg.ReceiveRealIP,
@@ -285,19 +284,13 @@ func newChanCaps(cfg chanCapsConfig, cpnCount int) infrared.ProxySettings {
 
 func loadListeners(v *viper.Viper, gatewayID string) ([]Listener, error) {
 	key := fmt.Sprintf("java.gateways.%s.listeners", gatewayID)
-	ll, ok := v.Get(key).([]interface{})
-	if !ok {
-		return nil, fmt.Errorf("gateway %q is missing listeners", gatewayID)
-	}
-
-	listeners := make([]Listener, len(ll))
-	for n := range ll {
+	var listeners []Listener
+	for id, data := range v.GetStringMap(key) {
 		vpr := v.Sub("defaults.java.gateway.listener")
 		if vpr == nil {
 			vpr = viper.New()
 		}
-		lKey := fmt.Sprintf("%s.%d", key, n)
-		vMap := v.GetStringMap(lKey)
+		vMap := data.(map[string]interface{})
 		if err := vpr.MergeConfigMap(vMap); err != nil {
 			return nil, err
 		}
@@ -305,11 +298,11 @@ func loadListeners(v *viper.Viper, gatewayID string) ([]Listener, error) {
 		if err := vpr.Unmarshal(&cfg); err != nil {
 			return nil, err
 		}
-		var err error
-		listeners[n], err = newListener(cfg)
+		l, err := newListener(cfg, id)
 		if err != nil {
 			return nil, err
 		}
+		listeners = append(listeners, l)
 	}
 	return listeners, nil
 }

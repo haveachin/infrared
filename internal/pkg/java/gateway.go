@@ -11,6 +11,7 @@ import (
 )
 
 type Listener struct {
+	ID                       string
 	Bind                     string
 	ReceiveProxyProtocol     bool
 	ReceiveRealIP            bool

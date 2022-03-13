@@ -1,0 +1,15 @@
+bedrock:
+  gateways:
+    mygateway:
+      listeners:
+        mylistener:
+          bind: 0.0.0.0:19132
+      servers:
+        - myserver
+  servers:
+    myserver:
+      domains:
+        - "*"
+      address: your-server-address:19132
+      webhooks:
+        - mywebhook

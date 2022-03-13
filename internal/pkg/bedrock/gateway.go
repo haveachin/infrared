@@ -37,6 +37,7 @@ func (p PingStatus) marshal(l *raknet.Listener) []byte {
 }
 
 type Listener struct {
+	ID                    string
 	Bind                  string
 	ReceiveProxyProtocol  bool
 	PingStatus            PingStatus
