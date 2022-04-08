@@ -6,7 +6,7 @@ Infrared consists of a collection of proxies. Each proxy consists of four abstra
 - A Server Gateway that maps processed connections to the backend servers. This is the part of Infrared that handle the reverse proxy logic.
 - A Connection Pool (ConnPool) that starts the proxy for all connections that could be mapped by the Server Gateway.
 
-<div hidden>
+<!--
 ```plantuml
 @startuml architecture
 title <b>Architecture</b>\nFlow of connections\n
@@ -28,8 +28,9 @@ note right: Reverse proxy component
 stop
 @enduml
 ```
-</div>
+-->
 
 <center>
+
   ![](architecture.svg)
 </center>
