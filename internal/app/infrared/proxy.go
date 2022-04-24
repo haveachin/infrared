@@ -113,14 +113,16 @@ func (p *Proxy) Reload(cfg ProxyConfig) error {
 	if err != nil {
 		return err
 	}
-	np.cpnPool.CPN.EventBus = event.DefaultBus
-	np.cpnPool.CPN.Logger = p.logger
-	np.serverGateway.Logger = p.logger
-	np.connPool.ConnPoolConfig.Logger = p.logger
 
 	for _, gw := range p.gateways {
 		gw.Close()
 	}
+	p.cpnPool.Close()
+
+	np.cpnPool.CPN.EventBus = event.DefaultBus
+	np.cpnPool.CPN.Logger = p.logger
+	np.serverGateway.Logger = p.logger
+	np.connPool.ConnPoolConfig.Logger = p.logger
 
 	p.gateways = np.gateways
 	p.settings = np.settings
@@ -130,29 +132,39 @@ func (p *Proxy) Reload(cfg ProxyConfig) error {
 	p.serverGateway.Reload(np.serverGateway.ServerGatewayConfig)
 	p.connPool.Reload(np.connPool.ConnPoolConfig)
 
-	close(p.cpnCh)
-	for c := range p.cpnCh {
-		np.cpnCh <- c
-	}
-	p.cpnCh = np.cpnCh
-
-	close(p.srvCh)
-	for c := range p.srvCh {
-		np.srvCh <- c
-	}
-	p.srvCh = np.srvCh
-
-	close(p.poolCh)
-	for c := range p.poolCh {
-		np.poolCh <- c
-	}
-	p.poolCh = np.poolCh
+	p.swapCPNChan(np.cpnCh)
+	p.swapSrvChan(np.srvCh)
+	p.swapPoolChan(np.poolCh)
 
 	for _, gw := range p.gateways {
 		gw.SetLogger(p.logger)
 		go ListenAndServe(gw, p.cpnCh)
 	}
 	return nil
+}
+
+func (p *Proxy) swapCPNChan(cpnCh chan Conn) {
+	close(p.cpnCh)
+	for c := range p.cpnCh {
+		cpnCh <- c
+	}
+	p.cpnCh = cpnCh
+}
+
+func (p *Proxy) swapSrvChan(srvCh chan ProcessedConn) {
+	close(p.srvCh)
+	for c := range p.srvCh {
+		srvCh <- c
+	}
+	p.srvCh = srvCh
+}
+
+func (p *Proxy) swapPoolChan(poolCh chan ConnTunnel) {
+	close(p.poolCh)
+	for c := range p.poolCh {
+		poolCh <- c
+	}
+	p.poolCh = poolCh
 }
 
 func (p *Proxy) Close() {
