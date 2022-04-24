@@ -32,6 +32,7 @@ type Proxy struct {
 	cpnCh         chan Conn
 	srvCh         chan ProcessedConn
 	poolCh        chan ConnTunnel
+	logger        *zap.Logger
 }
 
 func NewProxy(cfg ProxyConfig) (Proxy, error) {
@@ -71,17 +72,26 @@ func NewProxy(cfg ProxyConfig) (Proxy, error) {
 			},
 		},
 		serverGateway: ServerGateway{
-			Gateways: gws,
-			Servers:  srvs,
+			ServerGatewayConfig: ServerGatewayConfig{
+				Gateways: gws,
+				Servers:  srvs,
+				In:       srvCh,
+				Out:      poolCh,
+			},
 		},
-		connPool: ConnPool{},
-		cpnCh:    cpnCh,
-		srvCh:    srvCh,
-		poolCh:   poolCh,
+		connPool: ConnPool{
+			ConnPoolConfig: ConnPoolConfig{
+				In: poolCh,
+			},
+		},
+		cpnCh:  cpnCh,
+		srvCh:  srvCh,
+		poolCh: poolCh,
 	}, nil
 }
 
 func (p *Proxy) ListenAndServe(logger *zap.Logger) {
+	p.logger = logger
 	p.cpnPool.CPN.Logger = logger
 	p.cpnPool.CPN.EventBus = event.DefaultBus
 	p.cpnPool.SetSize(p.settings.CPNCount)
@@ -92,8 +102,66 @@ func (p *Proxy) ListenAndServe(logger *zap.Logger) {
 	}
 
 	p.connPool.Logger = logger
-	go p.connPool.Start(p.poolCh)
+	go p.connPool.Start()
 
-	p.serverGateway.Log = logger
-	p.serverGateway.Start(p.srvCh, p.poolCh)
+	p.serverGateway.Logger = logger
+	p.serverGateway.Start()
+}
+
+func (p *Proxy) Reload(cfg ProxyConfig) error {
+	np, err := NewProxy(cfg)
+	if err != nil {
+		return err
+	}
+	np.cpnPool.CPN.EventBus = event.DefaultBus
+	np.cpnPool.CPN.Logger = p.logger
+	np.serverGateway.Logger = p.logger
+	np.connPool.ConnPoolConfig.Logger = p.logger
+
+	for _, gw := range p.gateways {
+		gw.Close()
+	}
+
+	p.gateways = np.gateways
+	p.settings = np.settings
+	p.cpnPool.SetSize(0)
+	p.cpnPool.CPN = np.cpnPool.CPN
+	p.cpnPool.SetSize(p.settings.CPNCount)
+	p.serverGateway.Reload(np.serverGateway.ServerGatewayConfig)
+	p.connPool.Reload(np.connPool.ConnPoolConfig)
+
+	close(p.cpnCh)
+	for c := range p.cpnCh {
+		np.cpnCh <- c
+	}
+	p.cpnCh = np.cpnCh
+
+	close(p.srvCh)
+	for c := range p.srvCh {
+		np.srvCh <- c
+	}
+	p.srvCh = np.srvCh
+
+	close(p.poolCh)
+	for c := range p.poolCh {
+		np.poolCh <- c
+	}
+	p.poolCh = np.poolCh
+
+	for _, gw := range p.gateways {
+		gw.SetLogger(p.logger)
+		go ListenAndServe(gw, p.cpnCh)
+	}
+	return nil
+}
+
+func (p *Proxy) Close() {
+	for _, gw := range p.gateways {
+		gw.Close()
+	}
+	p.serverGateway.Close()
+	p.cpnPool.Close()
+	close(p.cpnCh)
+	close(p.srvCh)
+	close(p.poolCh)
 }

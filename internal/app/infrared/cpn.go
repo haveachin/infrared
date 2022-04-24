@@ -1,8 +1,8 @@
 package infrared
 
 import (
-	"context"
 	"errors"
+	"log"
 	"net"
 	"os"
 	"sync"
@@ -27,7 +27,7 @@ type CPN struct {
 	EventBus event.Bus
 }
 
-func (cpn CPN) ListenAndServe(ctx context.Context) {
+func (cpn CPN) ListenAndServe(quit <-chan bool) {
 	for {
 		select {
 		case c, ok := <-cpn.In:
@@ -61,7 +61,7 @@ func (cpn CPN) ListenAndServe(ctx context.Context) {
 			})
 
 			cpn.Out <- procConn
-		case <-ctx.Done():
+		case <-quit:
 			return
 		}
 	}
@@ -71,7 +71,7 @@ type CPNPool struct {
 	CPN CPN
 
 	mu  sync.Mutex
-	cfs []context.CancelFunc
+	cfs []chan bool
 }
 
 func (p *CPNPool) SetSize(n int) {
@@ -81,20 +81,21 @@ func (p *CPNPool) SetSize(n int) {
 
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	len := len(p.cfs)
-	if len > n {
-		p.remove(len - n)
-	} else if len < n {
-		p.add(n - len)
+	l := len(p.cfs)
+	if l > n {
+		p.remove(l - n)
+	} else if l < n {
+		p.add(n - l)
 	}
+	log.Printf("new len %d", len(p.cfs))
 }
 
 func (p *CPNPool) add(n int) {
-	cfs := make([]context.CancelFunc, n)
+	cfs := make([]chan bool, n)
 	for i := 0; i < n; i++ {
-		ctx, cancel := context.WithCancel(context.Background())
-		go p.CPN.ListenAndServe(ctx)
-		cfs[i] = cancel
+		quit := make(chan bool)
+		go p.CPN.ListenAndServe(quit)
+		cfs[i] = quit
 	}
 
 	if p.cfs == nil {
@@ -105,21 +106,18 @@ func (p *CPNPool) add(n int) {
 }
 
 func (p *CPNPool) remove(n int) {
-	if p.cfs == nil || len(p.cfs) == 0 {
+	l := len(p.cfs)
+	if l == 0 {
 		return
 	}
 
-	l := len(p.cfs)
-	if n > l {
-		n = l
-	}
 	size := l - n
-
-	for ; n > size; n-- {
-		p.cfs[n]()
+	for i := l - 1; i >= size; i-- {
+		p.cfs[i] <- true
+		close(p.cfs[i])
 	}
 
-	p.cfs = append(p.cfs, p.cfs[:size]...)
+	p.cfs = p.cfs[:size]
 }
 
 func (p *CPNPool) Size() int {
@@ -133,10 +131,5 @@ func (p *CPNPool) Size() int {
 }
 
 func (p *CPNPool) Close() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	for _, cf := range p.cfs {
-		cf()
-	}
-	p.cfs = nil
+	p.SetSize(0)
 }

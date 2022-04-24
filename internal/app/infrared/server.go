@@ -31,11 +31,19 @@ func ExecuteServerMessageTemplate(msg string, pc ProcessedConn, s Server) string
 	return ExecuteMessageTemplate(msg, pc)
 }
 
-type ServerGateway struct {
+type ServerGatewayConfig struct {
 	Gateways []Gateway
 	Servers  []Server
-	Log      *zap.Logger
+	In       <-chan ProcessedConn
+	Out      chan<- ConnTunnel
+	Logger   *zap.Logger
+}
 
+type ServerGateway struct {
+	ServerGatewayConfig
+
+	reload     chan func()
+	quit       chan bool
 	gwIDSrvIDs map[string][]string
 	// Server ID mapped to server
 	srvs map[string]Server
@@ -80,32 +88,61 @@ func (sg *ServerGateway) findServer(gatewayID, domain string) Server {
 	return srv
 }
 
-func (sg *ServerGateway) Start(srvChan <-chan ProcessedConn, poolChan chan<- ConnTunnel) {
+func (sg *ServerGateway) Start() {
+	sg.reload = make(chan func())
+	sg.quit = make(chan bool)
 	sg.indexServers()
 
-	for pc := range srvChan {
-		pcLogger := sg.Log.With(logProcessedConn(pc)...)
-		pcLogger.Debug("looking up server address")
+	for {
+		select {
+		case pc, ok := <-sg.In:
+			if !ok {
+				sg.Logger.Debug("server gateway quitting; incoming channel was closed")
+				return
+			}
+			pcLogger := sg.Logger.With(logProcessedConn(pc)...)
+			pcLogger.Debug("looking up server address")
 
-		srv := sg.findServer(pc.GatewayID(), pc.ServerAddr())
-		if srv == nil {
-			pcLogger.Debug("failed to find server; disconnecting client")
-			_ = pc.DisconnectServerNotFound()
-			continue
-		}
+			srv := sg.findServer(pc.GatewayID(), pc.ServerAddr())
+			if srv == nil {
+				pcLogger.Debug("failed to find server; disconnecting client")
+				_ = pc.DisconnectServerNotFound()
+				continue
+			}
 
-		pcLogger = pcLogger.With(logServer(srv)...)
-		pcLogger.Info("starting to proxy connection")
-		event.Push(PreConnConnectingEventTopic, PreConnConnectingEvent{
-			ProcessedConn: pc,
-			Server:        srv,
-		})
+			pcLogger = pcLogger.With(logServer(srv)...)
+			pcLogger.Info("starting to proxy connection")
+			event.Push(PreConnConnectingEventTopic, PreConnConnectingEvent{
+				ProcessedConn: pc,
+				Server:        srv,
+			})
 
-		poolChan <- ConnTunnel{
-			Conn:   pc,
-			Server: srv,
+			sg.Out <- ConnTunnel{
+				Conn:   pc,
+				Server: srv,
+			}
+		case reload := <-sg.reload:
+			reload()
+			sg.indexServers()
+		case <-sg.quit:
+			sg.Logger.Debug("server gateway quitting; received quit signal")
+			return
 		}
 	}
+}
+
+func (sg *ServerGateway) Reload(cfg ServerGatewayConfig) {
+	sg.reload <- func() {
+		sg.ServerGatewayConfig = cfg
+	}
+}
+
+func (sg *ServerGateway) Close() error {
+	if sg.quit == nil {
+		return errors.New("server gateway was not running")
+	}
+	sg.quit <- true
+	return nil
 }
 
 // wildcardSimilarity determines the similarity of a domain to a wildcard domain

@@ -66,9 +66,6 @@ func ExecuteMessageTemplate(msg string, pc ProcessedConn) string {
 	return msg
 }
 
-type ServerConnector interface {
-}
-
 // ConnTunnel is a proxy tunnel between a a client and a server.
 // Similar to net.Pipe
 type ConnTunnel struct {
@@ -77,13 +74,12 @@ type ConnTunnel struct {
 }
 
 // Start starts the proxing of the tunnel
-func (ct ConnTunnel) ProcessConn() error {
+func (ct ConnTunnel) Start() error {
 	rc, err := ct.Server.HandleConn(ct.Conn)
 	if err != nil {
 		return err
 	}
 	defer rc.Close()
-	defer ct.Conn.Close()
 
 	go io.Copy(ct.Conn, rc)
 	_, err = io.Copy(rc, ct.Conn)

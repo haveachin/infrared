@@ -2,7 +2,6 @@
 package infrared_test
 
 import (
-	"context"
 	"errors"
 	"sync"
 	"testing"
@@ -77,15 +76,15 @@ func TestCPN_ListenAndServe(t *testing.T) {
 				EventBus:      bus,
 			}
 
-			ctx, cancel := context.WithCancel(context.Background())
 			wg := sync.WaitGroup{}
 			wg.Add(1)
+			quit := make(chan bool)
 			go func() {
-				cpn.ListenAndServe(ctx)
+				cpn.ListenAndServe(quit)
 				wg.Done()
 			}()
 			in <- tc.in
-			cancel()
+			quit <- true
 
 			if tc.out != nil {
 				if <-out != tc.out {
