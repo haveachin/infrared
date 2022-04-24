@@ -10,6 +10,4 @@ bedrock:
     myserver:
       domains:
         - "*"
-      address: your-server-address:19132
-      webhooks:
-        - mywebhook
+      address: example.com:19132

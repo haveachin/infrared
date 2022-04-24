@@ -10,7 +10,7 @@ java:
     myserver:
       domains:
         - "*"
-      address: your-server-address:25565
+      address: example.com:25565
       overrideStatus:
         versionName: Infrared
         maxPlayerCount: 777777777
@@ -24,7 +24,7 @@ java:
       gatewayIds:
         - mygateway
       # The URL to POST the JSON to
-      url: https://your-domain.com/callback
+      url: https://example.com/callback
       # Event Topics to listen for
       events:
         - PlayerJoin
