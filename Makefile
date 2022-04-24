@@ -12,3 +12,6 @@ run:
 test-docker:
 	docker-compose -p infrared -f deployments/docker-compose.test.yml build --no-cache --force-rm
 	docker-compose -p infrared -f deployments/docker-compose.test.yml up --force-recreate --remove-orphans
+
+plantuml:
+	plantuml -tsvg *.md docs/*.md docs/plugins/*.md
