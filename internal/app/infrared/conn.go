@@ -26,10 +26,13 @@ func (e Edition) String() string {
 	}
 }
 
+// Conn is a basic Minecraft connection containing the gateway ID that it connected through
+// and the Minecraft edition.
 type Conn interface {
 	net.Conn
-	// GatewayID is the ID of the gateway that they connected through
+	// GatewayID is the ID of the gateway that they connected through.
 	GatewayID() string
+	// Edition returns the Minecraft edition of this connection.
 	Edition() Edition
 }
 
@@ -69,11 +72,14 @@ func ExecuteMessageTemplate(msg string, pc ProcessedConn) string {
 // ConnTunnel is a proxy tunnel between a a client and a server.
 // Similar to net.Pipe
 type ConnTunnel struct {
-	Conn   ProcessedConn
+	// Conn is a ProcessedConn that will be connected to the server
+	// when the ConnTunnel is started.
+	Conn ProcessedConn
+	// Server is the minecraft server that the Conn will be connected to.
 	Server Server
 }
 
-// Start starts the proxing of the tunnel
+// Start starts to proxy the Conn to the Server. This call is blocking.
 func (ct ConnTunnel) Start() error {
 	rc, err := ct.Server.HandleConn(ct.Conn)
 	if err != nil {
@@ -81,12 +87,12 @@ func (ct ConnTunnel) Start() error {
 	}
 	defer rc.Close()
 
-	go io.Copy(ct.Conn, rc)
-	_, err = io.Copy(rc, ct.Conn)
-	return err
+	_, _ = io.Copy(ct.Conn, rc)
+	_, _ = io.Copy(rc, ct.Conn)
+	return nil
 }
 
-// Close the proxy tunnel
+// Close closes both connection (client to server and server to client).
 func (ct ConnTunnel) Close() error {
 	return ct.Conn.Close()
 }

@@ -1,4 +1,3 @@
-//go:generate mockgen -destination=cpn_mock_test.go -package=infrared_test . ConnProcessor,ProcessedConn
 package infrared_test
 
 import (
@@ -11,15 +10,6 @@ import (
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"go.uber.org/zap"
 )
-
-func mockProcessConn(ctrl *gomock.Controller) *MockProcessedConn {
-	pc := NewMockProcessedConn(ctrl)
-	pc.EXPECT().ServerAddr().AnyTimes().Return("serverAddr")
-	pc.EXPECT().Username().AnyTimes().Return("username")
-	pc.EXPECT().GatewayID().AnyTimes().Return("gatewayId")
-	pc.EXPECT().IsLoginRequest().AnyTimes().Return(false)
-	return pc
-}
 
 func TestCPN_ListenAndServe(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -34,7 +24,7 @@ func TestCPN_ListenAndServe(t *testing.T) {
 		{
 			name:    "ProcessConn",
 			in:      mockConn(ctrl),
-			out:     mockProcessConn(ctrl),
+			out:     mockProcessedConn(ctrl),
 			procDur: time.Millisecond,
 		},
 		{
@@ -67,7 +57,7 @@ func TestCPN_ListenAndServe(t *testing.T) {
 			}
 
 			in := make(chan infrared.Conn)
-			out := make(chan infrared.ProcessedConn)
+			out := make(chan infrared.ProcessedConn, 1)
 			cpn := infrared.CPN{
 				ConnProcessor: cp,
 				In:            in,
