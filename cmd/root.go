@@ -13,8 +13,7 @@ import (
 	"syscall"
 
 	"github.com/haveachin/infrared/internal/app/infrared"
-	"github.com/haveachin/infrared/internal/pkg/bedrock"
-	"github.com/haveachin/infrared/internal/pkg/java"
+	"github.com/haveachin/infrared/internal/pkg/config"
 	"github.com/haveachin/infrared/internal/plugin/webhook"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -49,20 +48,12 @@ var (
 				return err
 			}
 
-			if err := loadConfig(); err != nil {
-				return err
-			}
-
-			if err := loadConfigsFromProvieders(); err != nil {
-				return err
-			}
-
-			bedrockProxy, err := infrared.NewProxy(&bedrock.ProxyConfig{Viper: v})
+			cfg, err := config.New(configPath)
 			if err != nil {
 				return err
 			}
 
-			javaProxy, err := infrared.NewProxy(&java.ProxyConfig{Viper: v})
+			prxCfgs, err := cfg.ReadProxyConfigs()
 			if err != nil {
 				return err
 			}
@@ -82,8 +73,13 @@ var (
 
 			logger.Info("starting proxy")
 
-			go bedrockProxy.ListenAndServe(logger)
-			go javaProxy.ListenAndServe(logger)
+			for _, prxCfg := range prxCfgs {
+				prx, err := infrared.NewProxy(prxCfg)
+				if err != nil {
+					return err
+				}
+				go prx.ListenAndServe(logger)
+			}
 
 			sc := make(chan os.Signal, 1)
 			signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)

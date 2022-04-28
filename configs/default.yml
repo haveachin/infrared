@@ -29,7 +29,7 @@ java:
   chanCap:
     # The capacity of the channel from the gateway to the processing nodes
     connProcessor: 100
-    # The capcacity of the channel from the processing nodes to the server gateway
+    # The capacity of the channel from the processing nodes to the server gateway
     server: 100
     # The capacity of the channel from the server gateway to the connection pool
     connPool: 10

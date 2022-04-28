@@ -2,7 +2,6 @@ package infrared
 
 import (
 	"errors"
-	"log"
 	"net"
 	"os"
 	"sync"
@@ -87,7 +86,6 @@ func (p *CPNPool) SetSize(n int) {
 	} else if l < n {
 		p.add(n - l)
 	}
-	log.Printf("new len %d", len(p.cfs))
 }
 
 func (p *CPNPool) add(n int) {
