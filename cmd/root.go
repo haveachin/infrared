@@ -1,13 +1,10 @@
 package cmd
 
 import (
-	"bytes"
 	"embed"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/signal"
-	"path"
 	"path/filepath"
 	"strings"
 	"syscall"
@@ -44,7 +41,7 @@ var (
 				zap.String("config", configPath),
 			)
 
-			if err := createIconsIfNotExist(); err != nil {
+			if err := safeWriteFromEmbeddedFS("configs", "."); err != nil {
 				return err
 			}
 
@@ -85,7 +82,7 @@ var (
 			signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
 			<-sc
 
-			logger.Info("disabeling plugins")
+			logger.Info("disabling plugins")
 			return pluginManager.DisablePlugins()
 		},
 	}
@@ -110,171 +107,37 @@ func Execute(fs embed.FS) error {
 	return rootCmd.Execute()
 }
 
-func createIconsIfNotExist() error {
-	if _, err := os.Stat("icons/default.png"); err == nil || !os.IsNotExist(err) {
-		return nil
-	}
-
-	if err := os.Mkdir("icons", 0755); err != nil {
-		return err
-	}
-
-	bb, err := files.ReadFile("configs/icons/default.png")
-	if err != nil {
-		return err
-	}
-
-	return ioutil.WriteFile("icons/default.png", bb, 0666)
-}
-
-func loadConfig() error {
-	configPath = strings.TrimSpace(configPath)
-	v.SetConfigFile(configPath)
-
-	if err := v.ReadInConfig(); err != nil {
-		if _, ok := err.(viper.ConfigFileNotFoundError); ok || os.IsNotExist(err) {
-			return writeDefaultConfigs()
-		}
-		return err
-	}
-	return nil
-}
-
-func writeDefaultConfigs() error {
-	if err := writeConfigFromEmbedFS("configs/default.yml", configPath); err != nil {
-		return err
-	}
-	return writeDirFromEmbedFS("configs/proxies", "proxies")
-}
-
-func writeDirFromEmbedFS(embedPath, cfgPath string) error {
+func safeWriteFromEmbeddedFS(embedPath, sysPath string) error {
 	entries, err := files.ReadDir(embedPath)
 	if err != nil {
 		return err
 	}
 
-	dir := path.Dir(cfgPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
-	}
-
 	for _, e := range entries {
-		name := e.Name()
-		name = strings.TrimSuffix(name, path.Ext(name))
-		name += path.Ext(configPath)
-		ePath := fmt.Sprintf("%s/%s", embedPath, e.Name())
-		cPath := fmt.Sprintf("%s/%s", cfgPath, name)
+		ePath := filepath.Join(embedPath, e.Name())
+		sPath := filepath.Join(sysPath, e.Name())
 		if e.IsDir() {
-			if err := writeDirFromEmbedFS(ePath, cPath); err != nil {
+			if _, err := os.Stat(sPath); !os.IsNotExist(err) {
+				continue
+			}
+
+			if err := os.MkdirAll(sPath, 0755); err != nil {
 				return err
 			}
+
+			safeWriteFromEmbeddedFS(ePath, sPath)
 			continue
 		}
 
-		if err := writeConfigFromEmbedFS(ePath, cPath); err != nil {
+		bb, err := files.ReadFile(ePath)
+		if err != nil {
+			return err
+		}
+
+		if err := os.WriteFile(sPath, bb, 0755); err != nil {
 			return err
 		}
 	}
+
 	return nil
-}
-
-func writeConfigFromEmbedFS(embedPath, cfgPath string) error {
-	bb, err := readEmbedFile(embedPath)
-	if err != nil {
-		return err
-	}
-
-	v.SetConfigType("yml")
-	if err := v.ReadConfig(bytes.NewReader(bb)); err != nil {
-		return err
-	}
-	return writeConfig(v, cfgPath, bb)
-}
-
-func readEmbedFile(path string) ([]byte, error) {
-	f, err := files.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer f.Close()
-
-	return ioutil.ReadAll(f)
-}
-
-func writeConfig(v *viper.Viper, cfgPath string, value []byte) error {
-	dir := path.Dir(cfgPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return err
-	}
-
-	switch ext := path.Ext(cfgPath); ext {
-	case ".yml", ".yaml":
-		return ioutil.WriteFile(cfgPath, value, 0666)
-	case ".json", ".toml", ".properties", ".props", ".prop", ".hcl", ".tfvars", ".dotenv", ".env", ".ini":
-		return v.SafeWriteConfigAs(cfgPath)
-	default:
-		return fmt.Errorf("unsupported config format %q", ext)
-	}
-}
-
-func loadConfigsFromProvieders() error {
-	dir := v.GetString("providers.file.directory")
-	if dir != "" {
-		if err := loadConfigsFromDir(dir); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func loadConfigsFromDir(dir string) error {
-	info, err := os.Stat(dir)
-	if err != nil {
-		return err
-	}
-
-	if !info.IsDir() {
-		return fmt.Errorf("%q is not a dir", dir)
-	}
-
-	filePaths, err := filePathsFromDir(dir)
-	if err != nil {
-		return err
-	}
-
-	for _, path := range filePaths {
-		if err := readConfigFile(path); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func readConfigFile(path string) error {
-	path = strings.TrimSpace(path)
-	vpr := viper.New()
-	vpr.SetConfigFile(path)
-
-	if err := vpr.ReadInConfig(); err != nil {
-		return err
-	}
-	return v.MergeConfigMap(vpr.AllSettings())
-}
-
-func filePathsFromDir(path string) ([]string, error) {
-	var filePaths []string
-	files, err := ioutil.ReadDir(path)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, file := range files {
-		if file.IsDir() {
-			continue
-		}
-
-		filePaths = append(filePaths, filepath.Join(path, file.Name()))
-	}
-
-	return filePaths, err
 }
