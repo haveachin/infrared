@@ -6,6 +6,7 @@ import (
 )
 
 type ProxyConfig interface {
+	ListenerBuilder() ListenerBuilder
 	LoadGateways() ([]Gateway, error)
 	LoadServers() ([]Server, error)
 	LoadConnProcessor() (ConnProcessor, error)
@@ -24,36 +25,37 @@ type ProxySettings struct {
 }
 
 type Proxy struct {
-	settings      ProxySettings
-	gateways      []Gateway
-	cpnPool       CPNPool
-	serverGateway ServerGateway
-	connPool      ConnPool
-	cpnCh         chan Conn
-	srvCh         chan ProcessedConn
-	poolCh        chan ConnTunnel
-	logger        *zap.Logger
+	listenersManager ListenersManager
+	settings         ProxySettings
+	gateways         []Gateway
+	cpnPool          CPNPool
+	serverGateway    ServerGateway
+	connPool         ConnPool
+	cpnCh            chan Conn
+	srvCh            chan ProcessedConn
+	poolCh           chan ConnTunnel
+	logger           *zap.Logger
 }
 
-func NewProxy(cfg ProxyConfig) (Proxy, error) {
+func NewProxy(cfg ProxyConfig) (*Proxy, error) {
 	gws, err := cfg.LoadGateways()
 	if err != nil {
-		return Proxy{}, err
+		return nil, err
 	}
 
 	cp, err := cfg.LoadConnProcessor()
 	if err != nil {
-		return Proxy{}, err
+		return nil, err
 	}
 
 	srvs, err := cfg.LoadServers()
 	if err != nil {
-		return Proxy{}, err
+		return nil, err
 	}
 
 	stg, err := cfg.LoadProxySettings()
 	if err != nil {
-		return Proxy{}, err
+		return nil, err
 	}
 
 	chCaps := stg.ChannelCaps
@@ -61,7 +63,11 @@ func NewProxy(cfg ProxyConfig) (Proxy, error) {
 	srvCh := make(chan ProcessedConn, chCaps.Server)
 	poolCh := make(chan ConnTunnel, chCaps.ConnPool)
 
-	return Proxy{
+	return &Proxy{
+		listenersManager: ListenersManager{
+			New:       cfg.ListenerBuilder(),
+			listeners: map[string]*managedListener{},
+		},
 		settings: stg,
 		gateways: gws,
 		cpnPool: CPNPool{
@@ -97,6 +103,7 @@ func (p *Proxy) ListenAndServe(logger *zap.Logger) {
 	p.cpnPool.SetSize(p.settings.CPNCount)
 
 	for _, gw := range p.gateways {
+		gw.SetListenersManager(&p.listenersManager)
 		gw.SetLogger(logger)
 		go ListenAndServe(gw, p.cpnCh)
 	}
@@ -137,9 +144,11 @@ func (p *Proxy) Reload(cfg ProxyConfig) error {
 	p.swapPoolChan(np.poolCh)
 
 	for _, gw := range p.gateways {
+		gw.SetListenersManager(&p.listenersManager)
 		gw.SetLogger(p.logger)
 		go ListenAndServe(gw, p.cpnCh)
 	}
+	p.listenersManager.clean()
 	return nil
 }
 

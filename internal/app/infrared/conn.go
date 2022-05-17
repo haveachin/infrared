@@ -87,8 +87,8 @@ func (ct ConnTunnel) Start() error {
 	}
 	defer rc.Close()
 
-	_, _ = io.Copy(ct.Conn, rc)
-	_, _ = io.Copy(rc, ct.Conn)
+	go io.Copy(ct.Conn, rc)
+	io.Copy(rc, ct.Conn)
 	return nil
 }
 

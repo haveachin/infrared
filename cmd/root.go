@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/haveachin/infrared/internal/app/infrared"
@@ -23,6 +24,8 @@ var (
 
 	configPath string
 	workingDir string
+
+	proxies []*infrared.Proxy
 
 	rootCmd = &cobra.Command{
 		Use:   "infrared",
@@ -45,9 +48,22 @@ var (
 				return err
 			}
 
-			cfg, err := config.New(configPath)
-			if err != nil {
-				return err
+			mu := sync.Mutex{}
+			cfg := config.Config{
+				Path:   configPath,
+				Logger: logger,
+				OnChange: func(cfgs []infrared.ProxyConfig) {
+					mu.Lock()
+					defer mu.Unlock()
+					logger.Info("Reloading proxies")
+					for n, prx := range proxies {
+						if err := prx.Reload(cfgs[n]); err != nil {
+							logger.Error("failed to reload proxy",
+								zap.Error(err),
+							)
+						}
+					}
+				},
 			}
 
 			prxCfgs, err := cfg.ReadProxyConfigs()
@@ -75,6 +91,7 @@ var (
 				if err != nil {
 					return err
 				}
+				proxies = append(proxies, prx)
 				go prx.ListenAndServe(logger)
 			}
 

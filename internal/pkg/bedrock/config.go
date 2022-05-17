@@ -14,6 +14,12 @@ type ProxyConfig struct {
 	Viper *viper.Viper
 }
 
+func (cfg ProxyConfig) ListenerBuilder() infrared.ListenerBuilder {
+	return func(addr string) (net.Listener, error) {
+		return raknet.Listen(addr)
+	}
+}
+
 func (cfg ProxyConfig) LoadGateways() ([]infrared.Gateway, error) {
 	var gateways []infrared.Gateway
 	for id, data := range cfg.Viper.GetStringMap("bedrock.gateways") {
@@ -155,7 +161,7 @@ func newGateway(v *viper.Viper, id string, cfg gatewayConfig) (infrared.Gateway,
 	}
 
 	return &InfraredGateway{
-		Gateway: Gateway{
+		gateway: Gateway{
 			ID:        id,
 			Listeners: listeners,
 			ServerIDs: cfg.Servers,

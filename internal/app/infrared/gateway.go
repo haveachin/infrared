@@ -17,6 +17,7 @@ type Gateway interface {
 	// GetServerIDs returns the IDs of the servers
 	// that are registered in that gateway
 	ServerIDs() []string
+	SetListenersManager(*ListenersManager)
 	// Sets the logr.Logger implementation of the Gateway
 	SetLogger(*zap.Logger)
 	// Logger returns the logr.Logger implementation of the Gateway

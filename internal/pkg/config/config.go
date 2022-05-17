@@ -5,12 +5,8 @@ import (
 	"github.com/haveachin/infrared/internal/pkg/bedrock"
 	"github.com/haveachin/infrared/internal/pkg/java"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
-
-type Config interface {
-	ReadProxyConfigs() ([]infrared.ProxyConfig, error)
-	OnConfigChange(fn func(cfgs []infrared.ProxyConfig))
-}
 
 type content struct {
 	Providers struct {
@@ -26,37 +22,61 @@ type content struct {
 	}
 }
 
-func New(path string) (Config, error) {
-	v := viper.New()
-	v.SetConfigFile(path)
-	if err := v.ReadInConfig(); err != nil {
+type Config struct {
+	Path     string
+	Logger   *zap.Logger
+	OnChange func(cfgs []infrared.ProxyConfig)
+
+	v         *viper.Viper
+	content   content
+	providers []provider
+}
+
+func (c *Config) Load() error {
+	if c.Logger == nil {
+		c.Logger = zap.NewNop()
+	}
+
+	c.v = viper.New()
+	c.v.SetConfigFile(c.Path)
+	if err := c.v.ReadInConfig(); err != nil {
+		return err
+	}
+
+	if err := c.v.Unmarshal(&c.content); err != nil {
+		return err
+	}
+
+	c.providers = []provider{
+		c.initFileProvider(),
+	}
+
+	return nil
+}
+
+func (c Config) initFileProvider() *fileProvider {
+	cfg := c.content.Providers.File
+	fileProvider := fileProvider{
+		dir:      cfg.Directory,
+		onChange: c.onChange,
+	}
+
+	if cfg.Watch {
+		go func() {
+			if err := fileProvider.watch(); err != nil {
+				c.Logger.Error("", zap.Error(err))
+			}
+		}()
+	}
+
+	return &fileProvider
+}
+
+func (c *Config) ReadProxyConfigs() ([]infrared.ProxyConfig, error) {
+	if err := c.Load(); err != nil {
 		return nil, err
 	}
 
-	var content content
-	if err := v.Unmarshal(&content); err != nil {
-		return nil, err
-	}
-
-	return &config{
-		v:       v,
-		content: content,
-		providers: []Provider{
-			&fileProvider{
-				dirPath: content.Providers.File.Directory,
-			},
-		},
-	}, nil
-}
-
-type config struct {
-	v            *viper.Viper
-	content      content
-	providers    []Provider
-	configChange func(cfgs []infrared.ProxyConfig)
-}
-
-func (c config) ReadProxyConfigs() ([]infrared.ProxyConfig, error) {
 	v := viper.New()
 	v.MergeConfigMap(c.v.AllSettings())
 	for _, p := range c.providers {
@@ -71,6 +91,17 @@ func (c config) ReadProxyConfigs() ([]infrared.ProxyConfig, error) {
 	}, nil
 }
 
-func (c *config) OnConfigChange(fn func(cfgs []infrared.ProxyConfig)) {
-	c.configChange = fn
+func (c *Config) onChange() {
+	if c.OnChange == nil {
+		return
+	}
+
+	cfgs, err := c.ReadProxyConfigs()
+	if err != nil {
+		c.Logger.Error("Failed to read configs",
+			zap.Error(err),
+		)
+	}
+
+	c.OnChange(cfgs)
 }

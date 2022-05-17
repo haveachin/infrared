@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/sandertv/go-raknet"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
@@ -43,14 +44,15 @@ type Listener struct {
 	PingStatus            PingStatus
 	ServerNotFoundMessage string
 
-	raknet.Listener
+	net.Listener
 }
 
 type Gateway struct {
-	ID        string
-	Listeners []Listener
-	ServerIDs []string
-	Logger    *zap.Logger
+	ID               string
+	ListenersManager *infrared.ListenersManager
+	Listeners        []Listener
+	ServerIDs        []string
+	Logger           *zap.Logger
 
 	listeners []net.Listener
 }
@@ -58,7 +60,7 @@ type Gateway struct {
 func (gw *Gateway) initListeners() {
 	gw.listeners = make([]net.Listener, len(gw.Listeners))
 	for n, listener := range gw.Listeners {
-		l, err := raknet.Listen(listener.Bind)
+		l, err := gw.ListenersManager.Listen(listener.Bind)
 		if err != nil {
 			gw.Logger.Error("unable to bind listener",
 				zap.Error(err),
@@ -66,53 +68,60 @@ func (gw *Gateway) initListeners() {
 			)
 			continue
 		}
-		l.PongData(listener.PingStatus.marshal(l))
+		//rl := l.(*raknet.Listener)
+		//rl.PongData(listener.PingStatus.marshal(rl))
 
-		gw.Listeners[n].Listener = *l
+		gw.Listeners[n].Listener = l
 		gw.listeners[n] = &gw.Listeners[n]
 	}
 }
 
 type InfraredGateway struct {
 	mu      sync.RWMutex
-	Gateway Gateway
+	gateway Gateway
 }
 
 func (gw *InfraredGateway) ID() string {
 	gw.mu.RLock()
 	defer gw.mu.RUnlock()
-	return gw.Gateway.ID
+	return gw.gateway.ID
 }
 
 func (gw *InfraredGateway) ServerIDs() []string {
 	gw.mu.RLock()
 	defer gw.mu.RUnlock()
-	srvIDs := make([]string, len(gw.Gateway.ServerIDs))
-	copy(srvIDs, gw.Gateway.ServerIDs)
+	srvIDs := make([]string, len(gw.gateway.ServerIDs))
+	copy(srvIDs, gw.gateway.ServerIDs)
 	return srvIDs
+}
+
+func (gw *InfraredGateway) SetListenersManager(lm *infrared.ListenersManager) {
+	gw.mu.Lock()
+	defer gw.mu.Unlock()
+	gw.gateway.ListenersManager = lm
+
+	if gw.gateway.listeners == nil {
+		gw.gateway.initListeners()
+	}
 }
 
 func (gw *InfraredGateway) SetLogger(log *zap.Logger) {
 	gw.mu.Lock()
 	defer gw.mu.Unlock()
-	gw.Gateway.Logger = log
+	gw.gateway.Logger = log
 }
 
 func (gw *InfraredGateway) Logger() *zap.Logger {
 	gw.mu.RLock()
 	defer gw.mu.RUnlock()
-	return gw.Gateway.Logger
+	return gw.gateway.Logger
 }
 
 func (gw *InfraredGateway) Listeners() []net.Listener {
 	gw.mu.Lock()
 	defer gw.mu.Unlock()
-	if gw.Gateway.listeners == nil {
-		gw.Gateway.initListeners()
-	}
-
-	ll := make([]net.Listener, len(gw.Gateway.ServerIDs))
-	copy(ll, gw.Gateway.listeners)
+	ll := make([]net.Listener, len(gw.gateway.ServerIDs))
+	copy(ll, gw.gateway.listeners)
 	return ll
 }
 
@@ -120,7 +129,7 @@ func (gw *InfraredGateway) WrapConn(c net.Conn, l net.Listener) net.Conn {
 	listener := l.(*Listener)
 	return &Conn{
 		Conn:                  c.(*raknet.Conn),
-		gatewayID:             gw.Gateway.ID,
+		gatewayID:             gw.gateway.ID,
 		proxyProtocol:         listener.ReceiveProxyProtocol,
 		serverNotFoundMessage: listener.ServerNotFoundMessage,
 	}
@@ -130,7 +139,7 @@ func (gw *InfraredGateway) Close() error {
 	gw.mu.RLock()
 	defer gw.mu.RUnlock()
 	var result error
-	for _, l := range gw.Gateway.listeners {
+	for _, l := range gw.gateway.listeners {
 		if err := l.Close(); err != nil {
 			result = multierr.Append(result, err)
 		}
