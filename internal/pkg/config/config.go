@@ -54,11 +54,12 @@ func (c *Config) Load() error {
 	return nil
 }
 
-func (c Config) initFileProvider() *fileProvider {
+func (c *Config) initFileProvider() provider {
 	cfg := c.content.Providers.File
 	fileProvider := fileProvider{
 		dir:      cfg.Directory,
 		onChange: c.onChange,
+		logger:   c.Logger,
 	}
 
 	if cfg.Watch {
@@ -73,8 +74,10 @@ func (c Config) initFileProvider() *fileProvider {
 }
 
 func (c *Config) ReadProxyConfigs() ([]infrared.ProxyConfig, error) {
-	if err := c.Load(); err != nil {
-		return nil, err
+	if c.v == nil {
+		if err := c.Load(); err != nil {
+			return nil, err
+		}
 	}
 
 	v := viper.New()
@@ -104,4 +107,10 @@ func (c *Config) onChange() {
 	}
 
 	c.OnChange(cfgs)
+}
+
+func (c *Config) Close() {
+	for _, p := range c.providers {
+		p.close()
+	}
 }

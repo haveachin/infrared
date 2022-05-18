@@ -1,10 +1,8 @@
 package config
 
 import (
-	"errors"
 	"io/fs"
 	"path/filepath"
-	"time"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/viper"
@@ -13,6 +11,7 @@ import (
 
 type provider interface {
 	mergeConfigs(v *viper.Viper) error
+	close()
 }
 
 type fileProvider struct {
@@ -31,7 +30,11 @@ func (p fileProvider) mergeConfigs(v *viper.Viper) error {
 		vpr := viper.New()
 		vpr.SetConfigFile(path)
 		if err := vpr.ReadInConfig(); err != nil {
-			return err
+			p.logger.Error("Failed to read config",
+				zap.Error(err),
+				zap.String("configPath", path),
+			)
+			return nil
 		}
 
 		return v.MergeConfigMap(vpr.AllSettings())
@@ -39,10 +42,6 @@ func (p fileProvider) mergeConfigs(v *viper.Viper) error {
 }
 
 func (p *fileProvider) watch() error {
-	if p.onChange == nil {
-		return errors.New("needs onChange func")
-	}
-
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
 		return err
@@ -54,17 +53,8 @@ func (p *fileProvider) watch() error {
 		return err
 	}
 
-	tick := time.NewTicker(time.Millisecond * 100)
-	var lastEvent *fsnotify.Event
-
 	for {
 		select {
-		case <-tick.C:
-			if lastEvent == nil {
-				continue
-			}
-			lastEvent = nil
-			p.onChange()
 		case e, ok := <-w.Events:
 			if !ok {
 				return nil
@@ -72,8 +62,10 @@ func (p *fileProvider) watch() error {
 
 			if e.Op&fsnotify.Remove == fsnotify.Remove ||
 				e.Op&fsnotify.Write == fsnotify.Write ||
-				e.Op&fsnotify.Create == fsnotify.Create {
-				lastEvent = &e
+				e.Op&fsnotify.Create == fsnotify.Create ||
+				e.Op&fsnotify.Rename == fsnotify.Rename ||
+				e.Op == fsnotify.Remove {
+				p.onChange()
 			}
 		case err, ok := <-w.Errors:
 			if !ok {

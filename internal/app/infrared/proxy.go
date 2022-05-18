@@ -98,6 +98,7 @@ func NewProxy(cfg ProxyConfig) (*Proxy, error) {
 
 func (p *Proxy) ListenAndServe(logger *zap.Logger) {
 	p.logger = logger
+	p.listenersManager.logger = logger
 	p.cpnPool.CPN.Logger = logger
 	p.cpnPool.CPN.EventBus = event.DefaultBus
 	p.cpnPool.SetSize(p.settings.CPNCount)

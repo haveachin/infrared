@@ -2,11 +2,11 @@ package infrared
 
 import (
 	"fmt"
-	"log"
 	"net"
 	"sync"
 
 	"go.uber.org/atomic"
+	"go.uber.org/zap"
 )
 
 type listener struct {
@@ -80,6 +80,7 @@ type ListenerBuilder func(addr string) (net.Listener, error)
 type ListenersManager struct {
 	New ListenerBuilder
 
+	logger    *zap.Logger
 	listeners map[string]*managedListener
 	mu        sync.Mutex
 }
@@ -103,6 +104,9 @@ func (m *ListenersManager) Listen(addr string) (net.Listener, error) {
 	if err != nil {
 		return nil, err
 	}
+	m.logger.Info("starting listener",
+		zap.String("address", addr),
+	)
 
 	ml = newManagedListener(l)
 	m.listeners[addr] = ml
@@ -113,12 +117,15 @@ func (m *ListenersManager) clean() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	for _, l := range m.listeners {
+	for addr, l := range m.listeners {
 		if l.subscriber.Load() > 0 {
 			continue
 		}
 
-		log.Println("Closing " + l.Addr().String())
+		m.logger.Info("closing listener",
+			zap.String("address", l.Addr().String()),
+		)
 		l.Close()
+		delete(m.listeners, addr)
 	}
 }
