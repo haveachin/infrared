@@ -30,11 +30,7 @@ func (p Plugin) Version() string {
 	return "internal"
 }
 
-func (p *Plugin) Enable(api infrared.PluginAPI) error {
-	p.logger = api.Logger()
-	p.eventBus = api.EventBus()
-	p.eventChs = map[uuid.UUID]event.Channel{}
-
+func (p *Plugin) Load(v *viper.Viper) error {
 	var err error
 	p.javaWhks, err = p.loadWebhooks(infrared.JavaEdition)
 	if err != nil {
@@ -44,11 +40,21 @@ func (p *Plugin) Enable(api infrared.PluginAPI) error {
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func (p *Plugin) Reload(v *viper.Viper) error {
+	return p.Load(v)
+}
+
+func (p *Plugin) Enable(api infrared.PluginAPI) error {
+	p.logger = api.Logger()
+	p.eventBus = api.EventBus()
+	p.eventChs = map[uuid.UUID]event.Channel{}
 
 	ch := make(event.Channel, 10)
 	id, _ := p.eventBus.AttachChannel(uuid.Nil, ch)
 	p.eventChs[id] = ch
-
 	go p.start(ch)
 
 	return nil
@@ -85,7 +91,7 @@ type eventData struct {
 	IsLoginRequest *bool `json:"isLoginRequest,omitempty"`
 }
 
-func mapConn(data *eventData, c infrared.Conn) {
+func unmarshalConn(data *eventData, c infrared.Conn) {
 	data.Edition = c.Edition().String()
 	data.Conn.Network = c.LocalAddr().Network()
 	data.Conn.LocalAddr = c.LocalAddr().String()
@@ -93,15 +99,15 @@ func mapConn(data *eventData, c infrared.Conn) {
 	data.GatewayID = c.GatewayID()
 }
 
-func mapProcessedConn(data *eventData, pc infrared.ProcessedConn) {
-	mapConn(data, pc)
+func unmarshalProcessedConn(data *eventData, pc infrared.ProcessedConn) {
+	unmarshalConn(data, pc)
 	data.Server.ServerAddr = pc.ServerAddr()
 	data.Conn.Username = pc.Username()
 	var isLoginRequest = pc.IsLoginRequest()
 	data.IsLoginRequest = &isLoginRequest
 }
 
-func mapServer(data *eventData, s infrared.Server) {
+func unmarshalServer(data *eventData, s infrared.Server) {
 	data.Server.ServerID = s.ID()
 	data.Server.Domains = s.Domains()
 }
@@ -110,20 +116,20 @@ func (p Plugin) handleEvent(e event.Event) {
 	var data eventData
 	switch e := e.Data.(type) {
 	case infrared.NewConnEvent:
-		mapConn(&data, e.Conn)
+		unmarshalConn(&data, e.Conn)
 	case infrared.PreConnProcessingEvent:
-		mapConn(&data, e.Conn)
+		unmarshalConn(&data, e.Conn)
 	case infrared.PostConnProcessingEvent:
-		mapProcessedConn(&data, e.ProcessedConn)
+		unmarshalProcessedConn(&data, e.ProcessedConn)
 	case infrared.PreConnConnectingEvent:
-		mapProcessedConn(&data, e.ProcessedConn)
-		mapServer(&data, e.Server)
+		unmarshalProcessedConn(&data, e.ProcessedConn)
+		unmarshalServer(&data, e.Server)
 	case infrared.PlayerJoinEvent:
-		mapProcessedConn(&data, e.ProcessedConn)
-		mapServer(&data, e.Server)
+		unmarshalProcessedConn(&data, e.ProcessedConn)
+		unmarshalServer(&data, e.Server)
 	case infrared.PlayerLeaveEvent:
-		mapProcessedConn(&data, e.ProcessedConn)
-		mapServer(&data, e.Server)
+		unmarshalProcessedConn(&data, e.ProcessedConn)
+		unmarshalServer(&data, e.Server)
 	default:
 		return
 	}

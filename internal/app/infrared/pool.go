@@ -33,8 +33,6 @@ func (cp *ConnPool) Start() {
 				break
 			}
 
-			connLogger := cp.Logger.With(logProcessedConn(ct.Conn)...)
-			connLogger.Info("starting server processing")
 			cp.addToPool(ct)
 
 			go func(logger *zap.Logger) {
@@ -45,8 +43,9 @@ func (cp *ConnPool) Start() {
 					})
 				}
 
+				logger.Info("connecting client to server")
 				if err := ct.Start(); err != nil {
-					logger.Debug("failed to start the proxy tunnel", zap.Error(err))
+					logger.Info("closing connection", zap.Error(err))
 					return
 				}
 				ct.Conn.Close()
@@ -57,7 +56,7 @@ func (cp *ConnPool) Start() {
 					Server:        ct.Server,
 				})
 				cp.removeFromPool(ct)
-			}(connLogger)
+			}(cp.Logger.With(logProcessedConn(ct.Conn)...))
 		case reload := <-cp.reload:
 			reload()
 		case <-cp.quit:

@@ -105,13 +105,13 @@ func (sg *ServerGateway) Start() {
 
 			srv := sg.findServer(pc.GatewayID(), pc.ServerAddr())
 			if srv == nil {
-				pcLogger.Debug("failed to find server; disconnecting client")
+				pcLogger.Info("failed to find server; disconnecting client")
 				_ = pc.DisconnectServerNotFound()
 				continue
 			}
 
 			pcLogger = pcLogger.With(logServer(srv)...)
-			pcLogger.Info("starting to proxy connection")
+			pcLogger.Debug("found server")
 			event.Push(PreConnConnectingEventTopic, PreConnConnectingEvent{
 				ProcessedConn: pc,
 				Server:        srv,
@@ -146,10 +146,10 @@ func (sg *ServerGateway) Close() error {
 }
 
 // wildcardSimilarity determines the similarity of a domain to a wildcard domain
-// If the similarity ends on a '*' then the domain is compareable to the wildcard domain
+// If the similarity ends on a '*' then the domain is comparable to the wildcard domain
 // then it returns the length of the equal string slice. If it is an exact match
 // then it returns the length of the domain string + 1.
-// Else if they are not compareable because the equal string slice ends on any rune
+// Else if they are not comparable because the equal string slice ends on any rune
 // that is not '*' it returns -1
 func wildcardSimilarity(domain, wildcardDomain string) int {
 	ra, rb := []rune(domain), []rune(wildcardDomain)
@@ -166,7 +166,7 @@ func wildcardSimilarity(domain, wildcardDomain string) int {
 	i := 0
 	for i = 0; i <= sl; i++ {
 		if ra[la-i] != rb[lb-i] {
-			// If the similarity does not end on a wildcard then return -1 for no compareable
+			// If the similarity does not end on a wildcard then return -1 for no comparable
 			if rb[lb-i] != '*' {
 				return -1
 			}

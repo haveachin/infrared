@@ -2,7 +2,7 @@ package infrared
 
 import (
 	"github.com/haveachin/infrared/pkg/event"
-	"go.uber.org/multierr"
+	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
 
@@ -14,6 +14,8 @@ type PluginAPI interface {
 type Plugin interface {
 	Name() string
 	Version() string
+	Load(v *viper.Viper) error
+	Reload(v *viper.Viper) error
 	Enable(PluginAPI) error
 	Disable() error
 }
@@ -33,18 +35,41 @@ func (api *pluginAPI) Logger() *zap.Logger {
 
 type PluginManager struct {
 	Plugins  []Plugin
-	Log      *zap.Logger
+	Logger   *zap.Logger
 	EventBus event.Bus
 }
 
-func (pm PluginManager) EnablePlugins() error {
+func (pm PluginManager) LoadPlugins(v *viper.Viper) {
+	for _, p := range pm.Plugins {
+		if err := p.Load(v); err != nil {
+			pm.Logger.Error("failed to load plugin",
+				zap.Error(err),
+				zap.String("pluginName", p.Name()),
+				zap.String("pluginVersion", p.Version()),
+			)
+		}
+	}
+}
+
+func (pm PluginManager) ReloadPlugins(v *viper.Viper) {
+	for _, p := range pm.Plugins {
+		if err := p.Load(v); err != nil {
+			pm.Logger.Error("failed to reload plugin",
+				zap.Error(err),
+				zap.String("pluginName", p.Name()),
+				zap.String("pluginVersion", p.Version()),
+			)
+		}
+	}
+}
+
+func (pm PluginManager) EnablePlugins() {
 	if pm.EventBus == nil {
 		pm.EventBus = event.DefaultBus
 	}
 
-	var result error
 	for _, p := range pm.Plugins {
-		pluginLogger := pm.Log.With(
+		pluginLogger := pm.Logger.With(
 			zap.String("pluginName", p.Name()),
 			zap.String("pluginVersion", p.Version()),
 		)
@@ -53,20 +78,23 @@ func (pm PluginManager) EnablePlugins() error {
 			logger:   pluginLogger,
 		}
 
-		pluginLogger.Info("loading plugin")
+		pluginLogger.Info("enabling plugin")
 		if err := p.Enable(&api); err != nil {
-			result = multierr.Append(result, err)
+			pluginLogger.Error("Failed to enable plugin",
+				zap.Error(err),
+			)
 		}
 	}
-	return result
 }
 
-func (pm PluginManager) DisablePlugins() error {
-	var result error
+func (pm PluginManager) DisablePlugins() {
 	for _, p := range pm.Plugins {
 		if err := p.Disable(); err != nil {
-			result = multierr.Append(result, err)
+			pm.Logger.Error("failed to disable plugin",
+				zap.Error(err),
+				zap.String("pluginName", p.Name()),
+				zap.String("pluginVersion", p.Version()),
+			)
 		}
 	}
-	return result
 }
