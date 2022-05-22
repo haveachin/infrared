@@ -10,16 +10,16 @@ import (
 	"github.com/spf13/viper"
 )
 
-func (p Plugin) loadWebhooks(edition infrared.Edition) (map[string][]webhook.Webhook, error) {
+func (p Plugin) loadWebhooks(v *viper.Viper, edition infrared.Edition) (map[string][]webhook.Webhook, error) {
 	defaultsKey := fmt.Sprintf("defaults.%s.webhook", edition)
 	key := fmt.Sprintf("%s.webhooks", edition)
 	webhooks := map[string][]webhook.Webhook{}
-	for id, v := range p.Viper.GetStringMap(key) {
-		vpr := p.Viper.Sub(defaultsKey)
+	for id, m := range v.GetStringMap(key) {
+		vpr := v.Sub(defaultsKey)
 		if vpr == nil {
 			vpr = viper.New()
 		}
-		vMap := v.(map[string]interface{})
+		vMap := m.(map[string]interface{})
 		if err := vpr.MergeConfigMap(vMap); err != nil {
 			return nil, err
 		}

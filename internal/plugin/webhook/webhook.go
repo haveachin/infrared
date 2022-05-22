@@ -32,11 +32,11 @@ func (p Plugin) Version() string {
 
 func (p *Plugin) Load(v *viper.Viper) error {
 	var err error
-	p.javaWhks, err = p.loadWebhooks(infrared.JavaEdition)
+	p.javaWhks, err = p.loadWebhooks(v, infrared.JavaEdition)
 	if err != nil {
 		return err
 	}
-	p.bedrockWhks, err = p.loadWebhooks(infrared.BedrockEdition)
+	p.bedrockWhks, err = p.loadWebhooks(v, infrared.BedrockEdition)
 	if err != nil {
 		return err
 	}
