@@ -16,8 +16,8 @@ var ErrRecipientNotFound = errors.New("target recipient not found")
 type Bus interface {
 	Push(topic string, data interface{})
 	PushTo(receiverId uuid.UUID, topic string, data interface{}) error
-	AttachHandler(id uuid.UUID, fn Handler, topics ...string) (handlerId uuid.UUID, replaced bool)
-	AttachChannel(id uuid.UUID, ch Channel, topics ...string) (channelId uuid.UUID, replaced bool)
+	AttachHandler(id uuid.UUID, fn Handler, topics ...string) (handlerID uuid.UUID, replaced bool)
+	AttachChannel(id uuid.UUID, ch Channel, topics ...string) (channelID uuid.UUID, replaced bool)
 	DetachRecipient(id uuid.UUID) (success bool)
 	DetachAllRecipients() (n int)
 }
@@ -92,7 +92,7 @@ func (b *internalBus) DetachRecipient(id uuid.UUID) bool {
 	defer b.Unlock()
 
 	if w, ok := b.ws[id]; ok {
-		go w.close()
+		w.close()
 		delete(b.ws, id)
 		return ok
 	}

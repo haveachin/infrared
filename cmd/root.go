@@ -52,12 +52,13 @@ var (
 			cfg := config.Config{
 				Path:   configPath,
 				Logger: logger,
-				OnChange: func(cfgs []infrared.ProxyConfig) {
+				OnChange: func(v *viper.Viper, cfgs []infrared.ProxyConfig) {
 					mu.Lock()
 					defer mu.Unlock()
+
 					logger.Info("Reloading proxies")
-					for n, prx := range proxies {
-						if err := prx.Reload(cfgs[n]); err != nil {
+					for n, p := range proxies {
+						if err := p.Reload(cfgs[n]); err != nil {
 							logger.Error("failed to reload proxy",
 								zap.Error(err),
 							)
@@ -66,7 +67,7 @@ var (
 				},
 			}
 
-			prxCfgs, err := cfg.ReadProxyConfigs()
+			v, prxCfgs, err := cfg.ReadConfigs()
 			if err != nil {
 				return err
 			}
@@ -77,7 +78,7 @@ var (
 						Viper: v,
 					},
 				},
-				Log: logger,
+				Logger: logger,
 			}
 
 			if err := pluginManager.EnablePlugins(); err != nil {
@@ -87,12 +88,12 @@ var (
 			logger.Info("starting proxy")
 
 			for _, prxCfg := range prxCfgs {
-				prx, err := infrared.NewProxy(prxCfg)
+				p, err := infrared.NewProxy(prxCfg)
 				if err != nil {
 					return err
 				}
-				proxies = append(proxies, prx)
-				go prx.ListenAndServe(logger)
+				proxies = append(proxies, p)
+				go p.ListenAndServe(logger)
 			}
 
 			sc := make(chan os.Signal, 1)

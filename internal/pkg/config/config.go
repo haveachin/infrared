@@ -25,7 +25,7 @@ type content struct {
 type Config struct {
 	Path     string
 	Logger   *zap.Logger
-	OnChange func(cfgs []infrared.ProxyConfig)
+	OnChange func(*viper.Viper, []infrared.ProxyConfig)
 
 	v         *viper.Viper
 	content   content
@@ -73,10 +73,10 @@ func (c *Config) initFileProvider() provider {
 	return &fileProvider
 }
 
-func (c *Config) ReadProxyConfigs() ([]infrared.ProxyConfig, error) {
+func (c *Config) ReadConfigs() (*viper.Viper, []infrared.ProxyConfig, error) {
 	if c.v == nil {
 		if err := c.Load(); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
@@ -84,11 +84,11 @@ func (c *Config) ReadProxyConfigs() ([]infrared.ProxyConfig, error) {
 	v.MergeConfigMap(c.v.AllSettings())
 	for _, p := range c.providers {
 		if err := p.mergeConfigs(v); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
-	return []infrared.ProxyConfig{
+	return v, []infrared.ProxyConfig{
 		java.ProxyConfig{Viper: v},
 		bedrock.ProxyConfig{Viper: v},
 	}, nil
@@ -99,14 +99,14 @@ func (c *Config) onChange() {
 		return
 	}
 
-	cfgs, err := c.ReadProxyConfigs()
+	v, cfgs, err := c.ReadConfigs()
 	if err != nil {
 		c.Logger.Error("Failed to read configs",
 			zap.Error(err),
 		)
 	}
 
-	c.OnChange(cfgs)
+	c.OnChange(v, cfgs)
 }
 
 func (c *Config) Close() {

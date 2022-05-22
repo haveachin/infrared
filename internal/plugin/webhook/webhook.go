@@ -14,7 +14,7 @@ import (
 type Plugin struct {
 	Viper *viper.Viper
 
-	log      *zap.Logger
+	logger   *zap.Logger
 	eventBus event.Bus
 	eventChs map[uuid.UUID]event.Channel
 	// GatewayID mapped to webhooks
@@ -31,16 +31,16 @@ func (p Plugin) Version() string {
 }
 
 func (p *Plugin) Enable(api infrared.PluginAPI) error {
-	p.log = api.Logger()
+	p.logger = api.Logger()
 	p.eventBus = api.EventBus()
 	p.eventChs = map[uuid.UUID]event.Channel{}
 
 	var err error
-	p.javaWhks, err = p.loadWebhooks("java")
+	p.javaWhks, err = p.loadWebhooks(infrared.JavaEdition)
 	if err != nil {
 		return err
 	}
-	p.bedrockWhks, err = p.loadWebhooks("bedrock")
+	p.bedrockWhks, err = p.loadWebhooks(infrared.BedrockEdition)
 	if err != nil {
 		return err
 	}
@@ -69,38 +69,41 @@ func (p Plugin) start(ch event.Channel) {
 }
 
 type eventData struct {
-	Edition        string `json:"edition"`
-	Network        string `json:"network"`
-	LocalAddr      string `json:"localAddress"`
-	RemoteAddr     string `json:"remoteAddress"`
-	GatewayID      string `json:"gatewayId"`
-	ServerAddr     string `json:"serverAddress,omitempty"`
-	Username       string `json:"username,omitempty"`
-	IsLoginRequest *bool  `json:"isLoginRequest,omitempty"`
-	ServerID       string `json:"serverId,omitempty"`
-
-	edition infrared.Edition
+	Edition   string `json:"edition"`
+	GatewayID string `json:"gatewayId"`
+	Conn      struct {
+		Network    string `json:"network"`
+		LocalAddr  string `json:"localAddress"`
+		RemoteAddr string `json:"remoteAddress"`
+		Username   string `json:"username,omitempty"`
+	} `json:"client"`
+	Server struct {
+		ServerID   string   `json:"serverId,omitempty"`
+		ServerAddr string   `json:"serverAddress,omitempty"`
+		Domains    []string `json:"domains,omitempty"`
+	} `json:"server"`
+	IsLoginRequest *bool `json:"isLoginRequest,omitempty"`
 }
 
 func mapConn(data *eventData, c infrared.Conn) {
-	data.edition = c.Edition()
 	data.Edition = c.Edition().String()
-	data.Network = c.LocalAddr().Network()
-	data.LocalAddr = c.LocalAddr().String()
-	data.RemoteAddr = c.RemoteAddr().String()
+	data.Conn.Network = c.LocalAddr().Network()
+	data.Conn.LocalAddr = c.LocalAddr().String()
+	data.Conn.RemoteAddr = c.RemoteAddr().String()
 	data.GatewayID = c.GatewayID()
 }
 
 func mapProcessedConn(data *eventData, pc infrared.ProcessedConn) {
 	mapConn(data, pc)
-	data.ServerAddr = pc.ServerAddr()
-	data.Username = pc.Username()
+	data.Server.ServerAddr = pc.ServerAddr()
+	data.Conn.Username = pc.Username()
 	var isLoginRequest = pc.IsLoginRequest()
 	data.IsLoginRequest = &isLoginRequest
 }
 
 func mapServer(data *eventData, s infrared.Server) {
-	data.ServerID = s.ID()
+	data.Server.ServerID = s.ID()
+	data.Server.Domains = s.Domains()
 }
 
 func (p Plugin) handleEvent(e event.Event) {
@@ -130,13 +133,15 @@ func (p Plugin) handleEvent(e event.Event) {
 
 func (p Plugin) dispatchEvent(e event.Event, data eventData) {
 	var whks map[string][]webhook.Webhook
-	switch data.edition {
-	case infrared.JavaEdition:
+	switch data.Edition {
+	case infrared.JavaEdition.String():
 		whks = p.javaWhks
-	case infrared.BedrockEdition:
+	case infrared.BedrockEdition.String():
 		whks = p.bedrockWhks
 	default:
-		p.log.Warn("failed to dispatch event")
+		p.logger.Warn("failed to dispatch event",
+			zap.String("edition", data.Edition),
+		)
 	}
 
 	el := webhook.EventLog{
@@ -147,7 +152,7 @@ func (p Plugin) dispatchEvent(e event.Event, data eventData) {
 
 	for _, wh := range whks[data.GatewayID] {
 		if err := wh.DispatchEvent(el); err != nil && !errors.Is(err, webhook.ErrEventTypeNotAllowed) {
-			p.log.Error("dispatching webhook event",
+			p.logger.Error("dispatching webhook event",
 				zap.Error(err),
 				zap.String("webhookId", wh.ID),
 			)

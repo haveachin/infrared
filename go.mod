@@ -1,6 +1,6 @@
 module github.com/haveachin/infrared
 
-go 1.17
+go 1.18
 
 require (
 	github.com/fsnotify/fsnotify v1.5.1
