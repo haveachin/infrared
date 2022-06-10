@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"io/ioutil"
 	"log"
 	"net"
@@ -209,13 +210,25 @@ func ReadFilePaths(path string, recursive bool) ([]string, error) {
 func readFilePathsRecursively(path string) ([]string, error) {
 	var filePaths []string
 
-	err := filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
+	err := filepath.WalkDir(path, func(path string, dir fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
-		if info.IsDir() {
+		if dir.IsDir() {
 			return nil
+		}
+
+		// check the type of file that is behind symlinks link
+		if dir.Type()&os.ModeSymlink == os.ModeSymlink {
+			linkedToDir, err := isLinkedToDir(path)
+			if err != nil {
+				return err
+			}
+
+			if linkedToDir {
+				return nil
+			}
 		}
 
 		filePaths = append(filePaths, path)
@@ -237,10 +250,38 @@ func readFilePaths(path string) ([]string, error) {
 			continue
 		}
 
-		filePaths = append(filePaths, filepath.Join(path, file.Name()))
+		fullPathFile := filepath.Join(path, file.Name())
+
+		// check the type of file that is behind symlinks link
+		if file.Mode()&os.ModeSymlink == os.ModeSymlink {
+			linkedToDir, err := isLinkedToDir(fullPathFile)
+			if err != nil {
+				return nil, err
+			}
+
+			if linkedToDir {
+				continue
+			}
+		}
+
+		filePaths = append(filePaths, fullPathFile)
 	}
 
 	return filePaths, err
+}
+
+func isLinkedToDir(path string) (bool, error) {
+	linkedFile, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return false, err
+	}
+
+	linkedFileInfo, err := os.Lstat(linkedFile)
+	if err != nil {
+		return false, err
+	}
+
+	return linkedFileInfo.IsDir(), nil
 }
 
 func LoadProxyConfigsFromPath(path string, recursive bool) ([]*ProxyConfig, error) {
@@ -396,6 +437,28 @@ func WatchProxyConfigFolder(path string, out chan *ProxyConfig) error {
 				return nil
 			}
 			if event.Op&fsnotify.Create == fsnotify.Create {
+				fileInfo, err := os.Lstat(event.Name)
+				if err != nil {
+					log.Printf("%s was created, but we failed to stat it: %v", event.Name, err)
+					continue
+				}
+
+				if fileInfo.IsDir() {
+					continue
+				}
+
+				// check the type of file that is behind symlinks link
+				if fileInfo.Mode()&os.ModeSymlink == os.ModeSymlink {
+					linkedToDir, err := isLinkedToDir(event.Name)
+					if err != nil {
+						return err
+					}
+
+					if linkedToDir {
+						continue
+					}
+				}
+
 				proxyCfg, err := NewProxyConfigFromPath(event.Name)
 				if err != nil {
 					log.Printf("Failed loading %s; error %s", event.Name, err)
