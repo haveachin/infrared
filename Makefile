@@ -7,7 +7,7 @@ dev:
 	docker-compose -p infrared -f deployments/docker-compose.dev.yml up
 
 run:
-	go run -race . -c config.yml -w dev/
+	go run -race . -c config.yml -w dev/ -e dev
 
 test-docker:
 	docker-compose -p infrared -f deployments/docker-compose.test.yml build --no-cache --force-rm

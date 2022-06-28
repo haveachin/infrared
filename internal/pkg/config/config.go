@@ -1,6 +1,8 @@
 package config
 
 import (
+	"sync"
+
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/internal/pkg/bedrock"
 	"github.com/haveachin/infrared/internal/pkg/java"
@@ -8,7 +10,7 @@ import (
 	"go.uber.org/zap"
 )
 
-type content struct {
+type config struct {
 	Providers struct {
 		Docker struct {
 			Endpoint string
@@ -28,11 +30,12 @@ type Config struct {
 	OnChange func(*viper.Viper, []infrared.ProxyConfig)
 
 	v         *viper.Viper
-	content   content
+	config    config
 	providers []provider
+	mu        sync.Mutex
 }
 
-func (c *Config) Load() error {
+func (c *Config) init() error {
 	if c.Logger == nil {
 		c.Logger = zap.NewNop()
 	}
@@ -43,7 +46,7 @@ func (c *Config) Load() error {
 		return err
 	}
 
-	if err := c.v.Unmarshal(&c.content); err != nil {
+	if err := c.v.Unmarshal(&c.config); err != nil {
 		return err
 	}
 
@@ -55,7 +58,7 @@ func (c *Config) Load() error {
 }
 
 func (c *Config) initFileProvider() provider {
-	cfg := c.content.Providers.File
+	cfg := c.config.Providers.File
 	fileProvider := fileProvider{
 		dir:      cfg.Directory,
 		onChange: c.onChange,
@@ -74,8 +77,11 @@ func (c *Config) initFileProvider() provider {
 }
 
 func (c *Config) ReadConfigs() (*viper.Viper, []infrared.ProxyConfig, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	if c.v == nil {
-		if err := c.Load(); err != nil {
+		if err := c.init(); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -94,6 +100,15 @@ func (c *Config) ReadConfigs() (*viper.Viper, []infrared.ProxyConfig, error) {
 	}, nil
 }
 
+func (c *Config) Close() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	for _, p := range c.providers {
+		p.close()
+	}
+}
+
 func (c *Config) onChange() {
 	if c.OnChange == nil {
 		return
@@ -107,10 +122,4 @@ func (c *Config) onChange() {
 	}
 
 	c.OnChange(v, cfgs)
-}
-
-func (c *Config) Close() {
-	for _, p := range c.providers {
-		p.close()
-	}
 }

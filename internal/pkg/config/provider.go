@@ -3,6 +3,7 @@ package config
 import (
 	"io/fs"
 	"path/filepath"
+	"sync"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/viper"
@@ -19,9 +20,10 @@ type fileProvider struct {
 	onChange func()
 	logger   *zap.Logger
 	watcher  *fsnotify.Watcher
+	mu       sync.Mutex
 }
 
-func (p fileProvider) mergeConfigs(v *viper.Viper) error {
+func (p *fileProvider) mergeConfigs(v *viper.Viper) error {
 	return filepath.Walk(p.dir, func(path string, info fs.FileInfo, err error) error {
 		if info.IsDir() {
 			return nil
@@ -42,6 +44,9 @@ func (p fileProvider) mergeConfigs(v *viper.Viper) error {
 }
 
 func (p *fileProvider) watch() error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	w, err := fsnotify.NewWatcher()
 	if err != nil {
 		return err
@@ -80,7 +85,7 @@ func (p *fileProvider) watch() error {
 	}
 }
 
-func (p fileProvider) close() {
+func (p *fileProvider) close() {
 	p.watcher.Close()
 }
 
