@@ -25,3 +25,21 @@ func New(topic string, data interface{}) Event {
 		Data:       data,
 	}
 }
+
+func AddListener[T any](bus Bus, fn func(T), topics ...string) uuid.UUID {
+	ch := make(Channel)
+	id, _ := bus.AttachChannel(uuid.Nil, ch, topics...)
+
+	go func() {
+		for event := range ch {
+			e, ok := event.Data.(T)
+			if !ok {
+				continue
+			}
+
+			fn(e)
+		}
+	}()
+
+	return id
+}
