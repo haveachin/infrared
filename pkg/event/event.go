@@ -9,37 +9,28 @@ import (
 type Event struct {
 	ID         uuid.UUID
 	OccurredAt time.Time
-	Topic      string
+	Topics     []string
 	Data       interface{}
+}
+
+func (e Event) hasTopic(topic string) bool {
+	for _, t := range e.Topics {
+		if t == topic {
+			return true
+		}
+	}
+	return false
 }
 
 type Handler func(Event)
 
 type Channel chan Event
 
-func New(topic string, data interface{}) Event {
+func New(data interface{}, topic ...string) Event {
 	return Event{
 		ID:         uuid.Must(uuid.NewV4()),
 		OccurredAt: time.Now(),
-		Topic:      topic,
+		Topics:     topic,
 		Data:       data,
 	}
-}
-
-func AddListener[T any](bus Bus, fn func(T), topics ...string) uuid.UUID {
-	ch := make(Channel)
-	id, _ := bus.AttachChannel(uuid.Nil, ch, topics...)
-
-	go func() {
-		for event := range ch {
-			e, ok := event.Data.(T)
-			if !ok {
-				continue
-			}
-
-			fn(e)
-		}
-	}()
-
-	return id
 }

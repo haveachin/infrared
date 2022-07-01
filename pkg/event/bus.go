@@ -13,9 +13,12 @@ var DefaultBus = NewInternalBus()
 
 var ErrRecipientNotFound = errors.New("target recipient not found")
 
+// Bus is an event bus system that notifies all it's attached recipients of pushed events.
+// Recipients can be attached via a event.Handler func or an event.Channel.
 type Bus interface {
-	Push(topic string, data interface{})
-	PushTo(receiverId uuid.UUID, topic string, data interface{}) error
+	// Push pushes an event with arbitrary data to the event bus.
+	Push(data interface{}, topic ...string)
+	PushTo(receiverId uuid.UUID, data interface{}, topic ...string) error
 	AttachHandler(id uuid.UUID, fn Handler, topics ...string) (handlerID uuid.UUID, replaced bool)
 	AttachChannel(id uuid.UUID, ch Channel, topics ...string) (channelID uuid.UUID, replaced bool)
 	DetachRecipient(id uuid.UUID) (success bool)
@@ -33,20 +36,20 @@ func NewInternalBus() Bus {
 	}
 }
 
-func (b *internalBus) Push(topic string, data interface{}) {
-	b.sendEvent(New(topic, data))
+func (b *internalBus) Push(data interface{}, topics ...string) {
+	b.sendEvent(New(data, topics...))
 }
 
-func Push(topic string, data interface{}) {
-	DefaultBus.Push(topic, data)
+func Push(data interface{}, topics ...string) {
+	DefaultBus.Push(data, topics...)
 }
 
-func (b *internalBus) PushTo(to uuid.UUID, topic string, data interface{}) error {
-	return b.sendEventTo(to, New(topic, data))
+func (b *internalBus) PushTo(to uuid.UUID, data interface{}, topics ...string) error {
+	return b.sendEventTo(to, New(data, topics...))
 }
 
-func PushTo(to uuid.UUID, topic string, data interface{}) error {
-	return DefaultBus.PushTo(to, topic, data)
+func PushTo(to uuid.UUID, data interface{}, topics ...string) error {
+	return DefaultBus.PushTo(to, data, topics...)
 }
 
 func (b *internalBus) AttachHandler(id uuid.UUID, fn Handler, topics ...string) (uuid.UUID, bool) {
@@ -142,7 +145,7 @@ func (b *internalBus) sendEventTo(to uuid.UUID, e Event) error {
 func eventFilterFunc(topics []string, fn Handler) Handler {
 	return func(event Event) {
 		for _, topic := range topics {
-			if topic == event.Topic {
+			if event.hasTopic(topic) {
 				fn(event)
 				return
 			}
