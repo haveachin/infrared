@@ -36,9 +36,9 @@ func (cpn CPN) ListenAndServe(quit <-chan bool) {
 
 			connLogger := cpn.Logger.With(logConn(c)...)
 			connLogger.Debug("starting to process connection")
-			cpn.EventBus.Push(PreConnProcessingEventTopic, PreConnProcessingEvent{
+			cpn.EventBus.Push(PreConnProcessingEvent{
 				Conn: c,
-			})
+			}, PreConnProcessingEventTopic)
 
 			c.SetDeadline(time.Now().Add(cpn.ClientTimeout()))
 			pc, err := cpn.ConnProcessor.ProcessConn(c)
@@ -55,9 +55,9 @@ func (cpn CPN) ListenAndServe(quit <-chan bool) {
 			procConn := pc.(ProcessedConn)
 
 			connLogger.Debug("sending client to server gateway")
-			cpn.EventBus.Push(PostConnProcessingEventTopic, PostConnProcessingEvent{
+			cpn.EventBus.Push(PostConnProcessingEvent{
 				ProcessedConn: procConn,
-			})
+			}, PostConnProcessingEventTopic)
 
 			cpn.Out <- procConn
 		case <-quit:

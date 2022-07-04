@@ -52,9 +52,9 @@ func ListenAndServe(gw Gateway, cpnChan chan<- Conn) {
 				conn := gw.WrapConn(c, l).(Conn)
 
 				logger.Info("accepting new connection", logConn(c)...)
-				event.Push(NewConnEventTopic, NewConnEvent{
+				event.Push(NewConnEvent{
 					Conn: conn,
-				})
+				}, NewConnEventTopic)
 
 				cpnChan <- conn
 			}

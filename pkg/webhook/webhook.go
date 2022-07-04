@@ -17,7 +17,7 @@ type HTTPClient interface {
 
 // EventLog is the struct that will be send to the Webhook.URL
 type EventLog struct {
-	Topic      string      `json:"topic"`
+	Topics     []string    `json:"topics"`
 	OccurredAt time.Time   `json:"occurredAt"`
 	Data       interface{} `json:"data"`
 }
@@ -34,9 +34,11 @@ type Webhook struct {
 
 // hasEvent checks if Webhook.EventTypes contain the given event's type.
 func (webhook Webhook) hasEvent(e EventLog) bool {
-	for _, t := range webhook.AllowedTopics {
-		if t == e.Topic {
-			return true
+	for _, at := range webhook.AllowedTopics {
+		for _, et := range e.Topics {
+			if at == et {
+				return true
+			}
 		}
 	}
 	return false

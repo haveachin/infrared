@@ -112,10 +112,10 @@ func (sg *ServerGateway) Start() {
 
 			pcLogger = pcLogger.With(logServer(srv)...)
 			pcLogger.Debug("found server")
-			event.Push(PreConnConnectingEventTopic, PreConnConnectingEvent{
+			event.Push(PreConnConnectingEvent{
 				ProcessedConn: pc,
 				Server:        srv,
-			})
+			}, PreConnConnectingEventTopic)
 
 			sg.Out <- ConnTunnel{
 				Conn:   pc,

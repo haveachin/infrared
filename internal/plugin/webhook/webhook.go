@@ -12,18 +12,17 @@ import (
 )
 
 type Plugin struct {
-	Viper *viper.Viper
+	Edition infrared.Edition
 
 	logger   *zap.Logger
 	eventBus event.Bus
-	eventChs map[uuid.UUID]event.Channel
+	eventID  uuid.UUID
 	// GatewayID mapped to webhooks
-	javaWhks    map[string][]webhook.Webhook
-	bedrockWhks map[string][]webhook.Webhook
+	whks map[string][]webhook.Webhook
 }
 
 func (p Plugin) Name() string {
-	return "Webhook Plugin"
+	return "Webhook"
 }
 
 func (p Plugin) Version() string {
@@ -32,11 +31,7 @@ func (p Plugin) Version() string {
 
 func (p *Plugin) Load(v *viper.Viper) error {
 	var err error
-	p.javaWhks, err = p.loadWebhooks(v, infrared.JavaEdition)
-	if err != nil {
-		return err
-	}
-	p.bedrockWhks, err = p.loadWebhooks(v, infrared.BedrockEdition)
+	p.whks, err = p.loadWebhooks(v)
 	if err != nil {
 		return err
 	}
@@ -50,28 +45,16 @@ func (p *Plugin) Reload(v *viper.Viper) error {
 func (p *Plugin) Enable(api infrared.PluginAPI) error {
 	p.logger = api.Logger()
 	p.eventBus = api.EventBus()
-	p.eventChs = map[uuid.UUID]event.Channel{}
 
-	ch := make(event.Channel, 10)
-	id, _ := p.eventBus.AttachChannel(uuid.Nil, ch)
-	p.eventChs[id] = ch
-	go p.start(ch)
+	id, _ := p.eventBus.AttachHandler(uuid.Nil, p.handleEvent)
+	p.eventID = id
 
 	return nil
 }
 
 func (p Plugin) Disable() error {
-	for id := range p.eventChs {
-		p.eventBus.DetachRecipient(id)
-	}
-
+	p.eventBus.DetachRecipient(p.eventID)
 	return nil
-}
-
-func (p Plugin) start(ch event.Channel) {
-	for e := range ch {
-		p.handleEvent(e)
-	}
 }
 
 type eventData struct {
@@ -138,25 +121,13 @@ func (p Plugin) handleEvent(e event.Event) {
 }
 
 func (p Plugin) dispatchEvent(e event.Event, data eventData) {
-	var whks map[string][]webhook.Webhook
-	switch data.Edition {
-	case infrared.JavaEdition.String():
-		whks = p.javaWhks
-	case infrared.BedrockEdition.String():
-		whks = p.bedrockWhks
-	default:
-		p.logger.Warn("failed to dispatch event",
-			zap.String("edition", data.Edition),
-		)
-	}
-
 	el := webhook.EventLog{
-		Topic:      e.Topic,
+		Topics:     e.Topics,
 		OccurredAt: e.OccurredAt,
 		Data:       data,
 	}
 
-	for _, wh := range whks[data.GatewayID] {
+	for _, wh := range p.whks[data.GatewayID] {
 		if err := wh.DispatchEvent(el); err != nil && !errors.Is(err, webhook.ErrEventTypeNotAllowed) {
 			p.logger.Error("dispatching webhook event",
 				zap.Error(err),

@@ -5,14 +5,13 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/pkg/webhook"
 	"github.com/spf13/viper"
 )
 
-func (p Plugin) loadWebhooks(v *viper.Viper, edition infrared.Edition) (map[string][]webhook.Webhook, error) {
-	defaultsKey := fmt.Sprintf("defaults.%s.webhook", edition)
-	key := fmt.Sprintf("%s.webhooks", edition)
+func (p Plugin) loadWebhooks(v *viper.Viper) (map[string][]webhook.Webhook, error) {
+	defaultsKey := fmt.Sprintf("defaults.%s.webhook", p.Edition)
+	key := fmt.Sprintf("%s.webhooks", p.Edition)
 	webhooks := map[string][]webhook.Webhook{}
 	for id, m := range v.GetStringMap(key) {
 		vpr := v.Sub(defaultsKey)

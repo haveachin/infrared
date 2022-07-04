@@ -37,10 +37,10 @@ func (cp *ConnPool) Start() {
 
 			go func(logger *zap.Logger) {
 				if ct.Conn.IsLoginRequest() {
-					event.Push(PlayerJoinEventTopic, PlayerJoinEvent{
+					event.Push(PlayerJoinEvent{
 						ProcessedConn: ct.Conn,
 						Server:        ct.Server,
-					})
+					}, PlayerJoinEventTopic)
 				}
 
 				logger.Info("connecting client to server")
@@ -51,10 +51,10 @@ func (cp *ConnPool) Start() {
 				ct.Conn.Close()
 
 				logger.Info("disconnecting client")
-				event.Push(PlayerLeaveEventTopic, PlayerLeaveEvent{
+				event.Push(PlayerLeaveEvent{
 					ProcessedConn: ct.Conn,
 					Server:        ct.Server,
-				})
+				}, PlayerLeaveEventTopic)
 				cp.removeFromPool(ct)
 			}(cp.Logger.With(logProcessedConn(ct.Conn)...))
 		case reload := <-cp.reload:

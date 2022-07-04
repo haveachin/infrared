@@ -68,7 +68,10 @@ var (
 			pluginManager = infrared.PluginManager{
 				Plugins: []infrared.Plugin{
 					&webhook.Plugin{
-						Viper: v,
+						Edition: infrared.JavaEdition,
+					},
+					&webhook.Plugin{
+						Edition: infrared.BedrockEdition,
 					},
 				},
 				Logger: logger,
