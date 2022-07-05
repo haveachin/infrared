@@ -2,6 +2,7 @@ package webhook
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/gofrs/uuid"
 	"github.com/haveachin/infrared/internal/app/infrared"
@@ -26,7 +27,7 @@ func (p Plugin) Name() string {
 }
 
 func (p Plugin) Version() string {
-	return "internal"
+	return fmt.Sprintf("internal-%s", p.Edition)
 }
 
 func (p *Plugin) Load(v *viper.Viper) error {

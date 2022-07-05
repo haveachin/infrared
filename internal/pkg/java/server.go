@@ -21,12 +21,16 @@ type Server struct {
 	Addr                        string
 	SendProxyProtocol           bool
 	SendRealIP                  bool
+	OverrideAddress             bool
 	Dialer                      net.Dialer
 	OverrideStatus              OverrideStatusResponse
 	OverrideStatusCacheDeadline time.Time
 	DialTimeoutMessage          string
 	DialTimeoutStatusJSON       string
 	WebhookIDs                  []string
+
+	Host string
+	Port int
 
 	overrideStatusCache *string
 }
@@ -79,6 +83,12 @@ func (s InfraredServer) HandleConn(c net.Conn) (net.Conn, error) {
 
 	if s.Server.SendRealIP {
 		pc.handshake.UpgradeToRealIP(pc.RemoteAddr(), time.Now())
+		pc.readPks[0] = pc.handshake.Marshal()
+	}
+
+	if s.Server.OverrideAddress {
+		pc.handshake.ServerAddress = protocol.String(s.Server.Host)
+		pc.handshake.ServerPort = protocol.UnsignedShort(s.Server.Port)
 		pc.readPks[0] = pc.handshake.Marshal()
 	}
 

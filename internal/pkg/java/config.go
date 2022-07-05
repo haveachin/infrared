@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/haveachin/infrared/internal/app/infrared"
@@ -100,6 +101,7 @@ type serverConfig struct {
 	ProxyBind          string
 	SendProxyProtocol  bool
 	SendRealIP         bool
+	OverrideAddress    bool
 	DialTimeout        time.Duration
 	DialTimeoutMessage string
 	OverrideStatus     overrideServerStatusConfig
@@ -208,6 +210,16 @@ func newServer(id string, cfg serverConfig) (infrared.Server, error) {
 		return nil, err
 	}
 
+	host, portString, err := net.SplitHostPort(cfg.Address)
+	if err != nil {
+		return nil, err
+	}
+
+	port, err := strconv.Atoi(portString)
+	if err != nil {
+		return nil, err
+	}
+
 	return &InfraredServer{
 		Server: Server{
 			ID:      id,
@@ -221,10 +233,13 @@ func newServer(id string, cfg serverConfig) (infrared.Server, error) {
 			Addr:                  cfg.Address,
 			SendProxyProtocol:     cfg.SendProxyProtocol,
 			SendRealIP:            cfg.SendRealIP,
+			OverrideAddress:       cfg.OverrideAddress,
 			DialTimeoutMessage:    cfg.DialTimeoutMessage,
 			OverrideStatus:        overrideStatus,
 			DialTimeoutStatusJSON: string(bb),
 			WebhookIDs:            cfg.Webhooks,
+			Host:                  host,
+			Port:                  port,
 		},
 	}, nil
 }

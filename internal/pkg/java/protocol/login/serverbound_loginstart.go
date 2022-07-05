@@ -5,7 +5,16 @@ import "github.com/haveachin/infrared/internal/pkg/java/protocol"
 const ServerBoundLoginStartPacketID byte = 0x00
 
 type ServerLoginStart struct {
-	Name protocol.String
+	Name         protocol.String
+	HasPublicKey protocol.Boolean
+}
+
+func (pk ServerLoginStart) Marshal() protocol.Packet {
+	return protocol.MarshalPacket(
+		ServerBoundLoginStartPacketID,
+		pk.Name,
+		protocol.Boolean(false),
+	)
 }
 
 func UnmarshalServerBoundLoginStart(packet protocol.Packet) (ServerLoginStart, error) {

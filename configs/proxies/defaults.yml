@@ -52,6 +52,7 @@ defaults:
             Powered by Infrared
             §c{{serverDomain}} was not found.
     server:
+      overrideAddress: true
       dialTimeout: 1s
       dialTimeoutMessage: Sorry {{username}}, but the server is not reachable.
       # This is the message that is status response displayed to the client if the server is not
