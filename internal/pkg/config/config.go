@@ -2,7 +2,9 @@ package config
 
 import (
 	"sync"
+	"time"
 
+	"github.com/docker/docker/client"
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/internal/pkg/bedrock"
 	"github.com/haveachin/infrared/internal/pkg/java"
@@ -13,9 +15,11 @@ import (
 type config struct {
 	Providers struct {
 		Docker struct {
-			Endpoint string
-			Network  string
-			Watch    bool
+			ClientTimeout time.Duration
+			LabelPrefix   string
+			Endpoint      string
+			Network       string
+			Watch         bool
 		}
 		File struct {
 			Directory string
@@ -52,6 +56,7 @@ func (c *Config) init() error {
 
 	c.providers = []provider{
 		c.initFileProvider(),
+		c.initDockerProvider(),
 	}
 
 	return nil
@@ -74,6 +79,31 @@ func (c *Config) initFileProvider() provider {
 	}
 
 	return &fileProvider
+}
+
+func (c *Config) initDockerProvider() provider {
+	cfg := c.config.Providers.Docker
+	// TODO: From URL?
+	cli, err := client.NewClientWithOpts(client.FromEnv)
+	if err != nil {
+		c.Logger.Error("", zap.Error(err))
+		return nil
+	}
+
+	dockerProvider := dockerProvider{
+		client:        cli,
+		clientTimeout: cfg.ClientTimeout,
+		labelPrefix:   cfg.LabelPrefix,
+		network:       cfg.Network,
+		onChange:      c.onChange,
+		logger:        c.Logger,
+	}
+
+	if cfg.Watch {
+		// TODO: Add network change event?
+	}
+
+	return &dockerProvider
 }
 
 func (c *Config) ReadConfigs() (*viper.Viper, []infrared.ProxyConfig, error) {

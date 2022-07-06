@@ -27,7 +27,6 @@ type Gateway struct {
 	ID               string
 	ListenersManager *infrared.ListenersManager
 	Listeners        []Listener
-	ServerIDs        []string
 	Logger           *zap.Logger
 
 	listeners []net.Listener
@@ -65,14 +64,6 @@ func (gw *InfraredGateway) ID() string {
 	gw.mu.RLock()
 	defer gw.mu.RUnlock()
 	return gw.gateway.ID
-}
-
-func (gw *InfraredGateway) ServerIDs() []string {
-	gw.mu.RLock()
-	defer gw.mu.RUnlock()
-	srvIDs := make([]string, len(gw.gateway.ServerIDs))
-	copy(srvIDs, gw.gateway.ServerIDs)
-	return srvIDs
 }
 
 func (gw *InfraredGateway) SetListenersManager(lm *infrared.ListenersManager) {

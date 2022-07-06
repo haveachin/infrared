@@ -14,9 +14,6 @@ import (
 type Gateway interface {
 	// ID returns the ID of the gateway
 	ID() string
-	// ServerIDs returns the IDs of the servers
-	// that are registered in that gateway
-	ServerIDs() []string
 	SetListenersManager(*ListenersManager)
 	// Sets the logger implementation of the Gateway
 	SetLogger(*zap.Logger)

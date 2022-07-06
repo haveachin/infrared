@@ -27,6 +27,7 @@ type Server struct {
 	OverrideStatusCacheDeadline time.Time
 	DialTimeoutMessage          string
 	DialTimeoutStatusJSON       string
+	GatewayIDs                  []string
 	WebhookIDs                  []string
 
 	Host string
@@ -45,6 +46,10 @@ func (s InfraredServer) ID() string {
 
 func (s InfraredServer) Domains() []string {
 	return s.Server.Domains
+}
+
+func (s InfraredServer) GatewayIDs() []string {
+	return s.Server.GatewayIDs
 }
 
 func (s InfraredServer) WebhookIDs() []string {

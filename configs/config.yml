@@ -5,7 +5,9 @@ providers:
   # Minecraft Servers that run in Docker containers can have labels attached to them.
   # These labels help you configure proxies on the fly in your docker-compose.yml for example.
   docker:
-    endpoint: "unix:///var/run/docker.sock"
+    endpoint: unix:///var/run/docker.sock
+    clientTimeout: 3s
+    labelPrefix: infrared.
     # The Docker network name that Infrared should read container labels from.
     network: infrared
     # If Infrared should watch the network for changes in containers.

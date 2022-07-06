@@ -15,6 +15,7 @@ var ErrClientStatusRequest = errors.New("disconnect after status")
 type Server interface {
 	ID() string
 	Domains() []string
+	GatewayIDs() []string
 	WebhookIDs() []string
 	HandleConn(c net.Conn) (net.Conn, error)
 }
@@ -51,17 +52,32 @@ type ServerGateway struct {
 	srvDomains map[string][]string
 }
 
-func (sg *ServerGateway) indexServers() {
-	sg.gwIDSrvIDs = map[string][]string{}
-	for _, gw := range sg.Gateways {
-		sg.gwIDSrvIDs[gw.ID()] = gw.ServerIDs()
-	}
+func (sg *ServerGateway) init() {
+	sg.indexIDs()
+	sg.indexDomains()
+}
 
+func (sg *ServerGateway) indexIDs() {
+	sg.gwIDSrvIDs = map[string][]string{}
 	sg.srvs = map[string]Server{}
-	sg.srvDomains = map[string][]string{}
 	for _, srv := range sg.Servers {
 		sg.srvs[srv.ID()] = srv
 
+		gwIDs := srv.GatewayIDs()
+		for _, gwID := range gwIDs {
+			srvIDs, ok := sg.gwIDSrvIDs[gwID]
+			if !ok {
+				sg.gwIDSrvIDs[gwID] = []string{srv.ID()}
+				continue
+			}
+			sg.gwIDSrvIDs[gwID] = append(srvIDs, srv.ID())
+		}
+	}
+}
+
+func (sg *ServerGateway) indexDomains() {
+	sg.srvDomains = map[string][]string{}
+	for _, srv := range sg.Servers {
 		dd := make([]string, len(srv.Domains()))
 		for i, d := range srv.Domains() {
 			dd[i] = strings.ToLower(d)
@@ -76,12 +92,12 @@ func (sg *ServerGateway) findServer(gatewayID, domain string) Server {
 
 	var hs int
 	var srv Server
-	for _, id := range srvIDs {
-		for _, d := range sg.srvDomains[id] {
+	for _, srvID := range srvIDs {
+		for _, d := range sg.srvDomains[srvID] {
 			cs := wildcardSimilarity(domain, d)
 			if cs > -1 && cs >= hs {
 				hs = cs
-				srv = sg.srvs[id]
+				srv = sg.srvs[srvID]
 			}
 		}
 	}
@@ -91,7 +107,7 @@ func (sg *ServerGateway) findServer(gatewayID, domain string) Server {
 func (sg *ServerGateway) Start() {
 	sg.reload = make(chan func())
 	sg.quit = make(chan bool)
-	sg.indexServers()
+	sg.init()
 
 	for {
 		select {
@@ -123,7 +139,7 @@ func (sg *ServerGateway) Start() {
 			}
 		case reload := <-sg.reload:
 			reload()
-			sg.indexServers()
+			sg.init()
 		case <-sg.quit:
 			sg.Logger.Debug("server gateway quitting; received quit signal")
 			return

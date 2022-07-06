@@ -185,5 +185,6 @@ func onReload(v *viper.Viper, cfgs []infrared.ProxyConfig) {
 			)
 		}
 	}
+	logger.Info("Reloading plugins")
 	pluginManager.ReloadPlugins(v)
 }

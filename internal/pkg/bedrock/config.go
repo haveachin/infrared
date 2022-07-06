@@ -23,12 +23,12 @@ func (cfg ProxyConfig) ListenerBuilder() infrared.ListenerBuilder {
 func (cfg ProxyConfig) LoadGateways() ([]infrared.Gateway, error) {
 	var gateways []infrared.Gateway
 	for id, data := range cfg.Viper.GetStringMap("bedrock.gateways") {
-		vpr := cfg.Viper.Sub("defaults.bedrock.gateway")
-		if vpr == nil {
-			vpr = viper.New()
+		defaults := cfg.Viper.Sub("defaults.bedrock.gateway").AllSettings()
+		vpr := viper.New()
+		if err := vpr.MergeConfigMap(defaults); err != nil {
+			return nil, err
 		}
-		vMap := data.(map[string]interface{})
-		if err := vpr.MergeConfigMap(vMap); err != nil {
+		if err := vpr.MergeConfigMap(data.(map[string]interface{})); err != nil {
 			return nil, err
 		}
 		var c gatewayConfig
@@ -48,12 +48,12 @@ func (cfg ProxyConfig) LoadGateways() ([]infrared.Gateway, error) {
 func (cfg ProxyConfig) LoadServers() ([]infrared.Server, error) {
 	var servers []infrared.Server
 	for id, data := range cfg.Viper.GetStringMap("bedrock.servers") {
-		vpr := cfg.Viper.Sub("defaults.bedrock.server")
-		if vpr == nil {
-			vpr = viper.New()
+		defaults := cfg.Viper.Sub("defaults.bedrock.server").AllSettings()
+		vpr := viper.New()
+		if err := vpr.MergeConfigMap(defaults); err != nil {
+			return nil, err
 		}
-		vMap := data.(map[string]interface{})
-		if err := vpr.MergeConfigMap(vMap); err != nil {
+		if err := vpr.MergeConfigMap(data.(map[string]interface{})); err != nil {
 			return nil, err
 		}
 		var cfg serverConfig
@@ -107,7 +107,6 @@ type listenerConfig struct {
 }
 
 type gatewayConfig struct {
-	Servers []string
 }
 
 type serverConfig struct {
@@ -117,6 +116,7 @@ type serverConfig struct {
 	DialTimeout        time.Duration
 	SendProxyProtocol  bool
 	DialTimeoutMessage string
+	Gateways           []string
 	Webhooks           []string
 }
 
@@ -164,7 +164,6 @@ func newGateway(v *viper.Viper, id string, cfg gatewayConfig) (infrared.Gateway,
 		gateway: Gateway{
 			ID:        id,
 			Listeners: listeners,
-			ServerIDs: cfg.Servers,
 		},
 	}, nil
 }
@@ -185,6 +184,7 @@ func newServer(id string, cfg serverConfig) infrared.Server {
 			Address:            cfg.Address,
 			SendProxyProtocol:  cfg.SendProxyProtocol,
 			DialTimeoutMessage: cfg.DialTimeoutMessage,
+			GatewayIDs:         cfg.Gateways,
 			WebhookIDs:         cfg.Webhooks,
 		},
 	}
@@ -205,12 +205,12 @@ func loadListeners(v *viper.Viper, gatewayID string) ([]Listener, error) {
 	key := fmt.Sprintf("bedrock.gateways.%s.listeners", gatewayID)
 	var listeners []Listener
 	for id, data := range v.GetStringMap(key) {
-		vpr := v.Sub("defaults.bedrock.gateway.listener")
-		if vpr == nil {
-			vpr = viper.New()
+		defaults := v.Sub("defaults.bedrock.gateway.listener").AllSettings()
+		vpr := viper.New()
+		if err := vpr.MergeConfigMap(defaults); err != nil {
+			return nil, err
 		}
-		vMap := data.(map[string]interface{})
-		if err := vpr.MergeConfigMap(vMap); err != nil {
+		if err := vpr.MergeConfigMap(data.(map[string]interface{})); err != nil {
 			return nil, err
 		}
 		var cfg listenerConfig

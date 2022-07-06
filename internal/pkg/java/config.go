@@ -27,12 +27,12 @@ func (cfg ProxyConfig) ListenerBuilder() infrared.ListenerBuilder {
 func (cfg ProxyConfig) LoadGateways() ([]infrared.Gateway, error) {
 	var gateways []infrared.Gateway
 	for id, data := range cfg.Viper.GetStringMap("java.gateways") {
-		vpr := cfg.Viper.Sub("defaults.java.gateway")
-		if vpr == nil {
-			vpr = viper.New()
+		defaults := cfg.Viper.Sub("defaults.java.gateway").AllSettings()
+		vpr := viper.New()
+		if err := vpr.MergeConfigMap(defaults); err != nil {
+			return nil, err
 		}
-		vMap := data.(map[string]interface{})
-		if err := vpr.MergeConfigMap(vMap); err != nil {
+		if err := vpr.MergeConfigMap(data.(map[string]interface{})); err != nil {
 			return nil, err
 		}
 		var c gatewayConfig
@@ -51,12 +51,12 @@ func (cfg ProxyConfig) LoadGateways() ([]infrared.Gateway, error) {
 func (cfg ProxyConfig) LoadServers() ([]infrared.Server, error) {
 	var servers []infrared.Server
 	for id, data := range cfg.Viper.GetStringMap("java.servers") {
-		vpr := cfg.Viper.Sub("defaults.java.server")
-		if vpr == nil {
-			vpr = viper.New()
+		defaults := cfg.Viper.Sub("defaults.java.server").AllSettings()
+		vpr := viper.New()
+		if err := vpr.MergeConfigMap(defaults); err != nil {
+			return nil, err
 		}
-		vMap := data.(map[string]interface{})
-		if err := vpr.MergeConfigMap(vMap); err != nil {
+		if err := vpr.MergeConfigMap(data.(map[string]interface{})); err != nil {
 			return nil, err
 		}
 		var cfg serverConfig
@@ -106,6 +106,7 @@ type serverConfig struct {
 	DialTimeoutMessage string
 	OverrideStatus     overrideServerStatusConfig
 	DialTimeoutStatus  dialTimeoutServerStatusConfig
+	Gateways           []string
 	Webhooks           []string
 }
 
@@ -143,11 +144,6 @@ type listenerConfig struct {
 }
 
 type gatewayConfig struct {
-	Binds                 []string
-	ReceiveProxyProtocol  bool
-	ReceiveRealIP         bool
-	ClientTimeout         time.Duration
-	Servers               []string
 	ServerNotFoundMessage string
 }
 
@@ -188,7 +184,6 @@ func newGateway(v *viper.Viper, id string, cfg gatewayConfig) (infrared.Gateway,
 		gateway: Gateway{
 			ID:        id,
 			Listeners: listeners,
-			ServerIDs: cfg.Servers,
 		},
 	}, nil
 }
@@ -237,6 +232,7 @@ func newServer(id string, cfg serverConfig) (infrared.Server, error) {
 			DialTimeoutMessage:    cfg.DialTimeoutMessage,
 			OverrideStatus:        overrideStatus,
 			DialTimeoutStatusJSON: string(bb),
+			GatewayIDs:            cfg.Gateways,
 			WebhookIDs:            cfg.Webhooks,
 			Host:                  host,
 			Port:                  port,
@@ -307,12 +303,12 @@ func loadListeners(v *viper.Viper, gatewayID string) ([]Listener, error) {
 	key := fmt.Sprintf("java.gateways.%s.listeners", gatewayID)
 	var listeners []Listener
 	for id, data := range v.GetStringMap(key) {
-		vpr := v.Sub("defaults.java.gateway.listener")
-		if vpr == nil {
-			vpr = viper.New()
+		defaults := v.Sub("defaults.java.gateway.listener").AllSettings()
+		vpr := viper.New()
+		if err := vpr.MergeConfigMap(defaults); err != nil {
+			return nil, err
 		}
-		vMap := data.(map[string]interface{})
-		if err := vpr.MergeConfigMap(vMap); err != nil {
+		if err := vpr.MergeConfigMap(data.(map[string]interface{})); err != nil {
 			return nil, err
 		}
 		var cfg listenerConfig

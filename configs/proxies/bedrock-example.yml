@@ -1,13 +1,13 @@
 bedrock:
   gateways:
-    mygateway:
+    default:
       listeners:
-        mylistener:
+        default:
           bind: 0.0.0.0:19132
-      servers:
-        - myserver
   servers:
     myserver:
+      gateways:
+        - default
       domains:
         - "*"
       address: example.com:19132

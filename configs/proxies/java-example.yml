@@ -1,13 +1,13 @@
 java:
   gateways:
-    mygateway:
+    default:
       listeners:
-        mylistener:
-          bind: 0.0.0.0:25565
-      servers:
-        - myserver
+        default:
+          bind: :25565
   servers:
     myserver:
+      gateways:
+        - default
       domains:
         - "*"
       address: example.com:25565
@@ -17,12 +17,12 @@ java:
         playerCount: 2
   # Configuration for webhooks
   webhooks:
-    # A webhook defined by an ID. In this case "mywebhook"
+    # A webhook defined by an ID. In this case "default"
     mywebhook:
       # Gateway IDs to listen for events to. All events that the connection triggers
       # have also the gateway ID attached to them.
       gatewayIds:
-        - mygateway
+        - default
       # The URL to POST the JSON to
       url: https://example.com/callback
       # Event Topics to listen for

@@ -3,11 +3,17 @@ package config
 import (
 	"io/fs"
 	"path/filepath"
+	"strings"
 	"sync"
+	"time"
 
+	"github.com/docker/docker/api/types"
+	"github.com/docker/docker/api/types/filters"
+	"github.com/docker/docker/client"
 	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
+	"golang.org/x/net/context"
 )
 
 type provider interface {
@@ -86,7 +92,52 @@ func (p *fileProvider) watch() error {
 }
 
 func (p *fileProvider) close() {
-	p.watcher.Close()
+	if p.watcher != nil {
+		p.watcher.Close()
+	}
 }
 
-type dockerProvider struct{}
+type dockerProvider struct {
+	client        *client.Client
+	network       string
+	clientTimeout time.Duration
+	labelPrefix   string
+	onChange      func()
+	logger        *zap.Logger
+}
+
+func (p dockerProvider) mergeConfigs(v *viper.Viper) error {
+	ctx, cancel := context.WithTimeout(context.Background(), p.clientTimeout)
+	defer cancel()
+	containers, err := p.client.ContainerList(ctx, types.ContainerListOptions{
+		Filters: filters.NewArgs(filters.KeyValuePair{
+			Key:   "network",
+			Value: p.network,
+		}),
+	})
+	if err != nil {
+		return err
+	}
+
+	vpr := viper.New()
+	for _, container := range containers {
+		for key, value := range container.Labels {
+			if !strings.HasPrefix(key, p.labelPrefix) {
+				continue
+			}
+
+			key = strings.TrimPrefix(key, p.labelPrefix)
+			if strings.HasPrefix(value, "[") {
+				value = strings.Trim(value, "[]")
+				vpr.Set(key, strings.Split(value, ","))
+			} else {
+				vpr.Set(key, value)
+			}
+		}
+	}
+	return v.MergeConfigMap(vpr.AllSettings())
+}
+
+func (p *dockerProvider) close() {
+	p.client.Close()
+}

@@ -3,7 +3,7 @@ test:
 	go generate ./...
 	go test -race -timeout 10s ./...
 
-dev:
+devenv:
 	docker-compose -p infrared -f deployments/docker-compose.dev.yml up
 
 run:

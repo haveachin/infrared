@@ -17,6 +17,7 @@ type Server struct {
 	Address            string
 	SendProxyProtocol  bool
 	DialTimeoutMessage string
+	GatewayIDs         []string
 	WebhookIDs         []string
 }
 
@@ -30,6 +31,10 @@ func (s InfraredServer) ID() string {
 
 func (s InfraredServer) Domains() []string {
 	return s.Server.Domains
+}
+
+func (s InfraredServer) GatewayIDs() []string {
+	return s.Server.GatewayIDs
 }
 
 func (s InfraredServer) WebhookIDs() []string {
