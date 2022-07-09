@@ -9,14 +9,14 @@ import (
 	"go.uber.org/zap"
 )
 
-type listener struct {
+type Listener struct {
 	listener net.Listener
 	connCh   <-chan net.Conn
 	errCh    chan error
 	onClose  func() error
 }
 
-func (l *listener) Accept() (net.Conn, error) {
+func (l *Listener) Accept() (net.Conn, error) {
 	select {
 	case c, ok := <-l.connCh:
 		if !ok {
@@ -28,13 +28,17 @@ func (l *listener) Accept() (net.Conn, error) {
 	}
 }
 
-func (l *listener) Addr() net.Addr {
+func (l *Listener) Addr() net.Addr {
 	return l.listener.Addr()
 }
 
-func (l *listener) Close() error {
+func (l *Listener) Close() error {
 	l.errCh <- net.ErrClosed
 	return l.onClose()
+}
+
+func (l *Listener) UnderlyingListener() net.Listener {
+	return l.listener
 }
 
 type managedListener struct {
@@ -64,7 +68,7 @@ func newManagedListener(l net.Listener) *managedListener {
 
 func (ml *managedListener) newSubscriber() net.Listener {
 	ml.subscriber.Inc()
-	return &listener{
+	return &Listener{
 		listener: ml.Listener,
 		connCh:   ml.connCh,
 		errCh:    make(chan error),

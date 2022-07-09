@@ -3,6 +3,7 @@ package infrared
 import (
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"strings"
 	"time"
@@ -87,8 +88,16 @@ func (ct ConnTunnel) Start() error {
 	}
 	defer rc.Close()
 
-	go io.Copy(ct.Conn, rc)
-	io.Copy(rc, ct.Conn)
+	go func() {
+		_, err := io.Copy(ct.Conn, rc)
+		if err != nil {
+			log.Println(err)
+		}
+	}()
+	_, err = io.Copy(rc, ct.Conn)
+	if err != nil {
+		log.Println(err)
+	}
 	return nil
 }
 

@@ -67,10 +67,11 @@ func (gw *Gateway) initListeners() {
 			)
 			continue
 		}
-		//rl := l.(*raknet.Listener)
-		//rl.PongData(listener.PingStatus.marshal(rl))
+		il := l.(*infrared.Listener)
+		rl := il.UnderlyingListener().(*raknet.Listener)
+		rl.PongData(listener.PingStatus.marshal(rl))
 
-		gw.Listeners[n].Listener = l
+		gw.Listeners[n].Listener = rl
 		gw.listeners[n] = &gw.Listeners[n]
 	}
 }

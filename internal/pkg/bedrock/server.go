@@ -62,6 +62,7 @@ func (s InfraredServer) HandleConn(c net.Conn) (net.Conn, error) {
 
 	if s.SendProxyProtocol {
 		if err := writeProxyProtocolHeader(pc, rc); err != nil {
+			rc.Close()
 			return nil, err
 		}
 	}
