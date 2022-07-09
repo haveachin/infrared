@@ -59,7 +59,11 @@ type Gateway struct {
 func (gw *Gateway) initListeners() {
 	gw.listeners = make([]net.Listener, len(gw.Listeners))
 	for n, listener := range gw.Listeners {
-		l, err := gw.ListenersManager.Listen(listener.Bind)
+		l, err := gw.ListenersManager.Listen(listener.Bind, func(l net.Listener) {
+			rl := l.(*raknet.Listener)
+			pong := listener.PingStatus.marshal(rl)
+			rl.PongData(pong)
+		})
 		if err != nil {
 			gw.Logger.Error("unable to bind listener",
 				zap.Error(err),
@@ -67,11 +71,8 @@ func (gw *Gateway) initListeners() {
 			)
 			continue
 		}
-		il := l.(*infrared.Listener)
-		rl := il.UnderlyingListener().(*raknet.Listener)
-		rl.PongData(listener.PingStatus.marshal(rl))
 
-		gw.Listeners[n].Listener = rl
+		gw.Listeners[n].Listener = l
 		gw.listeners[n] = &gw.Listeners[n]
 	}
 }

@@ -37,10 +37,6 @@ func (l *Listener) Close() error {
 	return l.onClose()
 }
 
-func (l *Listener) UnderlyingListener() net.Listener {
-	return l.listener
-}
-
 type managedListener struct {
 	net.Listener
 	connCh     chan net.Conn
@@ -89,18 +85,22 @@ type ListenersManager struct {
 	mu        sync.Mutex
 }
 
-func (m *ListenersManager) Listen(addr string) (net.Listener, error) {
+type ListenerOption func(l net.Listener)
+
+func (m *ListenersManager) Listen(addr string, opts ...ListenerOption) (net.Listener, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	host, port, err := net.SplitHostPort(addr)
+	addr, err := formatAddr(addr)
 	if err != nil {
 		return nil, err
 	}
 
-	addr = fmt.Sprintf("%s:%s", host, port)
 	ml, ok := m.listeners[addr]
 	if ok {
+		for _, opt := range opts {
+			opt(ml.Listener)
+		}
 		return ml.newSubscriber(), nil
 	}
 
@@ -110,7 +110,12 @@ func (m *ListenersManager) Listen(addr string) (net.Listener, error) {
 	}
 	m.logger.Info("starting listener",
 		zap.String("address", addr),
+		zap.String("network", l.Addr().Network()),
 	)
+
+	for _, opt := range opts {
+		opt(l)
+	}
 
 	ml = newManagedListener(l)
 	m.listeners[addr] = ml
@@ -132,4 +137,13 @@ func (m *ListenersManager) clean() {
 		l.Close()
 		delete(m.listeners, addr)
 	}
+}
+
+func formatAddr(addr string) (string, error) {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return "", err
+	}
+
+	return fmt.Sprintf("%s:%s", host, port), nil
 }
