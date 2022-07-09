@@ -2,8 +2,6 @@ package infrared
 
 import (
 	"fmt"
-	"io"
-	"log"
 	"net"
 	"strings"
 	"time"
@@ -35,6 +33,7 @@ type Conn interface {
 	GatewayID() string
 	// Edition returns the Minecraft edition of this connection.
 	Edition() Edition
+	Pipe(c net.Conn) error
 }
 
 // ProcessedConn is a already processed connection that waits to be handles by a server
@@ -88,16 +87,8 @@ func (ct ConnTunnel) Start() error {
 	}
 	defer rc.Close()
 
-	go func() {
-		_, err := io.Copy(ct.Conn, rc)
-		if err != nil {
-			log.Println(err)
-		}
-	}()
-	_, err = io.Copy(rc, ct.Conn)
-	if err != nil {
-		log.Println(err)
-	}
+	go ct.Conn.Pipe(rc)
+	rc.Pipe(ct.Conn)
 	return nil
 }
 

@@ -69,7 +69,7 @@ func (s InfraredServer) Dial() (*Conn, error) {
 	}, nil
 }
 
-func (s InfraredServer) HandleConn(c net.Conn) (net.Conn, error) {
+func (s InfraredServer) HandleConn(c net.Conn) (infrared.Conn, error) {
 	pc := c.(*ProcessedConn)
 	rc, err := s.Dial()
 	if err != nil {

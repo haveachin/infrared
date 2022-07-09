@@ -11,10 +11,23 @@ import (
 // Conn is a minecraft Connection
 type Conn struct {
 	*raknet.Conn
-
 	gatewayID             string
 	proxyProtocol         bool
 	serverNotFoundMessage string
+}
+
+func (c *Conn) Pipe(rc net.Conn) error {
+	for {
+		pk, err := c.ReadPacket()
+		if err != nil {
+			return err
+		}
+
+		_, err = rc.Write(pk)
+		if err != nil {
+			return err
+		}
+	}
 }
 
 func (c *Conn) GatewayID() string {

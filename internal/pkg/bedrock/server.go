@@ -41,16 +41,18 @@ func (s InfraredServer) WebhookIDs() []string {
 	return s.Server.WebhookIDs
 }
 
-func (s InfraredServer) Dial() (*raknet.Conn, error) {
+func (s InfraredServer) Dial() (*Conn, error) {
 	c, err := s.Dialer.DialTimeout(s.Address, s.DialTimeout)
 	if err != nil {
 		return nil, err
 	}
 
-	return c, nil
+	return &Conn{
+		Conn: c,
+	}, nil
 }
 
-func (s InfraredServer) HandleConn(c net.Conn) (net.Conn, error) {
+func (s InfraredServer) HandleConn(c net.Conn) (infrared.Conn, error) {
 	pc := c.(*ProcessedConn)
 	rc, err := s.Dial()
 	if err != nil {

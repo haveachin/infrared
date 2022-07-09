@@ -40,6 +40,11 @@ type Conn struct {
 	w io.Writer
 }
 
+func (c *Conn) Pipe(rc net.Conn) error {
+	_, err := io.Copy(rc, c)
+	return err
+}
+
 func (c Conn) GatewayID() string {
 	return c.gatewayID
 }
