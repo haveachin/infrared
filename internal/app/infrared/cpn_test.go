@@ -41,7 +41,7 @@ func TestCPN_ListenAndServe(t *testing.T) {
 			cp.EXPECT().ClientTimeout().Times(1).Return(time.Duration(0))
 			cp.EXPECT().ProcessConn(tc.in).Times(1).Return(tc.out, tc.procErr)
 			bus := NewMockBus(ctrl)
-			bus.EXPECT().Push(infrared.PreConnProcessingEventTopic, gomock.Any()).
+			bus.EXPECT().Push(gomock.Any(), infrared.PreConnProcessingEventTopic).
 				Times(1).Return()
 
 			if tc.err == nil {
@@ -52,7 +52,7 @@ func TestCPN_ListenAndServe(t *testing.T) {
 				tc.in.EXPECT().Close().Times(1).Return(nil)
 			} else {
 				tc.in.EXPECT().SetDeadline(time.Time{}).Times(1).Return(nil)
-				bus.EXPECT().Push(infrared.PostConnProcessingEventTopic, gomock.Any()).
+				bus.EXPECT().Push(gomock.Any(), infrared.PostConnProcessingEventTopic).
 					Times(1).Return()
 			}
 
