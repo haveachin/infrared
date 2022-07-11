@@ -56,7 +56,10 @@ func (c *Config) init() error {
 
 	c.providers = []provider{
 		c.initFileProvider(),
-		c.initDockerProvider(),
+	}
+
+	if c.config.Providers.Docker.Endpoint != "" {
+		c.providers = append(c.providers, c.initDockerProvider())
 	}
 
 	return nil
