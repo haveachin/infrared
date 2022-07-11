@@ -57,6 +57,12 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Dry run new version tag
+        id: tag_version
+        uses: mathieudutour/github-tag-action@v5.6
+        with:
+          dry_run: true
+
   # Release job runs on every push to master
   # Depends on build job
   release-docker:
