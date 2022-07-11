@@ -2,7 +2,6 @@ package bedrock
 
 import (
 	"net"
-	"time"
 
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/pires/go-proxyproto"
@@ -13,7 +12,6 @@ type Server struct {
 	ID                 string
 	Domains            []string
 	Dialer             raknet.Dialer
-	DialTimeout        time.Duration
 	Address            string
 	SendProxyProtocol  bool
 	DialTimeoutMessage string
@@ -42,7 +40,7 @@ func (s InfraredServer) WebhookIDs() []string {
 }
 
 func (s InfraredServer) Dial() (*Conn, error) {
-	c, err := s.Dialer.DialTimeout(s.Address, s.DialTimeout)
+	c, err := s.Dialer.Dial(s.Address)
 	if err != nil {
 		return nil, err
 	}
@@ -54,19 +52,20 @@ func (s InfraredServer) Dial() (*Conn, error) {
 
 func (s InfraredServer) HandleConn(c net.Conn) (infrared.Conn, error) {
 	pc := c.(*ProcessedConn)
+
+	if s.SendProxyProtocol {
+		s.Dialer.UpstreamDialer = &proxyProtocolDialer{
+			connAddr:       c.RemoteAddr(),
+			upstreamDialer: s.Dialer.UpstreamDialer,
+		}
+	}
+
 	rc, err := s.Dial()
 	if err != nil {
 		if err := s.handleDialTimeout(*pc); err != nil {
 			return nil, err
 		}
 		return nil, err
-	}
-
-	if s.SendProxyProtocol {
-		if err := writeProxyProtocolHeader(pc, rc); err != nil {
-			rc.Close()
-			return nil, err
-		}
 	}
 
 	if _, err := rc.Write(pc.readBytes); err != nil {
@@ -82,9 +81,28 @@ func (s InfraredServer) handleDialTimeout(c ProcessedConn) error {
 	return c.disconnect(msg)
 }
 
-func writeProxyProtocolHeader(c, rc net.Conn) error {
+type proxyProtocolDialer struct {
+	connAddr       net.Addr
+	upstreamDialer raknet.UpstreamDialer
+}
+
+func (d proxyProtocolDialer) Dial(network, address string) (net.Conn, error) {
+	rc, err := d.upstreamDialer.Dial(network, address)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := writeProxyProtocolHeader(d.connAddr, rc); err != nil {
+		rc.Close()
+		return nil, err
+	}
+
+	return rc, nil
+}
+
+func writeProxyProtocolHeader(connAddr net.Addr, rc net.Conn) error {
 	tp := proxyproto.UDPv4
-	addr := c.RemoteAddr().(*net.UDPAddr)
+	addr := connAddr.(*net.UDPAddr)
 	if addr.IP.To4() == nil {
 		tp = proxyproto.UDPv6
 	}
@@ -93,12 +111,13 @@ func writeProxyProtocolHeader(c, rc net.Conn) error {
 		Version:           2,
 		Command:           proxyproto.PROXY,
 		TransportProtocol: tp,
-		SourceAddr:        c.RemoteAddr(),
+		SourceAddr:        connAddr,
 		DestinationAddr:   rc.RemoteAddr(),
 	}
 
 	if _, err := header.WriteTo(rc); err != nil {
 		return err
 	}
+
 	return nil
 }

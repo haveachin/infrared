@@ -175,12 +175,12 @@ func newServer(id string, cfg serverConfig) infrared.Server {
 			Domains: cfg.Domains,
 			Dialer: raknet.Dialer{
 				UpstreamDialer: &net.Dialer{
+					Timeout: cfg.DialTimeout,
 					LocalAddr: &net.UDPAddr{
 						IP: net.ParseIP(cfg.ProxyBind),
 					},
 				},
 			},
-			DialTimeout:        cfg.DialTimeout,
 			Address:            cfg.Address,
 			SendProxyProtocol:  cfg.SendProxyProtocol,
 			DialTimeoutMessage: cfg.DialTimeoutMessage,

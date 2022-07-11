@@ -9,7 +9,7 @@ require (
 	github.com/golang-jwt/jwt/v4 v4.4.2
 	github.com/golang/mock v1.6.0
 	github.com/pires/go-proxyproto v0.6.2
-	github.com/sandertv/go-raknet v1.10.9
+	github.com/sandertv/go-raknet v1.11.0
 	github.com/spf13/cobra v1.5.0
 	github.com/spf13/viper v1.12.0
 	go.uber.org/atomic v1.9.0
