@@ -61,6 +61,9 @@ jobs:
         id: tag_version
         uses: mathieudutour/github-tag-action@v5.6
         with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          release_branches: master
+          pre_release_branches: pre-release
           dry_run: true
 
   # Release job runs on every push to master
