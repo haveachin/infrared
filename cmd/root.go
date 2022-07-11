@@ -147,11 +147,12 @@ func safeWriteFromEmbeddedFS(embedPath, sysPath string) error {
 	for _, e := range entries {
 		ePath := filepath.Join(embedPath, e.Name())
 		sPath := filepath.Join(sysPath, e.Name())
-		if e.IsDir() {
-			if _, err := os.Stat(sPath); err == nil || !os.IsNotExist(err) {
-				continue
-			}
 
+		if _, err := os.Stat(sPath); err == nil || !os.IsNotExist(err) {
+			continue
+		}
+
+		if e.IsDir() {
 			if err := os.MkdirAll(sPath, 0755); err != nil {
 				return err
 			}
