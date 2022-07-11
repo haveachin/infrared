@@ -1,0 +1,23 @@
+version: "3"
+
+services:
+  infrared:
+    image: haveachin/infrared:latest
+    container_name: infrared
+    restart: always
+    ports:
+      # Port for Java Edition
+      - 25565:25565/tcp
+      # Port for Bedrock Edition
+      - 19132:19132/udp
+    volumes:
+      - ./data/infrared:/infrared
+    networks:
+      - infrared
+    environment:
+      # Only change this if you know what you are doing
+      INFRARED_CONFIG: "/infrared/config.yml"
+
+networks:
+  infrared:
+    name: infrared

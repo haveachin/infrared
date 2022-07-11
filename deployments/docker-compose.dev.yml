@@ -1,0 +1,22 @@
+version: "3"
+
+services:
+  minecraft-server:
+    image: itzg/minecraft-server:java17
+    container_name: minecraft-server
+    restart: "no"
+    ports:
+      - 25566:25565
+    environment:
+      EULA: "TRUE"
+    networks:
+      - infrared
+    labels:
+      - infrared.java.servers.devserver.domains=[localhost]
+      - infrared.java.servers.devserver.address=:25566
+      - infrared.java.servers.devserver.overrideStatus.motd=Docker Lables
+      - infrared.java.servers.devserver.gateways=[default]
+
+networks:
+  infrared:
+    name: infrared

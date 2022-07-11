@@ -17,7 +17,7 @@ jobs:
     name: Test
     strategy:
       matrix:
-        go-version: [ 1.16.x ]
+        go-version: [ 1.18.x ]
         os: [ ubuntu-latest, macos-latest, windows-latest ]
     runs-on: ${{ matrix.os }}
     steps:
@@ -28,7 +28,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2
       - name: Test
-        run: go test ./...
+        run: make test
 
   # Build job runs on every PR into dev and master and pushes to master
   # Depends on test job
@@ -48,6 +48,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
+          file: ./build/package/Dockerfile
           builder: ${{ steps.buildx.outputs.name }}
           pull: true
           push: false
@@ -55,6 +56,15 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      - name: Dry run new version tag
+        id: tag_version
+        uses: mathieudutour/github-tag-action@v5.6
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          release_branches: master
+          pre_release_branches: pre-release
+          dry_run: true
 
   # Release job runs on every push to master
   # Depends on build job
@@ -90,7 +100,6 @@ jobs:
             ${{ env.REPOSITORY_NAME }}
           tags: |
             type=semver,pattern={{version}},value=${{ steps.tag_version.outputs.new_tag }}
-
       - name: Login to DockerHub
         uses: docker/login-action@v1
         with:
@@ -108,6 +117,7 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           context: .
+          file: ./build/package/Dockerfile
           builder: ${{ steps.buildx.outputs.name }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
@@ -129,12 +139,12 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v2
         with:
-          go-version: 1.16
+          go-version: 1.18
       - name: Run GoReleaser ${{ steps.tag_version.outputs.new_tag }}
         uses: goreleaser/goreleaser-action@v2
         with:
           version: latest
           args: release
-          workdir: ./cmd/infrared/.
+          workdir: .
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
