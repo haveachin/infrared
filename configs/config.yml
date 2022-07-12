@@ -22,6 +22,8 @@ providers:
 # NOT IMPLEMENTED YET
 # api:
 #   bind: 0.0.0.0:8080
+prometheus:
+  bind: :9070
 
 java:
   # Channel Capacity (ChanCap) is the capacity of a single channel
