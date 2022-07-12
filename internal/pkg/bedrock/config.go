@@ -2,6 +2,7 @@ package bedrock
 
 import (
 	"fmt"
+	"github.com/haveachin/infrared/pkg/event"
 	"net"
 	"time"
 
@@ -60,7 +61,11 @@ func (cfg ProxyConfig) LoadServers() ([]infrared.Server, error) {
 		if err := vpr.Unmarshal(&cfg); err != nil {
 			return nil, err
 		}
-		servers = append(servers, newServer(id, cfg))
+		srv := newServer(id, cfg)
+		event.Push(infrared.ServerRegisterEvent{
+			Server: srv,
+		}, infrared.ServerRegisterEventTopic)
+		servers = append(servers, srv)
 	}
 
 	return servers, nil

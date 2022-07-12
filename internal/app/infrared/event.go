@@ -9,6 +9,8 @@ const (
 
 	PlayerJoinEventTopic  = "PlayerJoin"
 	PlayerLeaveEventTopic = "PlayerLeave"
+
+	ServerRegisterEventTopic = "ServerRegister"
 )
 
 type NewConnEvent struct {
@@ -36,4 +38,8 @@ type PlayerJoinEvent struct {
 type PlayerLeaveEvent struct {
 	ProcessedConn ProcessedConn
 	Server        Server
+}
+
+type ServerRegisterEvent struct {
+	Server Server
 }
