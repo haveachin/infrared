@@ -3,6 +3,7 @@ package cmd
 import (
 	"embed"
 	"fmt"
+	"github.com/haveachin/infrared/internal/plugin/prometheus"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -73,6 +74,7 @@ var (
 					&webhook.Plugin{
 						Edition: infrared.BedrockEdition,
 					},
+					&prometheus.Plugin{},
 				},
 				Logger: logger,
 			}

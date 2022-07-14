@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"github.com/haveachin/infrared/pkg/event"
 	"io"
 	"net"
 	"os"
@@ -67,6 +68,9 @@ func (cfg ProxyConfig) LoadServers() ([]infrared.Server, error) {
 		if err != nil {
 			return nil, err
 		}
+		event.Push(infrared.ServerRegisterEvent{
+			Server: srv,
+		}, infrared.ServerRegisterEventTopic)
 		servers = append(servers, srv)
 	}
 	return servers, nil

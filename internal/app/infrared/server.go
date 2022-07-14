@@ -18,6 +18,7 @@ type Server interface {
 	GatewayIDs() []string
 	WebhookIDs() []string
 	HandleConn(c net.Conn) (Conn, error)
+	Edition() Edition
 }
 
 func ExecuteServerMessageTemplate(msg string, pc ProcessedConn, s Server) string {
