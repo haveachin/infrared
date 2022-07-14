@@ -87,22 +87,25 @@ func (sg *ServerGateway) indexDomains() {
 	}
 }
 
-func (sg *ServerGateway) findServer(gatewayID, domain string) Server {
+func (sg *ServerGateway) findServer(gatewayID, domain string) (Server, string) {
 	domain = strings.ToLower(domain)
 	srvIDs := sg.gwIDSrvIDs[gatewayID]
 
 	var hs int
 	var srv Server
+	var matchedDomain string
 	for _, srvID := range srvIDs {
-		for _, d := range sg.srvDomains[srvID] {
-			cs := wildcardSimilarity(domain, d)
+		for _, srvDomain := range sg.srvDomains[srvID] {
+			srvDomain = strings.ToLower(srvDomain)
+			cs := wildcardSimilarity(domain, srvDomain)
 			if cs > -1 && cs >= hs {
 				hs = cs
 				srv = sg.srvs[srvID]
+				matchedDomain = srvDomain
 			}
 		}
 	}
-	return srv
+	return srv, matchedDomain
 }
 
 func (sg *ServerGateway) Start() {
@@ -120,7 +123,7 @@ func (sg *ServerGateway) Start() {
 			pcLogger := sg.Logger.With(logProcessedConn(pc)...)
 			pcLogger.Debug("looking up server address")
 
-			srv := sg.findServer(pc.GatewayID(), pc.ServerAddr())
+			srv, matchedDomain := sg.findServer(pc.GatewayID(), pc.ServerAddr())
 			if srv == nil {
 				pcLogger.Info("failed to find server; disconnecting client")
 				_ = pc.DisconnectServerNotFound()
@@ -135,8 +138,9 @@ func (sg *ServerGateway) Start() {
 			}, PreConnConnectingEventTopic)
 
 			sg.Out <- ConnTunnel{
-				Conn:   pc,
-				Server: srv,
+				Conn:          pc,
+				Server:        srv,
+				MatchedDomain: matchedDomain,
 			}
 		case reload := <-sg.reload:
 			reload()

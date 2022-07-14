@@ -131,17 +131,19 @@ func (p Plugin) handleEvent(e event.Event) {
 	case infrared.PlayerJoinEvent:
 		edition := e.ProcessedConn.Edition().String()
 		server := e.Server.ID()
-		domain := strings.ToLower(e.ProcessedConn.ServerAddr())
+		domain := e.MatchedDomain
 		p.playersConnected.With(prometheus.Labels{"host": domain, "server": server, "edition": edition}).Inc()
 	case infrared.PlayerLeaveEvent:
 		edition := e.ProcessedConn.Edition().String()
 		server := e.Server.ID()
-		domain := strings.ToLower(e.ProcessedConn.ServerAddr())
+		domain := e.MatchedDomain
 		p.playersConnected.With(prometheus.Labels{"host": domain, "server": server, "edition": edition}).Dec()
 	case infrared.ServerRegisterEvent:
 		edition := e.Server.Edition().String()
 		server := e.Server.ID()
-		domain := e.Server.Domains()[0]
-		p.playersConnected.With(prometheus.Labels{"host": domain, "server": server, "edition": edition})
+		for _, domain := range e.Server.Domains() {
+			domain = strings.ToLower(domain)
+			p.playersConnected.With(prometheus.Labels{"host": domain, "server": server, "edition": edition})
+		}
 	}
 }

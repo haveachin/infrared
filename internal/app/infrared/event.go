@@ -33,11 +33,13 @@ type PreConnConnectingEvent struct {
 type PlayerJoinEvent struct {
 	ProcessedConn ProcessedConn
 	Server        Server
+	MatchedDomain string
 }
 
 type PlayerLeaveEvent struct {
 	ProcessedConn ProcessedConn
 	Server        Server
+	MatchedDomain string
 }
 
 type ServerRegisterEvent struct {

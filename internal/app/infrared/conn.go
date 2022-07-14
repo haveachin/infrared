@@ -77,6 +77,9 @@ type ConnTunnel struct {
 	Conn ProcessedConn
 	// Server is the minecraft server that the Conn will be connected to.
 	Server Server
+	// MatchedDomain is the domain that the client matched when resolving
+	// the server that it requested.
+	MatchedDomain string
 }
 
 // Start starts to proxy the Conn to the Server. This call is blocking.
