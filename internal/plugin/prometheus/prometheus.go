@@ -23,18 +23,10 @@ type Plugin struct {
 	eventID  uuid.UUID
 	bind     string
 	quit     chan bool
-}
 
-var (
-	handshakeCount = promauto.NewCounterVec(prometheus.CounterOpts{
-		Name: "infrared_handshakes",
-		Help: "The total number of handshakes made to each Server per edition",
-	}, []string{"host", "type", "edition"})
-	playersConnected = promauto.NewGaugeVec(prometheus.GaugeOpts{
-		Name: "infrared_connected",
-		Help: "The total number of connected players per Server and edition",
-	}, []string{"host", "server", "edition"})
-)
+	handshakeCount   *prometheus.CounterVec
+	playersConnected *prometheus.GaugeVec
+}
 
 func (p Plugin) Name() string {
 	return "Prometheus"
@@ -49,6 +41,16 @@ func (p *Plugin) Load(v *viper.Viper) error {
 	if p.bind == "" {
 		return errors.New("prometheus bind empty, not enabling prometheus plugin")
 	}
+
+	p.handshakeCount = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "infrared_handshakes",
+		Help: "The total number of handshakes made to each Server per edition",
+	}, []string{"host", "type", "edition"})
+	p.playersConnected = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "infrared_connected",
+		Help: "The total number of connected players per Server and edition",
+	}, []string{"host", "server", "edition"})
+
 	return nil
 }
 
@@ -114,27 +116,27 @@ func (p Plugin) handleEvent(e event.Event) {
 		domain := e.ProcessedConn.ServerAddr()
 		if edition == infrared.JavaEdition {
 			if e.ProcessedConn.IsLoginRequest() {
-				handshakeCount.With(prometheus.Labels{"host": domain, "type": "login", "edition": "java"}).Inc()
+				p.handshakeCount.With(prometheus.Labels{"host": domain, "type": "login", "edition": "java"}).Inc()
 			} else {
-				handshakeCount.With(prometheus.Labels{"host": domain, "type": "status", "edition": "java"}).Inc()
+				p.handshakeCount.With(prometheus.Labels{"host": domain, "type": "status", "edition": "java"}).Inc()
 			}
 		} else {
-			handshakeCount.With(prometheus.Labels{"host": domain, "type": "login", "edition": "bedrock"}).Inc()
+			p.handshakeCount.With(prometheus.Labels{"host": domain, "type": "login", "edition": "bedrock"}).Inc()
 		}
 	case infrared.PlayerJoinEvent:
 		edition := e.ProcessedConn.Edition().String()
 		server := e.Server.ID()
 		domain := e.Server.Domains()[0]
-		playersConnected.With(prometheus.Labels{"host": domain, "server": server, "edition": edition}).Inc()
+		p.playersConnected.With(prometheus.Labels{"host": domain, "server": server, "edition": edition}).Inc()
 	case infrared.PlayerLeaveEvent:
 		edition := e.ProcessedConn.Edition().String()
 		server := e.Server.ID()
 		domain := e.Server.Domains()[0]
-		playersConnected.With(prometheus.Labels{"host": domain, "server": server, "edition": edition}).Dec()
+		p.playersConnected.With(prometheus.Labels{"host": domain, "server": server, "edition": edition}).Dec()
 	case infrared.ServerRegisterEvent:
 		edition := e.Server.Edition().String()
 		server := e.Server.ID()
 		domain := e.Server.Domains()[0]
-		playersConnected.With(prometheus.Labels{"host": domain, "server": server, "edition": edition})
+		p.playersConnected.With(prometheus.Labels{"host": domain, "server": server, "edition": edition})
 	}
 }
