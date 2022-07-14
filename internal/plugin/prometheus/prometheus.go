@@ -21,7 +21,7 @@ type Plugin struct {
 	logger   *zap.Logger
 	eventBus event.Bus
 	eventID  uuid.UUID
-	promBind string
+	bind     string
 	quit     chan bool
 }
 
@@ -45,15 +45,29 @@ func (p Plugin) Version() string {
 }
 
 func (p *Plugin) Load(v *viper.Viper) error {
-	p.promBind = v.GetString("prometheus.bind")
-	if p.promBind == "" {
+	p.bind = v.GetString("prometheus.bind")
+	if p.bind == "" {
 		return errors.New("prometheus bind empty, not enabling prometheus plugin")
 	}
 	return nil
 }
 
 func (p *Plugin) Reload(v *viper.Viper) error {
-	return p.Load(v)
+	bind := v.GetString("prometheus.bind")
+	if p.bind == bind {
+		return nil
+	}
+
+	if bind == "" {
+		return p.Disable()
+	}
+
+	if err := p.Disable(); err != nil {
+		return err
+	}
+
+	go p.startMetricsServer()
+	return nil
 }
 
 func (p *Plugin) Enable(api infrared.PluginAPI) error {
@@ -64,32 +78,33 @@ func (p *Plugin) Enable(api infrared.PluginAPI) error {
 	p.eventID = id
 	p.quit = make(chan bool)
 
-	mux := http.NewServeMux()
-	mux.Handle("/metrics", promhttp.Handler())
-	srv := http.Server{
-		Handler: mux,
-		Addr:    p.promBind,
-	}
-	go func() {
-		if err := srv.ListenAndServe(); err != nil {
-			p.logger.Error("failed to start server", zap.Error(err))
-			return
-		}
-		<-p.quit
-
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-		defer cancel()
-		srv.Shutdown(ctx)
-	}()
-
+	go p.startMetricsServer()
 	return nil
 }
 
 func (p Plugin) Disable() error {
 	p.eventBus.DetachRecipient(p.eventID)
 	p.quit <- true
-	close(p.quit)
 	return nil
+}
+
+func (p Plugin) startMetricsServer() {
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", promhttp.Handler())
+	srv := http.Server{
+		Handler: mux,
+		Addr:    p.bind,
+	}
+
+	if err := srv.ListenAndServe(); err != nil {
+		p.logger.Error("failed to start server", zap.Error(err))
+		return
+	}
+	<-p.quit
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	srv.Shutdown(ctx)
 }
 
 func (p Plugin) handleEvent(e event.Event) {
