@@ -2,9 +2,10 @@ package protocol
 
 import (
 	"bytes"
-	"github.com/gofrs/uuid"
 	"io"
 	"testing"
+
+	"github.com/gofrs/uuid"
 )
 
 func TestReadNBytes(t *testing.T) {

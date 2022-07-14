@@ -1,15 +1,17 @@
 package prometheus
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"net/http"
+	"time"
 
 	"github.com/gofrs/uuid"
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/pkg/event"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -20,6 +22,7 @@ type Plugin struct {
 	eventBus event.Bus
 	eventID  uuid.UUID
 	promBind string
+	quit     chan bool
 }
 
 var (
@@ -59,83 +62,37 @@ func (p *Plugin) Enable(api infrared.PluginAPI) error {
 
 	id, _ := p.eventBus.AttachHandler(uuid.Nil, p.handleEvent)
 	p.eventID = id
+	p.quit = make(chan bool)
 
-	http.Handle("/metrics", promhttp.Handler())
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", promhttp.Handler())
+	srv := http.Server{
+		Handler: mux,
+		Addr:    p.promBind,
+	}
 	go func() {
-		p.logger.Info("starting prometheus listener", zap.String("address", p.promBind))
-
-		err := http.ListenAndServe(p.promBind, nil)
-		if err != nil {
+		if err := srv.ListenAndServe(); err != nil {
+			p.logger.Error("failed to start server", zap.Error(err))
 			return
 		}
+		<-p.quit
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		srv.Shutdown(ctx)
 	}()
+
 	return nil
 }
 
 func (p Plugin) Disable() error {
 	p.eventBus.DetachRecipient(p.eventID)
+	p.quit <- true
+	close(p.quit)
 	return nil
 }
 
-type eventData struct {
-	Edition   string `json:"edition"`
-	GatewayID string `json:"gatewayId"`
-	Conn      struct {
-		Network    string `json:"network"`
-		LocalAddr  string `json:"localAddress"`
-		RemoteAddr string `json:"remoteAddress"`
-		Username   string `json:"username,omitempty"`
-	} `json:"client"`
-	Server struct {
-		ServerID   string   `json:"serverId,omitempty"`
-		ServerAddr string   `json:"serverAddress,omitempty"`
-		Domains    []string `json:"domains,omitempty"`
-	} `json:"server"`
-	IsLoginRequest *bool `json:"isLoginRequest,omitempty"`
-}
-
-func unmarshalConn(data *eventData, c infrared.Conn) {
-	data.Edition = c.Edition().String()
-	data.Conn.Network = c.LocalAddr().Network()
-	data.Conn.LocalAddr = c.LocalAddr().String()
-	data.Conn.RemoteAddr = c.RemoteAddr().String()
-	data.GatewayID = c.GatewayID()
-}
-
-func unmarshalProcessedConn(data *eventData, pc infrared.ProcessedConn) {
-	unmarshalConn(data, pc)
-	data.Server.ServerAddr = pc.ServerAddr()
-	data.Conn.Username = pc.Username()
-	var isLoginRequest = pc.IsLoginRequest()
-	data.IsLoginRequest = &isLoginRequest
-}
-
-func unmarshalServer(data *eventData, s infrared.Server) {
-	data.Server.ServerID = s.ID()
-	data.Server.Domains = s.Domains()
-}
-
 func (p Plugin) handleEvent(e event.Event) {
-	var data eventData
-	switch e := e.Data.(type) {
-	case infrared.PostConnProcessingEvent:
-		unmarshalProcessedConn(&data, e.ProcessedConn)
-	case infrared.PlayerJoinEvent:
-		unmarshalProcessedConn(&data, e.ProcessedConn)
-		unmarshalServer(&data, e.Server)
-	case infrared.PlayerLeaveEvent:
-		unmarshalProcessedConn(&data, e.ProcessedConn)
-		unmarshalServer(&data, e.Server)
-	case infrared.ServerRegisterEvent:
-		unmarshalServer(&data, e.Server)
-	default:
-		return
-	}
-
-	p.logEvent(e, data)
-}
-
-func (p Plugin) logEvent(e event.Event, data eventData) {
 	switch e := e.Data.(type) {
 	case infrared.PostConnProcessingEvent:
 		edition := e.ProcessedConn.Edition()
