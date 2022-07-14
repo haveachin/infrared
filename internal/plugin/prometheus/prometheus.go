@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gofrs/uuid"
@@ -114,24 +115,25 @@ func (p Plugin) handleEvent(e event.Event) {
 	case infrared.PostConnProcessingEvent:
 		edition := e.ProcessedConn.Edition()
 		domain := e.ProcessedConn.ServerAddr()
-		if edition == infrared.JavaEdition {
+		switch edition {
+		case infrared.JavaEdition:
 			if e.ProcessedConn.IsLoginRequest() {
 				p.handshakeCount.With(prometheus.Labels{"host": domain, "type": "login", "edition": "java"}).Inc()
 			} else {
 				p.handshakeCount.With(prometheus.Labels{"host": domain, "type": "status", "edition": "java"}).Inc()
 			}
-		} else {
+		case infrared.BedrockEdition:
 			p.handshakeCount.With(prometheus.Labels{"host": domain, "type": "login", "edition": "bedrock"}).Inc()
 		}
 	case infrared.PlayerJoinEvent:
 		edition := e.ProcessedConn.Edition().String()
 		server := e.Server.ID()
-		domain := e.Server.Domains()[0]
+		domain := strings.ToLower(e.ProcessedConn.ServerAddr())
 		p.playersConnected.With(prometheus.Labels{"host": domain, "server": server, "edition": edition}).Inc()
 	case infrared.PlayerLeaveEvent:
 		edition := e.ProcessedConn.Edition().String()
 		server := e.Server.ID()
-		domain := e.Server.Domains()[0]
+		domain := strings.ToLower(e.ProcessedConn.ServerAddr())
 		p.playersConnected.With(prometheus.Labels{"host": domain, "server": server, "edition": edition}).Dec()
 	case infrared.ServerRegisterEvent:
 		edition := e.Server.Edition().String()
