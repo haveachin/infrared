@@ -79,7 +79,7 @@ func (p *Plugin) Enable(api infrared.PluginAPI) error {
 
 	id, _ := p.eventBus.AttachHandler(uuid.Nil, p.handleEvent)
 	p.eventID = id
-	p.quit = make(chan bool)
+	p.quit = make(chan bool, 1)
 
 	go p.startMetricsServer()
 	return nil
@@ -87,7 +87,10 @@ func (p *Plugin) Enable(api infrared.PluginAPI) error {
 
 func (p Plugin) Disable() error {
 	p.eventBus.DetachRecipient(p.eventID)
-	p.quit <- true
+	select {
+	case p.quit <- true:
+	default:
+	}
 	return nil
 }
 
