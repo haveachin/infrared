@@ -2,7 +2,6 @@ package prometheus
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -40,7 +39,7 @@ func (p Plugin) Version() string {
 func (p *Plugin) Load(v *viper.Viper) error {
 	p.bind = v.GetString("prometheus.bind")
 	if p.bind == "" {
-		return errors.New("prometheus bind empty, not enabling prometheus plugin")
+		return nil
 	}
 
 	p.handshakeCount = promauto.NewCounterVec(prometheus.CounterOpts{
@@ -74,12 +73,16 @@ func (p *Plugin) Reload(v *viper.Viper) error {
 }
 
 func (p *Plugin) Enable(api infrared.PluginAPI) error {
+	if p.bind == "" {
+		return nil
+	}
+
 	p.logger = api.Logger()
 	p.eventBus = api.EventBus()
 
 	id, _ := p.eventBus.AttachHandler(uuid.Nil, p.handleEvent)
 	p.eventID = id
-	p.quit = make(chan bool, 1)
+	p.quit = make(chan bool)
 
 	go p.startMetricsServer()
 	return nil

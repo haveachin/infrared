@@ -7,48 +7,54 @@ import (
 	"io/fs"
 	"io/ioutil"
 	"path/filepath"
-	"sync"
 
 	"github.com/df-mc/atomic"
 	"github.com/fsnotify/fsnotify"
 	"github.com/haveachin/infrared/pkg/maps"
 	"go.uber.org/zap"
-	"gopkg.in/yaml.v3"
+	"gopkg.in/yaml.v2"
 )
 
 type FileConfig struct {
-	Directory string
-	Watch     bool
+	Directory string `json:"directory" yaml:"directory"`
+	Watch     bool   `json:"watch" yaml:"watch"`
 }
 
 type file struct {
 	FileConfig
-	logger  *zap.Logger
 	watcher *atomic.Value[*fsnotify.Watcher]
-	mu      sync.Mutex
+	logger  *zap.Logger
 }
 
-func NewFile(cfg FileConfig) Provider {
+func NewFile(cfg FileConfig, logger *zap.Logger) Provider {
 	return &file{
 		FileConfig: cfg,
 		watcher:    atomic.NewValue[*fsnotify.Watcher](nil),
+		logger:     logger,
 	}
 }
 
-func (p *file) Provide(dataCh chan<- Data) error {
+func (p *file) Provide(dataCh chan<- Data) (Data, error) {
 	data, err := p.readConfigData()
 	if err != nil {
-		return err
+		return Data{}, err
 	}
-	dataCh <- data
 
-	return p.watch(dataCh)
+	if p.Watch {
+		go func() {
+			if err := p.watch(dataCh); err != nil {
+				p.logger.Error("failed while watching provider",
+					zap.Error(err),
+					zap.String("provider", data.Type.String()),
+				)
+			}
+		}()
+	}
+
+	return data, nil
 }
 
 func (p *file) watch(dataCh chan<- Data) error {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
 	if p.watcher.Load() != nil {
 		return errors.New("already watching")
 	}
@@ -111,8 +117,8 @@ func (p file) readConfigData() (Data, error) {
 			return nil
 		}
 
-		configData, err := p.read(path)
-		if err != nil {
+		cfgData := map[string]interface{}{}
+		if err := ReadConfigFile(path, &cfgData); err != nil {
 			p.logger.Error("Failed to read config",
 				zap.Error(err),
 				zap.String("configPath", path),
@@ -120,7 +126,7 @@ func (p file) readConfigData() (Data, error) {
 			return fmt.Errorf("could not read %s; %v", path, err)
 		}
 
-		maps.Merge(cfg, configData)
+		maps.Merge(cfg, cfgData)
 		return nil
 	}
 
@@ -129,31 +135,30 @@ func (p file) readConfigData() (Data, error) {
 	}
 
 	return Data{
-		Type:   DockerType,
+		Type:   FileType,
 		Config: cfg,
 	}, nil
 }
 
-func (p *file) read(filename string) (map[string]interface{}, error) {
+func ReadConfigFile(filename string, v any) error {
 	bb, err := ioutil.ReadFile(filename)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	data := map[string]interface{}{}
 	ext := filepath.Ext(filename)[1:]
 	switch ext {
 	case "json":
-		if err := json.Unmarshal(bb, data); err != nil {
-			return nil, err
+		if err := json.Unmarshal(bb, v); err != nil {
+			return err
 		}
 	case "yml", "yaml":
-		if err := yaml.Unmarshal(bb, data); err != nil {
-			return nil, err
+		if err := yaml.Unmarshal(bb, v); err != nil {
+			return err
 		}
 	default:
-		return nil, errors.New("unsupported file type")
+		return errors.New("unsupported file type")
 	}
 
-	return data, nil
+	return nil
 }

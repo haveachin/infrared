@@ -2,157 +2,105 @@ package config
 
 import (
 	"sync"
-	"time"
 
-	"github.com/docker/docker/client"
-	"github.com/haveachin/infrared/internal/app/infrared"
-	"github.com/haveachin/infrared/internal/pkg/bedrock"
-	"github.com/haveachin/infrared/internal/pkg/java"
-	"github.com/spf13/viper"
+	"github.com/haveachin/infrared/internal/pkg/config/provider"
+	"github.com/haveachin/infrared/pkg/maps"
 	"go.uber.org/zap"
 )
 
-type config struct {
+type providerConfig struct {
 	Providers struct {
-		Docker struct {
-			ClientTimeout time.Duration
-			LabelPrefix   string
-			Endpoint      string
-			Network       string
-			Watch         bool
+		Docker provider.DockerConfig `json:"docker" yaml:"docker"`
+		File   provider.FileConfig   `json:"file" yaml:"file"`
+	} `json:"providers" yaml:"providers"`
+}
+
+type config struct {
+	providerConfig
+	logger *zap.Logger
+
+	dataChan chan provider.Data
+	onChange OnChange
+
+	mu           sync.RWMutex
+	providerData map[provider.Type]map[string]interface{}
+}
+
+type OnChange func(newConfig map[string]interface{})
+
+type Config interface {
+	Read() map[string]interface{}
+}
+
+func New(path string, onChange OnChange, logger *zap.Logger) (Config, error) {
+	var configMap map[string]interface{}
+	if err := provider.ReadConfigFile(path, &configMap); err != nil {
+		return nil, err
+	}
+
+	var providerCfg providerConfig
+	if err := provider.ReadConfigFile(path, &providerCfg); err != nil {
+		return nil, err
+	}
+
+	if onChange == nil {
+		onChange = func(newConfig map[string]interface{}) {}
+	}
+
+	cfg := config{
+		providerConfig: providerCfg,
+		logger:         logger,
+		dataChan:       make(chan provider.Data),
+		onChange:       onChange,
+		providerData: map[provider.Type]map[string]interface{}{
+			provider.BaseType: configMap,
+		},
+	}
+
+	providers := []provider.Provider{
+		provider.NewFile(cfg.Providers.File, logger),
+		provider.NewDocker(cfg.Providers.Docker, logger),
+	}
+
+	for _, prov := range providers {
+		data, err := prov.Provide(cfg.dataChan)
+		if err != nil {
+			logger.Warn("failed to provide config data",
+				zap.Error(err),
+			)
 		}
-		File struct {
-			Directory string
-			Watch     bool
+
+		if data.IsNil() {
+			continue
 		}
+
+		cfg.providerData[data.Type] = data.Config
 	}
+
+	go cfg.listenToProviders()
+	return &cfg, nil
 }
 
-type Config struct {
-	Path     string
-	Logger   *zap.Logger
-	OnChange func(*viper.Viper, []infrared.ProxyConfig)
-
-	v         *viper.Viper
-	config    config
-	providers []provider
-	mu        sync.Mutex
-}
-
-func (c *Config) init() error {
-	if c.Logger == nil {
-		c.Logger = zap.NewNop()
-	}
-
-	c.v = viper.New()
-	c.v.SetConfigFile(c.Path)
-	if err := c.v.ReadInConfig(); err != nil {
-		return err
-	}
-
-	if err := c.v.Unmarshal(&c.config); err != nil {
-		return err
-	}
-
-	c.providers = []provider{
-		c.initFileProvider(),
-	}
-
-	if c.config.Providers.Docker.Endpoint != "" {
-		c.providers = append(c.providers, c.initDockerProvider())
-	}
-
-	return nil
-}
-
-func (c *Config) initFileProvider() provider {
-	cfg := c.config.Providers.File
-	fileProvider := fileProvider{
-		dir:      cfg.Directory,
-		onChange: c.onChange,
-		logger:   c.Logger,
-	}
-
-	if cfg.Watch {
-		go func() {
-			if err := fileProvider.watch(); err != nil {
-				c.Logger.Error("", zap.Error(err))
-			}
-		}()
-	}
-
-	return &fileProvider
-}
-
-func (c *Config) initDockerProvider() provider {
-	cfg := c.config.Providers.Docker
-	// TODO: From URL?
-	cli, err := client.NewClientWithOpts(client.FromEnv)
-	if err != nil {
-		c.Logger.Error("", zap.Error(err))
-		return nil
-	}
-
-	dockerProvider := dockerProvider{
-		client:        cli,
-		clientTimeout: cfg.ClientTimeout,
-		labelPrefix:   cfg.LabelPrefix,
-		network:       cfg.Network,
-		onChange:      c.onChange,
-		logger:        c.Logger,
-	}
-
-	if cfg.Watch {
-		// TODO: Add network change event?
-	}
-
-	return &dockerProvider
-}
-
-func (c *Config) ReadConfigs() (*viper.Viper, []infrared.ProxyConfig, error) {
+func (c *config) listenToProviders() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if c.v == nil {
-		if err := c.init(); err != nil {
-			return nil, nil, err
-		}
-	}
-
-	v := viper.New()
-	v.MergeConfigMap(c.v.AllSettings())
-	for _, p := range c.providers {
-		if err := p.mergeConfigs(v); err != nil {
-			return nil, nil, err
-		}
-	}
-
-	return v, []infrared.ProxyConfig{
-		java.ProxyConfig{Viper: v},
-		bedrock.ProxyConfig{Viper: v},
-	}, nil
-}
-
-func (c *Config) Close() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	for _, p := range c.providers {
-		p.close()
-	}
-}
-
-func (c *Config) onChange() {
-	if c.OnChange == nil {
-		return
-	}
-
-	v, cfgs, err := c.ReadConfigs()
-	if err != nil {
-		c.Logger.Error("Failed to read configs",
-			zap.Error(err),
+	for data := range c.dataChan {
+		c.providerData[data.Type] = data.Config
+		c.logger.Info("config changed",
+			zap.String("provider", data.Type.String()),
 		)
+		c.onChange(c.Read())
 	}
+}
 
-	c.OnChange(v, cfgs)
+func (c *config) Read() map[string]interface{} {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	cfgData := map[string]interface{}{}
+	for _, provData := range c.providerData {
+		maps.Merge(cfgData, provData)
+	}
+	return cfgData
 }
