@@ -5,8 +5,12 @@ providers:
   # Minecraft Servers that run in Docker containers can have labels attached to them.
   # These labels help you configure proxies on the fly in your docker-compose.yml for example.
   docker:
+    # Endpoint URI to access the docker API.
+    # Currently only supports unix:///var/run/docker.sock
     endpoint: unix:///var/run/docker.sock
+    # Timeout for the docker API client.
     clientTimeout: 3s
+    # Prefix for Infrared config labels.
     labelPrefix: infrared.
     # The Docker network name that Infrared should read container labels from.
     network: infrared
@@ -22,6 +26,8 @@ providers:
 # NOT IMPLEMENTED YET
 # api:
 #   bind: 0.0.0.0:8080
+prometheus:
+  bind: :9070
 
 java:
   # Channel Capacity (ChanCap) is the capacity of a single channel

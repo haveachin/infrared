@@ -10,8 +10,12 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/haveachin/infrared/internal/plugin/prometheus"
+
 	"github.com/haveachin/infrared/internal/app/infrared"
+	"github.com/haveachin/infrared/internal/pkg/bedrock"
 	"github.com/haveachin/infrared/internal/pkg/config"
+	"github.com/haveachin/infrared/internal/pkg/java"
 	"github.com/haveachin/infrared/internal/plugin/webhook"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -54,15 +58,17 @@ var (
 				return err
 			}
 
-			cfg := config.Config{
-				Path:     configPath,
-				Logger:   logger,
-				OnChange: onReload,
-			}
-
-			v, prxCfgs, err := cfg.ReadConfigs()
+			cfg, err := config.New(configPath, onConfigChange, logger)
 			if err != nil {
 				return err
+			}
+
+			data := cfg.Read()
+			v := viper.New()
+			v.MergeConfigMap(data)
+			prxCfgs := []infrared.ProxyConfig{
+				java.ProxyConfig{Viper: v},
+				bedrock.ProxyConfig{Viper: v},
 			}
 
 			pluginManager = infrared.PluginManager{
@@ -73,6 +79,7 @@ var (
 					&webhook.Plugin{
 						Edition: infrared.BedrockEdition,
 					},
+					&prometheus.Plugin{},
 				},
 				Logger: logger,
 			}
@@ -174,9 +181,17 @@ func safeWriteFromEmbeddedFS(embedPath, sysPath string) error {
 	return nil
 }
 
-func onReload(v *viper.Viper, cfgs []infrared.ProxyConfig) {
+func onConfigChange(newConfig map[string]interface{}) {
 	mu.Lock()
 	defer mu.Unlock()
+
+	v := viper.New()
+	v.MergeConfigMap(newConfig)
+
+	cfgs := []infrared.ProxyConfig{
+		java.ProxyConfig{Viper: v},
+		bedrock.ProxyConfig{Viper: v},
+	}
 
 	logger.Info("Reloading proxies")
 	for n, p := range proxies {

@@ -23,6 +23,10 @@ type InfraredServer struct {
 	Server
 }
 
+func (s InfraredServer) Edition() infrared.Edition {
+	return infrared.BedrockEdition
+}
+
 func (s InfraredServer) ID() string {
 	return s.Server.ID
 }

@@ -2,6 +2,7 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -9,34 +10,65 @@ import (
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
+	"go.uber.org/zap"
 )
 
 type DockerConfig struct {
-	ClientTimeout time.Duration
-	LabelPrefix   string
-	Endpoint      string
-	Network       string
-	Watch         bool
+	ClientTimeout time.Duration `json:"clientTimeout" yaml:"clientTimeout"`
+	LabelPrefix   string        `json:"labelPrefix" yaml:"labelPrefix"`
+	Endpoint      string        `json:"endpoint" yaml:"endpoint"`
+	Network       string        `json:"network" yaml:"network"`
+	Watch         bool          `json:"watch" yaml:"watch"`
 }
 
 type docker struct {
 	DockerConfig
 	client *client.Client
+	logger *zap.Logger
 }
 
-func NewDocker(cfg DockerConfig) Provider {
-	cli, err := client.NewClientWithOpts(client.FromEnv)
-	if err != nil {
-		return nil
-	}
-
+func NewDocker(cfg DockerConfig, logger *zap.Logger) Provider {
 	return &docker{
 		DockerConfig: cfg,
-		client:       cli,
+		logger:       logger,
 	}
 }
 
-func (p docker) Read() (map[string]interface{}, error) {
+func (p *docker) Provide(dataCh chan<- Data) (Data, error) {
+	if p.Endpoint == "" {
+		return Data{}, nil
+	}
+
+	if p.Endpoint != "unix:///var/run/docker.sock" {
+		return Data{}, errors.New("unsupported endpoint")
+	}
+
+	cli, err := client.NewClientWithOpts(client.FromEnv)
+	if err != nil {
+		return Data{}, err
+	}
+	p.client = cli
+
+	data, err := p.readConfigData()
+	if err != nil {
+		return Data{}, err
+	}
+
+	if p.Watch {
+		go func() {
+			if err := p.watch(dataCh); err != nil {
+				p.logger.Error("failed while watching provider",
+					zap.Error(err),
+					zap.String("provider", data.Type.String()),
+				)
+			}
+		}()
+	}
+
+	return data, nil
+}
+
+func (p docker) readConfigData() (Data, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), p.ClientTimeout)
 	defer cancel()
 	containers, err := p.client.ContainerList(ctx, types.ContainerListOptions{
@@ -46,7 +78,7 @@ func (p docker) Read() (map[string]interface{}, error) {
 		}),
 	})
 	if err != nil {
-		return nil, err
+		return Data{}, err
 	}
 
 	var data map[string]interface{}
@@ -57,19 +89,35 @@ func (p docker) Read() (map[string]interface{}, error) {
 			}
 
 			key = strings.TrimPrefix(key, fmt.Sprintf("%s.", p.LabelPrefix))
+
 			if strings.HasPrefix(value, "[") {
 				value = strings.Trim(value, "[]")
-				data[key] = strings.Split(value, ",")
+				setNestedValue(data, key, strings.Split(value, ","))
 			} else {
-				data[key] = value
+				setNestedValue(data, key, value)
 			}
 		}
 	}
 
-	return data, nil
+	return Data{
+		Type:   FileType,
+		Config: data,
+	}, nil
 }
 
-func (p docker) Watch(onChange func()) error {
+func setNestedValue(m map[string]interface{}, nestedKey string, value interface{}) {
+	var nestedMap map[string]interface{}
+	keys := strings.Split(nestedKey, ".")
+	for _, key := range keys[:len(keys)-2] {
+		nestedMap, ok := nestedMap[key].(map[string]interface{})
+		if !ok {
+			nestedMap[key] = map[string]interface{}{}
+		}
+	}
+	nestedMap[keys[len(keys)-1]] = value
+}
+
+func (p docker) watch(dataCh chan<- Data) error {
 	return nil
 }
 

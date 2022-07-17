@@ -40,6 +40,7 @@ func (cp *ConnPool) Start() {
 					event.Push(PlayerJoinEvent{
 						ProcessedConn: ct.Conn,
 						Server:        ct.Server,
+						MatchedDomain: ct.MatchedDomain,
 					}, PlayerJoinEventTopic)
 				}
 
@@ -54,6 +55,7 @@ func (cp *ConnPool) Start() {
 				event.Push(PlayerLeaveEvent{
 					ProcessedConn: ct.Conn,
 					Server:        ct.Server,
+					MatchedDomain: ct.MatchedDomain,
 				}, PlayerLeaveEventTopic)
 				cp.removeFromPool(ct)
 			}(cp.Logger.With(logProcessedConn(ct.Conn)...))
