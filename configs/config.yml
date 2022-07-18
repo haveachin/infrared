@@ -49,7 +49,7 @@ java:
   # You can think about channels like queues to this would translate
   # to queue size. These describe the amount of connections that can
   # be buffed before the proxy starts dropping connections.
-  chanCap:
+  chanCaps:
     # The capacity of the channel from the gateway to the processing nodes
     connProcessor: 100
     # The capacity of the channel from the processing nodes to the server gateway

@@ -28,7 +28,6 @@ type Server struct {
 	DialTimeoutMessage          string
 	DialTimeoutStatusJSON       string
 	GatewayIDs                  []string
-	WebhookIDs                  []string
 
 	Host string
 	Port int
@@ -54,10 +53,6 @@ func (s InfraredServer) Domains() []string {
 
 func (s InfraredServer) GatewayIDs() []string {
 	return s.Server.GatewayIDs
-}
-
-func (s InfraredServer) WebhookIDs() []string {
-	return s.Server.WebhookIDs
 }
 
 func (s InfraredServer) Dial() (*Conn, error) {

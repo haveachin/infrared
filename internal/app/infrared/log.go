@@ -37,6 +37,5 @@ func logServer(s Server) []zap.Field {
 	return []zap.Field{
 		zap.String("serverId", s.ID()),
 		zap.Strings("serverDomains", s.Domains()),
-		zap.Strings("serverWebhookIds", s.WebhookIDs()),
 	}
 }

@@ -68,10 +68,15 @@ var (
 				return err
 			}
 
+			javaPrxCfg, err := java.NewProxyConfigFromMap(data)
+			if err != nil {
+				return err
+			}
+
 			v := viper.New()
 			v.MergeConfigMap(data)
 			prxCfgs := []infrared.ProxyConfig{
-				java.ProxyConfig{Viper: v},
+				javaPrxCfg,
 				bedrock.ProxyConfig{Viper: v},
 			}
 
@@ -187,8 +192,15 @@ func onConfigChange(cfg map[string]interface{}) {
 	v := viper.New()
 	v.MergeConfigMap(cfg)
 
+	javaPrxCfg, err := java.NewProxyConfigFromMap(cfg)
+	if err != nil {
+		logger.Error("failed to load java config",
+			zap.Error(err),
+		)
+	}
+
 	cfgs := []infrared.ProxyConfig{
-		java.ProxyConfig{Viper: v},
+		javaPrxCfg,
 		bedrock.ProxyConfig{Viper: v},
 	}
 

@@ -16,7 +16,6 @@ type Server interface {
 	ID() string
 	Domains() []string
 	GatewayIDs() []string
-	WebhookIDs() []string
 	HandleConn(c net.Conn) (Conn, error)
 	Edition() Edition
 }
