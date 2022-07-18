@@ -10,7 +10,7 @@ import (
 
 	"github.com/df-mc/atomic"
 	"github.com/fsnotify/fsnotify"
-	"github.com/haveachin/infrared/pkg/maps"
+	"github.com/imdario/mergo"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 )
@@ -126,8 +126,7 @@ func (p file) readConfigData() (Data, error) {
 			return fmt.Errorf("could not read %s; %v", path, err)
 		}
 
-		maps.Merge(cfg, cfgData)
-		return nil
+		return mergo.Merge(&cfg, cfgData)
 	}
 
 	if err := filepath.Walk(p.Directory, readConfig); err != nil {

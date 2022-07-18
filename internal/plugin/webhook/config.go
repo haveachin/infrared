@@ -1,47 +1,49 @@
 package webhook
 
 import (
-	"fmt"
 	"net/http"
 	"time"
 
+	"github.com/haveachin/infrared/internal/pkg/config"
 	"github.com/haveachin/infrared/pkg/webhook"
-	"github.com/spf13/viper"
+	"github.com/imdario/mergo"
 )
 
-func (p Plugin) loadWebhooks(v *viper.Viper) (map[string][]webhook.Webhook, error) {
-	defaultsKey := fmt.Sprintf("defaults.%s.webhook", p.Edition)
-	key := fmt.Sprintf("%s.webhooks", p.Edition)
+func (p Plugin) loadWebhooks(c map[string]interface{}) (map[string][]webhook.Webhook, error) {
+	var cfg PluginConfig
+	if err := config.Unmarshal(c, &cfg); err != nil {
+		return nil, err
+	}
+
 	webhooks := map[string][]webhook.Webhook{}
-	for id, m := range v.GetStringMap(key) {
-		vpr := v.Sub(defaultsKey)
-		if vpr == nil {
-			vpr = viper.New()
-		}
-		vMap := m.(map[string]interface{})
-		if err := vpr.MergeConfigMap(vMap); err != nil {
+	for id, whCfg := range cfg.Webhooks {
+		if err := mergo.Merge(&whCfg, cfg.Defaults.Webhook); err != nil {
 			return nil, err
 		}
-		var cfg webhookConfig
-		if err := vpr.Unmarshal(&cfg); err != nil {
-			return nil, err
-		}
-		for _, gwID := range cfg.GatewayIDs {
+
+		for _, gwID := range whCfg.GatewayIDs {
 			if webhooks[gwID] == nil {
-				webhooks[gwID] = []webhook.Webhook{newWebhook(id, cfg)}
+				webhooks[gwID] = []webhook.Webhook{newWebhook(id, whCfg)}
 			} else {
-				webhooks[gwID] = append(webhooks[gwID], newWebhook(id, cfg))
+				webhooks[gwID] = append(webhooks[gwID], newWebhook(id, whCfg))
 			}
 		}
 	}
 	return webhooks, nil
 }
 
+type PluginConfig struct {
+	Webhooks map[string]webhookConfig `mapstructure:"webhooks"`
+	Defaults struct {
+		Webhook webhookConfig `mapstructure:"webhook"`
+	} `mapstructure:"defaults"`
+}
+
 type webhookConfig struct {
-	DialTimeout time.Duration
-	URL         string
-	Events      []string
-	GatewayIDs  []string
+	DialTimeout time.Duration `mapstructure:"dialTimeout"`
+	URL         string        `mapstructure:"url"`
+	Events      []string      `mapstructure:"events"`
+	GatewayIDs  []string      `mapstructure:"gatewayIds"`
 }
 
 func newWebhook(id string, cfg webhookConfig) webhook.Webhook {

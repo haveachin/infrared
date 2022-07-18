@@ -8,13 +8,10 @@ import (
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/pkg/event"
 	"github.com/haveachin/infrared/pkg/webhook"
-	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
 
 type Plugin struct {
-	Edition infrared.Edition
-
 	logger   *zap.Logger
 	eventBus event.Bus
 	eventID  uuid.UUID
@@ -27,20 +24,20 @@ func (p Plugin) Name() string {
 }
 
 func (p Plugin) Version() string {
-	return fmt.Sprintf("internal-%s", p.Edition)
+	return fmt.Sprintf("internal")
 }
 
-func (p *Plugin) Load(v *viper.Viper) error {
+func (p *Plugin) Load(cfg map[string]interface{}) error {
 	var err error
-	p.whks, err = p.loadWebhooks(v)
+	p.whks, err = p.loadWebhooks(cfg)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (p *Plugin) Reload(v *viper.Viper) error {
-	return p.Load(v)
+func (p *Plugin) Reload(cfg map[string]interface{}) error {
+	return p.Load(cfg)
 }
 
 func (p *Plugin) Enable(api infrared.PluginAPI) error {

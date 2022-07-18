@@ -63,7 +63,11 @@ var (
 				return err
 			}
 
-			data := cfg.Read()
+			data, err := cfg.Read()
+			if err != nil {
+				return err
+			}
+
 			v := viper.New()
 			v.MergeConfigMap(data)
 			prxCfgs := []infrared.ProxyConfig{
@@ -73,18 +77,13 @@ var (
 
 			pluginManager = infrared.PluginManager{
 				Plugins: []infrared.Plugin{
-					&webhook.Plugin{
-						Edition: infrared.JavaEdition,
-					},
-					&webhook.Plugin{
-						Edition: infrared.BedrockEdition,
-					},
+					&webhook.Plugin{},
 					&prometheus.Plugin{},
 				},
 				Logger: logger,
 			}
 			logger.Info("loading plugins")
-			pluginManager.LoadPlugins(v)
+			pluginManager.LoadPlugins(data)
 			logger.Info("enabling plugins")
 			pluginManager.EnablePlugins()
 			defer pluginManager.DisablePlugins()
@@ -181,12 +180,12 @@ func safeWriteFromEmbeddedFS(embedPath, sysPath string) error {
 	return nil
 }
 
-func onConfigChange(newConfig map[string]interface{}) {
+func onConfigChange(cfg map[string]interface{}) {
 	mu.Lock()
 	defer mu.Unlock()
 
 	v := viper.New()
-	v.MergeConfigMap(newConfig)
+	v.MergeConfigMap(cfg)
 
 	cfgs := []infrared.ProxyConfig{
 		java.ProxyConfig{Viper: v},
@@ -201,6 +200,7 @@ func onConfigChange(newConfig map[string]interface{}) {
 			)
 		}
 	}
+
 	logger.Info("Reloading plugins")
-	pluginManager.ReloadPlugins(v)
+	pluginManager.ReloadPlugins(cfg)
 }

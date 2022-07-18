@@ -29,6 +29,21 @@ providers:
 prometheus:
   bind: :9070
 
+# Configuration for webhooks
+webhooks:
+  # A webhook defined by an ID. In this case "default"
+  default:
+    # Gateway IDs to listen for events to. All events that the connection triggers
+    # have also the gateway ID attached to them.
+    gatewayIds:
+      - default
+    # The URL to POST the JSON to
+    url: https://example.com/callback
+    # Event Topics to listen for
+    events:
+      - PlayerJoin
+      - PlayerLeave
+
 java:
   # Channel Capacity (ChanCap) is the capacity of a single channel
   # You can think about channels like queues to this would translate

@@ -4,19 +4,21 @@ import (
 	"sync"
 
 	"github.com/haveachin/infrared/internal/pkg/config/provider"
-	"github.com/haveachin/infrared/pkg/maps"
+	"github.com/imdario/mergo"
+	"github.com/mitchellh/mapstructure"
 	"go.uber.org/zap"
 )
 
-type providerConfig struct {
+type baseConfig struct {
 	Providers struct {
 		Docker provider.DockerConfig `json:"docker" yaml:"docker"`
 		File   provider.FileConfig   `json:"file" yaml:"file"`
 	} `json:"providers" yaml:"providers"`
+	Watch bool `json:"watch" yaml:"watch"`
 }
 
 type config struct {
-	providerConfig
+	baseConfig
 	logger *zap.Logger
 
 	dataChan chan provider.Data
@@ -29,7 +31,7 @@ type config struct {
 type OnChange func(newConfig map[string]interface{})
 
 type Config interface {
-	Read() map[string]interface{}
+	Read() (map[string]interface{}, error)
 }
 
 func New(path string, onChange OnChange, logger *zap.Logger) (Config, error) {
@@ -38,22 +40,22 @@ func New(path string, onChange OnChange, logger *zap.Logger) (Config, error) {
 		return nil, err
 	}
 
-	var providerCfg providerConfig
+	var providerCfg baseConfig
 	if err := provider.ReadConfigFile(path, &providerCfg); err != nil {
 		return nil, err
 	}
 
 	if onChange == nil {
-		onChange = func(newConfig map[string]interface{}) {}
+		onChange = func(map[string]interface{}) {}
 	}
 
 	cfg := config{
-		providerConfig: providerCfg,
-		logger:         logger,
-		dataChan:       make(chan provider.Data),
-		onChange:       onChange,
+		baseConfig: providerCfg,
+		logger:     logger,
+		dataChan:   make(chan provider.Data),
+		onChange:   onChange,
 		providerData: map[provider.Type]map[string]interface{}{
-			provider.BaseType: configMap,
+			provider.ConfigType: configMap,
 		},
 	}
 
@@ -82,25 +84,47 @@ func New(path string, onChange OnChange, logger *zap.Logger) (Config, error) {
 }
 
 func (c *config) listenToProviders() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	for data := range c.dataChan {
+		c.mu.Lock()
 		c.providerData[data.Type] = data.Config
+		c.mu.Unlock()
+
 		c.logger.Info("config changed",
 			zap.String("provider", data.Type.String()),
 		)
-		c.onChange(c.Read())
+
+		cfg, err := c.Read()
+		if err != nil {
+			c.logger.Error("failed to read config",
+				zap.Error(err),
+			)
+		}
+
+		c.onChange(cfg)
 	}
 }
 
-func (c *config) Read() map[string]interface{} {
+func (c *config) Read() (map[string]interface{}, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
 	cfgData := map[string]interface{}{}
 	for _, provData := range c.providerData {
-		maps.Merge(cfgData, provData)
+		if err := mergo.Merge(&cfgData, provData); err != nil {
+			return nil, err
+		}
 	}
-	return cfgData
+	return cfgData, nil
+}
+
+func Unmarshal(cfg interface{}, v any) error {
+	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+		Result:     v,
+		DecodeHook: mapstructure.StringToTimeDurationHookFunc(),
+	})
+	if err != nil {
+		return err
+	}
+
+	return decoder.Decode(cfg)
 }

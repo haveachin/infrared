@@ -1,10 +1,25 @@
 package infrared
 
 import (
+	"net"
+
 	"github.com/haveachin/infrared/pkg/event"
-	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
+
+type Player interface {
+	Username() string
+	UUID() [16]byte
+	Edition() Edition
+	RemoteAddr() net.Addr
+	LocalAddr() net.Addr
+	Disconnect() error
+}
+
+type ProxyAPI interface {
+	PlayerByUUID(edition Edition, uuid [16]byte) Player
+	Players(edition Edition) []Player
+}
 
 type PluginAPI interface {
 	EventBus() event.Bus
@@ -14,8 +29,8 @@ type PluginAPI interface {
 type Plugin interface {
 	Name() string
 	Version() string
-	Load(v *viper.Viper) error
-	Reload(v *viper.Viper) error
+	Load(cfg map[string]interface{}) error
+	Reload(cfg map[string]interface{}) error
 	Enable(PluginAPI) error
 	Disable() error
 }
@@ -39,9 +54,9 @@ type PluginManager struct {
 	EventBus event.Bus
 }
 
-func (pm PluginManager) LoadPlugins(v *viper.Viper) {
+func (pm PluginManager) LoadPlugins(cfg map[string]interface{}) {
 	for _, p := range pm.Plugins {
-		if err := p.Load(v); err != nil {
+		if err := p.Load(cfg); err != nil {
 			pm.Logger.Error("failed to load plugin",
 				zap.Error(err),
 				zap.String("pluginName", p.Name()),
@@ -51,9 +66,9 @@ func (pm PluginManager) LoadPlugins(v *viper.Viper) {
 	}
 }
 
-func (pm PluginManager) ReloadPlugins(v *viper.Viper) {
+func (pm PluginManager) ReloadPlugins(cfg map[string]interface{}) {
 	for _, p := range pm.Plugins {
-		if err := p.Load(v); err != nil {
+		if err := p.Reload(cfg); err != nil {
 			pm.Logger.Error("failed to reload plugin",
 				zap.Error(err),
 				zap.String("pluginName", p.Name()),

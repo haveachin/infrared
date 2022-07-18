@@ -9,20 +9,28 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/haveachin/infrared/internal/app/infrared"
+	"github.com/haveachin/infrared/internal/pkg/config"
 	"github.com/haveachin/infrared/pkg/event"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
 
+type PluginConfig struct {
+	Prometheus struct {
+		Bind string `mapstructure:"bind"`
+	} `mapstructure:"prometheus"`
+}
+
 type Plugin struct {
+	PluginConfig
 	logger   *zap.Logger
 	eventBus event.Bus
 	eventID  uuid.UUID
-	bind     string
-	quit     chan bool
+
+	mux  http.Handler
+	quit chan bool
 
 	handshakeCount   *prometheus.CounterVec
 	playersConnected *prometheus.GaugeVec
@@ -36,11 +44,14 @@ func (p Plugin) Version() string {
 	return fmt.Sprint("internal")
 }
 
-func (p *Plugin) Load(v *viper.Viper) error {
-	p.bind = v.GetString("prometheus.bind")
-	if p.bind == "" {
-		return nil
+func (p *Plugin) Load(cfg map[string]interface{}) error {
+	if err := config.Unmarshal(cfg, &p.PluginConfig); err != nil {
+		return err
 	}
+
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", promhttp.Handler())
+	p.mux = mux
 
 	p.handshakeCount = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "infrared_handshakes",
@@ -50,38 +61,37 @@ func (p *Plugin) Load(v *viper.Viper) error {
 		Name: "infrared_connected",
 		Help: "The total number of connected players per Server and edition",
 	}, []string{"host", "server", "edition"})
-
 	return nil
 }
 
-func (p *Plugin) Reload(v *viper.Viper) error {
-	bind := v.GetString("prometheus.bind")
-	if p.bind == bind {
+func (p *Plugin) Reload(cfg map[string]interface{}) error {
+	var pluginCfg PluginConfig
+	if err := config.Unmarshal(cfg, &pluginCfg); err != nil {
+		return err
+	}
+
+	if pluginCfg.Prometheus.Bind == p.Prometheus.Bind {
 		return nil
 	}
 
-	if bind == "" {
+	if pluginCfg.Prometheus.Bind == "" {
 		return p.Disable()
 	}
 
-	if err := p.Disable(); err != nil {
-		return err
-	}
+	p.PluginConfig = pluginCfg
+	p.quit <- true
 
 	go p.startMetricsServer()
 	return nil
 }
 
 func (p *Plugin) Enable(api infrared.PluginAPI) error {
-	if p.bind == "" {
+	if p.Prometheus.Bind == "" {
 		return nil
 	}
 
 	p.logger = api.Logger()
 	p.eventBus = api.EventBus()
-
-	id, _ := p.eventBus.AttachHandler(uuid.Nil, p.handleEvent)
-	p.eventID = id
 	p.quit = make(chan bool)
 
 	go p.startMetricsServer()
@@ -97,18 +107,28 @@ func (p Plugin) Disable() error {
 	return nil
 }
 
+func (p Plugin) registerEventHandler() {
+	id, _ := p.eventBus.AttachHandler(uuid.Nil, p.handleEvent)
+	p.eventID = id
+}
+
 func (p Plugin) startMetricsServer() {
-	mux := http.NewServeMux()
-	mux.Handle("/metrics", promhttp.Handler())
 	srv := http.Server{
-		Handler: mux,
-		Addr:    p.bind,
+		Handler: p.mux,
+		Addr:    p.Prometheus.Bind,
 	}
 
-	if err := srv.ListenAndServe(); err != nil {
-		p.logger.Error("failed to start server", zap.Error(err))
-		return
-	}
+	go func() {
+		if err := srv.ListenAndServe(); err != nil {
+			p.logger.Error("failed to start server", zap.Error(err))
+			return
+		}
+	}()
+
+	p.logger.Info("started prometheus metrics server",
+		zap.String("bind", p.Prometheus.Bind),
+	)
+
 	<-p.quit
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)

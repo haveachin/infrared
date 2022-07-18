@@ -4,15 +4,15 @@ type Type byte
 
 const (
 	NilType Type = iota
-	BaseType
+	ConfigType
 	FileType
 	DockerType
 )
 
 func (t Type) String() string {
 	switch t {
-	case BaseType:
-		return "base"
+	case ConfigType:
+		return "config"
 	case FileType:
 		return "file"
 	case DockerType:
