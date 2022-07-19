@@ -6,7 +6,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"sync"
 	"syscall"
 
@@ -18,7 +17,6 @@ import (
 	"github.com/haveachin/infrared/internal/pkg/java"
 	"github.com/haveachin/infrared/internal/plugin/webhook"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
 
@@ -73,11 +71,14 @@ var (
 				return err
 			}
 
-			v := viper.New()
-			v.MergeConfigMap(data)
+			bedrockPrxCfg, err := bedrock.NewProxyConfigFromMap(data)
+			if err != nil {
+				return err
+			}
+
 			prxCfgs := []infrared.ProxyConfig{
 				javaPrxCfg,
-				bedrock.ProxyConfig{Viper: v},
+				bedrockPrxCfg,
 			}
 
 			pluginManager = infrared.PluginManager{
@@ -112,15 +113,9 @@ var (
 )
 
 func init() {
-	v := viper.New()
-	v.SetEnvPrefix("INFRARED")
-	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-	v.AutomaticEnv()
-
 	rootCmd.Flags().StringVarP(&configPath, "config", "c", "config.yml", "path of the config file")
 	rootCmd.Flags().StringVarP(&workingDir, "working-dir", "w", ".", "set the working directory")
 	rootCmd.Flags().StringVarP(&environment, "environment", "e", "prod", "set the deployment environment")
-	viper.BindPFlag("CONFIG", rootCmd.Flags().Lookup("config"))
 
 	rootCmd.AddCommand(licenseCmd)
 }
@@ -189,9 +184,6 @@ func onConfigChange(cfg map[string]interface{}) {
 	mu.Lock()
 	defer mu.Unlock()
 
-	v := viper.New()
-	v.MergeConfigMap(cfg)
-
 	javaPrxCfg, err := java.NewProxyConfigFromMap(cfg)
 	if err != nil {
 		logger.Error("failed to load java config",
@@ -199,14 +191,21 @@ func onConfigChange(cfg map[string]interface{}) {
 		)
 	}
 
-	cfgs := []infrared.ProxyConfig{
+	bedrockPrxCfg, err := bedrock.NewProxyConfigFromMap(cfg)
+	if err != nil {
+		logger.Error("failed to load bedrock config",
+			zap.Error(err),
+		)
+	}
+
+	prxCfgs := []infrared.ProxyConfig{
 		javaPrxCfg,
-		bedrock.ProxyConfig{Viper: v},
+		bedrockPrxCfg,
 	}
 
 	logger.Info("Reloading proxies")
 	for n, p := range proxies {
-		if err := p.Reload(cfgs[n]); err != nil {
+		if err := p.Reload(prxCfgs[n]); err != nil {
 			logger.Error("failed to reload proxy",
 				zap.Error(err),
 			)

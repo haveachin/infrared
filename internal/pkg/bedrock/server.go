@@ -16,7 +16,6 @@ type Server struct {
 	SendProxyProtocol  bool
 	DialTimeoutMessage string
 	GatewayIDs         []string
-	WebhookIDs         []string
 }
 
 type InfraredServer struct {
@@ -37,10 +36,6 @@ func (s InfraredServer) Domains() []string {
 
 func (s InfraredServer) GatewayIDs() []string {
 	return s.Server.GatewayIDs
-}
-
-func (s InfraredServer) WebhookIDs() []string {
-	return s.Server.WebhookIDs
 }
 
 func (s InfraredServer) Dial() (*Conn, error) {
