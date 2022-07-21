@@ -6,9 +6,14 @@ require (
 	github.com/df-mc/atomic v1.10.0
 	github.com/docker/docker v20.10.17+incompatible
 	github.com/fsnotify/fsnotify v1.5.4
+	github.com/go-chi/chi/v5 v5.0.7
+	github.com/go-chi/cors v1.2.1
+	github.com/go-chi/render v1.0.1
 	github.com/gofrs/uuid v4.2.0+incompatible
 	github.com/golang-jwt/jwt/v4 v4.4.2
 	github.com/golang/mock v1.6.0
+	github.com/gorilla/schema v1.2.0
+	github.com/imdario/mergo v0.3.13
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/pires/go-proxyproto v0.6.2
 	github.com/prometheus/client_golang v1.12.2
@@ -30,7 +35,6 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/go-cmp v0.5.8 // indirect
-	github.com/imdario/mergo v0.3.13
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/kr/pretty v0.3.0 // indirect
 	github.com/matttproud/golang_protobuf_extensions v1.0.1 // indirect

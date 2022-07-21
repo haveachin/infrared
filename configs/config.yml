@@ -1,31 +1,48 @@
-# Provides provide configuration proxies, webhooks, etc.
-# They work similar to providers in Traefik,
-# but they DO NOT have all the features that providers in Traefik have.
+# Provides provide configuration files/options for Infrared
+#
 providers:
   # Minecraft Servers that run in Docker containers can have labels attached to them.
   # These labels help you configure proxies on the fly in your docker-compose.yml for example.
-  docker:
+  #
+  #docker:
     # Endpoint URI to access the docker API.
     # Currently only supports unix:///var/run/docker.sock
-    endpoint: unix:///var/run/docker.sock
+    #
+    #endpoint: unix:///var/run/docker.sock
+
     # Timeout for the docker API client.
-    clientTimeout: 3s
+    #
+    #clientTimeout: 3s
+
     # Prefix for Infrared config labels.
-    labelPrefix: infrared.
+    #
+    #labelPrefix: infrared.
+
     # The Docker network name that Infrared should read container labels from.
-    network: infrared
+    #
+    #network: infrared
+
     # If Infrared should watch the network for changes in containers.
-    watch: true
+    #
+    #watch: true
+
   # Config files that Infrared should read from.
+  #
   file:
     # The directory that Infrared should read configs from.
+    #
     directory: ./proxies
+    
     # If Infrared should watch the directory for changes.
+    #
     watch: true
 
-# NOT IMPLEMENTED YET
-# api:
-#   bind: 0.0.0.0:8080
+api:
+  bind: :8080
+  allowedOrigins:
+    - "http://*"
+    - "https://*"
+
 prometheus:
   bind: :9070
 

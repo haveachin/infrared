@@ -2,7 +2,6 @@ package prometheus
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -24,7 +23,7 @@ type PluginConfig struct {
 }
 
 type Plugin struct {
-	PluginConfig
+	Config   PluginConfig
 	logger   *zap.Logger
 	eventBus event.Bus
 	eventID  uuid.UUID
@@ -41,11 +40,11 @@ func (p Plugin) Name() string {
 }
 
 func (p Plugin) Version() string {
-	return fmt.Sprint("internal")
+	return "internal"
 }
 
 func (p *Plugin) Load(cfg map[string]interface{}) error {
-	if err := config.Unmarshal(cfg, &p.PluginConfig); err != nil {
+	if err := config.Unmarshal(cfg, &p.Config); err != nil {
 		return err
 	}
 
@@ -70,7 +69,7 @@ func (p *Plugin) Reload(cfg map[string]interface{}) error {
 		return err
 	}
 
-	if pluginCfg.Prometheus.Bind == p.Prometheus.Bind {
+	if pluginCfg.Prometheus.Bind == p.Config.Prometheus.Bind {
 		return nil
 	}
 
@@ -78,7 +77,7 @@ func (p *Plugin) Reload(cfg map[string]interface{}) error {
 		return p.Disable()
 	}
 
-	p.PluginConfig = pluginCfg
+	p.Config = pluginCfg
 	p.quit <- true
 
 	go p.startMetricsServer()
@@ -86,7 +85,7 @@ func (p *Plugin) Reload(cfg map[string]interface{}) error {
 }
 
 func (p *Plugin) Enable(api infrared.PluginAPI) error {
-	if p.Prometheus.Bind == "" {
+	if p.Config.Prometheus.Bind == "" {
 		return nil
 	}
 
@@ -115,7 +114,7 @@ func (p Plugin) registerEventHandler() {
 func (p Plugin) startMetricsServer() {
 	srv := http.Server{
 		Handler: p.mux,
-		Addr:    p.Prometheus.Bind,
+		Addr:    p.Config.Prometheus.Bind,
 	}
 
 	go func() {
@@ -126,7 +125,7 @@ func (p Plugin) startMetricsServer() {
 	}()
 
 	p.logger.Info("started prometheus metrics server",
-		zap.String("bind", p.Prometheus.Bind),
+		zap.String("bind", p.Config.Prometheus.Bind),
 	)
 
 	<-p.quit

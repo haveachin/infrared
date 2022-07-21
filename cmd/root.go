@@ -9,6 +9,7 @@ import (
 	"sync"
 	"syscall"
 
+	"github.com/haveachin/infrared/internal/plugin/api"
 	"github.com/haveachin/infrared/internal/plugin/prometheus"
 
 	"github.com/haveachin/infrared/internal/app/infrared"
@@ -30,9 +31,9 @@ var (
 	logger *zap.Logger
 
 	mu            sync.Mutex
-	proxies       []*infrared.Proxy
 	pluginManager infrared.PluginManager
 
+	proxies = map[infrared.Edition]*infrared.Proxy{}
 	rootCmd = &cobra.Command{
 		Use:   "infrared",
 		Short: "Starts the infrared proxy",
@@ -71,20 +72,29 @@ var (
 				return err
 			}
 
+			javaPrx, err := infrared.NewProxy(javaPrxCfg)
+			if err != nil {
+				return err
+			}
+			proxies[infrared.JavaEdition] = javaPrx
+
 			bedrockPrxCfg, err := bedrock.NewProxyConfigFromMap(data)
 			if err != nil {
 				return err
 			}
 
-			prxCfgs := []infrared.ProxyConfig{
-				javaPrxCfg,
-				bedrockPrxCfg,
+			bedrockPrx, err := infrared.NewProxy(bedrockPrxCfg)
+			if err != nil {
+				return err
 			}
+			proxies[infrared.BedrockEdition] = bedrockPrx
 
 			pluginManager = infrared.PluginManager{
+				Proxies: proxies,
 				Plugins: []infrared.Plugin{
 					&webhook.Plugin{},
 					&prometheus.Plugin{},
+					&api.Plugin{},
 				},
 				Logger: logger,
 			}
@@ -95,13 +105,8 @@ var (
 			defer pluginManager.DisablePlugins()
 
 			logger.Info("starting proxies")
-			for _, prxCfg := range prxCfgs {
-				p, err := infrared.NewProxy(prxCfg)
-				if err != nil {
-					return err
-				}
-				proxies = append(proxies, p)
-				go p.ListenAndServe(logger)
+			for _, proxy := range proxies {
+				go proxy.ListenAndServe(logger)
 			}
 
 			sc := make(chan os.Signal, 1)
@@ -198,9 +203,9 @@ func onConfigChange(cfg map[string]interface{}) {
 		)
 	}
 
-	prxCfgs := []infrared.ProxyConfig{
-		javaPrxCfg,
-		bedrockPrxCfg,
+	prxCfgs := map[infrared.Edition]infrared.ProxyConfig{
+		infrared.JavaEdition:    javaPrxCfg,
+		infrared.BedrockEdition: bedrockPrxCfg,
 	}
 
 	logger.Info("Reloading proxies")
