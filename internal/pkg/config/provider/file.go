@@ -126,7 +126,7 @@ func (p file) readConfigData() (Data, error) {
 			return fmt.Errorf("could not read %s; %v", path, err)
 		}
 
-		return mergo.Merge(&cfg, cfgData)
+		return mergo.Merge(&cfg, cfgData, mergo.WithOverride)
 	}
 
 	if err := filepath.Walk(p.Directory, readConfig); err != nil {

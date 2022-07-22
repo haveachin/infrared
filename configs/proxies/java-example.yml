@@ -5,7 +5,7 @@ java:
         default:
           bind: :25565
   servers:
-    myserver:
+    default:
       gateways:
         - default
       domains:

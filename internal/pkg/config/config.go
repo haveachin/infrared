@@ -110,7 +110,7 @@ func (c *config) Read() (map[string]interface{}, error) {
 
 	cfgData := map[string]interface{}{}
 	for _, provData := range c.providerData {
-		if err := mergo.Merge(&cfgData, provData); err != nil {
+		if err := mergo.Merge(&cfgData, provData, mergo.WithOverride); err != nil {
 			return nil, err
 		}
 	}
