@@ -24,9 +24,10 @@ import (
 var (
 	files embed.FS
 
-	configPath  string
-	workingDir  string
-	environment string
+	configPath   string
+	workingDir   string
+	environment  string
+	mergedConfig bool
 
 	logger *zap.Logger
 
@@ -118,11 +119,13 @@ var (
 )
 
 func init() {
+	rootCmd.PersistentFlags().StringVarP(&workingDir, "working-dir", "w", ".", "set the working directory")
+	rootCmd.PersistentFlags().StringVarP(&environment, "environment", "e", "prod", "set the deployment environment")
 	rootCmd.Flags().StringVarP(&configPath, "config", "c", "config.yml", "path of the config file")
-	rootCmd.Flags().StringVarP(&workingDir, "working-dir", "w", ".", "set the working directory")
-	rootCmd.Flags().StringVarP(&environment, "environment", "e", "prod", "set the deployment environment")
+	upgradeCmd.Flags().BoolVarP(&mergedConfig, "merged", "m", false, "if the configs should be merged into one file")
 
 	rootCmd.AddCommand(licenseCmd)
+	rootCmd.AddCommand(upgradeCmd)
 }
 
 func newLogger() (*zap.Logger, error) {
