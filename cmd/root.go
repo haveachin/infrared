@@ -24,24 +24,21 @@ import (
 var (
 	files embed.FS
 
-	configPath   string
-	workingDir   string
-	environment  string
-	mergedConfig bool
+	configPath  string
+	workingDir  string
+	environment string
 
-	logger *zap.Logger
-
-	mu            sync.Mutex
+	logger        *zap.Logger
 	pluginManager infrared.PluginManager
 
+	mu      sync.Mutex
 	proxies = map[infrared.Edition]*infrared.Proxy{}
+
 	rootCmd = &cobra.Command{
 		Use:   "infrared",
 		Short: "Starts the infrared proxy",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			var err error
-			logger, err = newLogger()
-			if err != nil {
+			if err := initLogger(); err != nil {
 				return err
 			}
 			defer logger.Sync()
@@ -122,14 +119,13 @@ func init() {
 	rootCmd.PersistentFlags().StringVarP(&workingDir, "working-dir", "w", ".", "set the working directory")
 	rootCmd.PersistentFlags().StringVarP(&environment, "environment", "e", "prod", "set the deployment environment")
 	rootCmd.Flags().StringVarP(&configPath, "config", "c", "config.yml", "path of the config file")
-	upgradeCmd.Flags().BoolVarP(&mergedConfig, "merged", "m", false, "if the configs should be merged into one file")
 
 	rootCmd.AddCommand(licenseCmd)
-	rootCmd.AddCommand(upgradeCmd)
+	// Migration is not implemented yet
+	// rootCmd.AddCommand(migrateCmd)
 }
 
-func newLogger() (*zap.Logger, error) {
-	var logger *zap.Logger
+func initLogger() error {
 	var err error
 	switch environment {
 	case "dev":
@@ -137,13 +133,9 @@ func newLogger() (*zap.Logger, error) {
 	case "prod":
 		logger, err = zap.NewProduction()
 	default:
-		return nil, fmt.Errorf("unsupported environment %q", environment)
+		return fmt.Errorf("unsupported environment %q", environment)
 	}
-	if err != nil {
-		return nil, err
-	}
-
-	return logger, nil
+	return err
 }
 
 // Execute executes the root command.

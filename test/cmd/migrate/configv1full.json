@@ -1,0 +1,55 @@
+{
+    "domainName": "mc.example.com",
+    "listenTo": ":25565",
+    "proxyTo": ":8080",
+    "proxyBind": "0.0.0.0",
+    "proxyProtocol": false,
+    "realIp": false,
+    "timeout": 1000,
+    "disconnectMessage": "Username: {{username}}\nNow: {{now}}\nRemoteAddress: {{remoteAddress}}\nLocalAddress: {{localAddress}}\nDomain: {{domain}}\nProxyTo: {{proxyTo}}\nListenTo: {{listenTo}}",
+    "docker": {
+        "dnsServer": "127.0.0.11",
+        "containerName": "mc",
+        "timeout": 30000,
+        "portainer": {
+            "address": "localhost:9000",
+            "endpointId": "1",
+            "username": "admin",
+            "password": "foobar"
+        }
+    },
+    "onlineStatus": {
+        "versionName": "1.18",
+        "protocolNumber": 757,
+        "maxPlayers": 20,
+        "playersOnline": 2,
+        "playerSamples": [
+            {
+                "name": "Steve",
+                "uuid": "8667ba71-b85a-4004-af54-457a9734eed7"
+            },
+            {
+                "name": "Alex",
+                "uuid": "ec561538-f3fd-461d-aff5-086b22154bce"
+            }
+        ],
+        "motd": "Join us!"
+    },
+    "offlineStatus": {
+        "versionName": "1.18",
+        "protocolNumber": 757,
+        "maxPlayers": 20,
+        "playersOnline": 0,
+        "motd": "Server is currently offline"
+    },
+    "callbackServer": {
+        "url": "https://mc.example.com/callback",
+        "events": [
+            "Error",
+            "PlayerJoin",
+            "PlayerLeave",
+            "ContainerStart",
+            "ContainerStop"
+        ]
+    }
+}
