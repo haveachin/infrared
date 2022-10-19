@@ -68,8 +68,8 @@ func (decoder *Decoder) Decode() (packets [][]byte, err error) {
 }
 
 // decompress decompresses the data passed and returns it as a byte slice.
-func (decoder *Decoder) decompress(data []byte) (*bytes.Buffer, error) {
-	buf := bytes.NewBuffer(data)
+func (decoder *Decoder) decompress(compressed []byte) (*bytes.Buffer, error) {
+	buf := bytes.NewBuffer(compressed)
 	c := DecompressPool.Get().(io.ReadCloser)
 	defer DecompressPool.Put(c)
 
@@ -78,11 +78,11 @@ func (decoder *Decoder) decompress(data []byte) (*bytes.Buffer, error) {
 	}
 	_ = c.Close()
 
-	raw := bytes.NewBuffer(make([]byte, 0, len(data)*2))
-	if _, err := io.Copy(raw, c); err != nil {
+	decompressed := bytes.NewBuffer(make([]byte, 0, len(compressed)*2))
+	if _, err := io.Copy(decompressed, c); err != nil {
 		return nil, fmt.Errorf("error reading decompressed data: %v", err)
 	}
-	return raw, nil
+	return decompressed, nil
 }
 
 // DecompressPool is a sync.Pool for io.ReadCloser flate readers. These are pooled for connections.

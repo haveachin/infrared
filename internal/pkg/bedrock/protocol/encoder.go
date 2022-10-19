@@ -5,7 +5,6 @@ import (
 	"compress/flate"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"sync"
 )
 
@@ -96,7 +95,7 @@ func writeVaruint32(dst writeCloseResetter, x uint32, b []byte) error {
 // CompressPool is a sync.Pool for writeCloseResetter flate readers. These are pooled for connections.
 var CompressPool = sync.Pool{
 	New: func() interface{} {
-		w, _ := flate.NewWriter(ioutil.Discard, 6)
+		w, _ := flate.NewWriter(io.Discard, 6)
 		return w
 	},
 }
