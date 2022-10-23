@@ -25,6 +25,7 @@ type ConnPool struct {
 func (cp *ConnPool) Start() {
 	cp.reload = make(chan func())
 	cp.quit = make(chan bool)
+	cp.pool = make([]ConnTunnel, 0, 100)
 
 	for {
 		select {
@@ -33,36 +34,56 @@ func (cp *ConnPool) Start() {
 				break
 			}
 
-			cp.addToPool(ct)
+			if ct.Conn.IsLoginRequest() {
+				go cp.handlePlayerLogin(ct)
+			} else {
+				go cp.handlePlayerStatus(ct)
+			}
 
-			go func(logger *zap.Logger) {
-				if ct.Conn.IsLoginRequest() {
-					event.Push(PlayerJoinEvent{
-						ProcessedConn: ct.Conn,
-						Server:        ct.Server,
-					}, PlayerJoinEventTopic)
-				}
-
-				logger.Info("connecting client to server")
-				if err := ct.Start(); err != nil {
-					logger.Info("closing connection", zap.Error(err))
-					return
-				}
-				ct.Conn.Close()
-
-				logger.Info("disconnecting client")
-				event.Push(PlayerLeaveEvent{
-					ProcessedConn: ct.Conn,
-					Server:        ct.Server,
-				}, PlayerLeaveEventTopic)
-				cp.removeFromPool(ct)
-			}(cp.Logger.With(logProcessedConn(ct.Conn)...))
 		case reload := <-cp.reload:
 			reload()
 		case <-cp.quit:
 			return
 		}
 	}
+}
+
+func (cp *ConnPool) handlePlayerStatus(ct ConnTunnel) {
+	defer ct.Conn.Close()
+
+	logger := cp.Logger.With(logProcessedConn(ct.Conn)...)
+	logger.Info("connecting client to server")
+	if err := ct.Start(); err != nil {
+		logger.Info("closing connection", zap.Error(err))
+		return
+	}
+}
+
+func (cp *ConnPool) handlePlayerLogin(ct ConnTunnel) {
+	defer ct.Conn.Close()
+
+	i := cp.addToPool(ct)
+	defer cp.removeFromPool(i)
+
+	logger := cp.Logger.With(logProcessedConn(ct.Conn)...)
+	event.Push(PlayerJoinEvent{
+		ProcessedConn: ct.Conn,
+		Server:        ct.Server,
+		MatchedDomain: ct.MatchedDomain,
+	}, PlayerJoinEventTopic)
+
+	logger.Info("connecting client to server")
+	if err := ct.Start(); err != nil {
+		logger.Info("closing connection", zap.Error(err))
+		return
+	}
+
+	logger.Info("disconnecting client")
+	event.Push(PlayerLeaveEvent{
+		ProcessedConn: ct.Conn,
+		Server:        ct.Server,
+		MatchedDomain: ct.MatchedDomain,
+	}, PlayerLeaveEventTopic)
 }
 
 func (cp *ConnPool) Reload(cfg ConnPoolConfig) {
@@ -80,14 +101,17 @@ func (cp *ConnPool) Close() error {
 	return nil
 }
 
-func (cp *ConnPool) addToPool(ct ConnTunnel) {
+func (cp *ConnPool) addToPool(ct ConnTunnel) int {
 	cp.mu.Lock()
 	defer cp.mu.Unlock()
 	cp.pool = append(cp.pool, ct)
+	return len(cp.pool) - 1
 }
 
-func (cp *ConnPool) removeFromPool(ct ConnTunnel) {
+func (cp *ConnPool) removeFromPool(index int) {
 	cp.mu.Lock()
 	defer cp.mu.Unlock()
-	cp.pool = append(cp.pool, ct)
+	n := len(cp.pool) - 1
+	cp.pool[index] = cp.pool[n]
+	cp.pool = cp.pool[:n]
 }

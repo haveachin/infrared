@@ -10,36 +10,130 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/imdario/mergo"
+
 	"github.com/haveachin/infrared/internal/app/infrared"
-	"github.com/spf13/viper"
+	"github.com/haveachin/infrared/internal/pkg/config"
 )
 
-type ProxyConfig struct {
-	Viper *viper.Viper
+type ServerConfig struct {
+	Domains            []string                      `mapstructure:"domains" json:"domains,omitempty"`
+	Address            string                        `mapstructure:"address" json:"address,omitempty"`
+	ProxyBind          string                        `mapstructure:"proxyBind" json:"proxyBind,omitempty"`
+	SendProxyProtocol  bool                          `mapstructure:"sendProxyProtocol" json:"sendProxyProtocol,omitempty"`
+	SendRealIP         bool                          `mapstructure:"sendRealIP" json:"sendRealIP,omitempty"`
+	OverrideAddress    bool                          `mapstructure:"overrideAddress" json:"overrideAddress,omitempty"`
+	DialTimeout        time.Duration                 `mapstructure:"dialTimeout" json:"dialTimeout,omitempty"`
+	DialTimeoutMessage string                        `mapstructure:"dialTimeoutMessage" json:"dialTimeoutMessage,omitempty"`
+	OverrideStatus     OverrideServerStatusConfig    `mapstructure:"overrideStatus" json:"overrideStatus,omitempty"`
+	DialTimeoutStatus  DialTimeoutServerStatusConfig `mapstructure:"dialTimeoutStatus" json:"dialTimeoutStatus,omitempty"`
+	Gateways           []string                      `mapstructure:"gateways" json:"gateways,omitempty"`
 }
 
-func (cfg ProxyConfig) ListenerBuilder() infrared.ListenerBuilder {
+type OverrideServerStatusConfig struct {
+	VersionName    *string                          `mapstructure:"versionName" json:"versionName,omitempty"`
+	ProtocolNumber *int                             `mapstructure:"protocolNumber" json:"protocolNumber,omitempty"`
+	MaxPlayerCount *int                             `mapstructure:"maxPlayerCount" json:"maxPlayerCount,omitempty"`
+	PlayerCount    *int                             `mapstructure:"playerCount" json:"playerCount,omitempty"`
+	PlayerSample   []ServerStatusPlayerSampleConfig `mapstructure:"playerSample" json:"playerSample,omitempty"`
+	IconPath       *string                          `mapstructure:"iconPath" json:"iconPath,omitempty"`
+	MOTD           *string                          `mapstructure:"motd" json:"motd,omitempty"`
+}
+
+type DialTimeoutServerStatusConfig struct {
+	VersionName    string                           `mapstructure:"versionName" json:"motd,omitempty"`
+	ProtocolNumber int                              `mapstructure:"protocolNumber" json:"protocolNumber,omitempty"`
+	MaxPlayerCount int                              `mapstructure:"maxPlayerCount" json:"maxPlayerCount,omitempty"`
+	PlayerCount    int                              `mapstructure:"playerCount" json:"playerCount,omitempty"`
+	PlayerSample   []ServerStatusPlayerSampleConfig `mapstructure:"playerSample" json:"playerSample,omitempty"`
+	IconPath       string                           `mapstructure:"iconPath" json:"iconPath,omitempty"`
+	MOTD           string                           `mapstructure:"motd" json:"motd,omitempty"`
+}
+
+type ServerStatusPlayerSampleConfig struct {
+	Name string `mapstructure:"name,omitempty"`
+	UUID string `mapstructure:"uuid,omitempty"`
+}
+
+type ListenerConfig struct {
+	Bind                  string                        `mapstructure:"bind" json:"bind,omitempty"`
+	ReceiveProxyProtocol  bool                          `mapstructure:"receiveProxyProtocol" json:"receiveProxyProtocol,omitempty"`
+	ReceiveRealIP         bool                          `mapstructure:"receiveRealIP,omitempty" json:"receiveRealIP,omitempty"`
+	ServerNotFoundMessage string                        `mapstructure:"serverNotFoundMessage,omitempty" json:"serverNotFoundMessage,omitempty"`
+	ServerNotFoundStatus  DialTimeoutServerStatusConfig `mapstructure:"serverNotFoundStatus,omitempty" json:"serverNotFoundStatus,omitempty"`
+}
+
+type GatewayConfig struct {
+	Listeners             map[string]ListenerConfig `mapstructure:"listeners" json:"listeners,omitempty"`
+	ServerNotFoundMessage string                    `mapstructure:"serverNotFoundMessage,omitempty" json:"serverNotFoundMessage,omitempty"`
+}
+
+type ConnProcessorConfig struct {
+	Count         int           `mapstructure:"count" json:"count,omitempty"`
+	ClientTimeout time.Duration `mapstructure:"clientTimeout" json:"clientTimeout,omitempty"`
+}
+
+type ChanCapsConfig struct {
+	ConnProcessor int `mapstructure:"connProcessor" json:"connProcessor,omitempty"`
+	Server        int `mapstructure:"server" json:"server,omitempty"`
+	ConnPool      int `mapstructure:"connPool" json:"connPool,omitempty"`
+}
+
+type ProxyConfig struct {
+	Gateways      map[string]GatewayConfig `mapstructure:"gateways" json:"gateways,omitempty"`
+	Servers       map[string]ServerConfig  `mapstructure:"servers" json:"servers,omitempty"`
+	ChanCaps      ChanCapsConfig           `mapstructure:"chanCaps" json:"chanCaps,omitempty"`
+	ConnProcessor ConnProcessorConfig      `mapstructure:"processingNode" json:"processingNode,omitempty"`
+}
+
+type ProxyConfigDefaults struct {
+	Gateway struct {
+		Listener              ListenerConfig `mapstructure:"listener,omitempty" json:"listener,omitempty"`
+		ServerNotFoundMessage string         `mapstructure:"serverNotFoundMessage,omitempty" json:"serverNotFoundMessage,omitempty"`
+	} `mapstructure:"gateway,omitempty" json:"gateway,omitempty"`
+	Server ServerConfig `mapstructure:"server,omitempty" json:"server,omitempty"`
+}
+
+type Config struct {
+	Java     ProxyConfig `mapstructure:"java" json:"java,omitempty"`
+	Defaults struct {
+		Java ProxyConfigDefaults `mapstructure:"java" json:"java,omitempty"`
+	} `mapstructure:"defaults,omitempty" json:"defaults,omitempty"`
+}
+
+func NewProxyConfigFromMap(cfg map[string]interface{}) (infrared.ProxyConfig, error) {
+	var javaCfg Config
+	if err := config.Unmarshal(cfg, &javaCfg); err != nil {
+		return nil, err
+	}
+
+	return &javaCfg, nil
+}
+
+func (cfg Config) ListenerBuilder() infrared.ListenerBuilder {
 	return func(addr string) (net.Listener, error) {
 		return net.Listen("tcp", addr)
 	}
 }
 
-func (cfg ProxyConfig) LoadGateways() ([]infrared.Gateway, error) {
+func (cfg Config) LoadGateways() ([]infrared.Gateway, error) {
 	var gateways []infrared.Gateway
-	for id, data := range cfg.Viper.GetStringMap("java.gateways") {
-		defaults := cfg.Viper.Sub("defaults.java.gateway").AllSettings()
-		vpr := viper.New()
-		if err := vpr.MergeConfigMap(defaults); err != nil {
+	for id, gwCfg := range cfg.Java.Gateways {
+		c := GatewayConfig{
+			ServerNotFoundMessage: cfg.Defaults.Java.Gateway.ServerNotFoundMessage,
+		}
+
+		if err := mergo.Merge(&c, gwCfg); err != nil {
 			return nil, err
 		}
-		if err := vpr.MergeConfigMap(data.(map[string]interface{})); err != nil {
+
+		lCfgs, err := cfg.loadListeners(id)
+		if err != nil {
 			return nil, err
 		}
-		var c gatewayConfig
-		if err := vpr.Unmarshal(&c); err != nil {
-			return nil, err
-		}
-		gateway, err := newGateway(cfg.Viper, id, c)
+		c.Listeners = lCfgs
+
+		gateway, err := newGateway(id, c)
 		if err != nil {
 			return nil, err
 		}
@@ -48,117 +142,57 @@ func (cfg ProxyConfig) LoadGateways() ([]infrared.Gateway, error) {
 	return gateways, nil
 }
 
-func (cfg ProxyConfig) LoadServers() ([]infrared.Server, error) {
+func (cfg Config) LoadServers() ([]infrared.Server, error) {
 	var servers []infrared.Server
-	for id, data := range cfg.Viper.GetStringMap("java.servers") {
-		defaults := cfg.Viper.Sub("defaults.java.server").AllSettings()
-		vpr := viper.New()
-		if err := vpr.MergeConfigMap(defaults); err != nil {
+	for id, srvCfg := range cfg.Java.Servers {
+		var c ServerConfig
+		if err := mergo.Merge(&c, cfg.Defaults.Java.Server); err != nil {
 			return nil, err
 		}
-		if err := vpr.MergeConfigMap(data.(map[string]interface{})); err != nil {
+
+		if err := mergo.Merge(&c, srvCfg); err != nil {
 			return nil, err
 		}
-		var cfg serverConfig
-		if err := vpr.Unmarshal(&cfg); err != nil {
-			return nil, err
-		}
-		srv, err := newServer(id, cfg)
+
+		server, err := newServer(id, c)
 		if err != nil {
 			return nil, err
 		}
-		servers = append(servers, srv)
+		servers = append(servers, server)
 	}
 	return servers, nil
 }
 
-func (cfg ProxyConfig) LoadConnProcessor() (infrared.ConnProcessor, error) {
-	var cpnCfg connProcessorConfig
-	if err := cfg.Viper.UnmarshalKey("java.processingNode", &cpnCfg); err != nil {
-		return nil, err
-	}
-
+func (cfg Config) LoadConnProcessor() (infrared.ConnProcessor, error) {
 	return &InfraredConnProcessor{
 		ConnProcessor: ConnProcessor{
-			ClientTimeout: cpnCfg.ClientTimeout,
+			ClientTimeout: cfg.Java.ConnProcessor.ClientTimeout,
 		},
 	}, nil
 }
 
-func (cfg ProxyConfig) LoadProxySettings() (infrared.ProxySettings, error) {
-	var chanCapsCfg chanCapsConfig
-	if err := cfg.Viper.UnmarshalKey("java.chanCap", &chanCapsCfg); err != nil {
-		return infrared.ProxySettings{}, err
+func (cfg Config) LoadProxySettings() (infrared.ProxySettings, error) {
+	cpnCount := cfg.Java.ConnProcessor.Count
+	return newChanCaps(cfg.Java.ChanCaps, cpnCount), nil
+}
+
+func (cfg Config) loadListeners(gatewayID string) (map[string]ListenerConfig, error) {
+	listenerCfgs := map[string]ListenerConfig{}
+	for id, lCfg := range cfg.Java.Gateways[gatewayID].Listeners {
+		var c ListenerConfig
+		if err := mergo.Merge(&c, cfg.Defaults.Java.Gateway.Listener); err != nil {
+			return nil, err
+		}
+
+		if err := mergo.Merge(&c, lCfg); err != nil {
+			return nil, err
+		}
+		listenerCfgs[id] = c
 	}
-	cpnCount := cfg.Viper.GetInt("java.processingNode.count")
-
-	return newChanCaps(chanCapsCfg, cpnCount), nil
+	return listenerCfgs, nil
 }
 
-type serverConfig struct {
-	Domains            []string
-	Address            string
-	ProxyBind          string
-	SendProxyProtocol  bool
-	SendRealIP         bool
-	OverrideAddress    bool
-	DialTimeout        time.Duration
-	DialTimeoutMessage string
-	OverrideStatus     overrideServerStatusConfig
-	DialTimeoutStatus  dialTimeoutServerStatusConfig
-	Gateways           []string
-	Webhooks           []string
-}
-
-type overrideServerStatusConfig struct {
-	VersionName    *string
-	ProtocolNumber *int
-	MaxPlayerCount *int
-	PlayerCount    *int
-	PlayerSample   []serverStatusPlayerSampleConfig
-	IconPath       *string
-	MOTD           *string
-}
-
-type dialTimeoutServerStatusConfig struct {
-	VersionName    string
-	ProtocolNumber int
-	MaxPlayerCount int
-	PlayerCount    int
-	PlayerSample   []serverStatusPlayerSampleConfig
-	IconPath       string
-	MOTD           string
-}
-
-type serverStatusPlayerSampleConfig struct {
-	Name string
-	UUID string
-}
-
-type listenerConfig struct {
-	Bind                  string
-	ReceiveProxyProtocol  bool
-	ReceiveRealIP         bool
-	ServerNotFoundMessage string
-	ServerNotFoundStatus  dialTimeoutServerStatusConfig
-}
-
-type gatewayConfig struct {
-	ServerNotFoundMessage string
-}
-
-type connProcessorConfig struct {
-	Count         int
-	ClientTimeout time.Duration
-}
-
-type chanCapsConfig struct {
-	ConnProcessor int
-	Server        int
-	ConnPool      int
-}
-
-func newListener(cfg listenerConfig, id string) (Listener, error) {
+func newListener(id string, cfg ListenerConfig) (Listener, error) {
 	status, err := newDialTimeoutServerStatus(cfg.ServerNotFoundStatus)
 	if err != nil {
 		return Listener{}, err
@@ -174,10 +208,14 @@ func newListener(cfg listenerConfig, id string) (Listener, error) {
 	}, nil
 }
 
-func newGateway(v *viper.Viper, id string, cfg gatewayConfig) (infrared.Gateway, error) {
-	listeners, err := loadListeners(v, id)
-	if err != nil {
-		return nil, err
+func newGateway(id string, cfg GatewayConfig) (infrared.Gateway, error) {
+	var listeners []Listener
+	for _, lCfg := range cfg.Listeners {
+		l, err := newListener(id, lCfg)
+		if err != nil {
+			return nil, err
+		}
+		listeners = append(listeners, l)
 	}
 
 	return &InfraredGateway{
@@ -188,7 +226,7 @@ func newGateway(v *viper.Viper, id string, cfg gatewayConfig) (infrared.Gateway,
 	}, nil
 }
 
-func newServer(id string, cfg serverConfig) (infrared.Server, error) {
+func newServer(id string, cfg ServerConfig) (infrared.Server, error) {
 	overrideStatus, err := newOverrideServerStatus(cfg.OverrideStatus)
 	if err != nil {
 		return nil, err
@@ -233,14 +271,13 @@ func newServer(id string, cfg serverConfig) (infrared.Server, error) {
 			OverrideStatus:        overrideStatus,
 			DialTimeoutStatusJSON: string(bb),
 			GatewayIDs:            cfg.Gateways,
-			WebhookIDs:            cfg.Webhooks,
 			Host:                  host,
 			Port:                  port,
 		},
 	}, nil
 }
 
-func newOverrideServerStatus(cfg overrideServerStatusConfig) (OverrideStatusResponse, error) {
+func newOverrideServerStatus(cfg OverrideServerStatusConfig) (OverrideStatusResponse, error) {
 	var icon string
 	if cfg.IconPath != nil {
 		var err error
@@ -261,7 +298,7 @@ func newOverrideServerStatus(cfg overrideServerStatusConfig) (OverrideStatusResp
 	}, nil
 }
 
-func newDialTimeoutServerStatus(cfg dialTimeoutServerStatusConfig) (DialTimeoutStatusResponse, error) {
+func newDialTimeoutServerStatus(cfg DialTimeoutServerStatusConfig) (DialTimeoutStatusResponse, error) {
 	icon, err := loadImageAndEncodeToBase64String(cfg.IconPath)
 	if err != nil {
 		return DialTimeoutStatusResponse{}, err
@@ -277,7 +314,7 @@ func newDialTimeoutServerStatus(cfg dialTimeoutServerStatusConfig) (DialTimeoutS
 	}, nil
 }
 
-func newServerStatusPlayerSample(cfgs []serverStatusPlayerSampleConfig) []PlayerSample {
+func newServerStatusPlayerSample(cfgs []ServerStatusPlayerSampleConfig) []PlayerSample {
 	playerSamples := make([]PlayerSample, len(cfgs))
 	for n, cfg := range cfgs {
 		playerSamples[n] = PlayerSample{
@@ -288,7 +325,7 @@ func newServerStatusPlayerSample(cfgs []serverStatusPlayerSampleConfig) []Player
 	return playerSamples
 }
 
-func newChanCaps(cfg chanCapsConfig, cpnCount int) infrared.ProxySettings {
+func newChanCaps(cfg ChanCapsConfig, cpnCount int) infrared.ProxySettings {
 	return infrared.ProxySettings{
 		CPNCount: cpnCount,
 		ChannelCaps: infrared.ProxyChannelCaps{
@@ -297,31 +334,6 @@ func newChanCaps(cfg chanCapsConfig, cpnCount int) infrared.ProxySettings {
 			ConnPool:      cfg.ConnPool,
 		},
 	}
-}
-
-func loadListeners(v *viper.Viper, gatewayID string) ([]Listener, error) {
-	key := fmt.Sprintf("java.gateways.%s.listeners", gatewayID)
-	var listeners []Listener
-	for id, data := range v.GetStringMap(key) {
-		defaults := v.Sub("defaults.java.gateway.listener").AllSettings()
-		vpr := viper.New()
-		if err := vpr.MergeConfigMap(defaults); err != nil {
-			return nil, err
-		}
-		if err := vpr.MergeConfigMap(data.(map[string]interface{})); err != nil {
-			return nil, err
-		}
-		var cfg listenerConfig
-		if err := vpr.Unmarshal(&cfg); err != nil {
-			return nil, err
-		}
-		l, err := newListener(cfg, id)
-		if err != nil {
-			return nil, err
-		}
-		listeners = append(listeners, l)
-	}
-	return listeners, nil
 }
 
 func loadImageAndEncodeToBase64String(path string) (string, error) {

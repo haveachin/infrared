@@ -7,22 +7,25 @@ import (
 	"time"
 )
 
-type Edition byte
+type Edition string
 
 const (
-	JavaEdition Edition = iota
-	BedrockEdition
+	JavaEdition    Edition = "java"
+	BedrockEdition Edition = "bedrock"
 )
 
-func (e Edition) String() string {
-	switch e {
-	case JavaEdition:
-		return "java"
-	case BedrockEdition:
-		return "bedrock"
-	default:
-		return "unknown"
+func EditionFromString(s string) (Edition, error) {
+	switch strings.ToLower(s) {
+	case string(JavaEdition):
+		return JavaEdition, nil
+	case string(BedrockEdition):
+		return BedrockEdition, nil
 	}
+	return Edition(""), fmt.Errorf("%q is not a valid edition", s)
+}
+
+func (e Edition) String() string {
+	return string(e)
 }
 
 // Conn is a basic Minecraft connection containing the gateway ID that it connected through
@@ -47,7 +50,7 @@ type ProcessedConn interface {
 	ServerAddr() string
 	// DisconnectServerNotFound disconnects the client when the server is not found
 	DisconnectServerNotFound() error
-	// IsLoginRequest retruns true if the client wants to log into the server, false if they don't
+	// IsLoginRequest returns true if the client wants to log into the server, false if they don't
 	IsLoginRequest() bool
 }
 
@@ -72,11 +75,14 @@ func ExecuteMessageTemplate(msg string, pc ProcessedConn) string {
 // ConnTunnel is a proxy tunnel between a a client and a server.
 // Similar to net.Pipe
 type ConnTunnel struct {
-	// Conn is a ProcessedConn that will be connected to the server
+	// Conn that will be connected to the server
 	// when the ConnTunnel is started.
 	Conn ProcessedConn
 	// Server is the minecraft server that the Conn will be connected to.
 	Server Server
+	// MatchedDomain is the domain that the client matched when resolving
+	// the server that it requested.
+	MatchedDomain string
 }
 
 // Start starts to proxy the Conn to the Server. This call is blocking.

@@ -1,1 +1,0 @@
-Yoinked from [Sandertv/gophertunnel](https://github.com/Sandertv/gophertunnel/tree/f8b092d0378cc7fdbf87640dae4def2d06fddeb4) with modifications

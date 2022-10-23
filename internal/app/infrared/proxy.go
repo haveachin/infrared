@@ -187,3 +187,14 @@ func (p *Proxy) Close() {
 	close(p.srvCh)
 	close(p.poolCh)
 }
+
+func (p *Proxy) Players() []Player {
+	p.connPool.mu.Lock()
+	defer p.connPool.mu.Unlock()
+
+	pp := make([]Player, len(p.connPool.pool))
+	for i, ct := range p.connPool.pool {
+		pp[i] = ct.Conn
+	}
+	return pp
+}

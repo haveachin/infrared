@@ -2,157 +2,129 @@ package config
 
 import (
 	"sync"
-	"time"
 
-	"github.com/docker/docker/client"
-	"github.com/haveachin/infrared/internal/app/infrared"
-	"github.com/haveachin/infrared/internal/pkg/bedrock"
-	"github.com/haveachin/infrared/internal/pkg/java"
-	"github.com/spf13/viper"
+	"github.com/haveachin/infrared/internal/pkg/config/provider"
+	"github.com/imdario/mergo"
+	"github.com/mitchellh/mapstructure"
 	"go.uber.org/zap"
 )
 
-type config struct {
+type baseConfig struct {
 	Providers struct {
-		Docker struct {
-			ClientTimeout time.Duration
-			LabelPrefix   string
-			Endpoint      string
-			Network       string
-			Watch         bool
+		Docker provider.DockerConfig `json:"docker" yaml:"docker"`
+		File   provider.FileConfig   `json:"file" yaml:"file"`
+	} `json:"providers" yaml:"providers"`
+	Watch bool `json:"watch" yaml:"watch"`
+}
+
+type config struct {
+	baseConfig
+	logger *zap.Logger
+
+	dataChan chan provider.Data
+	onChange OnChange
+
+	mu           sync.RWMutex
+	providerData map[provider.Type]map[string]interface{}
+}
+
+type OnChange func(newConfig map[string]interface{})
+
+type Config interface {
+	Read() (map[string]interface{}, error)
+}
+
+func New(path string, onChange OnChange, logger *zap.Logger) (Config, error) {
+	var configMap map[string]interface{}
+	if err := provider.ReadConfigFile(path, &configMap); err != nil {
+		return nil, err
+	}
+
+	var providerCfg baseConfig
+	if err := provider.ReadConfigFile(path, &providerCfg); err != nil {
+		return nil, err
+	}
+
+	if onChange == nil {
+		onChange = func(map[string]interface{}) {}
+	}
+
+	cfg := config{
+		baseConfig: providerCfg,
+		logger:     logger,
+		dataChan:   make(chan provider.Data),
+		onChange:   onChange,
+		providerData: map[provider.Type]map[string]interface{}{
+			provider.ConfigType: configMap,
+		},
+	}
+
+	providers := []provider.Provider{
+		provider.NewFile(cfg.Providers.File, logger),
+		provider.NewDocker(cfg.Providers.Docker, logger),
+	}
+
+	for _, prov := range providers {
+		data, err := prov.Provide(cfg.dataChan)
+		if err != nil {
+			logger.Warn("failed to provide config data",
+				zap.Error(err),
+			)
 		}
-		File struct {
-			Directory string
-			Watch     bool
+
+		if data.IsNil() {
+			continue
 		}
+
+		cfg.providerData[data.Type] = data.Config
 	}
+
+	go cfg.listenToProviders()
+	return &cfg, nil
 }
 
-type Config struct {
-	Path     string
-	Logger   *zap.Logger
-	OnChange func(*viper.Viper, []infrared.ProxyConfig)
+func (c *config) listenToProviders() {
+	for data := range c.dataChan {
+		c.mu.Lock()
+		c.providerData[data.Type] = data.Config
+		c.mu.Unlock()
 
-	v         *viper.Viper
-	config    config
-	providers []provider
-	mu        sync.Mutex
-}
-
-func (c *Config) init() error {
-	if c.Logger == nil {
-		c.Logger = zap.NewNop()
-	}
-
-	c.v = viper.New()
-	c.v.SetConfigFile(c.Path)
-	if err := c.v.ReadInConfig(); err != nil {
-		return err
-	}
-
-	if err := c.v.Unmarshal(&c.config); err != nil {
-		return err
-	}
-
-	c.providers = []provider{
-		c.initFileProvider(),
-	}
-
-	if c.config.Providers.Docker.Endpoint != "" {
-		c.providers = append(c.providers, c.initDockerProvider())
-	}
-
-	return nil
-}
-
-func (c *Config) initFileProvider() provider {
-	cfg := c.config.Providers.File
-	fileProvider := fileProvider{
-		dir:      cfg.Directory,
-		onChange: c.onChange,
-		logger:   c.Logger,
-	}
-
-	if cfg.Watch {
-		go func() {
-			if err := fileProvider.watch(); err != nil {
-				c.Logger.Error("", zap.Error(err))
-			}
-		}()
-	}
-
-	return &fileProvider
-}
-
-func (c *Config) initDockerProvider() provider {
-	cfg := c.config.Providers.Docker
-	// TODO: From URL?
-	cli, err := client.NewClientWithOpts(client.FromEnv)
-	if err != nil {
-		c.Logger.Error("", zap.Error(err))
-		return nil
-	}
-
-	dockerProvider := dockerProvider{
-		client:        cli,
-		clientTimeout: cfg.ClientTimeout,
-		labelPrefix:   cfg.LabelPrefix,
-		network:       cfg.Network,
-		onChange:      c.onChange,
-		logger:        c.Logger,
-	}
-
-	if cfg.Watch {
-		// TODO: Add network change event?
-	}
-
-	return &dockerProvider
-}
-
-func (c *Config) ReadConfigs() (*viper.Viper, []infrared.ProxyConfig, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.v == nil {
-		if err := c.init(); err != nil {
-			return nil, nil, err
-		}
-	}
-
-	v := viper.New()
-	v.MergeConfigMap(c.v.AllSettings())
-	for _, p := range c.providers {
-		if err := p.mergeConfigs(v); err != nil {
-			return nil, nil, err
-		}
-	}
-
-	return v, []infrared.ProxyConfig{
-		java.ProxyConfig{Viper: v},
-		bedrock.ProxyConfig{Viper: v},
-	}, nil
-}
-
-func (c *Config) Close() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	for _, p := range c.providers {
-		p.close()
-	}
-}
-
-func (c *Config) onChange() {
-	if c.OnChange == nil {
-		return
-	}
-
-	v, cfgs, err := c.ReadConfigs()
-	if err != nil {
-		c.Logger.Error("Failed to read configs",
-			zap.Error(err),
+		c.logger.Info("config changed",
+			zap.String("provider", data.Type.String()),
 		)
+
+		cfg, err := c.Read()
+		if err != nil {
+			c.logger.Error("failed to read config",
+				zap.Error(err),
+			)
+		}
+
+		c.onChange(cfg)
+	}
+}
+
+func (c *config) Read() (map[string]interface{}, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	cfgData := map[string]interface{}{}
+	for _, provData := range c.providerData {
+		if err := mergo.Merge(&cfgData, provData, mergo.WithOverride); err != nil {
+			return nil, err
+		}
+	}
+	return cfgData, nil
+}
+
+func Unmarshal(cfg interface{}, v any) error {
+	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
+		Result:     v,
+		DecodeHook: mapstructure.StringToTimeDurationHookFunc(),
+	})
+	if err != nil {
+		return err
 	}
 
-	c.OnChange(v, cfgs)
+	return decoder.Decode(cfg)
 }

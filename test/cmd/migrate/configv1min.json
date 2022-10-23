@@ -1,0 +1,4 @@
+{
+    "domainName": "mc.example.com",
+    "proxyTo": ":8080"
+}

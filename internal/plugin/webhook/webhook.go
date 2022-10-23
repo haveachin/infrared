@@ -2,19 +2,63 @@ package webhook
 
 import (
 	"errors"
-	"fmt"
+	"net/http"
+	"time"
 
 	"github.com/gofrs/uuid"
 	"github.com/haveachin/infrared/internal/app/infrared"
+	"github.com/haveachin/infrared/internal/pkg/config"
 	"github.com/haveachin/infrared/pkg/event"
 	"github.com/haveachin/infrared/pkg/webhook"
-	"github.com/spf13/viper"
+	"github.com/imdario/mergo"
 	"go.uber.org/zap"
 )
 
-type Plugin struct {
-	Edition infrared.Edition
+type PluginConfig struct {
+	Webhooks map[string]webhookConfig `mapstructure:"webhooks"`
+	Defaults struct {
+		Webhook webhookConfig `mapstructure:"webhook"`
+	} `mapstructure:"defaults"`
+}
 
+func (cfg PluginConfig) loadWebhooks() (map[string][]webhook.Webhook, error) {
+	webhooks := map[string][]webhook.Webhook{}
+	for id, whCfg := range cfg.Webhooks {
+		if err := mergo.Merge(&whCfg, cfg.Defaults.Webhook); err != nil {
+			return nil, err
+		}
+
+		for _, gwID := range whCfg.GatewayIDs {
+			if webhooks[gwID] == nil {
+				webhooks[gwID] = []webhook.Webhook{newWebhook(id, whCfg)}
+			} else {
+				webhooks[gwID] = append(webhooks[gwID], newWebhook(id, whCfg))
+			}
+		}
+	}
+	return webhooks, nil
+}
+
+type webhookConfig struct {
+	DialTimeout time.Duration `mapstructure:"dialTimeout"`
+	URL         string        `mapstructure:"url"`
+	Events      []string      `mapstructure:"events"`
+	GatewayIDs  []string      `mapstructure:"gatewayIds"`
+}
+
+func newWebhook(id string, cfg webhookConfig) webhook.Webhook {
+	return webhook.Webhook{
+		ID: id,
+		HTTPClient: &http.Client{
+			Timeout: cfg.DialTimeout,
+		},
+		URL:           cfg.URL,
+		AllowedTopics: cfg.Events,
+	}
+}
+
+type Plugin struct {
+	Config   PluginConfig
 	logger   *zap.Logger
 	eventBus event.Bus
 	eventID  uuid.UUID
@@ -27,20 +71,25 @@ func (p Plugin) Name() string {
 }
 
 func (p Plugin) Version() string {
-	return fmt.Sprintf("internal-%s", p.Edition)
+	return "internal"
 }
 
-func (p *Plugin) Load(v *viper.Viper) error {
-	var err error
-	p.whks, err = p.loadWebhooks(v)
+func (p *Plugin) Load(cfg map[string]interface{}) error {
+	if err := config.Unmarshal(cfg, &p.Config); err != nil {
+		return err
+	}
+
+	whks, err := p.Config.loadWebhooks()
 	if err != nil {
 		return err
 	}
+	p.whks = whks
+
 	return nil
 }
 
-func (p *Plugin) Reload(v *viper.Viper) error {
-	return p.Load(v)
+func (p *Plugin) Reload(cfg map[string]interface{}) error {
+	return p.Load(cfg)
 }
 
 func (p *Plugin) Enable(api infrared.PluginAPI) error {

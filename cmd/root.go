@@ -6,15 +6,18 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"sync"
 	"syscall"
 
+	"github.com/haveachin/infrared/internal/plugin/api"
+	"github.com/haveachin/infrared/internal/plugin/prometheus"
+
 	"github.com/haveachin/infrared/internal/app/infrared"
+	"github.com/haveachin/infrared/internal/pkg/bedrock"
 	"github.com/haveachin/infrared/internal/pkg/config"
+	"github.com/haveachin/infrared/internal/pkg/java"
 	"github.com/haveachin/infrared/internal/plugin/webhook"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
 
@@ -25,19 +28,17 @@ var (
 	workingDir  string
 	environment string
 
-	logger *zap.Logger
-
-	mu            sync.Mutex
-	proxies       []*infrared.Proxy
+	logger        *zap.Logger
 	pluginManager infrared.PluginManager
+
+	mu      sync.Mutex
+	proxies = map[infrared.Edition]*infrared.Proxy{}
 
 	rootCmd = &cobra.Command{
 		Use:   "infrared",
 		Short: "Starts the infrared proxy",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			var err error
-			logger, err = newLogger()
-			if err != nil {
+			if err := initLogger(); err != nil {
 				return err
 			}
 			defer logger.Sync()
@@ -54,42 +55,56 @@ var (
 				return err
 			}
 
-			cfg := config.Config{
-				Path:     configPath,
-				Logger:   logger,
-				OnChange: onReload,
-			}
-
-			v, prxCfgs, err := cfg.ReadConfigs()
+			cfg, err := config.New(configPath, onConfigChange, logger)
 			if err != nil {
 				return err
 			}
 
+			data, err := cfg.Read()
+			if err != nil {
+				return err
+			}
+
+			javaPrxCfg, err := java.NewProxyConfigFromMap(data)
+			if err != nil {
+				return err
+			}
+
+			javaPrx, err := infrared.NewProxy(javaPrxCfg)
+			if err != nil {
+				return err
+			}
+			proxies[infrared.JavaEdition] = javaPrx
+
+			bedrockPrxCfg, err := bedrock.NewProxyConfigFromMap(data)
+			if err != nil {
+				return err
+			}
+
+			bedrockPrx, err := infrared.NewProxy(bedrockPrxCfg)
+			if err != nil {
+				return err
+			}
+			proxies[infrared.BedrockEdition] = bedrockPrx
+
 			pluginManager = infrared.PluginManager{
+				Proxies: proxies,
 				Plugins: []infrared.Plugin{
-					&webhook.Plugin{
-						Edition: infrared.JavaEdition,
-					},
-					&webhook.Plugin{
-						Edition: infrared.BedrockEdition,
-					},
+					&webhook.Plugin{},
+					&prometheus.Plugin{},
+					&api.Plugin{},
 				},
 				Logger: logger,
 			}
 			logger.Info("loading plugins")
-			pluginManager.LoadPlugins(v)
+			pluginManager.LoadPlugins(data)
 			logger.Info("enabling plugins")
 			pluginManager.EnablePlugins()
 			defer pluginManager.DisablePlugins()
 
 			logger.Info("starting proxies")
-			for _, prxCfg := range prxCfgs {
-				p, err := infrared.NewProxy(prxCfg)
-				if err != nil {
-					return err
-				}
-				proxies = append(proxies, p)
-				go p.ListenAndServe(logger)
+			for _, proxy := range proxies {
+				go proxy.ListenAndServe(logger)
 			}
 
 			sc := make(chan os.Signal, 1)
@@ -101,21 +116,16 @@ var (
 )
 
 func init() {
-	v := viper.New()
-	v.SetEnvPrefix("INFRARED")
-	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-	v.AutomaticEnv()
-
+	rootCmd.PersistentFlags().StringVarP(&workingDir, "working-dir", "w", ".", "set the working directory")
+	rootCmd.PersistentFlags().StringVarP(&environment, "environment", "e", "prod", "set the deployment environment")
 	rootCmd.Flags().StringVarP(&configPath, "config", "c", "config.yml", "path of the config file")
-	rootCmd.Flags().StringVarP(&workingDir, "working-dir", "w", ".", "set the working directory")
-	rootCmd.Flags().StringVarP(&environment, "environment", "e", "prod", "set the deployment environment")
-	viper.BindPFlag("CONFIG", rootCmd.Flags().Lookup("config"))
 
 	rootCmd.AddCommand(licenseCmd)
+	// Migration is not implemented yet
+	// rootCmd.AddCommand(migrateCmd)
 }
 
-func newLogger() (*zap.Logger, error) {
-	var logger *zap.Logger
+func initLogger() error {
 	var err error
 	switch environment {
 	case "dev":
@@ -123,13 +133,9 @@ func newLogger() (*zap.Logger, error) {
 	case "prod":
 		logger, err = zap.NewProduction()
 	default:
-		return nil, fmt.Errorf("unsupported environment %q", environment)
+		return fmt.Errorf("unsupported environment %q", environment)
 	}
-	if err != nil {
-		return nil, err
-	}
-
-	return logger, nil
+	return err
 }
 
 // Execute executes the root command.
@@ -174,18 +180,38 @@ func safeWriteFromEmbeddedFS(embedPath, sysPath string) error {
 	return nil
 }
 
-func onReload(v *viper.Viper, cfgs []infrared.ProxyConfig) {
+func onConfigChange(cfg map[string]interface{}) {
 	mu.Lock()
 	defer mu.Unlock()
 
+	javaPrxCfg, err := java.NewProxyConfigFromMap(cfg)
+	if err != nil {
+		logger.Error("failed to load java config",
+			zap.Error(err),
+		)
+	}
+
+	bedrockPrxCfg, err := bedrock.NewProxyConfigFromMap(cfg)
+	if err != nil {
+		logger.Error("failed to load bedrock config",
+			zap.Error(err),
+		)
+	}
+
+	prxCfgs := map[infrared.Edition]infrared.ProxyConfig{
+		infrared.JavaEdition:    javaPrxCfg,
+		infrared.BedrockEdition: bedrockPrxCfg,
+	}
+
 	logger.Info("Reloading proxies")
 	for n, p := range proxies {
-		if err := p.Reload(cfgs[n]); err != nil {
+		if err := p.Reload(prxCfgs[n]); err != nil {
 			logger.Error("failed to reload proxy",
 				zap.Error(err),
 			)
 		}
 	}
+
 	logger.Info("Reloading plugins")
-	pluginManager.ReloadPlugins(v)
+	pluginManager.ReloadPlugins(cfg)
 }

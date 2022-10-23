@@ -41,6 +41,7 @@ Infrared works as a reverse proxy using a sub-/domains to connect clients to a s
 
 ## How to configure
 
+- [Install](docs/INSTALL.md)
 - [Usage](docs/USAGE.md)
 - [Config](docs/CONFIG.md)
 

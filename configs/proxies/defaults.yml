@@ -1,21 +1,37 @@
 # This are recommended defaults that can be overridden by individual proxy configs.
 # Feel free to change these values to your liking.
+#
 defaults:
   # Defaults for all Bedrock proxies.
+  #
   bedrock:
     # Gateways are entrypoints of the proxy. All clients need to connect though a gateways.
+    #
     gateway:
+      # Compression for the protocol. This must be the same as in server you are trying to proxy to.
+      # Valid compressions are:
+      # - flate
+      # - snappy
+      #
+      compression: "flate"
       # Listeners listen to a specific port (or address:port) of your system.
+      #
       listener:
         # This is the ping response that clients see of your sever. This cannot be handled at
         # server level due to a limitation of the bedrock protocol. See https://wiki.vg/Raknet_Protocol#Unconnected_Pong
+        #
         pingStatus:
           # The edition of the minecraft server. Accepted values are: 
           # - MCPE (Pocket Edition; default for normal Bedrock Edition server)
           # - MCEE (Education Edition)
+          #
           edition: MCPE
+          
           # The protocol version and name. For more info see https://wiki.vg/Bedrock_Protocol_version_numbers
+          #
           protocolVersion: 491
+          
+          #
           versionName: "1.18.20.23"
           playerCount: 0
           maxPlayerCount: 10
@@ -24,16 +40,24 @@ defaults:
           motd: |
             Powered by Infrared
             Join!
+      
       # The message that is displayed to a client when they try to connect via an invalid domain.
+      #
       serverNotFoundMessage: Sorry {{username}}, but a server for {{serverDomain}} does not exist.
+
     # Servers are server configurations that redirect players to a minecraft server.
+    #
     server:
       # Dial timeout is the amount of time the proxy waits until is declares the server as unreachable.
+      #
       dialTimeout: 1s
+      
       # The message that is displayed to a client when the server is unreachable.
+      #
       dialTimeoutMessage: Sorry {{username}}, but the server is not reachable.
   
   # Defaults for all Java Proxies
+  #
   java:
     gateway:
       listener:
@@ -41,9 +65,11 @@ defaults:
         # The Java Edition has a different approach to handling status pings, than the Bedrock Edition.
         # This makes it possible to display a custom message to clients if the domain that they want
         # to connect though has a server configuration behind it.
+        #
         serverNotFoundStatus:
           versionName: Infrared
           # The protocol number. For more info see https://wiki.vg/Protocol_version_numbers
+          #
           protocolNumber: 0
           maxPlayerCount: 0
           playerCount: 0
@@ -57,6 +83,7 @@ defaults:
       dialTimeoutMessage: Sorry {{username}}, but the server is not reachable.
       # This is the message that is status response displayed to the client if the server is not
       # has a valid config but is not reachable.
+      #
       dialTimeoutStatus:
         versionName: Infrared
         protocolNumber: 0

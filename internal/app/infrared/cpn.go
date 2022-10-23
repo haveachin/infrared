@@ -40,7 +40,7 @@ func (cpn CPN) ListenAndServe(quit <-chan bool) {
 				Conn: c,
 			}, PreConnProcessingEventTopic)
 
-			c.SetDeadline(time.Now().Add(cpn.ClientTimeout()))
+			//c.SetDeadline(time.Now().Add(cpn.ClientTimeout()))
 			pc, err := cpn.ConnProcessor.ProcessConn(c)
 			if err != nil {
 				if errors.Is(err, os.ErrDeadlineExceeded) {

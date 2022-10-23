@@ -5,7 +5,7 @@ java:
         default:
           bind: :25565
   servers:
-    myserver:
+    default:
       gateways:
         - default
       domains:
@@ -15,17 +15,3 @@ java:
         versionName: Infrared
         maxPlayerCount: 777777777
         playerCount: 2
-  # Configuration for webhooks
-  webhooks:
-    # A webhook defined by an ID. In this case "default"
-    mywebhook:
-      # Gateway IDs to listen for events to. All events that the connection triggers
-      # have also the gateway ID attached to them.
-      gatewayIds:
-        - default
-      # The URL to POST the JSON to
-      url: https://example.com/callback
-      # Event Topics to listen for
-      events:
-        - PlayerJoin
-        - PlayerLeave

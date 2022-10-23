@@ -5,7 +5,7 @@ bedrock:
         default:
           bind: 0.0.0.0:19132
   servers:
-    myserver:
+    default:
       gateways:
         - default
       domains:
