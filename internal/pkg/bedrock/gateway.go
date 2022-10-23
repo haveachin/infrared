@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/haveachin/infrared/internal/app/infrared"
+	"github.com/haveachin/infrared/internal/pkg/bedrock/protocol/packet"
 	"github.com/sandertv/go-raknet"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
@@ -49,6 +50,7 @@ type Listener struct {
 
 type Gateway struct {
 	ID               string
+	Compression      packet.Compression
 	ListenersManager *infrared.ListenersManager
 	Listeners        []Listener
 	Logger           *zap.Logger
@@ -122,9 +124,12 @@ func (gw *InfraredGateway) WrapConn(c net.Conn, l net.Listener) net.Conn {
 	listener := l.(*Listener)
 	return &Conn{
 		Conn:                  c.(*raknet.Conn),
+		decoder:               packet.NewDecoder(c),
+		encoder:               packet.NewEncoder(c),
 		gatewayID:             gw.gateway.ID,
 		proxyProtocol:         listener.ReceiveProxyProtocol,
 		serverNotFoundMessage: listener.ServerNotFoundMessage,
+		compression:           gw.gateway.Compression,
 	}
 }
 

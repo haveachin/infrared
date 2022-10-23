@@ -8,6 +8,12 @@ defaults:
     # Gateways are entrypoints of the proxy. All clients need to connect though a gateways.
     #
     gateway:
+      # Compression for the protocol. This must be the same as in server you are trying to proxy to.
+      # Valid compressions are:
+      # - flate
+      # - snappy
+      #
+      compression: "flate"
       # Listeners listen to a specific port (or address:port) of your system.
       #
       listener:

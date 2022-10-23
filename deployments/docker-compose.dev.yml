@@ -1,12 +1,12 @@
 version: "3"
 
 services:
-  minecraft-server:
+  minecraft-java-server:
     image: itzg/minecraft-server:java17
-    container_name: minecraft-server
+    container_name: minecraft-java-server
     restart: "no"
     ports:
-      - 25566:25565
+      - 25566:25565/tcp
     environment:
       EULA: "TRUE"
     networks:
@@ -16,6 +16,17 @@ services:
       - infrared.java.servers.devserver.address=:25566
       - infrared.java.servers.devserver.overrideStatus.motd=Docker Lables
       - infrared.java.servers.devserver.gateways=[default]
+
+  minecraft-bedrock-server:
+    image: itzg/minecraft-bedrock-server:latest
+    container_name: minecraft-bedrock-server
+    restart: "no"
+    ports:
+      - 19133:19132/udp
+    environment:
+      EULA: "TRUE"
+    networks:
+      - infrared
 
 networks:
   infrared:

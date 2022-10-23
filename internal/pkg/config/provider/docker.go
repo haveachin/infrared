@@ -106,13 +106,14 @@ func (p docker) readConfigData() (Data, error) {
 }
 
 func setNestedValue(m map[string]interface{}, nestedKey string, value interface{}) {
-	var nestedMap map[string]interface{}
+	nestedMap := map[string]interface{}{}
 	keys := strings.Split(nestedKey, ".")
 	for _, key := range keys[:len(keys)-2] {
-		nestedMap, ok := nestedMap[key].(map[string]interface{})
+		_, ok := nestedMap[key].(map[string]interface{})
 		if !ok {
 			nestedMap[key] = map[string]interface{}{}
 		}
+		nestedMap = nestedMap[key].(map[string]interface{})
 	}
 	nestedMap[keys[len(keys)-1]] = value
 }

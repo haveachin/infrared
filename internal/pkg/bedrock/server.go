@@ -1,9 +1,12 @@
 package bedrock
 
 import (
+	"errors"
+	"fmt"
 	"net"
 
 	"github.com/haveachin/infrared/internal/app/infrared"
+	"github.com/haveachin/infrared/internal/pkg/bedrock/protocol/packet"
 	"github.com/pires/go-proxyproto"
 	"github.com/sandertv/go-raknet"
 )
@@ -45,7 +48,9 @@ func (s InfraredServer) Dial() (*Conn, error) {
 	}
 
 	return &Conn{
-		Conn: c,
+		Conn:    c,
+		decoder: packet.NewDecoder(c),
+		encoder: packet.NewEncoder(c),
 	}, nil
 }
 
@@ -67,7 +72,44 @@ func (s InfraredServer) HandleConn(c net.Conn) (infrared.Conn, error) {
 		return nil, err
 	}
 
-	if _, err := rc.Write(pc.readBytes); err != nil {
+	if pc.requestNetworkSettingsPkData != nil {
+		if err := rc.encoder.Encode(pc.requestNetworkSettingsPkData.Full); err != nil {
+			rc.Close()
+			return nil, err
+		}
+
+		pksData, err := rc.ReadPackets()
+		if err != nil {
+			rc.Close()
+			return nil, err
+		}
+
+		if len(pksData) < 1 {
+			rc.Close()
+			return nil, fmt.Errorf("invalid amount of packets received: expected <1; got %d", len(pksData))
+		}
+
+		var networkSettingsPk packet.NetworkSettings
+		if err := pksData[0].Decode(&networkSettingsPk); err != nil {
+			rc.Close()
+			return nil, err
+		}
+
+		if networkSettingsPk.CompressionAlgorithm != pc.compression {
+			rc.Close()
+			return nil, errors.New("server compression does not match")
+		}
+		rc.EnableCompression(networkSettingsPk.CompressionAlgorithm)
+
+		for i := 1; i < len(pksData); i++ {
+			if err := pc.encoder.Encode(pksData[i].Full); err != nil {
+				rc.Close()
+				return nil, err
+			}
+		}
+	}
+
+	if err := rc.encoder.Encode(pc.loginPkData.Full); err != nil {
 		rc.Close()
 		return nil, err
 	}
@@ -76,7 +118,7 @@ func (s InfraredServer) HandleConn(c net.Conn) (infrared.Conn, error) {
 }
 
 func (s InfraredServer) handleDialTimeout(c ProcessedConn) error {
-	msg := infrared.ExecuteServerMessageTemplate(s.DialTimeoutMessage, c, &s)
+	msg := infrared.ExecuteServerMessageTemplate(s.DialTimeoutMessage, &c, &s)
 	return c.disconnect(msg)
 }
 

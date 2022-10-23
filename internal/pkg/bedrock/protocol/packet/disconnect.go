@@ -1,6 +1,8 @@
-package protocol
+package packet
 
-import "log"
+import (
+	"github.com/haveachin/infrared/internal/pkg/bedrock/protocol"
+)
 
 // Disconnect may be sent by the server to disconnect the client using an optional message to send as the
 // disconnect screen.
@@ -19,7 +21,7 @@ func (*Disconnect) ID() uint32 {
 }
 
 // Marshal ...
-func (pk *Disconnect) Marshal(w *Writer) {
+func (pk *Disconnect) Marshal(w *protocol.Writer) {
 	w.Bool(pk.HideDisconnectionScreen)
 	if !pk.HideDisconnectionScreen {
 		w.String(pk.Message)
@@ -27,7 +29,10 @@ func (pk *Disconnect) Marshal(w *Writer) {
 }
 
 // Unmarshal ...
-func (pk *Disconnect) Unmarshal(buf *Reader) error {
-	log.Fatal("not implemented yet")
+func (pk *Disconnect) Unmarshal(r *protocol.Reader) error {
+	r.Bool(&pk.HideDisconnectionScreen)
+	if !pk.HideDisconnectionScreen {
+		r.String(&pk.Message)
+	}
 	return nil
 }

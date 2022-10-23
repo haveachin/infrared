@@ -1,6 +1,8 @@
-package protocol
+package packet
 
-import "log"
+import (
+	"github.com/haveachin/infrared/internal/pkg/bedrock/protocol"
+)
 
 // Login is sent when the client initially tries to join the server. It is the first packet sent and contains
 // information specific to the player.
@@ -15,10 +17,16 @@ type Login struct {
 }
 
 func (pk *Login) ID() uint32 {
-	return 0x01
+	return IDLogin
 }
 
-func (pk *Login) Unmarshal(r *Reader) error {
+// Marshal ...
+func (pk *Login) Marshal(w *protocol.Writer) {
+	w.BEInt32(&pk.ClientProtocol)
+	w.ByteSlice(&pk.ConnectionRequest)
+}
+
+func (pk *Login) Unmarshal(r *protocol.Reader) error {
 	if err := r.BEInt32(&pk.ClientProtocol); err != nil {
 		return err
 	}
@@ -26,9 +34,4 @@ func (pk *Login) Unmarshal(r *Reader) error {
 		return err
 	}
 	return nil
-}
-
-// Marshal ...
-func (pk *Login) Marshal(buf *Writer) {
-	log.Fatal("not implemented yet")
 }

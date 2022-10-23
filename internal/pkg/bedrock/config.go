@@ -1,12 +1,14 @@
 package bedrock
 
 import (
+	"fmt"
 	"net"
 	"time"
 
 	"github.com/imdario/mergo"
 
 	"github.com/haveachin/infrared/internal/app/infrared"
+	"github.com/haveachin/infrared/internal/pkg/bedrock/protocol/packet"
 	"github.com/haveachin/infrared/internal/pkg/config"
 	"github.com/sandertv/go-raknet"
 )
@@ -40,6 +42,7 @@ type ListenerConfig struct {
 }
 
 type GatewayConfig struct {
+	Compression           string                    `mapstructure:"compression"`
 	Listeners             map[string]ListenerConfig `mapstructure:"listeners"`
 	ServerNotFoundMessage string                    `mapstructure:"serverNotFoundMessage"`
 }
@@ -64,6 +67,7 @@ type ProxyConfig struct {
 
 type ProxyConfigDefaults struct {
 	Gateway struct {
+		Compression           string         `mapstructure:"compression"`
 		Listener              ListenerConfig `mapstructure:"listener"`
 		ServerNotFoundMessage string         `mapstructure:"serverNotFoundMessage"`
 	} `mapstructure:"gateway"`
@@ -96,6 +100,7 @@ func (cfg Config) LoadGateways() ([]infrared.Gateway, error) {
 	var gateways []infrared.Gateway
 	for id, gwCfg := range cfg.Bedrock.Gateways {
 		c := GatewayConfig{
+			Compression:           cfg.Defaults.Bedrock.Gateway.Compression,
 			ServerNotFoundMessage: cfg.Defaults.Bedrock.Gateway.ServerNotFoundMessage,
 		}
 
@@ -194,10 +199,16 @@ func newGateway(id string, cfg GatewayConfig) (infrared.Gateway, error) {
 		listeners = append(listeners, newListener(id, lCfg))
 	}
 
+	compression, ok := packet.CompressionByName(cfg.Compression)
+	if !ok {
+		return nil, fmt.Errorf("compression with name %q is not supported", cfg.Compression)
+	}
+
 	return &InfraredGateway{
 		gateway: Gateway{
-			ID:        id,
-			Listeners: listeners,
+			ID:          id,
+			Listeners:   listeners,
+			Compression: compression,
 		},
 	}, nil
 }
