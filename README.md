@@ -5,8 +5,7 @@
 [![Discord](https://img.shields.io/discord/800456341088370698?label=discord&logo=discord)](https://discord.gg/r98YPRsZAx)
 [![Docker Pulls](https://img.shields.io/docker/pulls/haveachin/infrared?logo=docker)](https://hub.docker.com/r/haveachin/infrared)
 
-![build](https://github.com/haveachin/infrared/actions/workflows/test-build-release.yml/badge.svg)
-[![GitHub](https://img.shields.io/github/license/haveachin/infrared)](https://raw.githubusercontent.com/haveachin/infrared/master/LICENSE)
+![Test, Build, Release](https://github.com/haveachin/infrared/actions/workflows/test-build-release.yml/badge.svg)
 
 # Infrared - a Minecraft Proxy
 
@@ -44,6 +43,13 @@ Infrared works as a reverse proxy using a sub-/domains to connect clients to a s
 - [Install](docs/INSTALL.md)
 - [Usage](docs/USAGE.md)
 - [Config](docs/CONFIG.md)
+
+## Contributing
+
+Feel free to add or modify the source code. On GitHub the best way of doing this is by forking this repository, then cloning your fork with Git to your local system. After adding or modifying the source code, push it back to your fork and open a pull request in this repository.
+
+If you can't contribute by adding or modifying the source code, then you might be able to reach out to someone who can.
+You can also contribute indirectly by donation.
 
 ## Coding Guidelines
 
