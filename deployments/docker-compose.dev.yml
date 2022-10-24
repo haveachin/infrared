@@ -12,10 +12,10 @@ services:
     networks:
       - infrared
     labels:
+      - infrared.java.servers.devserver.gateways=[default]
       - infrared.java.servers.devserver.domains=[localhost]
       - infrared.java.servers.devserver.address=:25566
       - infrared.java.servers.devserver.overrideStatus.motd=Docker Lables
-      - infrared.java.servers.devserver.gateways=[default]
 
   minecraft-bedrock-server:
     image: itzg/minecraft-bedrock-server:latest
@@ -27,6 +27,10 @@ services:
       EULA: "TRUE"
     networks:
       - infrared
+    labels:
+      - infrared.bedrock.servers.devserver.gateways=[default]
+      - infrared.bedrock.servers.devserver.domains=[192.168.1.69]
+      - infrared.bedrock.servers.devserver.address=:19133
 
 networks:
   infrared:

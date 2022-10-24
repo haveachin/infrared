@@ -44,13 +44,13 @@ type Listener struct {
 	ReceiveProxyProtocol  bool
 	PingStatus            PingStatus
 	ServerNotFoundMessage string
+	Compression           packet.Compression
 
 	net.Listener
 }
 
 type Gateway struct {
 	ID               string
-	Compression      packet.Compression
 	ListenersManager *infrared.ListenersManager
 	Listeners        []Listener
 	Logger           *zap.Logger
@@ -129,7 +129,7 @@ func (gw *InfraredGateway) WrapConn(c net.Conn, l net.Listener) net.Conn {
 		gatewayID:             gw.gateway.ID,
 		proxyProtocol:         listener.ReceiveProxyProtocol,
 		serverNotFoundMessage: listener.ServerNotFoundMessage,
-		compression:           gw.gateway.Compression,
+		compression:           listener.Compression,
 	}
 }
 

@@ -39,10 +39,10 @@ type ListenerConfig struct {
 	PingStatus            PingStatusConfig `mapstructure:"pingStatus"`
 	ReceiveProxyProtocol  bool             `mapstructure:"receiveProxyProtocol"`
 	ServerNotFoundMessage string           `mapstructure:"serverNotFoundMessage"`
+	Compression           string           `mapstructure:"compression"`
 }
 
 type GatewayConfig struct {
-	Compression           string                    `mapstructure:"compression"`
 	Listeners             map[string]ListenerConfig `mapstructure:"listeners"`
 	ServerNotFoundMessage string                    `mapstructure:"serverNotFoundMessage"`
 }
@@ -67,7 +67,6 @@ type ProxyConfig struct {
 
 type ProxyConfigDefaults struct {
 	Gateway struct {
-		Compression           string         `mapstructure:"compression"`
 		Listener              ListenerConfig `mapstructure:"listener"`
 		ServerNotFoundMessage string         `mapstructure:"serverNotFoundMessage"`
 	} `mapstructure:"gateway"`
@@ -100,7 +99,6 @@ func (cfg Config) LoadGateways() ([]infrared.Gateway, error) {
 	var gateways []infrared.Gateway
 	for id, gwCfg := range cfg.Bedrock.Gateways {
 		c := GatewayConfig{
-			Compression:           cfg.Defaults.Bedrock.Gateway.Compression,
 			ServerNotFoundMessage: cfg.Defaults.Bedrock.Gateway.ServerNotFoundMessage,
 		}
 
@@ -183,32 +181,37 @@ func newPingStatus(cfg PingStatusConfig) PingStatus {
 	}
 }
 
-func newListener(id string, cfg ListenerConfig) Listener {
+func newListener(id string, cfg ListenerConfig) (Listener, error) {
+	compression, ok := packet.CompressionByName(cfg.Compression)
+	if !ok {
+		return Listener{}, fmt.Errorf("compression with name %q is not supported", cfg.Compression)
+	}
+
 	return Listener{
 		ID:                    id,
 		Bind:                  cfg.Bind,
 		PingStatus:            newPingStatus(cfg.PingStatus),
 		ReceiveProxyProtocol:  cfg.ReceiveProxyProtocol,
 		ServerNotFoundMessage: cfg.ServerNotFoundMessage,
-	}
+		Compression:           compression,
+	}, nil
 }
 
 func newGateway(id string, cfg GatewayConfig) (infrared.Gateway, error) {
 	var listeners []Listener
 	for _, lCfg := range cfg.Listeners {
-		listeners = append(listeners, newListener(id, lCfg))
-	}
+		l, err := newListener(id, lCfg)
+		if err != nil {
+			return nil, err
+		}
 
-	compression, ok := packet.CompressionByName(cfg.Compression)
-	if !ok {
-		return nil, fmt.Errorf("compression with name %q is not supported", cfg.Compression)
+		listeners = append(listeners, l)
 	}
 
 	return &InfraredGateway{
 		gateway: Gateway{
-			ID:          id,
-			Listeners:   listeners,
-			Compression: compression,
+			ID:        id,
+			Listeners: listeners,
 		},
 	}, nil
 }
