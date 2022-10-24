@@ -10,7 +10,7 @@ type Event struct {
 	ID         uuid.UUID
 	OccurredAt time.Time
 	Topics     []string
-	Data       interface{}
+	Data       any
 }
 
 func (e Event) hasTopic(topic string) bool {
@@ -26,7 +26,7 @@ type Handler func(Event)
 
 type Channel chan Event
 
-func New(data interface{}, topic ...string) Event {
+func New(data any, topic ...string) Event {
 	return Event{
 		ID:         uuid.Must(uuid.NewV4()),
 		OccurredAt: time.Now(),

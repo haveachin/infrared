@@ -111,13 +111,13 @@ func (p file) Close() error {
 }
 
 func (p file) readConfigData() (Data, error) {
-	cfg := map[string]interface{}{}
+	cfg := map[string]any{}
 	readConfig := func(path string, info fs.FileInfo, err error) error {
 		if info.IsDir() {
 			return nil
 		}
 
-		cfgData := map[string]interface{}{}
+		cfgData := map[string]any{}
 		if err := ReadConfigFile(path, &cfgData); err != nil {
 			p.logger.Error("Failed to read config",
 				zap.Error(err),

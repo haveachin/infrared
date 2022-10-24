@@ -23,7 +23,7 @@ func (t Type) String() string {
 
 type Data struct {
 	Type   Type
-	Config map[string]interface{}
+	Config map[string]any
 }
 
 func (d Data) IsNil() bool {

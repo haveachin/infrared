@@ -17,9 +17,9 @@ type HTTPClient interface {
 
 // EventLog is the struct that will be send to the Webhook.URL
 type EventLog struct {
-	Topics     []string    `json:"topics"`
-	OccurredAt time.Time   `json:"occurredAt"`
-	Data       interface{} `json:"data"`
+	Topics     []string  `json:"topics"`
+	OccurredAt time.Time `json:"occurredAt"`
+	Data       any       `json:"data"`
 }
 
 // Webhook can send a Event via POST Request to a specified URL.

@@ -25,17 +25,17 @@ type config struct {
 	onChange OnChange
 
 	mu           sync.RWMutex
-	providerData map[provider.Type]map[string]interface{}
+	providerData map[provider.Type]map[string]any
 }
 
-type OnChange func(newConfig map[string]interface{})
+type OnChange func(newConfig map[string]any)
 
 type Config interface {
-	Read() (map[string]interface{}, error)
+	Read() (map[string]any, error)
 }
 
 func New(path string, onChange OnChange, logger *zap.Logger) (Config, error) {
-	var configMap map[string]interface{}
+	var configMap map[string]any
 	if err := provider.ReadConfigFile(path, &configMap); err != nil {
 		return nil, err
 	}
@@ -46,7 +46,7 @@ func New(path string, onChange OnChange, logger *zap.Logger) (Config, error) {
 	}
 
 	if onChange == nil {
-		onChange = func(map[string]interface{}) {}
+		onChange = func(map[string]any) {}
 	}
 
 	cfg := config{
@@ -54,7 +54,7 @@ func New(path string, onChange OnChange, logger *zap.Logger) (Config, error) {
 		logger:     logger,
 		dataChan:   make(chan provider.Data),
 		onChange:   onChange,
-		providerData: map[provider.Type]map[string]interface{}{
+		providerData: map[provider.Type]map[string]any{
 			provider.ConfigType: configMap,
 		},
 	}
@@ -104,11 +104,11 @@ func (c *config) listenToProviders() {
 	}
 }
 
-func (c *config) Read() (map[string]interface{}, error) {
+func (c *config) Read() (map[string]any, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
-	cfgData := map[string]interface{}{}
+	cfgData := map[string]any{}
 	for _, provData := range c.providerData {
 		if err := mergo.Merge(&cfgData, provData, mergo.WithOverride); err != nil {
 			return nil, err
@@ -117,7 +117,7 @@ func (c *config) Read() (map[string]interface{}, error) {
 	return cfgData, nil
 }
 
-func Unmarshal(cfg interface{}, v any) error {
+func Unmarshal(cfg any, v any) error {
 	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		Result:     v,
 		DecodeHook: mapstructure.StringToTimeDurationHookFunc(),

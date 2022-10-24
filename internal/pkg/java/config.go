@@ -101,7 +101,7 @@ type Config struct {
 	} `mapstructure:"defaults,omitempty" json:"defaults,omitempty"`
 }
 
-func NewProxyConfigFromMap(cfg map[string]interface{}) (infrared.ProxyConfig, error) {
+func NewProxyConfigFromMap(cfg map[string]any) (infrared.ProxyConfig, error) {
 	var javaCfg Config
 	if err := config.Unmarshal(cfg, &javaCfg); err != nil {
 		return nil, err

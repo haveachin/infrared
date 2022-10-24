@@ -3,7 +3,6 @@ package provider
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -81,14 +80,14 @@ func (p docker) readConfigData() (Data, error) {
 		return Data{}, err
 	}
 
-	var data map[string]interface{}
+	data := map[string]any{}
 	for _, container := range containers {
 		for key, value := range container.Labels {
 			if !strings.HasPrefix(key, p.LabelPrefix) {
 				continue
 			}
 
-			key = strings.TrimPrefix(key, fmt.Sprintf("%s.", p.LabelPrefix))
+			key = strings.TrimPrefix(key, p.LabelPrefix)
 
 			if strings.HasPrefix(value, "[") {
 				value = strings.Trim(value, "[]")
@@ -100,22 +99,22 @@ func (p docker) readConfigData() (Data, error) {
 	}
 
 	return Data{
-		Type:   FileType,
+		Type:   DockerType,
 		Config: data,
 	}, nil
 }
 
-func setNestedValue(m map[string]interface{}, nestedKey string, value interface{}) {
-	nestedMap := map[string]interface{}{}
+func setNestedValue(m map[string]any, nestedKey string, value any) {
 	keys := strings.Split(nestedKey, ".")
-	for _, key := range keys[:len(keys)-2] {
-		_, ok := nestedMap[key].(map[string]interface{})
+	keyPath := keys[:len(keys)-1]
+	for _, key := range keyPath {
+		_, ok := m[key].(map[string]any)
 		if !ok {
-			nestedMap[key] = map[string]interface{}{}
+			m[key] = map[string]any{}
 		}
-		nestedMap = nestedMap[key].(map[string]interface{})
+		m = m[key].(map[string]any)
 	}
-	nestedMap[keys[len(keys)-1]] = value
+	m[keys[len(keys)-1]] = value
 }
 
 func (p docker) watch(dataCh chan<- Data) error {

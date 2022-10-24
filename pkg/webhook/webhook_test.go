@@ -57,7 +57,7 @@ func TestWebhook_DispatchEvent(t *testing.T) {
 			event: webhook.EventLog{
 				Topics:     []string{"Error"},
 				OccurredAt: time.Now(),
-				Data: map[string]interface{}{
+				Data: map[string]any{
 					"message": "Oops!",
 				},
 			},
@@ -73,7 +73,7 @@ func TestWebhook_DispatchEvent(t *testing.T) {
 			event: webhook.EventLog{
 				Topics:     []string{"PlayerJoin"},
 				OccurredAt: time.Now(),
-				Data: map[string]interface{}{
+				Data: map[string]any{
 					"username": "notch",
 				},
 			},
@@ -89,7 +89,7 @@ func TestWebhook_DispatchEvent(t *testing.T) {
 			event: webhook.EventLog{
 				Topics:     []string{"PlayerJoin"},
 				OccurredAt: time.Now(),
-				Data: map[string]interface{}{
+				Data: map[string]any{
 					"username": "notch",
 				},
 			},
@@ -105,7 +105,7 @@ func TestWebhook_DispatchEvent(t *testing.T) {
 			event: webhook.EventLog{
 				Topics:     []string{"Error"},
 				OccurredAt: time.Now(),
-				Data: map[string]interface{}{
+				Data: map[string]any{
 					"message": "Oops!",
 				},
 			},

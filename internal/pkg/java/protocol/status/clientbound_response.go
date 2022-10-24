@@ -34,7 +34,7 @@ func UnmarshalClientBoundResponse(packet protocol.Packet) (ClientBoundResponse, 
 type ResponseJSON struct {
 	Version     VersionJSON `json:"version"`
 	Players     PlayersJSON `json:"players"`
-	Description interface{} `json:"description"`
+	Description any         `json:"description"`
 	Favicon     string      `json:"favicon,omitempty"`
 }
 

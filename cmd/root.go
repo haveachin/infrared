@@ -159,7 +159,7 @@ func safeWriteFromEmbeddedFS(embedPath, sysPath string) error {
 		}
 
 		if e.IsDir() {
-			if err := os.MkdirAll(sPath, 0755); err != nil {
+			if err := os.Mkdir(sPath, 0755); err != nil {
 				return err
 			}
 
@@ -180,7 +180,7 @@ func safeWriteFromEmbeddedFS(embedPath, sysPath string) error {
 	return nil
 }
 
-func onConfigChange(cfg map[string]interface{}) {
+func onConfigChange(cfg map[string]any) {
 	mu.Lock()
 	defer mu.Unlock()
 

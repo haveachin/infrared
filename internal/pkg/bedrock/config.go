@@ -81,7 +81,7 @@ type Config struct {
 	} `mapstructure:"defaults"`
 }
 
-func NewProxyConfigFromMap(cfg map[string]interface{}) (infrared.ProxyConfig, error) {
+func NewProxyConfigFromMap(cfg map[string]any) (infrared.ProxyConfig, error) {
 	var bedrockCfg Config
 	if err := config.Unmarshal(cfg, &bedrockCfg); err != nil {
 		return nil, err

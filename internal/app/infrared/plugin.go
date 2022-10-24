@@ -32,8 +32,8 @@ type PluginAPI interface {
 type Plugin interface {
 	Name() string
 	Version() string
-	Load(cfg map[string]interface{}) error
-	Reload(cfg map[string]interface{}) error
+	Load(cfg map[string]any) error
+	Reload(cfg map[string]any) error
 	Enable(api PluginAPI) error
 	Disable() error
 }
@@ -93,7 +93,7 @@ type PluginManager struct {
 	EventBus event.Bus
 }
 
-func (pm PluginManager) LoadPlugins(cfg map[string]interface{}) {
+func (pm PluginManager) LoadPlugins(cfg map[string]any) {
 	for _, p := range pm.Plugins {
 		if err := p.Load(cfg); err != nil {
 			pm.Logger.Error("failed to load plugin",
@@ -105,7 +105,7 @@ func (pm PluginManager) LoadPlugins(cfg map[string]interface{}) {
 	}
 }
 
-func (pm PluginManager) ReloadPlugins(cfg map[string]interface{}) {
+func (pm PluginManager) ReloadPlugins(cfg map[string]any) {
 	for _, p := range pm.Plugins {
 		if err := p.Reload(cfg); err != nil {
 			pm.Logger.Error("failed to reload plugin",

@@ -17,8 +17,8 @@ var ErrRecipientNotFound = errors.New("target recipient not found")
 // Recipients can be attached via a event.Handler func or an event.Channel.
 type Bus interface {
 	// Push pushes an event with arbitrary data to the event bus.
-	Push(data interface{}, topic ...string)
-	PushTo(receiverId uuid.UUID, data interface{}, topic ...string) error
+	Push(data any, topic ...string)
+	PushTo(receiverId uuid.UUID, data any, topic ...string) error
 	AttachHandler(id uuid.UUID, fn Handler, topics ...string) (handlerID uuid.UUID, replaced bool)
 	AttachChannel(id uuid.UUID, ch Channel, topics ...string) (channelID uuid.UUID, replaced bool)
 	DetachRecipient(id uuid.UUID) (success bool)
@@ -36,19 +36,19 @@ func NewInternalBus() Bus {
 	}
 }
 
-func (b *internalBus) Push(data interface{}, topics ...string) {
+func (b *internalBus) Push(data any, topics ...string) {
 	b.sendEvent(New(data, topics...))
 }
 
-func Push(data interface{}, topics ...string) {
+func Push(data any, topics ...string) {
 	DefaultBus.Push(data, topics...)
 }
 
-func (b *internalBus) PushTo(to uuid.UUID, data interface{}, topics ...string) error {
+func (b *internalBus) PushTo(to uuid.UUID, data any, topics ...string) error {
 	return b.sendEventTo(to, New(data, topics...))
 }
 
-func PushTo(to uuid.UUID, data interface{}, topics ...string) error {
+func PushTo(to uuid.UUID, data any, topics ...string) error {
 	return DefaultBus.PushTo(to, data, topics...)
 }
 
