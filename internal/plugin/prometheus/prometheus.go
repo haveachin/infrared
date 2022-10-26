@@ -93,6 +93,8 @@ func (p *Plugin) Enable(api infrared.PluginAPI) error {
 	p.eventBus = api.EventBus()
 	p.quit = make(chan bool)
 
+	p.registerEventHandler()
+
 	go p.startMetricsServer()
 	return nil
 }
