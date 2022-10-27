@@ -1,6 +1,6 @@
 module github.com/haveachin/infrared
 
-go 1.18
+go 1.19
 
 require (
 	github.com/df-mc/atomic v1.10.0

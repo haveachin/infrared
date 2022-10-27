@@ -9,9 +9,10 @@ import (
 
 //go:embed configs LICENSE LICENSE_NOTICES
 var files embed.FS
+var version string
 
 func main() {
-	if err := cmd.Execute(files); err != nil {
+	if err := cmd.Execute(files, version); err != nil {
 		os.Exit(1)
 	}
 }

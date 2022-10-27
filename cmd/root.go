@@ -22,7 +22,8 @@ import (
 )
 
 var (
-	files embed.FS
+	files   embed.FS
+	version string
 
 	configPath  string
 	workingDir  string
@@ -121,6 +122,7 @@ func init() {
 	rootCmd.Flags().StringVarP(&configPath, "config", "c", "config.yml", "path of the config file")
 
 	rootCmd.AddCommand(licenseCmd)
+	rootCmd.AddCommand(versionCmd)
 	// Migration is not implemented yet
 	// rootCmd.AddCommand(migrateCmd)
 }
@@ -139,8 +141,9 @@ func initLogger() error {
 }
 
 // Execute executes the root command.
-func Execute(fs embed.FS) error {
+func Execute(fs embed.FS, v string) error {
 	files = fs
+	version = v
 	return rootCmd.Execute()
 }
 

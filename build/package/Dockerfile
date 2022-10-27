@@ -1,9 +1,10 @@
-FROM golang:1.18 AS builder
+FROM golang:1.19 AS builder
 LABEL stage=intermediate
-COPY . /infrared
-WORKDIR /infrared
+ARG VERSION
+COPY . /test
+WORKDIR /test
 ENV GO111MODULE=on
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /main .
+RUN CGO_ENABLED=0 go build -ldflags "-X main.version=$VERSION" -o /main .
 
 FROM alpine:latest
 LABEL maintainer="Hendrik Jonas Schlehlein <hendrik.schlehlein@gmail.com>"
