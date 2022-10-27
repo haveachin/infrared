@@ -206,7 +206,7 @@ func onConfigChange(cfg map[string]any) {
 		infrared.BedrockEdition: bedrockPrxCfg,
 	}
 
-	logger.Info("Reloading proxies")
+	logger.Debug("Reloading proxies")
 	for n, p := range proxies {
 		if err := p.Reload(prxCfgs[n]); err != nil {
 			logger.Error("failed to reload proxy",
@@ -215,6 +215,6 @@ func onConfigChange(cfg map[string]any) {
 		}
 	}
 
-	logger.Info("Reloading plugins")
+	logger.Debug("Reloading plugins")
 	pluginManager.ReloadPlugins(cfg)
 }

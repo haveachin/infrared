@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"errors"
+	"io"
 	"strings"
 	"time"
 
@@ -118,7 +119,36 @@ func setNestedValue(m map[string]any, nestedKey string, value any) {
 }
 
 func (p docker) watch(dataCh chan<- Data) error {
-	return nil
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	events, errs := p.client.Events(ctx, types.EventsOptions{
+		Filters: filters.NewArgs(filters.KeyValuePair{
+			Key:   "type",
+			Value: "container",
+		}),
+	})
+
+	for {
+		select {
+		case e := <-events:
+			data, err := p.readConfigData()
+			if err != nil {
+				p.logger.Info("failed to read data", zap.Error(err))
+				continue
+			}
+
+			if e.Action == "start" ||
+				e.Action == "die" ||
+				strings.HasPrefix(e.Action, "health_status") {
+				dataCh <- data
+			}
+		case err := <-errs:
+			if errors.Is(err, io.EOF) {
+				p.logger.Debug("docker event stream closed", zap.Error(err))
+			}
+			return err
+		}
+	}
 }
 
 func (p docker) Close() error {
