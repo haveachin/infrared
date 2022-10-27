@@ -1,6 +1,6 @@
 <p align="center">
-   <img width="300" height="auto" src="https://i.imgur.com/sD8cjJc.png">
- </p>
+  <img width="300" height="auto" src="https://i.imgur.com/sD8cjJc.png">
+</p>
 
 [![Discord](https://img.shields.io/discord/800456341088370698?label=discord&logo=discord)](https://discord.gg/r98YPRsZAx)
 [![Docker Pulls](https://img.shields.io/docker/pulls/haveachin/infrared?logo=docker)](https://hub.docker.com/r/haveachin/infrared)
