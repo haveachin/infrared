@@ -70,6 +70,7 @@ func New(path string, onChange OnChange, logger *zap.Logger) (Config, error) {
 			logger.Warn("failed to provide config data",
 				zap.Error(err),
 			)
+			continue
 		}
 
 		if data.IsNil() {
