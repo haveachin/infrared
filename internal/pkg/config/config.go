@@ -99,8 +99,8 @@ func (c *config) listenToProviders() {
 			c.logger.Error("failed to read config",
 				zap.Error(err),
 			)
+			continue
 		}
-
 		c.onChange(cfg)
 	}
 }

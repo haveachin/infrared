@@ -2,13 +2,16 @@ version: "3"
 
 services:
   minecraft-java-server:
-    image: itzg/minecraft-server:java17
+    image: itzg/minecraft-server:java8
     container_name: minecraft-java-server
     restart: "no"
+    volumes:
+      - ../dev/minecraft-java:/data
     ports:
       - 25566:25565/tcp
     environment:
       EULA: "TRUE"
+      VERSION: "1.12.2"
     networks:
       - infrared
     labels:
@@ -21,6 +24,8 @@ services:
     image: itzg/minecraft-bedrock-server:latest
     container_name: minecraft-bedrock-server
     restart: "no"
+    volumes:
+      - ../dev/minecraft-bedrock:/data
     ports:
       - 19133:19132/udp
     environment:

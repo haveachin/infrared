@@ -74,6 +74,10 @@ func (p *file) watch(dataCh chan<- Data) error {
 		select {
 		case e, ok := <-w.Events:
 			if !ok {
+				p.logger.Debug("Closing file watcher",
+					zap.String("cause", "watcher event channel closed"),
+					zap.String("dir", p.Directory),
+				)
 				return nil
 			}
 
@@ -90,6 +94,10 @@ func (p *file) watch(dataCh chan<- Data) error {
 			}
 		case err, ok := <-w.Errors:
 			if !ok {
+				p.logger.Debug("Closing file watcher",
+					zap.String("cause", "watcher error channel closed"),
+					zap.String("dir", p.Directory),
+				)
 				return nil
 			}
 
@@ -158,6 +166,5 @@ func ReadConfigFile(filename string, v any) error {
 	default:
 		return errors.New("unsupported file type")
 	}
-
 	return nil
 }
