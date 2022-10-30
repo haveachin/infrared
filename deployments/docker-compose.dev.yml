@@ -14,11 +14,11 @@ services:
       VERSION: "1.12.2"
     networks:
       - infrared
-    labels:
-      - infrared.java.servers.devserver.gateways=[default]
-      - infrared.java.servers.devserver.domains=[localhost]
-      - infrared.java.servers.devserver.address=:25566
-      - infrared.java.servers.devserver.overrideStatus.motd=Docker Lables
+    #labels:
+      #- infrared.java.servers.devserver.gateways=[default]
+      #- infrared.java.servers.devserver.domains=[localhost]
+      #- infrared.java.servers.devserver.address=:25566
+      #- infrared.java.servers.devserver.overrideStatus.motd=Docker Lables
 
   minecraft-bedrock-server:
     image: itzg/minecraft-bedrock-server:latest

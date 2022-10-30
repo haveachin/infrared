@@ -4,7 +4,6 @@ import (
 	"sync"
 
 	"github.com/haveachin/infrared/internal/pkg/config/provider"
-	"github.com/imdario/mergo"
 	"github.com/mitchellh/mapstructure"
 	"go.uber.org/zap"
 )
@@ -111,7 +110,9 @@ func (c *config) Read() (map[string]any, error) {
 
 	cfgData := map[string]any{}
 	for _, provData := range c.providerData {
-		if err := mergo.Merge(&cfgData, provData, mergo.WithOverride); err != nil {
+		var err error
+		cfgData, err = MergeConfigsMaps(cfgData, provData)
+		if err != nil {
 			return nil, err
 		}
 	}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 )
 
+// mergeSlices only merges slices of primitives.
 func mergeSlices(base, other []any) []any {
 	lookup := map[any]bool{}
 
@@ -22,7 +23,7 @@ func mergeSlices(base, other []any) []any {
 	return base
 }
 
-func MergeConfigs(base, other map[string]any) (map[string]any, error) {
+func MergeConfigsMaps(base, other map[string]any) (map[string]any, error) {
 	merged := map[string]any{}
 
 	for k, v := range base {
@@ -35,7 +36,7 @@ func MergeConfigs(base, other map[string]any) (map[string]any, error) {
 		// collision
 		switch casted := v.(type) {
 		case map[string]any:
-			m, err := MergeConfigs(casted, other[k].(map[string]any))
+			m, err := MergeConfigsMaps(casted, other[k].(map[string]any))
 			if err != nil {
 				return merged, err
 			}
