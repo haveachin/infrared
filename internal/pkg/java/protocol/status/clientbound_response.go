@@ -32,10 +32,20 @@ func UnmarshalClientBoundResponse(packet protocol.Packet) (ClientBoundResponse, 
 }
 
 type ResponseJSON struct {
-	Version     VersionJSON `json:"version"`
-	Players     PlayersJSON `json:"players"`
-	Description any         `json:"description"`
-	Favicon     string      `json:"favicon,omitempty"`
+	Version            VersionJSON `json:"version"`
+	Players            PlayersJSON `json:"players"`
+	Description        any         `json:"description"`
+	Favicon            string      `json:"favicon,omitempty"`
+	PreviewsChat       bool        `json:"previewsChat"`
+	EnforcesSecureChat bool        `json:"enforcesSecureChat"`
+	// FMLModInfo should be set if the client is expecting a FML server
+	// to response. This is necessary for the client to recognise the
+	// server as a valid Forge server.
+	FMLModInfo *FMLModInfoJSON `json:"modinfo,omitempty"`
+	// FMLModInfo should be set if the client is expecting a FML2 server
+	// to response. This is necessary for the client to recognise the
+	// server as a valid Forge server.
+	FML2ForgeData *FML2ForgeDataJSON `json:"forgeData,omitempty"`
 }
 
 type VersionJSON struct {
@@ -56,4 +66,34 @@ type PlayerSampleJSON struct {
 
 type DescriptionJSON struct {
 	Text string `json:"text"`
+}
+
+// FMLModInfoJSON is a part of the FML Server List Ping
+type FMLModInfoJSON struct {
+	LoaderType string       `json:"type"`
+	ModList    []FMLModJSON `json:"modList"`
+}
+
+type FMLModJSON struct {
+	ID      string `json:"modid"`
+	Version string `json:"version"`
+}
+
+// FML2ForgeDataJSON is a part of the FML2 Server List Ping
+type FML2ForgeDataJSON struct {
+	Channels          []FML2ChannelsJSON `json:"channels"`
+	Mods              []FML2ModJSON      `json:"mods"`
+	FMLNetworkVersion int                `json:"fmlNetworkVersion"`
+	D                 string             `json:"d"`
+}
+
+type FML2ChannelsJSON struct {
+	Res      string `json:"res"`
+	Version  string `json:"version"`
+	Required bool   `json:"required"`
+}
+
+type FML2ModJSON struct {
+	ID     string `json:"modId"`
+	Marker string `json:"modmarker"`
 }

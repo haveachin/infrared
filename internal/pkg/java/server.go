@@ -91,7 +91,7 @@ func (s InfraredServer) HandleConn(c net.Conn) (infrared.Conn, error) {
 	}
 
 	if s.Server.OverrideAddress {
-		pc.handshake.ServerAddress = protocol.String(s.Server.Host)
+		pc.handshake.SetServerAddress(s.Server.Host)
 		pc.handshake.ServerPort = protocol.UnsignedShort(s.Server.Port)
 		pc.readPks[0] = pc.handshake.Marshal()
 	}
@@ -184,6 +184,7 @@ func (s InfraredServer) overrideStatusResponse(pc *ProcessedConn, rc *Conn) erro
 	if err != nil {
 		return err
 	}
+	fmt.Println(string(bb))
 
 	respPk.JSONResponse = protocol.String(bb)
 	return pc.WritePacket(respPk.Marshal())

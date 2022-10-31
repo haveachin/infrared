@@ -57,6 +57,12 @@ func UnmarshalServerBoundHandshake(packet protocol.Packet) (ServerBoundHandshake
 	return pk, nil
 }
 
+func (pk *ServerBoundHandshake) SetServerAddress(addr string) {
+	oldAddr := pk.ParseServerAddress()
+	newAddr := strings.Replace(string(pk.ServerAddress), oldAddr, addr, 1)
+	pk.ServerAddress = protocol.String(newAddr)
+}
+
 func (pk ServerBoundHandshake) IsStatusRequest() bool {
 	return pk.NextState == ServerBoundHandshakeStatusState
 }
