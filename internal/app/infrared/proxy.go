@@ -1,6 +1,8 @@
 package infrared
 
 import (
+	"time"
+
 	"github.com/haveachin/infrared/pkg/event"
 	"go.uber.org/zap"
 )
@@ -11,6 +13,7 @@ type ProxyConfig interface {
 	LoadServers() ([]Server, error)
 	LoadConnProcessor() (ConnProcessor, error)
 	LoadProxySettings() (ProxySettings, error)
+	LoadMiddlewareSettings() (MiddlewareSettings, error)
 }
 
 type ProxyChannelCaps struct {
@@ -22,6 +25,15 @@ type ProxyChannelCaps struct {
 type ProxySettings struct {
 	ChannelCaps ProxyChannelCaps
 	CPNCount    int
+}
+
+type MiddlewareSettings struct {
+	RateLimiter *RateLimiterSettings
+}
+
+type RateLimiterSettings struct {
+	RequestLimit int
+	WindowLength time.Duration
 }
 
 type Proxy struct {
@@ -58,11 +70,21 @@ func NewProxy(cfg ProxyConfig) (*Proxy, error) {
 		return nil, err
 	}
 
+	mwStg, err := cfg.LoadMiddlewareSettings()
+	if err != nil {
+		return nil, err
+	}
+
+	mws := []func(Handler) Handler{}
+	if mwStg.RateLimiter != nil {
+		stg := mwStg.RateLimiter
+		mws = append(mws, RateLimit(stg.RequestLimit, stg.WindowLength, WithKeyByIP()))
+	}
+
 	chCaps := stg.ChannelCaps
 	cpnCh := make(chan Conn, chCaps.ConnProcessor)
 	srvCh := make(chan ProcessedConn, chCaps.Server)
 	poolCh := make(chan ConnTunnel, chCaps.ConnPool)
-
 	return &Proxy{
 		listenersManager: ListenersManager{
 			New:       cfg.ListenerBuilder(),
@@ -75,6 +97,7 @@ func NewProxy(cfg ProxyConfig) (*Proxy, error) {
 				ConnProcessor: cp,
 				In:            cpnCh,
 				Out:           srvCh,
+				Middlewares:   mws,
 			},
 		},
 		serverGateway: ServerGateway{
@@ -192,9 +215,9 @@ func (p *Proxy) Players() []Player {
 	p.connPool.mu.Lock()
 	defer p.connPool.mu.Unlock()
 
-	pp := make([]Player, len(p.connPool.pool))
-	for i, ct := range p.connPool.pool {
-		pp[i] = ct.Conn
+	pp := make([]Player, 0, len(p.connPool.pool))
+	for _, ct := range p.connPool.pool {
+		pp = append(pp, ct.Conn)
 	}
 	return pp
 }

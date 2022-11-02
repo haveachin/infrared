@@ -23,7 +23,7 @@ func TestServerBoundRequest_Marshal(t *testing.T) {
 	for _, tc := range tt {
 		pk := tc.packet.Marshal()
 
-		if pk.ID != ServerBoundRequestPacketID {
+		if pk.ID != IDServerBoundRequest {
 			t.Error("invalid packet id")
 		}
 	}

@@ -2,7 +2,7 @@ version: "3"
 
 services:
   minecraft-java-server:
-    image: itzg/minecraft-server:java8
+    image: itzg/minecraft-server:java17
     container_name: minecraft-java-server
     restart: "no"
     volumes:
@@ -11,7 +11,9 @@ services:
       - 25566:25565/tcp
     environment:
       EULA: "TRUE"
-      VERSION: "1.12.2"
+      VERSION: "1.19.2"
+      #TYPE: "FORGE"
+      #FORGE_VERSION: "43.1.1"
     networks:
       - infrared
     #labels:

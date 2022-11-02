@@ -4,6 +4,7 @@ import (
 	"log"
 	"net"
 
+	"github.com/haveachin/infrared/internal/pkg/java/protocol"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol/handshaking"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol/login"
 )
@@ -26,10 +27,11 @@ func init() {
 	handshakePayload = bb
 
 	loginStart := login.ServerLoginStart{
-		Name:         "Test",
-		HasPublicKey: false,
+		Name:          "Test",
+		HasPublicKey:  false,
+		HasPlayerUUID: false,
 	}
-	pk = loginStart.Marshal()
+	pk = loginStart.Marshal(protocol.Version_1_19)
 	bb, err = pk.Marshal()
 	if err != nil {
 		log.Fatal(err)
@@ -38,7 +40,11 @@ func init() {
 }
 
 func main() {
-	for i := 0; i < 10000000; i++ {
+	for i := 0; ; i++ {
+		if i > 0 && i%1000 == 0 {
+			log.Printf("%d requests sent\n", i)
+		}
+
 		c, err := net.Dial("tcp", "localhost:25565")
 		if err != nil {
 			log.Fatal(err)

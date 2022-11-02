@@ -11,6 +11,30 @@ import (
 	"go.uber.org/zap"
 )
 
+type Handler interface {
+	ProcessConn(c Conn)
+}
+
+type HandlerFunc func(c Conn)
+
+func (f HandlerFunc) ProcessConn(c Conn) {
+	f(c)
+}
+
+func chain(middlewares []func(Handler) Handler, endpoint Handler) Handler {
+	if len(middlewares) == 0 {
+		return endpoint
+	}
+
+	// Wrap the end handler with the middleware chain
+	h := middlewares[len(middlewares)-1](endpoint)
+	for i := len(middlewares) - 2; i >= 0; i-- {
+		h = middlewares[i](h)
+	}
+
+	return h
+}
+
 // ConnProcessor represents a
 type ConnProcessor interface {
 	ProcessConn(c net.Conn) (net.Conn, error)
@@ -20,10 +44,11 @@ type ConnProcessor interface {
 // CPN is a connection processing node
 type CPN struct {
 	ConnProcessor
-	In       <-chan Conn
-	Out      chan<- ProcessedConn
-	Logger   *zap.Logger
-	EventBus event.Bus
+	In          <-chan Conn
+	Out         chan<- ProcessedConn
+	Logger      *zap.Logger
+	EventBus    event.Bus
+	Middlewares []func(Handler) Handler
 }
 
 func (cpn CPN) ListenAndServe(quit <-chan bool) {
@@ -40,26 +65,28 @@ func (cpn CPN) ListenAndServe(quit <-chan bool) {
 				Conn: c,
 			}, PreConnProcessingEventTopic)
 
-			//c.SetDeadline(time.Now().Add(cpn.ClientTimeout()))
-			pc, err := cpn.ConnProcessor.ProcessConn(c)
-			if err != nil {
-				if errors.Is(err, os.ErrDeadlineExceeded) {
-					connLogger.Info("disconnecting connection; exceeded processing deadline")
-				} else {
-					connLogger.Debug("disconnecting connection; processing failed", zap.Error(err))
+			c.SetDeadline(time.Now().Add(cpn.ClientTimeout()))
+			chain(cpn.Middlewares, HandlerFunc(func(c Conn) {
+				pc, err := cpn.ConnProcessor.ProcessConn(c)
+				if err != nil {
+					if errors.Is(err, os.ErrDeadlineExceeded) {
+						connLogger.Info("disconnecting connection; exceeded processing deadline")
+					} else {
+						connLogger.Debug("disconnecting connection; processing failed", zap.Error(err))
+					}
+					c.Close()
+					return
 				}
-				c.Close()
-				continue
-			}
-			c.SetDeadline(time.Time{})
-			procConn := pc.(ProcessedConn)
+				procConn := pc.(ProcessedConn)
+				c.SetDeadline(time.Time{})
 
-			connLogger.Debug("sending client to server gateway")
-			cpn.EventBus.Push(PostConnProcessingEvent{
-				ProcessedConn: procConn,
-			}, PostConnProcessingEventTopic)
+				connLogger.Debug("sending client to server gateway")
+				cpn.EventBus.Push(PostConnProcessingEvent{
+					ProcessedConn: procConn,
+				}, PostConnProcessingEventTopic)
 
-			cpn.Out <- procConn
+				cpn.Out <- procConn
+			})).ProcessConn(c)
 		case <-quit:
 			return
 		}

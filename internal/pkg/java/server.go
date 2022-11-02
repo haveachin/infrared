@@ -123,7 +123,7 @@ func (s InfraredServer) handleDialTimeoutStatusRequest(pc *ProcessedConn) error 
 		return err
 	}
 
-	ping, err := pc.ReadPacket()
+	ping, err := pc.ReadPacket(status.MaxSizeServerBoundPingRequest)
 	if err != nil {
 		return err
 	}
@@ -155,7 +155,7 @@ func (s InfraredServer) handleStatusPing(pc *ProcessedConn, rc *Conn) error {
 		return err
 	}
 
-	ping, err := pc.ReadPacket()
+	ping, err := pc.ReadPacket(status.MaxSizeServerBoundPingRequest)
 	if err != nil {
 		return err
 	}
@@ -164,7 +164,7 @@ func (s InfraredServer) handleStatusPing(pc *ProcessedConn, rc *Conn) error {
 }
 
 func (s InfraredServer) overrideStatusResponse(pc *ProcessedConn, rc *Conn) error {
-	pk, err := rc.ReadPacket()
+	pk, err := rc.ReadPacket(status.MaxSizeClientBoundResponse)
 	if err != nil {
 		return err
 	}
@@ -184,7 +184,6 @@ func (s InfraredServer) overrideStatusResponse(pc *ProcessedConn, rc *Conn) erro
 	if err != nil {
 		return err
 	}
-	fmt.Println(string(bb))
 
 	respPk.JSONResponse = protocol.String(bb)
 	return pc.WritePacket(respPk.Marshal())

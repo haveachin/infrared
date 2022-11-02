@@ -12,13 +12,15 @@ import (
 )
 
 const (
-	ServerBoundHandshakePacketID byte = 0x00
+	MaxSizeServerBoundHandshake = 1 + 2 + 255 + 2 + 1
 
-	ServerBoundHandshakeStatusState = protocol.Byte(1)
-	ServerBoundHandshakeLoginState  = protocol.Byte(2)
+	IDServerBoundHandshake byte = 0x00
 
-	ForgeSeparator  = "\x00"
-	RealIPSeparator = "///"
+	StateStatusServerBoundHandshake = protocol.Byte(1)
+	StateLoginServerBoundHandshake  = protocol.Byte(2)
+
+	SeparatorForge  = "\x00"
+	SeparatorRealIP = "///"
 )
 
 type ServerBoundHandshake struct {
@@ -30,7 +32,7 @@ type ServerBoundHandshake struct {
 
 func (pk ServerBoundHandshake) Marshal() protocol.Packet {
 	return protocol.MarshalPacket(
-		ServerBoundHandshakePacketID,
+		IDServerBoundHandshake,
 		pk.ProtocolVersion,
 		pk.ServerAddress,
 		pk.ServerPort,
@@ -41,7 +43,7 @@ func (pk ServerBoundHandshake) Marshal() protocol.Packet {
 func UnmarshalServerBoundHandshake(packet protocol.Packet) (ServerBoundHandshake, error) {
 	var pk ServerBoundHandshake
 
-	if packet.ID != ServerBoundHandshakePacketID {
+	if packet.ID != IDServerBoundHandshake {
 		return pk, protocol.ErrInvalidPacketID
 	}
 
@@ -64,27 +66,27 @@ func (pk *ServerBoundHandshake) SetServerAddress(addr string) {
 }
 
 func (pk ServerBoundHandshake) IsStatusRequest() bool {
-	return pk.NextState == ServerBoundHandshakeStatusState
+	return pk.NextState == StateStatusServerBoundHandshake
 }
 
 func (pk ServerBoundHandshake) IsLoginRequest() bool {
-	return pk.NextState == ServerBoundHandshakeLoginState
+	return pk.NextState == StateLoginServerBoundHandshake
 }
 
 func (pk ServerBoundHandshake) IsForgeAddress() bool {
 	addr := string(pk.ServerAddress)
-	return len(strings.Split(addr, ForgeSeparator)) > 1
+	return len(strings.Split(addr, SeparatorForge)) > 1
 }
 
 func (pk ServerBoundHandshake) IsRealIPAddress() bool {
 	addr := string(pk.ServerAddress)
-	return len(strings.Split(addr, RealIPSeparator)) > 1
+	return len(strings.Split(addr, SeparatorRealIP)) > 1
 }
 
 func (pk ServerBoundHandshake) ParseServerAddress() string {
 	addr := string(pk.ServerAddress)
-	addr = strings.Split(addr, ForgeSeparator)[0]
-	addr = strings.Split(addr, RealIPSeparator)[0]
+	addr = strings.Split(addr, SeparatorForge)[0]
+	addr = strings.Split(addr, SeparatorRealIP)[0]
 	// Resolves an issue with some proxies
 	addr = strings.Trim(addr, ".")
 	return addr
@@ -108,7 +110,7 @@ func parseTCPAddr(addr string) (net.Addr, error) {
 }
 
 func (pk ServerBoundHandshake) ParseRealIP() (net.Addr, time.Time, []byte, error) {
-	payload := strings.Split(string(pk.ServerAddress), RealIPSeparator)
+	payload := strings.Split(string(pk.ServerAddress), SeparatorRealIP)
 	if len(payload) < 4 {
 		return nil, time.Time{}, nil, errors.New("invalid payload")
 	}
@@ -132,7 +134,7 @@ func (pk *ServerBoundHandshake) UpgradeToRealIP(clientAddr net.Addr, timestamp t
 	}
 
 	addr := string(pk.ServerAddress)
-	addrWithForge := strings.SplitN(addr, ForgeSeparator, 3)
+	addrWithForge := strings.SplitN(addr, SeparatorForge, 3)
 
 	addr = fmt.Sprintf("%s///%s///%d", addrWithForge[0], clientAddr.String(), timestamp.Unix())
 

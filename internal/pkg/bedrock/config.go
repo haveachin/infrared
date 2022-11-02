@@ -58,11 +58,21 @@ type ChanCapsConfig struct {
 	ConnPool      int `mapstructure:"connPool"`
 }
 
+type MiddlewareSettings struct {
+	RateLimiter *RateLimiterSettings `mapstructure:"rateLimiter"`
+}
+
+type RateLimiterSettings struct {
+	RequestLimit int           `mapstructure:"requestLimit"`
+	WindowLength time.Duration `mapstructure:"windowLength"`
+}
+
 type ProxyConfig struct {
 	Gateways      map[string]GatewayConfig `mapstructure:"gateways"`
 	Servers       map[string]ServerConfig  `mapstructure:"servers"`
 	ChanCaps      ChanCapsConfig           `mapstructure:"chanCaps"`
 	ConnProcessor ConnProcessorConfig      `mapstructure:"processingNode"`
+	Middlewares   *MiddlewareSettings      `mapstructure:"middlewares"`
 }
 
 type ProxyConfigDefaults struct {
@@ -150,6 +160,21 @@ func (cfg Config) LoadConnProcessor() (infrared.ConnProcessor, error) {
 func (cfg Config) LoadProxySettings() (infrared.ProxySettings, error) {
 	cpnCount := cfg.Bedrock.ConnProcessor.Count
 	return newChanCaps(cfg.Bedrock.ChanCaps, cpnCount), nil
+}
+
+func (cfg Config) LoadMiddlewareSettings() (infrared.MiddlewareSettings, error) {
+	var stg infrared.MiddlewareSettings
+	if cfg.Bedrock.Middlewares == nil {
+		return stg, nil
+	}
+
+	if cfg.Bedrock.Middlewares.RateLimiter != nil {
+		stg.RateLimiter = &infrared.RateLimiterSettings{
+			RequestLimit: cfg.Bedrock.Middlewares.RateLimiter.RequestLimit,
+			WindowLength: cfg.Bedrock.Middlewares.RateLimiter.WindowLength,
+		}
+	}
+	return stg, nil
 }
 
 func (cfg Config) loadListeners(gatewayID string) (map[string]ListenerConfig, error) {

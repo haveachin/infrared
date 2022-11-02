@@ -51,14 +51,14 @@ func MarshalPacket(ID byte, fields ...FieldEncoder) Packet {
 }
 
 // ReadPacketBytes decodes a byte stream and cuts the first Packet as a byte array out
-func ReadPacketBytes(r DecodeReader) ([]byte, error) {
+func ReadPacketBytes(r DecodeReader, maxSize int32) ([]byte, error) {
 	var packetLength VarInt
 	if err := packetLength.Decode(r); err != nil {
 		return nil, err
 	}
 
-	if packetLength < 1 {
-		return nil, fmt.Errorf("packet length too short")
+	if packetLength < 1 || packetLength > VarInt(maxSize) {
+		return nil, fmt.Errorf("invalid packet length: %d", packetLength)
 	}
 
 	data := make([]byte, packetLength)
@@ -70,8 +70,8 @@ func ReadPacketBytes(r DecodeReader) ([]byte, error) {
 }
 
 // ReadPacket decodes and decompresses a byte stream and cuts the first Packet out
-func ReadPacket(r DecodeReader) (Packet, error) {
-	data, err := ReadPacketBytes(r)
+func ReadPacket(r DecodeReader, maxSize int32) (Packet, error) {
+	data, err := ReadPacketBytes(r, maxSize)
 	if err != nil {
 		return Packet{}, err
 	}
@@ -83,20 +83,16 @@ func ReadPacket(r DecodeReader) (Packet, error) {
 }
 
 // PeekPacket decodes and decompresses a byte stream and peeks the first Packet
-func PeekPackets(p PeekReader, n int) ([]Packet, error) {
-	pks := make([]Packet, n)
+func PeekPacket(p PeekReader, maxSize int32) (Packet, error) {
 	r := bytePeeker{
 		PeekReader: p,
 		cursor:     0,
 	}
 
-	for i := 0; i < n; i++ {
-		pk, err := ReadPacket(&r)
-		if err != nil {
-			return nil, err
-		}
-		pks[i] = pk
+	pk, err := ReadPacket(&r, maxSize)
+	if err != nil {
+		return Packet{}, err
 	}
 
-	return pks, nil
+	return pk, nil
 }

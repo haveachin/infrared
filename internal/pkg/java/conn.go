@@ -62,15 +62,19 @@ func (c *Conn) Write(b []byte) (int, error) {
 }
 
 // ReadPacket read a Packet from Conn.
-func (c *Conn) ReadPacket() (protocol.Packet, error) {
-	return protocol.ReadPacket(c.r)
+func (c *Conn) ReadPacket(maxSize int32) (protocol.Packet, error) {
+	return protocol.ReadPacket(c.r, maxSize)
 }
 
 // ReadPacket read a Packet from Conn.
-func (c *Conn) ReadPackets(n int) ([]protocol.Packet, error) {
+func (c *Conn) ReadPackets(n int, maxSizes ...int32) ([]protocol.Packet, error) {
+	if n != len(maxSizes) {
+		return nil, fmt.Errorf("invalid number of max packet sizes: got %d; want %d", len(maxSizes), n)
+	}
+
 	pks := make([]protocol.Packet, n)
 	for i := 0; i < n; i++ {
-		pk, err := c.ReadPacket()
+		pk, err := c.ReadPacket(maxSizes[i])
 		if err != nil {
 			return nil, err
 		}
@@ -80,21 +84,33 @@ func (c *Conn) ReadPackets(n int) ([]protocol.Packet, error) {
 }
 
 // PeekPacket peek a Packet from Conn.
-func (c *Conn) PeekPacket() (protocol.Packet, error) {
-	pks, err := c.PeekPackets(1)
+func (c *Conn) PeekPacket(maxSize int32) (protocol.Packet, error) {
+	pk, err := protocol.PeekPacket(c.r, maxSize)
 	if err != nil {
 		return protocol.Packet{}, err
 	}
 
-	return pks[0], nil
+	return pk, nil
 }
 
 // PeekPackets peeks n Packets from Conn.
-func (c *Conn) PeekPackets(n int) ([]protocol.Packet, error) {
-	return protocol.PeekPackets(c.r, n)
+func (c *Conn) PeekPackets(n int, maxSizes ...int32) ([]protocol.Packet, error) {
+	if n != len(maxSizes) {
+		return nil, fmt.Errorf("invalid number of max packet sizes: got %d; want %d", len(maxSizes), n)
+	}
+
+	pks := make([]protocol.Packet, n)
+	for i := 0; i < n; i++ {
+		pk, err := c.PeekPacket(maxSizes[i])
+		if err != nil {
+			return nil, err
+		}
+		pks[i] = pk
+	}
+	return pks, nil
 }
 
-//WritePacket write a Packet to Conn.
+// WritePacket write a Packet to Conn.
 func (c *Conn) WritePacket(pk protocol.Packet) error {
 	bb, err := pk.Marshal()
 	if err != nil {
@@ -104,7 +120,7 @@ func (c *Conn) WritePacket(pk protocol.Packet) error {
 	return err
 }
 
-//WritePackets writes Packets to Conn.
+// WritePackets writes Packets to Conn.
 func (c *Conn) WritePackets(pks ...protocol.Packet) error {
 	for _, pk := range pks {
 		if err := c.WritePacket(pk); err != nil {
@@ -161,7 +177,7 @@ func (pc ProcessedConn) DisconnectServerNotFound() error {
 		return err
 	}
 
-	ping, err := pc.ReadPacket()
+	ping, err := pc.ReadPacket(status.MaxSizeServerBoundPingRequest)
 	if err != nil {
 		return err
 	}

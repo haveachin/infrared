@@ -3,6 +3,7 @@ package protocol
 import (
 	"bufio"
 	"bytes"
+	"io"
 	"testing"
 )
 
@@ -124,19 +125,22 @@ func TestReadPacketBytes(t *testing.T) {
 	tt := []struct {
 		data        []byte
 		packetBytes []byte
+		maxSize     int32
 	}{
 		{
 			data:        []byte{0x03, 0x00, 0x00, 0xf2, 0x05, 0x0f, 0x00, 0xf2, 0x03, 0x50},
 			packetBytes: []byte{0x00, 0x00, 0xf2},
+			maxSize:     3,
 		},
 		{
 			data:        []byte{0x05, 0x0f, 0x00, 0xf2, 0x03, 0x50, 0x30, 0x01, 0xef, 0xaa},
 			packetBytes: []byte{0x0f, 0x00, 0xf2, 0x03, 0x50},
+			maxSize:     5,
 		},
 	}
 
 	for _, tc := range tt {
-		readBytes, err := ReadPacketBytes(bytes.NewReader(tc.data))
+		readBytes, err := ReadPacketBytes(bytes.NewReader(tc.data), tc.maxSize)
 		if err != nil {
 			t.Error(err)
 		}
@@ -151,6 +155,7 @@ func TestReadPacket(t *testing.T) {
 	tt := []struct {
 		data          []byte
 		packet        Packet
+		maxSize       int32
 		dataAfterRead []byte
 	}{
 		{
@@ -159,6 +164,7 @@ func TestReadPacket(t *testing.T) {
 				ID:   0x00,
 				Data: []byte{0x00, 0xf2},
 			},
+			maxSize:       3,
 			dataAfterRead: []byte{0x05, 0x0f, 0x00, 0xf2, 0x03, 0x50},
 		},
 		{
@@ -167,13 +173,14 @@ func TestReadPacket(t *testing.T) {
 				ID:   0x0f,
 				Data: []byte{0x00, 0xf2, 0x03, 0x50},
 			},
+			maxSize:       5,
 			dataAfterRead: []byte{0x30, 0x01, 0xef, 0xaa},
 		},
 	}
 
 	for _, tc := range tt {
 		buf := bytes.NewBuffer(tc.data)
-		pk, err := ReadPacket(buf)
+		pk, err := ReadPacket(buf, tc.maxSize)
 		if err != nil {
 			t.Error(err)
 		}
@@ -195,56 +202,45 @@ func TestReadPacket(t *testing.T) {
 func TestPeekPacket(t *testing.T) {
 	tt := []struct {
 		data    []byte
-		n       int
-		packets []Packet
+		packet  Packet
+		maxSize int32
 	}{
 		{
 			data: []byte{0x03, 0x00, 0x00, 0xf2, 0x05, 0x0f, 0x00, 0xf2, 0x03, 0x50},
-			n:    2,
-			packets: []Packet{
-				{
-					ID:   0x00,
-					Data: []byte{0x00, 0xf2},
-				},
-				{
-					ID:   0x0f,
-					Data: []byte{0x00, 0xf2, 0x03, 0x50},
-				},
+			packet: Packet{
+				ID:   0x00,
+				Data: []byte{0x00, 0xf2},
 			},
+			maxSize: 3,
 		},
 		{
 			data: []byte{0x05, 0x0f, 0x00, 0xf2, 0x03, 0x50, 0x03, 0x01, 0xef, 0xaa},
-			n:    1,
-			packets: []Packet{
-				{
-					ID:   0x0f,
-					Data: []byte{0x00, 0xf2, 0x03, 0x50},
-				},
+			packet: Packet{
+				ID:   0x0f,
+				Data: []byte{0x00, 0xf2, 0x03, 0x50},
 			},
+			maxSize: 5,
 		},
 	}
 
 	for _, tc := range tt {
-		dataCopy := make([]byte, len(tc.data))
-		copy(dataCopy, tc.data)
-
-		pks, err := PeekPackets(bufio.NewReader(bytes.NewReader(dataCopy)), tc.n)
+		buf := bufio.NewReader(bytes.NewBuffer(tc.data))
+		pk, err := PeekPacket(buf, tc.maxSize)
 		if err != nil {
 			t.Error(err)
 		}
 
-		for i := 0; i < tc.n; i++ {
-			if pks[i].ID != tc.packets[i].ID {
-				t.Errorf("packet ID: got: %v; want: %v", pks[i].ID, tc.packets[i].ID)
-			}
+		if pk.ID != tc.packet.ID {
+			t.Errorf("packet ID: got: %v; want: %v", pk.ID, tc.packet.ID)
+		}
 
-			if !bytes.Equal(pks[i].Data, tc.packets[i].Data) {
-				t.Errorf("packet data: got: %v; want: %v", pks[i].Data, tc.packets[i].Data)
-			}
+		if !bytes.Equal(pk.Data, tc.packet.Data) {
+			t.Errorf("packet data: got: %v; want: %v", pk.Data, tc.packet.Data)
+		}
 
-			if !bytes.Equal(dataCopy, tc.data) {
-				t.Errorf("data after read: got: %v; want: %v", dataCopy, tc.data)
-			}
+		leftBytes, _ := io.ReadAll(buf)
+		if !bytes.Equal(leftBytes, tc.data) {
+			t.Errorf("data after read: got: %v; want: %v", leftBytes, tc.data)
 		}
 	}
 }

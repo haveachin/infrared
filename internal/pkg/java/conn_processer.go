@@ -6,8 +6,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/haveachin/infrared/internal/pkg/java/protocol"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol/handshaking"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol/login"
+	"github.com/haveachin/infrared/internal/pkg/java/protocol/status"
 	"github.com/pires/go-proxyproto"
 )
 
@@ -30,6 +32,7 @@ func (cp ConnProcessor) ProcessConn(c net.Conn) (net.Conn, error) {
 	pc := ProcessedConn{
 		Conn:       *c.(*Conn),
 		remoteAddr: c.RemoteAddr(),
+		readPks:    make([]protocol.Packet, 0, 2),
 	}
 
 	if pc.proxyProtocol {
@@ -40,13 +43,13 @@ func (cp ConnProcessor) ProcessConn(c net.Conn) (net.Conn, error) {
 		pc.remoteAddr = header.SourceAddr
 	}
 
-	pks, err := pc.ReadPackets(2)
+	pk, err := pc.ReadPacket(handshaking.MaxSizeServerBoundHandshake)
 	if err != nil {
 		return nil, err
 	}
-	pc.readPks = pks
+	pc.readPks = append(pc.readPks, pk)
 
-	hs, err := handshaking.UnmarshalServerBoundHandshake(pks[0])
+	hs, err := handshaking.UnmarshalServerBoundHandshake(pk)
 	if err != nil {
 		return nil, err
 	}
@@ -69,10 +72,21 @@ func (cp ConnProcessor) ProcessConn(c net.Conn) (net.Conn, error) {
 	}
 
 	if hs.IsStatusRequest() {
+		pk, err := pc.ReadPacket(status.MaxSizeServerBoundPingRequest)
+		if err != nil {
+			return nil, err
+		}
+		pc.readPks = append(pc.readPks, pk)
 		return &pc, nil
 	}
 
-	ls, err := login.UnmarshalServerBoundLoginStart(pks[1])
+	pk, err = pc.ReadPacket(login.MaxSizeServerBoundLoginStart)
+	if err != nil {
+		return nil, err
+	}
+	pc.readPks = append(pc.readPks, pk)
+
+	ls, err := login.UnmarshalServerBoundLoginStart(pk, int32(hs.ProtocolVersion))
 	if err != nil {
 		return nil, err
 	}

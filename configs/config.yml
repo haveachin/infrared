@@ -113,6 +113,19 @@ java:
     # this to some 100ms. If players have issues to connect you should increase this in small increments.
     #
     clientTimeout: 300ms
+  
+  # Middleware configurations
+  middlewares:
+    
+    # Rate limiter limits the amount of request a single IP can do in a specific windows of time.
+    rateLimiter:
+      # The request limit it the amount of requests a single IP can make in a specific window of time.
+      #
+      requestLimit: 1
+      
+      # This is the window of time in that a single IP can make a specific amount of requests.
+      #
+      windowLenght: 50ms
 
 bedrock:
   chanCap:
@@ -122,6 +135,10 @@ bedrock:
   processingNode:
     count: 10
     clientTimeout: 1000ms
+  middlewares:
+    rateLimiter:
+      requestLimit: 1
+      windowLenght: 50ms
 
 defaults:
   webhook:

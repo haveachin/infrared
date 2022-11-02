@@ -79,11 +79,21 @@ type ChanCapsConfig struct {
 	ConnPool      int `mapstructure:"connPool" json:"connPool,omitempty"`
 }
 
+type MiddlewareSettings struct {
+	RateLimiter *RateLimiterSettings `mapstructure:"rateLimiter"`
+}
+
+type RateLimiterSettings struct {
+	RequestLimit int           `mapstructure:"requestLimit"`
+	WindowLength time.Duration `mapstructure:"windowLength"`
+}
+
 type ProxyConfig struct {
 	Gateways      map[string]GatewayConfig `mapstructure:"gateways" json:"gateways,omitempty"`
 	Servers       map[string]ServerConfig  `mapstructure:"servers" json:"servers,omitempty"`
 	ChanCaps      ChanCapsConfig           `mapstructure:"chanCaps" json:"chanCaps,omitempty"`
 	ConnProcessor ConnProcessorConfig      `mapstructure:"processingNode" json:"processingNode,omitempty"`
+	Middlewares   *MiddlewareSettings      `mapstructure:"middlewares"`
 }
 
 type ProxyConfigDefaults struct {
@@ -169,6 +179,21 @@ func (cfg Config) LoadConnProcessor() (infrared.ConnProcessor, error) {
 			ClientTimeout: cfg.Java.ConnProcessor.ClientTimeout,
 		},
 	}, nil
+}
+
+func (cfg Config) LoadMiddlewareSettings() (infrared.MiddlewareSettings, error) {
+	var stg infrared.MiddlewareSettings
+	if cfg.Java.Middlewares == nil {
+		return stg, nil
+	}
+
+	if cfg.Java.Middlewares.RateLimiter != nil {
+		stg.RateLimiter = &infrared.RateLimiterSettings{
+			RequestLimit: cfg.Java.Middlewares.RateLimiter.RequestLimit,
+			WindowLength: cfg.Java.Middlewares.RateLimiter.WindowLength,
+		}
+	}
+	return stg, nil
 }
 
 func (cfg Config) LoadProxySettings() (infrared.ProxySettings, error) {

@@ -9,11 +9,14 @@ import (
 	"go.uber.org/zap"
 )
 
+type ListenerMiddleware func(net.Conn) error
+
 type Listener struct {
 	listener net.Listener
 	connCh   <-chan net.Conn
 	errCh    chan error
 	onClose  func() error
+	mws      []ListenerMiddleware
 }
 
 func (l *Listener) Accept() (net.Conn, error) {
@@ -22,6 +25,13 @@ func (l *Listener) Accept() (net.Conn, error) {
 		if !ok {
 			return nil, net.ErrClosed
 		}
+
+		for _, mw := range l.mws {
+			if err := mw(c); err != nil {
+				return nil, err
+			}
+		}
+
 		return c, nil
 	case err := <-l.errCh:
 		return nil, err

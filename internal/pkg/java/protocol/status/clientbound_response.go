@@ -2,7 +2,10 @@ package status
 
 import "github.com/haveachin/infrared/internal/pkg/java/protocol"
 
-const ClientBoundResponsePacketID byte = 0x00
+const (
+	MaxSizeClientBoundResponse      = 1 + 32767
+	IDClientBoundResponse      byte = 0x00
+)
 
 type ClientBoundResponse struct {
 	JSONResponse protocol.String
@@ -10,7 +13,7 @@ type ClientBoundResponse struct {
 
 func (pk ClientBoundResponse) Marshal() protocol.Packet {
 	return protocol.MarshalPacket(
-		ClientBoundResponsePacketID,
+		IDClientBoundResponse,
 		pk.JSONResponse,
 	)
 }
@@ -18,7 +21,7 @@ func (pk ClientBoundResponse) Marshal() protocol.Packet {
 func UnmarshalClientBoundResponse(packet protocol.Packet) (ClientBoundResponse, error) {
 	var pk ClientBoundResponse
 
-	if packet.ID != ClientBoundResponsePacketID {
+	if packet.ID != IDClientBoundResponse {
 		return pk, protocol.ErrInvalidPacketID
 	}
 

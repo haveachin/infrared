@@ -2,6 +2,7 @@ package infrared
 
 import (
 	"errors"
+	"net"
 	"sync"
 
 	"github.com/haveachin/infrared/pkg/event"
@@ -19,13 +20,13 @@ type ConnPool struct {
 	reload chan func()
 	quit   chan bool
 	mu     sync.Mutex
-	pool   []ConnTunnel
+	pool   map[net.Addr]ConnTunnel
 }
 
 func (cp *ConnPool) Start() {
 	cp.reload = make(chan func())
 	cp.quit = make(chan bool)
-	cp.pool = make([]ConnTunnel, 0, 100)
+	cp.pool = map[net.Addr]ConnTunnel{}
 
 	for {
 		select {
@@ -62,8 +63,8 @@ func (cp *ConnPool) handlePlayerStatus(ct ConnTunnel) {
 func (cp *ConnPool) handlePlayerLogin(ct ConnTunnel) {
 	defer ct.Conn.Close()
 
-	i := cp.addToPool(ct)
-	defer cp.removeFromPool(i)
+	cp.addToPool(ct)
+	defer cp.removeFromPool(ct)
 
 	logger := cp.Logger.With(logProcessedConn(ct.Conn)...)
 	event.Push(PlayerJoinEvent{
@@ -101,17 +102,14 @@ func (cp *ConnPool) Close() error {
 	return nil
 }
 
-func (cp *ConnPool) addToPool(ct ConnTunnel) int {
+func (cp *ConnPool) addToPool(ct ConnTunnel) {
 	cp.mu.Lock()
 	defer cp.mu.Unlock()
-	cp.pool = append(cp.pool, ct)
-	return len(cp.pool) - 1
+	cp.pool[ct.Conn.RemoteAddr()] = ct
 }
 
-func (cp *ConnPool) removeFromPool(index int) {
+func (cp *ConnPool) removeFromPool(ct ConnTunnel) {
 	cp.mu.Lock()
 	defer cp.mu.Unlock()
-	n := len(cp.pool) - 1
-	cp.pool[index] = cp.pool[n]
-	cp.pool = cp.pool[:n]
+	delete(cp.pool, ct.Conn.RemoteAddr())
 }
