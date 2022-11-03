@@ -36,7 +36,7 @@ func NewFile(cfg FileConfig, logger *zap.Logger) Provider {
 
 func (p *file) Provide(dataCh chan<- Data) (Data, error) {
 	data, err := p.readConfigData()
-	if err != nil {
+	if err != nil && !p.Watch {
 		return Data{}, err
 	}
 
@@ -88,20 +88,20 @@ func (p *file) watch(dataCh chan<- Data) error {
 				e.Op == fsnotify.Remove {
 				data, err := p.readConfigData()
 				if err != nil {
-					return err
+					continue
 				}
 				dataCh <- data
 			}
 		case err, ok := <-w.Errors:
 			if !ok {
-				p.logger.Debug("Closing file watcher",
+				p.logger.Debug("closing file watcher",
 					zap.String("cause", "watcher error channel closed"),
 					zap.String("dir", p.Directory),
 				)
 				return nil
 			}
 
-			p.logger.Error("Error while watching directory",
+			p.logger.Error("error while watching directory",
 				zap.Error(err),
 				zap.String("dir", p.Directory),
 			)
@@ -127,7 +127,7 @@ func (p file) readConfigData() (Data, error) {
 
 		cfgData := map[string]any{}
 		if err := ReadConfigFile(path, &cfgData); err != nil {
-			p.logger.Error("Failed to read config",
+			p.logger.Error("failed to read config",
 				zap.Error(err),
 				zap.String("configPath", path),
 			)

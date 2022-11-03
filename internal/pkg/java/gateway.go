@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/haveachin/infrared/internal/app/infrared"
+	"github.com/pires/go-proxyproto"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 )
@@ -35,7 +36,10 @@ type Gateway struct {
 func (gw *Gateway) initListeners() {
 	gw.listeners = make([]net.Listener, len(gw.Listeners))
 	for n, listener := range gw.Listeners {
-		l, err := gw.ListenersManager.Listen(listener.Bind)
+		l, err := gw.ListenersManager.Listen(listener.Bind, func(l net.Listener) {
+			pl := l.(*ProxyProtocolListener)
+			pl.active = listener.ReceiveProxyProtocol
+		})
 		if err != nil {
 			gw.Logger.Warn("unable to bind listener",
 				zap.Error(err),
@@ -120,4 +124,39 @@ func (gw *InfraredGateway) Close() error {
 		}
 	}
 	return result
+}
+
+type ProxyProtocolConn struct {
+	net.Conn
+	realAddr net.Addr
+}
+
+func (c ProxyProtocolConn) RemoteAddr() net.Addr {
+	return c.realAddr
+}
+
+type ProxyProtocolListener struct {
+	net.Listener
+	active bool
+}
+
+func (l ProxyProtocolListener) Accept() (net.Conn, error) {
+	if !l.active {
+		return l.Listener.Accept()
+	}
+
+	c, err := l.Listener.Accept()
+	if err != nil {
+		return nil, err
+	}
+
+	header, err := proxyproto.Read(bufio.NewReader(c))
+	if err != nil {
+		return nil, err
+	}
+
+	return &ProxyProtocolConn{
+		Conn:     c,
+		realAddr: header.SourceAddr,
+	}, nil
 }

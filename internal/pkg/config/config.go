@@ -66,7 +66,7 @@ func New(path string, onChange OnChange, logger *zap.Logger) (Config, error) {
 	for _, prov := range providers {
 		data, err := prov.Provide(cfg.dataChan)
 		if err != nil {
-			logger.Warn("failed to provide config data",
+			logger.Fatal("failed to provide config data",
 				zap.Error(err),
 			)
 			continue

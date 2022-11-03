@@ -101,7 +101,20 @@ func NewProxyConfigFromMap(cfg map[string]any) (infrared.ProxyConfig, error) {
 
 func (cfg Config) ListenerBuilder() infrared.ListenerBuilder {
 	return func(addr string) (net.Listener, error) {
-		return raknet.Listen(addr)
+		pc := &proxyProtocolPacketConn{}
+		lc := raknet.ListenConfig{
+			UpstreamPacketListener: pc,
+		}
+
+		rl, err := lc.Listen(addr)
+		if err != nil {
+			return nil, err
+		}
+
+		return &proxyProtocolListener{
+			Listener:                rl,
+			proxyProtocolPacketConn: pc,
+		}, nil
 	}
 }
 

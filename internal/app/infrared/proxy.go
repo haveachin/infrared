@@ -78,7 +78,7 @@ func NewProxy(cfg ProxyConfig) (*Proxy, error) {
 	mws := []func(Handler) Handler{}
 	if mwStg.RateLimiter != nil {
 		stg := mwStg.RateLimiter
-		mws = append(mws, RateLimit(stg.RequestLimit, stg.WindowLength, WithKeyByIP()))
+		mws = append(mws, RateLimitByIP(stg.RequestLimit, stg.WindowLength))
 	}
 
 	chCaps := stg.ChannelCaps

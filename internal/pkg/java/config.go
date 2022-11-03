@@ -122,7 +122,14 @@ func NewProxyConfigFromMap(cfg map[string]any) (infrared.ProxyConfig, error) {
 
 func (cfg Config) ListenerBuilder() infrared.ListenerBuilder {
 	return func(addr string) (net.Listener, error) {
-		return net.Listen("tcp", addr)
+		l, err := net.Listen("tcp", addr)
+		if err != nil {
+			return nil, err
+		}
+
+		return &ProxyProtocolListener{
+			Listener: l,
+		}, nil
 	}
 }
 

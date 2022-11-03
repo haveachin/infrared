@@ -10,7 +10,6 @@ import (
 	"github.com/haveachin/infrared/internal/pkg/java/protocol/handshaking"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol/login"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol/status"
-	"github.com/pires/go-proxyproto"
 )
 
 type InfraredConnProcessor struct {
@@ -33,14 +32,6 @@ func (cp ConnProcessor) ProcessConn(c net.Conn) (net.Conn, error) {
 		Conn:       *c.(*Conn),
 		remoteAddr: c.RemoteAddr(),
 		readPks:    make([]protocol.Packet, 0, 2),
-	}
-
-	if pc.proxyProtocol {
-		header, err := proxyproto.Read(pc.r)
-		if err != nil {
-			return nil, err
-		}
-		pc.remoteAddr = header.SourceAddr
 	}
 
 	pk, err := pc.ReadPacket(handshaking.MaxSizeServerBoundHandshake)

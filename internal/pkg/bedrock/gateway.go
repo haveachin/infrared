@@ -1,13 +1,17 @@
 package bedrock
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"net"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/internal/pkg/bedrock/protocol/packet"
+	"github.com/pires/go-proxyproto"
 	"github.com/sandertv/go-raknet"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
@@ -62,15 +66,13 @@ func (gw *Gateway) initListeners() {
 	gw.listeners = make([]net.Listener, len(gw.Listeners))
 	for n, listener := range gw.Listeners {
 		l, err := gw.ListenersManager.Listen(listener.Bind, func(l net.Listener) {
-			rl := l.(*raknet.Listener)
+			pl := l.(*proxyProtocolListener)
+			rl := pl.Listener
 			pong := listener.PingStatus.marshal(rl)
 			rl.PongData(pong)
+			pl.proxyProtocolPacketConn.active = listener.ReceiveProxyProtocol
 		})
 		if err != nil {
-			gw.Logger.Error("unable to bind listener",
-				zap.Error(err),
-				zap.String("address", listener.Bind),
-			)
 			continue
 		}
 
@@ -143,4 +145,69 @@ func (gw *InfraredGateway) Close() error {
 		}
 	}
 	return result
+}
+
+type proxyProtocolListener struct {
+	*raknet.Listener
+	proxyProtocolPacketConn *proxyProtocolPacketConn
+}
+
+type proxyProtocolPacketConn struct {
+	net.PacketConn
+
+	mu      sync.Mutex
+	conns   map[string]net.Addr
+	timeout map[string]time.Time
+	active  bool
+}
+
+func (pc *proxyProtocolPacketConn) ReadFrom(p []byte) (int, net.Addr, error) {
+	if !pc.active {
+		return pc.PacketConn.ReadFrom(p)
+	}
+
+	payload := make([]byte, len(p))
+	n, addr, err := pc.PacketConn.ReadFrom(payload)
+	if err != nil {
+		return 0, nil, err
+	}
+	payload = payload[:n]
+
+	addrString := addr.String()
+	payloadAt := time.Now()
+
+	lastPayloadAt, found := pc.timeout[addrString]
+	if found && lastPayloadAt.Add(30*time.Second).Before(payloadAt) {
+		delete(pc.conns, addrString)
+	}
+	pc.timeout[addrString] = payloadAt
+
+	realAddr, found := pc.conns[addrString]
+	if !found {
+		buf := bytes.NewBuffer(payload)
+		header, err := proxyproto.Read(bufio.NewReader(buf))
+		if err != nil {
+			return 0, nil, err
+		}
+		realAddr = header.SourceAddr
+		pc.conns[addrString] = realAddr
+		payload = buf.Bytes()
+	}
+
+	copy(p, payload)
+	return len(payload), realAddr, nil
+}
+
+func (pc *proxyProtocolPacketConn) ListenPacket(network, address string) (net.PacketConn, error) {
+	pc.mu.Lock()
+	defer pc.mu.Unlock()
+
+	conn, err := net.ListenPacket(network, address)
+	if err != nil {
+		return nil, err
+	}
+	pc.PacketConn = conn
+	pc.conns = map[string]net.Addr{}
+	pc.timeout = map[string]time.Time{}
+	return pc, nil
 }

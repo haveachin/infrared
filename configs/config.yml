@@ -116,7 +116,6 @@ java:
   
   # Middleware configurations
   middlewares:
-    
     # Rate limiter limits the amount of request a single IP can do in a specific windows of time.
     rateLimiter:
       # The request limit it the amount of requests a single IP can make in a specific window of time.

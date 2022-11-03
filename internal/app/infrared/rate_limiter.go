@@ -11,7 +11,7 @@ import (
 	"github.com/cespare/xxhash/v2"
 )
 
-func RateLimit(requestLimit int, windowLength time.Duration, options ...Option) func(Handler) Handler {
+func RateLimit(requestLimit int, windowLength time.Duration, options ...RateLimiterOption) func(Handler) Handler {
 	return newRateLimiter(requestLimit, windowLength, options...).Handler
 }
 
@@ -31,7 +31,7 @@ func KeyByGatewayID(c Conn) string {
 	return c.GatewayID()
 }
 
-func WithKeyFuncs(keyFuncs ...KeyFunc) Option {
+func WithKeyFuncs(keyFuncs ...RateLimiterKeyFunc) RateLimiterOption {
 	return func(rl *rateLimiter) {
 		if len(keyFuncs) > 0 {
 			rl.keyFn = composedKeyFunc(keyFuncs...)
@@ -39,11 +39,11 @@ func WithKeyFuncs(keyFuncs ...KeyFunc) Option {
 	}
 }
 
-func WithKeyByIP() Option {
+func WithKeyByIP() RateLimiterOption {
 	return WithKeyFuncs(KeyByIP)
 }
 
-func composedKeyFunc(keyFuncs ...KeyFunc) KeyFunc {
+func composedKeyFunc(keyFuncs ...RateLimiterKeyFunc) RateLimiterKeyFunc {
 	return func(c Conn) string {
 		var key strings.Builder
 		for i := 0; i < len(keyFuncs); i++ {
@@ -54,8 +54,8 @@ func composedKeyFunc(keyFuncs ...KeyFunc) KeyFunc {
 	}
 }
 
-type KeyFunc func(c Conn) string
-type Option func(rl *rateLimiter)
+type RateLimiterKeyFunc func(c Conn) string
+type RateLimiterOption func(rl *rateLimiter)
 
 // canonicalizeIP returns a form of ip suitable for comparison to other IPs.
 // For IPv4 addresses, this is simply the whole string.
@@ -87,7 +87,7 @@ func canonicalizeIP(ip string) string {
 	return ipv6.Mask(net.CIDRMask(64, 128)).String()
 }
 
-func newRateLimiter(requestLimit int, windowLength time.Duration, options ...Option) *rateLimiter {
+func newRateLimiter(requestLimit int, windowLength time.Duration, options ...RateLimiterOption) *rateLimiter {
 	rl := &rateLimiter{
 		requestLimit: requestLimit,
 		windowLength: windowLength,
@@ -119,7 +119,7 @@ func newRateLimiter(requestLimit int, windowLength time.Duration, options ...Opt
 type rateLimiter struct {
 	requestLimit   int
 	windowLength   time.Duration
-	keyFn          KeyFunc
+	keyFn          RateLimiterKeyFunc
 	limitCounter   localCounter
 	onRequestLimit func(c net.Conn)
 }
