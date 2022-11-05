@@ -310,13 +310,13 @@ func newServer(id string, cfg ServerConfig) (infrared.Server, error) {
 }
 
 func newOverrideServerStatus(cfg OverrideServerStatusConfig) (OverrideStatusResponse, error) {
-	var icon string
+	var iconPtr *string
 	if cfg.IconPath != nil {
-		var err error
-		icon, err = loadImageAndEncodeToBase64String(*cfg.IconPath)
+		icon, err := loadImageAndEncodeToBase64String(*cfg.IconPath)
 		if err != nil {
 			return OverrideStatusResponse{}, err
 		}
+		iconPtr = &icon
 	}
 
 	return OverrideStatusResponse{
@@ -324,7 +324,7 @@ func newOverrideServerStatus(cfg OverrideServerStatusConfig) (OverrideStatusResp
 		ProtocolNumber: cfg.ProtocolNumber,
 		MaxPlayerCount: cfg.MaxPlayerCount,
 		PlayerCount:    cfg.PlayerCount,
-		Icon:           &icon,
+		Icon:           iconPtr,
 		MOTD:           cfg.MOTD,
 		PlayerSamples:  newServerStatusPlayerSample(cfg.PlayerSample),
 	}, nil
