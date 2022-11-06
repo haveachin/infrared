@@ -1,12 +1,14 @@
 package main
 
 import (
+	"crypto/rand"
 	"log"
 	"net"
 
 	"github.com/haveachin/infrared/internal/pkg/java/protocol"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol/handshaking"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol/login"
+	"github.com/pires/go-proxyproto"
 )
 
 var handshakePayload []byte
@@ -15,7 +17,7 @@ var loginStartPayload []byte
 func init() {
 	handshake := handshaking.ServerBoundHandshake{
 		ProtocolVersion: 758,
-		ServerAddress:   "localhost",
+		ServerAddress:   "laptop.fritz.box",
 		ServerPort:      25565,
 		NextState:       2,
 	}
@@ -45,12 +47,44 @@ func main() {
 			log.Printf("%d requests sent\n", i)
 		}
 
-		c, err := net.Dial("tcp", "localhost:25565")
+		c, err := net.Dial("tcp", "192.168.178.20:25565")
 		if err != nil {
 			log.Fatal(err)
 		}
 
+		//writeProxyProtocolHeader(randomAddr(), c)
 		c.Write(handshakePayload)
 		c.Write(loginStartPayload)
 	}
+}
+
+func randomAddr() net.Addr {
+	addrBytes := make([]byte, 6)
+	rand.Read(addrBytes)
+
+	return &net.TCPAddr{
+		IP:   net.IPv4(addrBytes[0], addrBytes[1], addrBytes[2], addrBytes[3]),
+		Port: int(addrBytes[4])*256 + int(addrBytes[5]),
+	}
+}
+
+func writeProxyProtocolHeader(addr net.Addr, rc net.Conn) error {
+	tp := proxyproto.TCPv4
+	addrTCP := addr.(*net.TCPAddr)
+	if addrTCP.IP.To4() == nil {
+		tp = proxyproto.TCPv6
+	}
+
+	header := &proxyproto.Header{
+		Version:           2,
+		Command:           proxyproto.PROXY,
+		TransportProtocol: tp,
+		SourceAddr:        addr,
+		DestinationAddr:   rc.RemoteAddr(),
+	}
+
+	if _, err := header.WriteTo(rc); err != nil {
+		return err
+	}
+	return nil
 }

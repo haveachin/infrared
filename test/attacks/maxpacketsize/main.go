@@ -18,7 +18,7 @@ func init() {
 
 func main() {
 	for i := 0; i < 30; i++ {
-		c, err := net.Dial("tcp", "localhost:25565")
+		c, err := net.Dial("tcp", "192.168.178.20:25565")
 		if err != nil {
 			log.Fatal(err)
 		}
