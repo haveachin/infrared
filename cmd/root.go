@@ -192,6 +192,7 @@ func onConfigChange(cfg map[string]any) {
 		logger.Error("failed to load java config",
 			zap.Error(err),
 		)
+		return
 	}
 
 	bedrockPrxCfg, err := bedrock.NewProxyConfigFromMap(cfg)
@@ -199,6 +200,7 @@ func onConfigChange(cfg map[string]any) {
 		logger.Error("failed to load bedrock config",
 			zap.Error(err),
 		)
+		return
 	}
 
 	prxCfgs := map[infrared.Edition]infrared.ProxyConfig{

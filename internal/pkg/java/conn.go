@@ -31,7 +31,6 @@ type PacketPeeker interface {
 type Conn struct {
 	net.Conn
 	gatewayID                string
-	proxyProtocol            bool
 	realIP                   bool
 	serverNotFoundMessage    string
 	serverNotFoundStatusJSON string
@@ -132,13 +131,11 @@ func (c *Conn) WritePackets(pks ...protocol.Packet) error {
 
 type ProcessedConn struct {
 	Conn
-	readPks       []protocol.Packet
-	handshake     handshaking.ServerBoundHandshake
-	remoteAddr    net.Addr
-	serverAddr    string
-	username      string
-	proxyProtocol bool
-	realIP        bool
+	readPks    []protocol.Packet
+	handshake  handshaking.ServerBoundHandshake
+	remoteAddr net.Addr
+	serverAddr string
+	username   string
 }
 
 func (pc ProcessedConn) RemoteAddr() net.Addr {

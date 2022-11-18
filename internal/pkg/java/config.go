@@ -17,37 +17,37 @@ import (
 )
 
 type ServerConfig struct {
-	Domains            []string                      `mapstructure:"domains" json:"domains,omitempty"`
-	Address            string                        `mapstructure:"address" json:"address,omitempty"`
-	ProxyBind          string                        `mapstructure:"proxyBind" json:"proxyBind,omitempty"`
-	SendProxyProtocol  bool                          `mapstructure:"sendProxyProtocol" json:"sendProxyProtocol,omitempty"`
-	SendRealIP         bool                          `mapstructure:"sendRealIP" json:"sendRealIP,omitempty"`
-	OverrideAddress    bool                          `mapstructure:"overrideAddress" json:"overrideAddress,omitempty"`
-	DialTimeout        time.Duration                 `mapstructure:"dialTimeout" json:"dialTimeout,omitempty"`
-	DialTimeoutMessage string                        `mapstructure:"dialTimeoutMessage" json:"dialTimeoutMessage,omitempty"`
-	OverrideStatus     OverrideServerStatusConfig    `mapstructure:"overrideStatus" json:"overrideStatus,omitempty"`
-	DialTimeoutStatus  DialTimeoutServerStatusConfig `mapstructure:"dialTimeoutStatus" json:"dialTimeoutStatus,omitempty"`
-	Gateways           []string                      `mapstructure:"gateways" json:"gateways,omitempty"`
+	Domains            []string                      `mapstructure:"domains"`
+	Address            string                        `mapstructure:"address"`
+	ProxyBind          string                        `mapstructure:"proxyBind"`
+	SendProxyProtocol  bool                          `mapstructure:"sendProxyProtocol"`
+	SendRealIP         bool                          `mapstructure:"sendRealIP"`
+	OverrideAddress    bool                          `mapstructure:"overrideAddress"`
+	DialTimeout        time.Duration                 `mapstructure:"dialTimeout"`
+	DialTimeoutMessage string                        `mapstructure:"dialTimeoutMessage"`
+	OverrideStatus     OverrideServerStatusConfig    `mapstructure:"overrideStatus"`
+	DialTimeoutStatus  DialTimeoutServerStatusConfig `mapstructure:"dialTimeoutStatus"`
+	Gateways           []string                      `mapstructure:"gateways"`
 }
 
 type OverrideServerStatusConfig struct {
-	VersionName    *string                          `mapstructure:"versionName" json:"versionName,omitempty"`
-	ProtocolNumber *int                             `mapstructure:"protocolNumber" json:"protocolNumber,omitempty"`
-	MaxPlayerCount *int                             `mapstructure:"maxPlayerCount" json:"maxPlayerCount,omitempty"`
-	PlayerCount    *int                             `mapstructure:"playerCount" json:"playerCount,omitempty"`
-	PlayerSample   []ServerStatusPlayerSampleConfig `mapstructure:"playerSample" json:"playerSample,omitempty"`
-	IconPath       *string                          `mapstructure:"iconPath" json:"iconPath,omitempty"`
-	MOTD           *string                          `mapstructure:"motd" json:"motd,omitempty"`
+	VersionName    *string                          `mapstructure:"versionName"`
+	ProtocolNumber *int                             `mapstructure:"protocolNumber"`
+	MaxPlayerCount *int                             `mapstructure:"maxPlayerCount"`
+	PlayerCount    *int                             `mapstructure:"playerCount"`
+	PlayerSample   []ServerStatusPlayerSampleConfig `mapstructure:"playerSample"`
+	IconPath       *string                          `mapstructure:"iconPath"`
+	MOTD           *string                          `mapstructure:"motd"`
 }
 
 type DialTimeoutServerStatusConfig struct {
-	VersionName    string                           `mapstructure:"versionName" json:"motd,omitempty"`
-	ProtocolNumber int                              `mapstructure:"protocolNumber" json:"protocolNumber,omitempty"`
-	MaxPlayerCount int                              `mapstructure:"maxPlayerCount" json:"maxPlayerCount,omitempty"`
-	PlayerCount    int                              `mapstructure:"playerCount" json:"playerCount,omitempty"`
-	PlayerSample   []ServerStatusPlayerSampleConfig `mapstructure:"playerSample" json:"playerSample,omitempty"`
-	IconPath       string                           `mapstructure:"iconPath" json:"iconPath,omitempty"`
-	MOTD           string                           `mapstructure:"motd" json:"motd,omitempty"`
+	VersionName    string                           `mapstructure:"versionName"`
+	ProtocolNumber int                              `mapstructure:"protocolNumber"`
+	MaxPlayerCount int                              `mapstructure:"maxPlayerCount"`
+	PlayerCount    int                              `mapstructure:"playerCount"`
+	PlayerSample   []ServerStatusPlayerSampleConfig `mapstructure:"playerSample"`
+	IconPath       string                           `mapstructure:"iconPath"`
+	MOTD           string                           `mapstructure:"motd"`
 }
 
 type ServerStatusPlayerSampleConfig struct {
@@ -56,27 +56,27 @@ type ServerStatusPlayerSampleConfig struct {
 }
 
 type ListenerConfig struct {
-	Bind                  string                        `mapstructure:"bind" json:"bind,omitempty"`
-	ReceiveProxyProtocol  bool                          `mapstructure:"receiveProxyProtocol" json:"receiveProxyProtocol,omitempty"`
-	ReceiveRealIP         bool                          `mapstructure:"receiveRealIP,omitempty" json:"receiveRealIP,omitempty"`
-	ServerNotFoundMessage string                        `mapstructure:"serverNotFoundMessage,omitempty" json:"serverNotFoundMessage,omitempty"`
-	ServerNotFoundStatus  DialTimeoutServerStatusConfig `mapstructure:"serverNotFoundStatus,omitempty" json:"serverNotFoundStatus,omitempty"`
+	Bind                  string                        `mapstructure:"bind"`
+	ReceiveProxyProtocol  bool                          `mapstructure:"receiveProxyProtocol"`
+	ReceiveRealIP         bool                          `mapstructure:"receiveRealIP,omitempty"`
+	ServerNotFoundMessage string                        `mapstructure:"serverNotFoundMessage,omitempty"`
+	ServerNotFoundStatus  DialTimeoutServerStatusConfig `mapstructure:"serverNotFoundStatus,omitempty"`
 }
 
 type GatewayConfig struct {
-	Listeners             map[string]ListenerConfig `mapstructure:"listeners" json:"listeners,omitempty"`
-	ServerNotFoundMessage string                    `mapstructure:"serverNotFoundMessage,omitempty" json:"serverNotFoundMessage,omitempty"`
+	Listeners             map[string]ListenerConfig `mapstructure:"listeners"`
+	ServerNotFoundMessage string                    `mapstructure:"serverNotFoundMessage,omitempty"`
 }
 
 type ConnProcessorConfig struct {
-	Count         int           `mapstructure:"count" json:"count,omitempty"`
-	ClientTimeout time.Duration `mapstructure:"clientTimeout" json:"clientTimeout,omitempty"`
+	Count         int           `mapstructure:"count"`
+	ClientTimeout time.Duration `mapstructure:"clientTimeout"`
 }
 
 type ChanCapsConfig struct {
-	ConnProcessor int `mapstructure:"connProcessor" json:"connProcessor,omitempty"`
-	Server        int `mapstructure:"server" json:"server,omitempty"`
-	ConnPool      int `mapstructure:"connPool" json:"connPool,omitempty"`
+	ConnProcessor int `mapstructure:"connProcessor"`
+	Server        int `mapstructure:"server"`
+	ConnPool      int `mapstructure:"connPool"`
 }
 
 type MiddlewareSettings struct {
@@ -89,26 +89,26 @@ type RateLimiterSettings struct {
 }
 
 type ProxyConfig struct {
-	Gateways      map[string]GatewayConfig `mapstructure:"gateways" json:"gateways,omitempty"`
-	Servers       map[string]ServerConfig  `mapstructure:"servers" json:"servers,omitempty"`
-	ChanCaps      ChanCapsConfig           `mapstructure:"chanCaps" json:"chanCaps,omitempty"`
-	ConnProcessor ConnProcessorConfig      `mapstructure:"processingNode" json:"processingNode,omitempty"`
+	Gateways      map[string]GatewayConfig `mapstructure:"gateways"`
+	Servers       map[string]ServerConfig  `mapstructure:"servers"`
+	ChanCaps      ChanCapsConfig           `mapstructure:"chanCaps"`
+	ConnProcessor ConnProcessorConfig      `mapstructure:"processingNode"`
 	Middlewares   *MiddlewareSettings      `mapstructure:"middlewares"`
 }
 
 type ProxyConfigDefaults struct {
 	Gateway struct {
-		Listener              ListenerConfig `mapstructure:"listener,omitempty" json:"listener,omitempty"`
-		ServerNotFoundMessage string         `mapstructure:"serverNotFoundMessage,omitempty" json:"serverNotFoundMessage,omitempty"`
-	} `mapstructure:"gateway,omitempty" json:"gateway,omitempty"`
-	Server ServerConfig `mapstructure:"server,omitempty" json:"server,omitempty"`
+		Listener              ListenerConfig `mapstructure:"listener,omitempty"`
+		ServerNotFoundMessage string         `mapstructure:"serverNotFoundMessage,omitempty"`
+	} `mapstructure:"gateway,omitempty"`
+	Server ServerConfig `mapstructure:"server,omitempty"`
 }
 
 type Config struct {
-	Java     ProxyConfig `mapstructure:"java" json:"java,omitempty"`
+	Java     ProxyConfig `mapstructure:"java"`
 	Defaults struct {
-		Java ProxyConfigDefaults `mapstructure:"java" json:"java,omitempty"`
-	} `mapstructure:"defaults,omitempty" json:"defaults,omitempty"`
+		Java ProxyConfigDefaults `mapstructure:"java"`
+	} `mapstructure:"defaults,omitempty"`
 }
 
 func NewProxyConfigFromMap(cfg map[string]any) (infrared.ProxyConfig, error) {
@@ -349,10 +349,7 @@ func newDialTimeoutServerStatus(cfg DialTimeoutServerStatusConfig) (DialTimeoutS
 func newServerStatusPlayerSample(cfgs []ServerStatusPlayerSampleConfig) []PlayerSample {
 	playerSamples := make([]PlayerSample, len(cfgs))
 	for n, cfg := range cfgs {
-		playerSamples[n] = PlayerSample{
-			Name: cfg.Name,
-			UUID: cfg.UUID,
-		}
+		playerSamples[n] = PlayerSample(cfg)
 	}
 	return playerSamples
 }

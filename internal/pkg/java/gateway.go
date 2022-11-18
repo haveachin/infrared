@@ -106,7 +106,6 @@ func (gw *InfraredGateway) WrapConn(c net.Conn, l net.Listener) net.Conn {
 		Conn:                     c,
 		r:                        bufio.NewReader(c),
 		w:                        c,
-		proxyProtocol:            listener.ReceiveProxyProtocol,
 		realIP:                   listener.ReceiveRealIP,
 		gatewayID:                gw.gateway.ID,
 		serverNotFoundMessage:    listener.ServerNotFoundMessage,

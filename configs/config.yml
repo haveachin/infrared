@@ -26,6 +26,14 @@ providers:
     #
     #watch: true
 
+  # Storage like a database that Infrared should read from.
+  #
+  storage:
+    # A list of storage IDs that Infrared should read from.
+    #
+    ids:
+      - default
+
   # Config files that Infrared should read from.
   #
   file:
@@ -37,14 +45,31 @@ providers:
     #
     watch: true
 
-api:
-  bind: :8080
-  allowedOrigins:
-    - "http://*"
-    - "https://*"
+# Storage are mainly used to store and read Infrared configs,
+# but are also used to enable other features that need persistend storage.
+#
+storage:
+  # This is the ID of this database.
+  #
+  default:
+    driver: postgres
+    address: :5432
+    database: infrared
+    username: username
+    password: password
 
-prometheus:
-  bind: :9070
+# Enables the API to access real time data.
+#
+#api:
+  #bind: :8080
+  #allowedOrigins:
+  #  - "http://*"
+  #  - "https://*"
+
+# Enables the prometheus server for real time metric tracking.
+#
+#prometheus:
+  #bind: :9070
 
 # Configuration for webhooks
 #
@@ -62,19 +87,19 @@ prometheus:
     #
     #url: https://example.com/callback
 
-    # Client timeout specifies a time limit for requests made by the webhook client.
-    # A Timeout of zero means no timeout.
+    # Dial timeout is the amount of time that Infrared waits for it cancels the POST request.
+    # This is best set in defaults to not have to copy-paste this all the time. See bottom of the file.
     #
-    #clientTimeout: 300ms
+    #dialTimeout: 1s
     
     # Event Topics to listen for.
     # Available events are:
-    # NewConnEvent - When a new connection to Infrared is made.
-    # PreConnProcessingEvent- Before the new connection is processed.
-    # PostConnProcessingEvent - After a connection is processed.
-    # PreConnConnectingEvent - Before a client is connecting to the target server.
-    # PlayerJoinEvent - When a player joins a server.
-    # PlayerLeaveEvent - When a player leaves the server.
+    # - NewConnEvent - When a new connection to Infrared is made.
+    # - PreConnProcessingEvent - Before the new connection is processed.
+    # - PostConnProcessingEvent - After a connection is processed.
+    # - PreConnConnectingEvent - Before a client is connecting to the target server.
+    # - PlayerJoinEvent - When a player joins a server.
+    # - PlayerLeaveEvent - When a player leaves the server.
     #
     #events:
     #  - PlayerJoin
@@ -88,6 +113,7 @@ java:
   #
   chanCaps:
     # The capacity of the channel from the gateway to the processing nodes
+    # If this is unset or 0
     #
     connProcessor: 100
     
@@ -104,7 +130,7 @@ java:
     # Count describes the number of processing nodes that concurrently process
     # incoming connections. By increasing the count of processing nodes you can
     # tremendously reduce the effect of DDoS effects at the cost of performance.
-    # If you CPU has a lot of thread then feel free to increase this number.
+    # If your CPU has a lot of threads then feel free to increase this number.
     #
     count: 10
     
@@ -124,8 +150,10 @@ java:
       
       # This is the window of time in that a single IP can make a specific amount of requests.
       #
-      windowLenght: 50ms
+      windowLength: 50ms
 
+# See Java above
+#
 bedrock:
   chanCap:
     connProcessor: 100
@@ -137,10 +165,12 @@ bedrock:
   middlewares:
     rateLimiter:
       requestLimit: 1
-      windowLenght: 50ms
+      windowLength: 50ms
 
-defaults:
-  webhook:
-    # Dial timeout is the amount of time that Infrared waits for it cancels the POST request
+# Defaults are global default values that can be 
+#
+#defaults:
+  #webhook:
+    # Sets the dial timeout for every webhook. This can be individually overridden.
     #
-    dialTimeout: 1s
+    #dialTimeout: 1s

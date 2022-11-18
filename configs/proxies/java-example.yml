@@ -11,7 +11,14 @@ java:
       domains:
         - "*"
       address: example.com:25565
-      overrideStatus:
-        versionName: Infrared
-        maxPlayerCount: 777777777
-        playerCount: 2
+      #proxyBind: 0.0.0.0
+      #sendProxyProtocol: true
+      #sendRealIP: true
+      #overrideStatus:
+        #versionName: Infrared
+        #maxPlayerCount: 20
+        #playerCount: 0
+        #
+      bandwidth:
+        trafficLimit: 1TB
+        resetCron: "0 0 0 1 * *"

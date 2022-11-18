@@ -28,7 +28,7 @@ defaults:
           #
           edition: MCPE
           
-          # The protocol version and name. For more info see https://wiki.vg/Bedrock_Protocol_version_numbers
+          # The protocol version number. For more info see https://wiki.vg/Bedrock_Protocol_version_numbers
           #
           protocolVersion: 544 
           
@@ -95,3 +95,5 @@ defaults:
         motd: |
           Powered by Infrared
           §6Server at {{serverDomain}} is not responding.
+      bandwidth:
+        storage: default
