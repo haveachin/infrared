@@ -64,7 +64,7 @@ func (r OverrideStatusResponse) ResponseJSON(resp status.ResponseJSON) status.Re
 	return resp
 }
 
-type DialTimeoutStatusResponse struct {
+type ServerStatusResponse struct {
 	VersionName    string
 	ProtocolNumber int
 	MaxPlayerCount int
@@ -74,7 +74,7 @@ type DialTimeoutStatusResponse struct {
 	MOTD           string
 }
 
-func (r DialTimeoutStatusResponse) ResponseJSON() status.ResponseJSON {
+func (r ServerStatusResponse) ResponseJSON() status.ResponseJSON {
 	return status.ResponseJSON{
 		Version: status.VersionJSON{
 			Name:     r.VersionName,

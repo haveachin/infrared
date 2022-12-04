@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gofrs/uuid"
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/internal/pkg/config"
 	"github.com/haveachin/infrared/pkg/event"
@@ -61,7 +60,7 @@ type Plugin struct {
 	Config   PluginConfig
 	logger   *zap.Logger
 	eventBus event.Bus
-	eventID  uuid.UUID
+	eventID  string
 	// GatewayID mapped to webhooks
 	whks map[string][]webhook.Webhook
 }
@@ -96,7 +95,7 @@ func (p *Plugin) Enable(api infrared.PluginAPI) error {
 	p.logger = api.Logger()
 	p.eventBus = api.EventBus()
 
-	id, _ := p.eventBus.AttachHandler(uuid.Nil, p.handleEvent)
+	id, _ := p.eventBus.AttachHandlerAsyncFunc("", p.handleEvent)
 	p.eventID = id
 
 	return nil
@@ -148,7 +147,7 @@ func unmarshalServer(data *eventData, s infrared.Server) {
 func (p Plugin) handleEvent(e event.Event) {
 	var data eventData
 	switch e := e.Data.(type) {
-	case infrared.NewConnEvent:
+	case infrared.AcceptedConnEvent:
 		unmarshalConn(&data, e.Conn)
 	case infrared.PreConnProcessingEvent:
 		unmarshalConn(&data, e.Conn)

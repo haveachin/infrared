@@ -61,9 +61,15 @@ func (cpn CPN) ListenAndServe(quit <-chan bool) {
 
 			connLogger := cpn.Logger.With(logConn(c)...)
 			connLogger.Debug("starting to process connection")
-			cpn.EventBus.Push(PreConnProcessingEvent{
+
+			replyChan := cpn.EventBus.Request(PreConnProcessingEvent{
 				Conn: c,
-			}, PreConnProcessingEventTopic)
+			}, PreProcessingEventTopic)
+
+			if isEventCanceled(replyChan, connLogger) {
+				c.Close()
+				continue
+			}
 
 			c.SetDeadline(time.Now().Add(cpn.ClientTimeout()))
 			chain(cpn.Middlewares, HandlerFunc(func(c Conn) {
@@ -81,9 +87,15 @@ func (cpn CPN) ListenAndServe(quit <-chan bool) {
 				c.SetDeadline(time.Time{})
 
 				connLogger.Debug("sending client to server gateway")
-				cpn.EventBus.Push(PostConnProcessingEvent{
+
+				replyChan := cpn.EventBus.Request(PostConnProcessingEvent{
 					ProcessedConn: procConn,
-				}, PostConnProcessingEventTopic)
+				}, PostProcessingEventTopic)
+
+				if isEventCanceled(replyChan, connLogger) {
+					procConn.Close()
+					return
+				}
 
 				cpn.Out <- procConn
 			})).ProcessConn(c)

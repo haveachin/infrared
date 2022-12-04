@@ -1,8 +1,10 @@
 package config
 
 import (
+	"reflect"
 	"sync"
 
+	"github.com/c2h5oh/datasize"
 	"github.com/haveachin/infrared/internal/pkg/config/provider"
 	"github.com/mitchellh/mapstructure"
 	"go.uber.org/zap"
@@ -121,12 +123,32 @@ func (c *config) Read() (map[string]any, error) {
 
 func Unmarshal(cfg any, v any) error {
 	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
-		Result:     v,
-		DecodeHook: mapstructure.StringToTimeDurationHookFunc(),
+		Result: v,
+		DecodeHook: mapstructure.ComposeDecodeHookFunc(
+			mapstructure.StringToTimeDurationHookFunc(),
+			stringToDataSizeHookFunc(),
+		),
 	})
 	if err != nil {
 		return err
 	}
 
 	return decoder.Decode(cfg)
+}
+
+func stringToDataSizeHookFunc() mapstructure.DecodeHookFunc {
+	return func(
+		f reflect.Type,
+		t reflect.Type,
+		data interface{}) (interface{}, error) {
+		if f.Kind() != reflect.String {
+			return data, nil
+		}
+		if t != reflect.TypeOf(datasize.ByteSize(5)) {
+			return data, nil
+		}
+
+		// Convert it by parsing
+		return datasize.ParseString(data.(string))
+	}
 }

@@ -121,6 +121,10 @@ func (p file) Close() error {
 func (p file) readConfigData() (Data, error) {
 	cfg := map[string]any{}
 	readConfig := func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
 		if info.IsDir() {
 			return nil
 		}

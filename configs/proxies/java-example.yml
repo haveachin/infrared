@@ -1,24 +1,65 @@
+# This is an example config for a minecraft java proxy.
+# Feel free to use this as a template for other proxy configs
+# or adapt it to your fit your setup.
+#
 java:
   gateways:
+    # This is just the name of this gateway.
+    # Since is your only gateways right now I would call it "default".
+    # These names ARE global. Make sure to not have duplicates.
+    #
     default:
       listeners:
+        # Same as the gateway. This is just the name of the listener.
+        # Since is binds to port 25565 it makes sense that it is called
+        # default for now.
+        # These names ARE global. Make sure to not have duplicates.
+        #
         default:
           bind: :25565
+          
+          # Optional fields:
+          # Also look at the defaults.yml file for more optional fields.
+          #
+          #receiveProxyProtocol: true
+          #receiveRealIP: true
   servers:
+    # This is again just the name of the server.
+    # These names ARE global. Make sure to not have duplicates.
+    #
     default:
+      # We link this server to our default gateway.
+      # That means that players that connect through any listener
+      # in our "default" gateway can connect to this server.
+      #
       gateways:
         - default
+      
+      # This is the domain that players enter in their game client.
+      # You can have multiple domains here or just one.
+      # Currently this holds just a wildcard character as a domain
+      # meaning that is accepts every domain that a player uses.
+      # More about wildcard characters: https://en.wikipedia.org/wiki/Wildcard_character
+      #
       domains:
         - "*"
+
+      # Address of the server that Infrared sends the players to.
+      #
       address: example.com:25565
+
+      # Optional fields:
+      # Also look at the defaults.yml file for more optional fields.
+      #
       #proxyBind: 0.0.0.0
       #sendProxyProtocol: true
       #sendRealIP: true
       #overrideStatus:
         #versionName: Infrared
-        #maxPlayerCount: 20
+        #protocolNumber: 0
+        #maxPlayerCount: 0
         #playerCount: 0
-        #
-      bandwidth:
-        trafficLimit: 1TB
-        resetCron: "0 0 0 1 * *"
+        #iconPath: icons/default.png
+        #motd: |
+        #  Powered by Infrared
+        #  §aServer at {{serverDomain}} is online.

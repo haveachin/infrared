@@ -136,6 +136,7 @@ func (p *Proxy) ListenAndServe(logger *zap.Logger) {
 	go p.connPool.Start()
 
 	p.serverGateway.Logger = logger
+	p.serverGateway.EventBus = event.DefaultBus
 	p.serverGateway.Start()
 }
 

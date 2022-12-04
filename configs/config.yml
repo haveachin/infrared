@@ -26,14 +26,6 @@ providers:
     #
     #watch: true
 
-  # Storage like a database that Infrared should read from.
-  #
-  storage:
-    # A list of storage IDs that Infrared should read from.
-    #
-    ids:
-      - default
-
   # Config files that Infrared should read from.
   #
   file:
@@ -45,18 +37,43 @@ providers:
     #
     watch: true
 
-# Storage are mainly used to store and read Infrared configs,
-# but are also used to enable other features that need persistend storage.
-#
-storage:
-  # This is the ID of this database.
-  #
-  default:
-    driver: postgres
-    address: :5432
-    database: infrared
-    username: username
-    password: password
+#trafficLimiters:
+  #default:
+    # Server IDs to watch the traffic
+    #
+    #serverIds:
+    #  - default
+    
+    # File is used to persistently store data
+    #
+    #file: bandwidth.yml
+    
+    # This is the amount of traffic until the server gets limited.
+    # Valid sizes are B, KB, MB, GB, TB, PB and EB.
+    #
+    #trafficLimit: 1TB
+
+    # Sets the schedule for the job that resets the consumed bytes from the traffic limiter.
+    # For more info on the Cron sysntax see here: https://en.wikipedia.org/wiki/Cron
+    #
+    #resetCron: "@monthly"
+    
+    # The message that is displayed to a client when they try to connect
+    # but the server is out of bandwidth.
+    #
+    #outOfBandwidthMessage: Sorry {{username}}, but the server is out of bandwidth.
+
+    # This is the ping response that clients see of your server when it is out of bandwidth.
+    #
+    #outOfBandwidthStatus:
+      #versionName: Infrared
+      #protocolNumber: 0
+      #maxPlayerCount: 0
+      #playerCount: 0
+      #iconPath: icons/default.png
+      #motd: |
+      #  Powered by Infrared
+      #  §6Server at {{serverDomain}} is out of bandwidth.
 
 # Enables the API to access real time data.
 #
@@ -94,12 +111,12 @@ storage:
     
     # Event Topics to listen for.
     # Available events are:
-    # - NewConnEvent - When a new connection to Infrared is made.
-    # - PreConnProcessingEvent - Before the new connection is processed.
-    # - PostConnProcessingEvent - After a connection is processed.
-    # - PreConnConnectingEvent - Before a client is connecting to the target server.
-    # - PlayerJoinEvent - When a player joins a server.
-    # - PlayerLeaveEvent - When a player leaves the server.
+    # - AcceptedConn - When a new connection to Infrared is made.
+    # - PreProcessing - Before the new connection is processed.
+    # - PostProcessing - After a connection is processed.
+    # - PrePlayerJoin - Before a client is connecting to the target server.
+    # - PlayerJoin - When a player joins a server.
+    # - PlayerLeave - When a player leaves the server.
     #
     #events:
     #  - PlayerJoin

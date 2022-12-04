@@ -17,17 +17,17 @@ import (
 )
 
 type ServerConfig struct {
-	Domains            []string                      `mapstructure:"domains"`
-	Address            string                        `mapstructure:"address"`
-	ProxyBind          string                        `mapstructure:"proxyBind"`
-	SendProxyProtocol  bool                          `mapstructure:"sendProxyProtocol"`
-	SendRealIP         bool                          `mapstructure:"sendRealIP"`
-	OverrideAddress    bool                          `mapstructure:"overrideAddress"`
-	DialTimeout        time.Duration                 `mapstructure:"dialTimeout"`
-	DialTimeoutMessage string                        `mapstructure:"dialTimeoutMessage"`
-	OverrideStatus     OverrideServerStatusConfig    `mapstructure:"overrideStatus"`
-	DialTimeoutStatus  DialTimeoutServerStatusConfig `mapstructure:"dialTimeoutStatus"`
-	Gateways           []string                      `mapstructure:"gateways"`
+	Domains            []string                   `mapstructure:"domains"`
+	Address            string                     `mapstructure:"address"`
+	ProxyBind          string                     `mapstructure:"proxyBind"`
+	SendProxyProtocol  bool                       `mapstructure:"sendProxyProtocol"`
+	SendRealIP         bool                       `mapstructure:"sendRealIP"`
+	OverrideAddress    bool                       `mapstructure:"overrideAddress"`
+	DialTimeout        time.Duration              `mapstructure:"dialTimeout"`
+	DialTimeoutMessage string                     `mapstructure:"dialTimeoutMessage"`
+	OverrideStatus     OverrideServerStatusConfig `mapstructure:"overrideStatus"`
+	DialTimeoutStatus  ServerStatusConfig         `mapstructure:"dialTimeoutStatus"`
+	Gateways           []string                   `mapstructure:"gateways"`
 }
 
 type OverrideServerStatusConfig struct {
@@ -40,7 +40,7 @@ type OverrideServerStatusConfig struct {
 	MOTD           *string                          `mapstructure:"motd"`
 }
 
-type DialTimeoutServerStatusConfig struct {
+type ServerStatusConfig struct {
 	VersionName    string                           `mapstructure:"versionName"`
 	ProtocolNumber int                              `mapstructure:"protocolNumber"`
 	MaxPlayerCount int                              `mapstructure:"maxPlayerCount"`
@@ -51,21 +51,21 @@ type DialTimeoutServerStatusConfig struct {
 }
 
 type ServerStatusPlayerSampleConfig struct {
-	Name string `mapstructure:"name,omitempty"`
-	UUID string `mapstructure:"uuid,omitempty"`
+	Name string `mapstructure:"name"`
+	UUID string `mapstructure:"uuid"`
 }
 
 type ListenerConfig struct {
-	Bind                  string                        `mapstructure:"bind"`
-	ReceiveProxyProtocol  bool                          `mapstructure:"receiveProxyProtocol"`
-	ReceiveRealIP         bool                          `mapstructure:"receiveRealIP,omitempty"`
-	ServerNotFoundMessage string                        `mapstructure:"serverNotFoundMessage,omitempty"`
-	ServerNotFoundStatus  DialTimeoutServerStatusConfig `mapstructure:"serverNotFoundStatus,omitempty"`
+	Bind                  string             `mapstructure:"bind"`
+	ReceiveProxyProtocol  bool               `mapstructure:"receiveProxyProtocol"`
+	ReceiveRealIP         bool               `mapstructure:"receiveRealIP"`
+	ServerNotFoundMessage string             `mapstructure:"serverNotFoundMessage"`
+	ServerNotFoundStatus  ServerStatusConfig `mapstructure:"serverNotFoundStatus"`
 }
 
 type GatewayConfig struct {
 	Listeners             map[string]ListenerConfig `mapstructure:"listeners"`
-	ServerNotFoundMessage string                    `mapstructure:"serverNotFoundMessage,omitempty"`
+	ServerNotFoundMessage string                    `mapstructure:"serverNotFoundMessage"`
 }
 
 type ConnProcessorConfig struct {
@@ -98,17 +98,17 @@ type ProxyConfig struct {
 
 type ProxyConfigDefaults struct {
 	Gateway struct {
-		Listener              ListenerConfig `mapstructure:"listener,omitempty"`
-		ServerNotFoundMessage string         `mapstructure:"serverNotFoundMessage,omitempty"`
-	} `mapstructure:"gateway,omitempty"`
-	Server ServerConfig `mapstructure:"server,omitempty"`
+		Listener              ListenerConfig `mapstructure:"listener"`
+		ServerNotFoundMessage string         `mapstructure:"serverNotFoundMessage"`
+	} `mapstructure:"gateway"`
+	Server ServerConfig `mapstructure:"server"`
 }
 
 type Config struct {
 	Java     ProxyConfig `mapstructure:"java"`
 	Defaults struct {
 		Java ProxyConfigDefaults `mapstructure:"java"`
-	} `mapstructure:"defaults,omitempty"`
+	} `mapstructure:"defaults"`
 }
 
 func NewProxyConfigFromMap(cfg map[string]any) (infrared.ProxyConfig, error) {
@@ -225,7 +225,7 @@ func (cfg Config) loadListeners(gatewayID string) (map[string]ListenerConfig, er
 }
 
 func newListener(id string, cfg ListenerConfig) (Listener, error) {
-	status, err := newDialTimeoutServerStatus(cfg.ServerNotFoundStatus)
+	status, err := NewServerServerStatus(cfg.ServerNotFoundStatus)
 	if err != nil {
 		return Listener{}, err
 	}
@@ -264,7 +264,7 @@ func newServer(id string, cfg ServerConfig) (infrared.Server, error) {
 		return nil, err
 	}
 
-	dialTimeoutStatus, err := newDialTimeoutServerStatus(cfg.DialTimeoutStatus)
+	dialTimeoutStatus, err := NewServerServerStatus(cfg.DialTimeoutStatus)
 	if err != nil {
 		return nil, err
 	}
@@ -296,6 +296,8 @@ func newServer(id string, cfg ServerConfig) (infrared.Server, error) {
 				},
 			},
 			Addr:                  cfg.Address,
+			AddrHost:              host,
+			AddrPort:              port,
 			SendProxyProtocol:     cfg.SendProxyProtocol,
 			SendRealIP:            cfg.SendRealIP,
 			OverrideAddress:       cfg.OverrideAddress,
@@ -303,8 +305,6 @@ func newServer(id string, cfg ServerConfig) (infrared.Server, error) {
 			OverrideStatus:        overrideStatus,
 			DialTimeoutStatusJSON: string(bb),
 			GatewayIDs:            cfg.Gateways,
-			Host:                  host,
-			Port:                  port,
 		},
 	}, nil
 }
@@ -312,7 +312,7 @@ func newServer(id string, cfg ServerConfig) (infrared.Server, error) {
 func newOverrideServerStatus(cfg OverrideServerStatusConfig) (OverrideStatusResponse, error) {
 	var iconPtr *string
 	if cfg.IconPath != nil {
-		icon, err := loadImageAndEncodeToBase64String(*cfg.IconPath)
+		icon, err := LoadImageAndEncodeToBase64String(*cfg.IconPath)
 		if err != nil {
 			return OverrideStatusResponse{}, err
 		}
@@ -330,12 +330,12 @@ func newOverrideServerStatus(cfg OverrideServerStatusConfig) (OverrideStatusResp
 	}, nil
 }
 
-func newDialTimeoutServerStatus(cfg DialTimeoutServerStatusConfig) (DialTimeoutStatusResponse, error) {
-	icon, err := loadImageAndEncodeToBase64String(cfg.IconPath)
+func NewServerServerStatus(cfg ServerStatusConfig) (ServerStatusResponse, error) {
+	icon, err := LoadImageAndEncodeToBase64String(cfg.IconPath)
 	if err != nil {
-		return DialTimeoutStatusResponse{}, err
+		return ServerStatusResponse{}, err
 	}
-	return DialTimeoutStatusResponse{
+	return ServerStatusResponse{
 		VersionName:    cfg.VersionName,
 		ProtocolNumber: cfg.ProtocolNumber,
 		MaxPlayerCount: cfg.MaxPlayerCount,
@@ -365,7 +365,7 @@ func newChanCaps(cfg ChanCapsConfig, cpnCount int) infrared.ProxySettings {
 	}
 }
 
-func loadImageAndEncodeToBase64String(path string) (string, error) {
+func LoadImageAndEncodeToBase64String(path string) (string, error) {
 	if path == "" {
 		return "", nil
 	}

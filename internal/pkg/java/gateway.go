@@ -18,7 +18,7 @@ type Listener struct {
 	ReceiveProxyProtocol     bool
 	ReceiveRealIP            bool
 	ServerNotFoundMessage    string
-	ServerNotFoundStatus     DialTimeoutStatusResponse
+	ServerNotFoundStatus     ServerStatusResponse
 	serverNotFoundStatusJSON string
 
 	net.Listener

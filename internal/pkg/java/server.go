@@ -19,6 +19,8 @@ type Server struct {
 	ID                          string
 	Domains                     []string
 	Addr                        string
+	AddrHost                    string
+	AddrPort                    int
 	SendProxyProtocol           bool
 	SendRealIP                  bool
 	OverrideAddress             bool
@@ -28,9 +30,6 @@ type Server struct {
 	DialTimeoutMessage          string
 	DialTimeoutStatusJSON       string
 	GatewayIDs                  []string
-
-	Host string
-	Port int
 
 	overrideStatusCache *string
 }
@@ -91,8 +90,8 @@ func (s InfraredServer) HandleConn(c net.Conn) (infrared.Conn, error) {
 	}
 
 	if s.Server.OverrideAddress {
-		pc.handshake.SetServerAddress(s.Server.Host)
-		pc.handshake.ServerPort = protocol.UnsignedShort(s.Server.Port)
+		pc.handshake.SetServerAddress(s.Server.AddrHost)
+		pc.handshake.ServerPort = protocol.UnsignedShort(s.Server.AddrPort)
 		pc.readPks[0] = pc.handshake.Marshal()
 	}
 

@@ -5,6 +5,8 @@ import (
 	"net"
 	"strings"
 	"time"
+
+	"github.com/haveachin/infrared/pkg/event"
 )
 
 type Edition string
@@ -36,7 +38,7 @@ type Conn interface {
 	GatewayID() string
 	// Edition returns the Minecraft edition of this connection.
 	Edition() Edition
-	Pipe(c net.Conn) error
+	Pipe(c net.Conn) (n int64, err error)
 }
 
 // ProcessedConn is a already processed connection that waits to be handles by a server
@@ -83,19 +85,25 @@ type ConnTunnel struct {
 	// MatchedDomain is the domain that the client matched when resolving
 	// the server that it requested.
 	MatchedDomain string
+	EventBus      event.Bus
 }
 
 // Start starts to proxy the Conn to the Server. This call is blocking.
-func (ct ConnTunnel) Start() error {
+func (ct ConnTunnel) Start() (int64, error) {
 	rc, err := ct.Server.HandleConn(ct.Conn)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer rc.Close()
 
-	go ct.Conn.Pipe(rc)
-	rc.Pipe(ct.Conn)
-	return nil
+	var consumedBytes int64
+	go func() {
+		n, _ := ct.Conn.Pipe(rc)
+		consumedBytes += n
+	}()
+	n, _ := rc.Pipe(ct.Conn)
+	consumedBytes += n
+	return consumedBytes, nil
 }
 
 // Close closes both connection (client to server and server to client).

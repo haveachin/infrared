@@ -54,7 +54,7 @@ func (cp *ConnPool) handlePlayerStatus(ct ConnTunnel) {
 
 	logger := cp.Logger.With(logProcessedConn(ct.Conn)...)
 	logger.Info("connecting client to server")
-	if err := ct.Start(); err != nil {
+	if _, err := ct.Start(); err != nil {
 		logger.Info("closing connection", zap.Error(err))
 		return
 	}
@@ -67,14 +67,19 @@ func (cp *ConnPool) handlePlayerLogin(ct ConnTunnel) {
 	defer cp.removeFromPool(ct)
 
 	logger := cp.Logger.With(logProcessedConn(ct.Conn)...)
-	event.Push(PlayerJoinEvent{
+	replyChan := event.Request(PlayerJoinEvent{
 		ProcessedConn: ct.Conn,
 		Server:        ct.Server,
 		MatchedDomain: ct.MatchedDomain,
 	}, PlayerJoinEventTopic)
 
+	if isEventCanceled(replyChan, logger) {
+		return
+	}
+
 	logger.Info("connecting client to server")
-	if err := ct.Start(); err != nil {
+	consumedBytes, err := ct.Start()
+	if err != nil {
 		logger.Info("closing connection", zap.Error(err))
 		return
 	}
@@ -84,7 +89,8 @@ func (cp *ConnPool) handlePlayerLogin(ct ConnTunnel) {
 		ProcessedConn: ct.Conn,
 		Server:        ct.Server,
 		MatchedDomain: ct.MatchedDomain,
-	}, PlayerLeaveEventTopic)
+		ConsumedBytes: consumedBytes,
+	}, PlayerLeaveEventTopicAsync)
 }
 
 func (cp *ConnPool) Reload(cfg ConnPoolConfig) {

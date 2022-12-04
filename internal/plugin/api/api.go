@@ -8,7 +8,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
-	"github.com/gofrs/uuid"
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/internal/pkg/config"
 	"github.com/haveachin/infrared/pkg/event"
@@ -26,7 +25,6 @@ type Plugin struct {
 	Config   PluginConfig
 	logger   *zap.Logger
 	eventBus event.Bus
-	eventID  uuid.UUID
 
 	mux  http.Handler
 	quit chan bool
@@ -99,7 +97,6 @@ func (p *Plugin) Enable(api infrared.PluginAPI) error {
 }
 
 func (p Plugin) Disable() error {
-	p.eventBus.DetachRecipient(p.eventID)
 	select {
 	case p.quit <- true:
 	default:

@@ -39,9 +39,8 @@ type Conn struct {
 	w io.Writer
 }
 
-func (c *Conn) Pipe(rc net.Conn) error {
-	_, err := io.Copy(rc, c)
-	return err
+func (c *Conn) Pipe(rc net.Conn) (int64, error) {
+	return io.Copy(rc, c)
 }
 
 func (c Conn) GatewayID() string {

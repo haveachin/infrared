@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"embed"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -9,13 +10,13 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/haveachin/infrared/internal/plugin/api"
-	"github.com/haveachin/infrared/internal/plugin/prometheus"
-
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/internal/pkg/bedrock"
 	"github.com/haveachin/infrared/internal/pkg/config"
 	"github.com/haveachin/infrared/internal/pkg/java"
+	"github.com/haveachin/infrared/internal/plugin/api"
+	"github.com/haveachin/infrared/internal/plugin/prometheus"
+	"github.com/haveachin/infrared/internal/plugin/traffic_limiter"
 	"github.com/haveachin/infrared/internal/plugin/webhook"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
@@ -52,8 +53,10 @@ var (
 				zap.String("config", configPath),
 			)
 
-			if err := safeWriteFromEmbeddedFS("configs", "."); err != nil {
-				return err
+			if _, err := os.Stat(configPath); err != nil && errors.Is(err, os.ErrNotExist) {
+				if err := safeWriteFromEmbeddedFS("configs", "."); err != nil {
+					return err
+				}
 			}
 
 			cfg, err := config.New(configPath, onConfigChange, logger)
@@ -94,6 +97,7 @@ var (
 					&webhook.Plugin{},
 					&prometheus.Plugin{},
 					&api.Plugin{},
+					&traffic_limiter.Plugin{},
 				},
 				Logger: logger,
 			}

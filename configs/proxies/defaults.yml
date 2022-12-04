@@ -18,7 +18,7 @@ defaults:
         #
         compression: flate
 
-        # This is the ping response that clients see of your sever. This cannot be handled at
+        # This is the ping response that clients see of your server. This cannot be handled at
         # server level due to a limitation of the bedrock protocol. See https://wiki.vg/Raknet_Protocol#Unconnected_Pong
         #
         pingStatus:
@@ -63,7 +63,10 @@ defaults:
   java:
     gateway:
       listener:
+        # The message that is displayed to a client when they try to connect via an invalid domain.
+        #
         serverNotFoundMessage: Sorry {{username}}, but {{serverDomain}} was not found.
+
         # The Java Edition has a different approach to handling status pings, than the Bedrock Edition.
         # This makes it possible to display a custom message to clients if the domain that they want
         # to connect though has a server configuration behind it.

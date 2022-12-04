@@ -3,10 +3,8 @@ package prometheus
 import (
 	"context"
 	"net/http"
-	"strings"
 	"time"
 
-	"github.com/gofrs/uuid"
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/internal/pkg/config"
 	"github.com/haveachin/infrared/pkg/event"
@@ -26,7 +24,7 @@ type Plugin struct {
 	Config   PluginConfig
 	logger   *zap.Logger
 	eventBus event.Bus
-	eventID  uuid.UUID
+	eventID  string
 
 	mux  http.Handler
 	quit chan bool
@@ -108,8 +106,8 @@ func (p Plugin) Disable() error {
 	return nil
 }
 
-func (p Plugin) registerEventHandler() {
-	id, _ := p.eventBus.AttachHandler(uuid.Nil, p.handleEvent)
+func (p *Plugin) registerEventHandler() {
+	id, _ := p.eventBus.AttachHandlerAsyncFunc("", p.handleEvent)
 	p.eventID = id
 }
 
@@ -162,12 +160,12 @@ func (p Plugin) handleEvent(e event.Event) {
 		server := e.Server.ID()
 		domain := e.MatchedDomain
 		p.playersConnected.With(prometheus.Labels{"host": domain, "server": server, "edition": edition}).Dec()
-	case infrared.ServerRegisterEvent:
+		/*case infrared.ServerRegisterEvent:
 		edition := e.Server.Edition().String()
 		server := e.Server.ID()
 		for _, domain := range e.Server.Domains() {
 			domain = strings.ToLower(domain)
 			p.playersConnected.With(prometheus.Labels{"host": domain, "server": server, "edition": edition})
-		}
+		}*/
 	}
 }

@@ -47,24 +47,6 @@ func (c *Conn) ReadPackets() ([]packet.Data, error) {
 	return pksData, nil
 }
 
-func (c *Conn) ReadPacket() ([]packet.Data, error) {
-	pks, err := c.decoder.Decode()
-	if err != nil {
-		return nil, err
-	}
-
-	var pksData []packet.Data
-	for _, pk := range pks {
-		pkData, err := packet.ParseData(pk)
-		if err != nil {
-			return nil, err
-		}
-
-		pksData = append(pksData, pkData)
-	}
-	return pksData, nil
-}
-
 func (c *Conn) WritePacket(pk packet.Packet) error {
 	buf := internal.BufferPool.Get().(*bytes.Buffer)
 	defer func() {
@@ -80,17 +62,19 @@ func (c *Conn) WritePacket(pk packet.Packet) error {
 	return c.encoder.Encode(buf.Bytes())
 }
 
-func (c *Conn) Pipe(rc net.Conn) error {
+func (c *Conn) Pipe(rc net.Conn) (int64, error) {
+	var nn int64
 	for {
 		pk, err := c.Conn.ReadPacket()
 		if err != nil {
-			return err
+			return nn, err
 		}
 
-		_, err = rc.Write(pk)
+		n, err := rc.Write(pk)
 		if err != nil {
-			return err
+			return nn, err
 		}
+		nn += int64(n)
 	}
 }
 

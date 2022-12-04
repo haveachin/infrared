@@ -38,6 +38,7 @@ type ServerGatewayConfig struct {
 	In       <-chan ProcessedConn
 	Out      chan<- ConnTunnel
 	Logger   *zap.Logger
+	EventBus event.Bus
 }
 
 type ServerGateway struct {
@@ -131,10 +132,16 @@ func (sg *ServerGateway) Start() {
 
 			pcLogger = pcLogger.With(logServer(srv)...)
 			pcLogger.Debug("found server")
-			event.Push(PreConnConnectingEvent{
+
+			replyChan := event.Request(PreConnConnectingEvent{
 				ProcessedConn: pc,
 				Server:        srv,
-			}, PreConnConnectingEventTopic)
+			}, PrePlayerJoinEventTopic)
+
+			if isEventCanceled(replyChan, pcLogger) {
+				pc.Close()
+				continue
+			}
 
 			sg.Out <- ConnTunnel{
 				Conn:          pc,

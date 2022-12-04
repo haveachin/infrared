@@ -1,19 +1,39 @@
 package infrared
 
-const (
-	NewConnEventTopic                  = "NewConn"
-	PreConnProcessingEventTopic        = "PreConnProcessing"
-	PostConnProcessingEventTopic       = "PostConnProcessing"
-	PreConnConnectingEventTopic        = "PreConnConnecting"
-	PostServerConnConnectingEventTopic = "PostServerConnConnecting"
-
-	PlayerJoinEventTopic  = "PlayerJoin"
-	PlayerLeaveEventTopic = "PlayerLeave"
-
-	ServerRegisterEventTopic = "ServerRegister"
+import (
+	"github.com/haveachin/infrared/pkg/event"
+	"go.uber.org/zap"
 )
 
-type NewConnEvent struct {
+const (
+	AcceptedConnEventTopic     = "AcceptedConn"
+	PreProcessingEventTopic    = "PreProcessing"
+	PostProcessingEventTopic   = "PostProcessing"
+	PrePlayerJoinEventTopic    = "PrePlayerJoin"
+	PlayerJoinEventTopic       = "PlayerJoin"
+	PlayerLeaveEventTopicAsync = "PlayerLeave"
+)
+
+// isEventCanceled evaluates all incoming replys and returns if the event
+// is canceled and the Reply that canceled it.
+func isEventCanceled(replyChan <-chan event.Reply, logger *zap.Logger) bool {
+	for reply := range replyChan {
+		if reply.Err == nil {
+			continue
+		}
+
+		logger.Info("event canceled",
+			zap.String("eventId", reply.EventID),
+			zap.String("handlerId", reply.HandlerID),
+			zap.String("reason", reply.Err.Error()),
+		)
+
+		return true
+	}
+	return false
+}
+
+type AcceptedConnEvent struct {
 	Conn Conn
 }
 
@@ -40,8 +60,5 @@ type PlayerLeaveEvent struct {
 	ProcessedConn ProcessedConn
 	Server        Server
 	MatchedDomain string
-}
-
-type ServerRegisterEvent struct {
-	Server Server
+	ConsumedBytes int64
 }

@@ -17,7 +17,7 @@ var loginStartPayload []byte
 func init() {
 	handshake := handshaking.ServerBoundHandshake{
 		ProtocolVersion: 758,
-		ServerAddress:   "laptop.fritz.box",
+		ServerAddress:   "localhost",
 		ServerPort:      25565,
 		NextState:       2,
 	}
@@ -47,7 +47,7 @@ func main() {
 			log.Printf("%d requests sent\n", i)
 		}
 
-		c, err := net.Dial("tcp", "192.168.178.20:25565")
+		c, err := net.Dial("tcp", "localhost:25565")
 		if err != nil {
 			log.Fatal(err)
 		}
