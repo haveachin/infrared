@@ -15,10 +15,12 @@ type Gateway interface {
 	// ID returns the ID of the gateway
 	ID() string
 	SetListenersManager(*ListenersManager)
-	// Sets the logger implementation of the Gateway
+
 	SetLogger(*zap.Logger)
-	// Logger returns the logger implementation of the Gateway
 	Logger() *zap.Logger
+	SetEventBus(event.Bus)
+	EventBus() event.Bus
+
 	// Listeners returns a slice of all listeners that the Gateway has
 	Listeners() []net.Listener
 	// WrapConn extends the net.Conn interface with a implementation
@@ -50,7 +52,7 @@ func ListenAndServe(gw Gateway, cpnChan chan<- Conn) {
 
 				logger.Info("accepting new connection", logConn(c)...)
 
-				replyChan := event.Request(AcceptedConnEvent{
+				replyChan := gw.EventBus().Request(AcceptedConnEvent{
 					Conn: conn,
 				}, AcceptedConnEventTopic)
 

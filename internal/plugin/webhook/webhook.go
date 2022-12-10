@@ -14,6 +14,7 @@ import (
 )
 
 type PluginConfig struct {
+	Enabled  bool                     `mapstructure:"enabled"`
 	Webhooks map[string]webhookConfig `mapstructure:"webhooks"`
 	Defaults struct {
 		Webhook webhookConfig `mapstructure:"webhook"`
@@ -92,6 +93,10 @@ func (p *Plugin) Reload(cfg map[string]any) error {
 }
 
 func (p *Plugin) Enable(api infrared.PluginAPI) error {
+	if !p.Config.Enabled {
+		return nil
+	}
+
 	p.logger = api.Logger()
 	p.eventBus = api.EventBus()
 

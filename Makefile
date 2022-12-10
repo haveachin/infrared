@@ -14,4 +14,4 @@ test-docker:
 	docker-compose -p infrared -f deployments/docker-compose.test.yml up --force-recreate --remove-orphans
 
 plantuml:
-	plantuml -tsvg *.md docs/*.md docs/plugins/*.md
+	plantuml -tsvg *.md docs/*.md docs/plugins/*.md docs/*.plantuml docs/plugins/*.plantuml

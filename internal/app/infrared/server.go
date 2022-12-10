@@ -133,7 +133,7 @@ func (sg *ServerGateway) Start() {
 			pcLogger = pcLogger.With(logServer(srv)...)
 			pcLogger.Debug("found server")
 
-			replyChan := event.Request(PreConnConnectingEvent{
+			replyChan := sg.EventBus.Request(PreConnConnectingEvent{
 				ProcessedConn: pc,
 				Server:        srv,
 			}, PrePlayerJoinEventTopic)

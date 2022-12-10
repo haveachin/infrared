@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/haveachin/infrared/internal/app/infrared"
+	"github.com/haveachin/infrared/pkg/event"
 	"github.com/pires/go-proxyproto"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
@@ -29,6 +30,7 @@ type Gateway struct {
 	ListenersManager *infrared.ListenersManager
 	Listeners        []Listener
 	Logger           *zap.Logger
+	EventBus         event.Bus
 
 	listeners []net.Listener
 }
@@ -90,6 +92,18 @@ func (gw *InfraredGateway) Logger() *zap.Logger {
 	gw.mu.RLock()
 	defer gw.mu.RUnlock()
 	return gw.gateway.Logger
+}
+
+func (gw *InfraredGateway) EventBus() event.Bus {
+	gw.mu.RLock()
+	defer gw.mu.RUnlock()
+	return gw.gateway.EventBus
+}
+
+func (gw *InfraredGateway) SetEventBus(bus event.Bus) {
+	gw.mu.Lock()
+	defer gw.mu.Unlock()
+	gw.gateway.EventBus = bus
 }
 
 func (gw *InfraredGateway) Listeners() []net.Listener {

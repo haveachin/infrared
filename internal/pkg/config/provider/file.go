@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	"github.com/df-mc/atomic"
@@ -152,7 +152,7 @@ func (p file) readConfigData() (Data, error) {
 }
 
 func ReadConfigFile(filename string, v any) error {
-	bb, err := ioutil.ReadFile(filename)
+	bb, err := os.ReadFile(filename)
 	if err != nil {
 		return err
 	}

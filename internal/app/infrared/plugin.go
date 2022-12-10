@@ -118,10 +118,6 @@ func (pm PluginManager) ReloadPlugins(cfg map[string]any) {
 }
 
 func (pm PluginManager) EnablePlugins() {
-	if pm.EventBus == nil {
-		pm.EventBus = event.DefaultBus
-	}
-
 	for _, p := range pm.Plugins {
 		pluginLogger := pm.Logger.With(
 			zap.String("pluginName", p.Name()),

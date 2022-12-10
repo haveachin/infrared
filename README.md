@@ -1,11 +1,12 @@
 <p align="center">
-  <img width="300" height="auto" src="https://i.imgur.com/sD8cjJc.png">
+  <img width="300" height="auto" src="assets/logo_2000x2000.png">
 </p>
 
 [![Discord](https://img.shields.io/discord/800456341088370698?label=discord&logo=discord)](https://discord.gg/r98YPRsZAx)
 [![Docker Pulls](https://img.shields.io/docker/pulls/haveachin/infrared?logo=docker)](https://hub.docker.com/r/haveachin/infrared)
 
 ![Test, Build, Release](https://github.com/haveachin/infrared/actions/workflows/test-build-release.yml/badge.svg)
+
 
 # Infrared - a Minecraft Proxy
 
@@ -14,35 +15,36 @@ Ever wanted to have only one exposed port on your server for multiple Minecraft 
 Then Infrared is the tool you need!
 Infrared works as a reverse proxy using a sub-/domains to connect clients to a specific Minecraft server.
 
+## How to configure
+
+- [Install](docs/INSTALL.md)
+- [Usage](docs/USAGE.md)
+- [Config](docs/CONFIG.md)
+
 ## Features
 
 ### Native
 
 - [X] Reverse Proxy
   - [X] Wildcards Support
-  - [X] Mult-Domain Support
+  - [X] Multi-Domain Support
 - [X] Status Placeholder
   - [X] Override Online Status
   - [X] Offline Placeholder
-- [X] HAProxy Protocol Support
+- [X] Proxy Protocol v2 Support
 - [X] RealIP Support
 - [ ] TCPShield Plugin Support
 
 ### Internal Plugins
 
 - [X] [Webhooks](docs/plugins/WEBHOOKS.md)
-- [ ] [HTTP REST API with JSON](docs/plugins/HTTP_API.md)
+- [X] [HTTP REST API with JSON](docs/plugins/HTTP_API.md)
   - [ ] Create/Read/Update/Delete Configs
-  - [ ] Query connected players
-  - [ ] Disconnect players
-- [ ] [Prometheus Analytics](docs/plugins/PROMETEUS.md)
-- [ ] Server Hibernation
-
-## How to configure
-
-- [Install](docs/INSTALL.md)
-- [Usage](docs/USAGE.md)
-- [Config](docs/CONFIG.md)
+  - [X] Query connected players
+  - [X] Disconnect players
+- [X] [Prometheus Analytics](docs/plugins/PROMETHEUS.md)
+- [X] [Traffic Limiter](docs/plugins/TRAFFIC_LIMITER.md)
+- [ ] [Session Validator](docs/plugins/SESSION_VALIDATOR.md)
 
 ## Contributing
 
@@ -58,20 +60,7 @@ You can also contribute indirectly by donation.
 When contributing to this project please follow the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) 
 specification for writing commit messages, so that changelogs and release versions can be generated automatically.
 
-**Example commit message**
-
-```
-fix: prevent racing of requests
-
-Introduce a request id and a reference to latest request. Dismiss
-incoming responses other than from latest request.
-
-Remove timeouts which were used to mitigate the racing issue but are
-obsolete now.
-
-Reviewed-by: Z
-Refs: #123
-```
+Examples can be found here: https://www.conventionalcommits.org/en/v1.0.0/#examples
 
 Some tooling that can help you author those commit messages are the following plugins:
 

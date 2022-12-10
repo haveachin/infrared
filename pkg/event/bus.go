@@ -9,9 +9,9 @@ import (
 	"github.com/gofrs/uuid"
 )
 
-var DefaultBus = NewInternalBus()
-
-var ErrRecipientNotFound = errors.New("target recipient not found")
+var (
+	ErrRecipientNotFound = errors.New("target recipient not found")
+)
 
 // Bus is an event bus system that notifies all it's attached recipients of pushed events.
 // Recipients can be attached via a event.Handler func or an event.Channel.
@@ -25,58 +25,18 @@ type Bus interface {
 	AttachHandlerFunc(id string, fn HandlerSyncFunc, topics ...string) (handlerID string, replaced bool)
 	AttachHandlerAsync(id string, h Handler, topics ...string) (handlerID string, replaced bool)
 	AttachHandlerAsyncFunc(id string, fh HandlerFunc, topics ...string) (handlerID string, replaced bool)
-	DetachRecipient(id string) (success bool)
+	DetachRecipient(id string) error
 	DetachAllRecipients() (n int)
-}
-
-func Push(data any, topics ...string) {
-	DefaultBus.Push(data, topics...)
-}
-
-func PushTo(to string, data any, topics ...string) error {
-	return DefaultBus.PushTo(to, data, topics...)
-}
-
-func Request(data any, topics ...string) <-chan Reply {
-	return DefaultBus.Request(data, topics...)
-}
-
-func RequestFrom(to string, data any, topics ...string) (<-chan Reply, error) {
-	return DefaultBus.RequestFrom(to, data, topics...)
-}
-
-func AttachHandler(id string, h HandlerSync, topics ...string) (string, bool) {
-	return DefaultBus.AttachHandler(id, h, topics...)
-}
-
-func AttachHandlerFunc(id string, h HandlerSyncFunc, topics ...string) (string, bool) {
-	return DefaultBus.AttachHandlerFunc(id, h, topics...)
-}
-
-func AttachHandlerAsync(id string, h Handler, topics ...string) (string, bool) {
-	return DefaultBus.AttachHandlerAsync(id, h, topics...)
-}
-
-func AttachHandlerAsyncFunc(id string, fn HandlerFunc, topics ...string) (string, bool) {
-	return DefaultBus.AttachHandlerAsync(id, fn, topics...)
-}
-
-func DetachRecipient(id string) bool {
-	return DefaultBus.DetachRecipient(id)
-}
-
-func DetachAllRecipients() int {
-	return DefaultBus.DetachAllRecipients()
 }
 
 type internalBus struct {
 	sync.RWMutex
-	ws map[string]worker
+	workers map[string]worker
 }
 
 func NewInternalBus() Bus {
 	return &internalBus{
-		ws: map[string]worker{},
+		workers: map[string]worker{},
 	}
 }
 
@@ -131,28 +91,28 @@ func (b *internalBus) AttachHandlerAsyncFunc(id string, fn HandlerFunc, topics .
 	return b.AttachHandlerAsync(id, fn, topics...)
 }
 
-func (b *internalBus) DetachRecipient(id string) bool {
+func (b *internalBus) DetachRecipient(id string) error {
 	b.Lock()
 	defer b.Unlock()
 
-	if w, ok := b.ws[id]; ok {
+	if w, ok := b.workers[id]; ok {
 		w.close()
-		delete(b.ws, id)
-		return ok
+		delete(b.workers, id)
+		return nil
 	}
 
-	return false
+	return ErrRecipientNotFound
 }
 
 func (b *internalBus) DetachAllRecipients() int {
 	b.Lock()
 	defer b.Unlock()
 
-	n := len(b.ws)
-	for _, w := range b.ws {
+	n := len(b.workers)
+	for _, w := range b.workers {
 		w.close()
 	}
-	b.ws = map[string]worker{}
+	b.workers = map[string]worker{}
 
 	return n
 }
@@ -160,19 +120,21 @@ func (b *internalBus) DetachAllRecipients() int {
 func (b *internalBus) sendEvent(e Event) int {
 	b.RLock()
 	defer b.RUnlock()
-	for _, w := range b.ws {
+	for _, w := range b.workers {
 		w.push(e)
 	}
-	return len(b.ws)
+	return len(b.workers)
 }
 
 func (b *internalBus) sendEventTo(to string, e Event) error {
 	b.RLock()
 	defer b.RUnlock()
-	if w, ok := b.ws[to]; ok {
+
+	if w, ok := b.workers[to]; ok {
 		w.push(e)
 		return nil
 	}
+
 	return ErrRecipientNotFound
 }
 
@@ -191,12 +153,12 @@ func (b *internalBus) attachHandler(id string, h Handler, topics []string) (stri
 
 	b.Lock()
 	defer b.Unlock()
-	w, replaced := b.ws[id]
+	w, replaced := b.workers[id]
 	if replaced {
 		w.close()
 	}
 
-	b.ws[id] = newWorker(id, h)
+	b.workers[id] = newWorker(id, h)
 
 	return id, replaced
 }

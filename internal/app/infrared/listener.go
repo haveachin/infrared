@@ -132,7 +132,7 @@ func (m *ListenersManager) Listen(addr string, opts ...ListenerOption) (net.List
 	return ml.newSubscriber(), nil
 }
 
-func (m *ListenersManager) clean() {
+func (m *ListenersManager) prune() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

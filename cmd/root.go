@@ -18,6 +18,7 @@ import (
 	"github.com/haveachin/infrared/internal/plugin/prometheus"
 	"github.com/haveachin/infrared/internal/plugin/traffic_limiter"
 	"github.com/haveachin/infrared/internal/plugin/webhook"
+	"github.com/haveachin/infrared/pkg/event"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )
@@ -91,6 +92,7 @@ var (
 			}
 			proxies[infrared.BedrockEdition] = bedrockPrx
 
+			eventBus := event.NewInternalBus()
 			pluginManager = infrared.PluginManager{
 				Proxies: proxies,
 				Plugins: []infrared.Plugin{
@@ -99,7 +101,8 @@ var (
 					&api.Plugin{},
 					&traffic_limiter.Plugin{},
 				},
-				Logger: logger,
+				Logger:   logger,
+				EventBus: eventBus,
 			}
 			logger.Info("loading plugins")
 			pluginManager.LoadPlugins(data)
@@ -109,7 +112,7 @@ var (
 
 			logger.Info("starting proxies")
 			for _, proxy := range proxies {
-				go proxy.ListenAndServe(logger)
+				go proxy.ListenAndServe(eventBus, logger)
 			}
 
 			sc := make(chan os.Signal, 1)

@@ -10,8 +10,9 @@ import (
 )
 
 type ConnPoolConfig struct {
-	In     <-chan ConnTunnel
-	Logger *zap.Logger
+	In       <-chan ConnTunnel
+	Logger   *zap.Logger
+	EventBus event.Bus
 }
 
 type ConnPool struct {
@@ -67,7 +68,7 @@ func (cp *ConnPool) handlePlayerLogin(ct ConnTunnel) {
 	defer cp.removeFromPool(ct)
 
 	logger := cp.Logger.With(logProcessedConn(ct.Conn)...)
-	replyChan := event.Request(PlayerJoinEvent{
+	replyChan := cp.EventBus.Request(PlayerJoinEvent{
 		ProcessedConn: ct.Conn,
 		Server:        ct.Server,
 		MatchedDomain: ct.MatchedDomain,
@@ -85,7 +86,7 @@ func (cp *ConnPool) handlePlayerLogin(ct ConnTunnel) {
 	}
 
 	logger.Info("disconnecting client")
-	event.Push(PlayerLeaveEvent{
+	cp.EventBus.Push(PlayerLeaveEvent{
 		ProcessedConn: ct.Conn,
 		Server:        ct.Server,
 		MatchedDomain: ct.MatchedDomain,

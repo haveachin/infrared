@@ -1,0 +1,44 @@
+@startuml session_validator
+
+header Session Validator
+
+title <b>Session Validation</b>\nwhen under attack\n
+
+actor       "Minecraft Client"          as Client
+participant "Mojang\nSession Server"    as Mojang
+participant "Infrared"                  as Infrared
+participant "Minecraft Server"          as Server
+
+Client ++
+Client -> Infrared ++ : Handshake State=2
+Client -> Infrared : Login Start
+Infrared -> Infrared ++ : Check if Player\nis already verified
+note right Infrared: Check if the combination\nof Username and IP was\nalready validated.
+return isVerified
+alt isVerified = true
+    Infrared -> Server ++ : Handshake State=2
+    Infrared -> Server : Login Start
+    hnote over Infrared, Server: Start Proxy Tunnel
+    return Player disconnects
+else isVerified = false
+    Infrared --> Client : Encryption Key Request
+    Client -> Client ++ : Generate Login Hash
+    return
+    Client -> Mojang ++ : Set Login Hash
+    return
+    Client -> Infrared : Encryption Key Response
+    Infrared -> Infrared ++ : Generate Login Hash
+    return
+    Infrared -> Mojang ++ : Check Login Hash
+    alt Player Found
+        Mojang --> Infrared : Player Info
+    else No Player
+        return No Player
+        Infrared --> Client : Disconnect: Verification Failed
+    end
+    Infrared -> Infrared ++ : Verify Player
+    return
+    return Disconnect: Please Rejoin
+end
+
+@enduml

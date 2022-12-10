@@ -47,6 +47,7 @@ type Proxy struct {
 	srvCh            chan ProcessedConn
 	poolCh           chan ConnTunnel
 	logger           *zap.Logger
+	eventBus         event.Bus
 }
 
 func NewProxy(cfg ProxyConfig) (*Proxy, error) {
@@ -119,24 +120,42 @@ func NewProxy(cfg ProxyConfig) (*Proxy, error) {
 	}, nil
 }
 
-func (p *Proxy) ListenAndServe(logger *zap.Logger) {
+func (p *Proxy) setEventBus(bus event.Bus) {
+	p.eventBus = bus
+
+	for _, gw := range p.gateways {
+		gw.SetEventBus(bus)
+	}
+
+	p.cpnPool.CPN.EventBus = bus
+	p.connPool.EventBus = bus
+	p.serverGateway.EventBus = bus
+}
+
+func (p *Proxy) setLogger(logger *zap.Logger) {
 	p.logger = logger
 	p.listenersManager.logger = logger
+
+	for _, gw := range p.gateways {
+		gw.SetLogger(logger)
+	}
+
 	p.cpnPool.CPN.Logger = logger
-	p.cpnPool.CPN.EventBus = event.DefaultBus
+	p.serverGateway.Logger = logger
+	p.connPool.Logger = logger
+}
+
+func (p *Proxy) ListenAndServe(bus event.Bus, logger *zap.Logger) {
+	p.setEventBus(bus)
+	p.setLogger(logger)
 	p.cpnPool.SetSize(p.settings.CPNCount)
 
 	for _, gw := range p.gateways {
 		gw.SetListenersManager(&p.listenersManager)
-		gw.SetLogger(logger)
 		go ListenAndServe(gw, p.cpnCh)
 	}
 
-	p.connPool.Logger = logger
 	go p.connPool.Start()
-
-	p.serverGateway.Logger = logger
-	p.serverGateway.EventBus = event.DefaultBus
 	p.serverGateway.Start()
 }
 
@@ -145,22 +164,21 @@ func (p *Proxy) Reload(cfg ProxyConfig) error {
 	if err != nil {
 		return err
 	}
+	np.setLogger(p.logger)
+	np.setEventBus(p.eventBus)
 
 	for _, gw := range p.gateways {
 		gw.Close()
 	}
 	p.cpnPool.Close()
 
-	np.cpnPool.CPN.EventBus = event.DefaultBus
-	np.cpnPool.CPN.Logger = p.logger
-	np.serverGateway.Logger = p.logger
-	np.connPool.ConnPoolConfig.Logger = p.logger
-
 	p.gateways = np.gateways
 	p.settings = np.settings
+
 	p.cpnPool.SetSize(0)
 	p.cpnPool.CPN = np.cpnPool.CPN
 	p.cpnPool.SetSize(p.settings.CPNCount)
+
 	p.serverGateway.Reload(np.serverGateway.ServerGatewayConfig)
 	p.connPool.Reload(np.connPool.ConnPoolConfig)
 
@@ -173,7 +191,8 @@ func (p *Proxy) Reload(cfg ProxyConfig) error {
 		gw.SetLogger(p.logger)
 		go ListenAndServe(gw, p.cpnCh)
 	}
-	p.listenersManager.clean()
+	p.listenersManager.prune()
+
 	return nil
 }
 
