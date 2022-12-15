@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"regexp"
 	"strings"
 
 	"github.com/haveachin/infrared/pkg/event"
@@ -49,13 +50,13 @@ type ServerGateway struct {
 	gwIDSrvIDs map[string][]string
 	// Server ID mapped to server
 	srvs map[string]Server
-	// Server ID mapped to server domains in lowercase
-	srvDomains map[string][]string
+	// Server ID mapped to server domain regexps
+	srvRegexps map[string][]*regexp.Regexp
 }
 
 func (sg *ServerGateway) init() {
 	sg.indexIDs()
-	sg.indexDomains()
+	sg.compileDomainExprs()
 }
 
 func (sg *ServerGateway) indexIDs() {
@@ -76,36 +77,35 @@ func (sg *ServerGateway) indexIDs() {
 	}
 }
 
-func (sg *ServerGateway) indexDomains() {
-	sg.srvDomains = map[string][]string{}
+func (sg *ServerGateway) compileDomainExprs() {
+	sg.srvRegexps = map[string][]*regexp.Regexp{}
 	for _, srv := range sg.Servers {
-		dd := make([]string, len(srv.Domains()))
-		for i, d := range srv.Domains() {
-			dd[i] = strings.ToLower(d)
+		regexps := make([]*regexp.Regexp, 0, len(srv.Domains()))
+		for _, expr := range srv.Domains() {
+			regexp, err := regexp.Compile(expr)
+			if err != nil {
+				sg.Logger.Error("failed to compile expression",
+					zap.Error(err),
+					zap.String("expression", expr),
+				)
+				continue
+			}
+			regexps = append(regexps, regexp)
 		}
-		sg.srvDomains[srv.ID()] = dd
+		sg.srvRegexps[srv.ID()] = regexps
 	}
 }
 
 func (sg *ServerGateway) findServer(gatewayID, domain string) (Server, string) {
-	domain = strings.ToLower(domain)
-	srvIDs := sg.gwIDSrvIDs[gatewayID]
-
-	var hs int
-	var srv Server
-	var matchedDomain string
-	for _, srvID := range srvIDs {
-		for _, srvDomain := range sg.srvDomains[srvID] {
-			srvDomain = strings.ToLower(srvDomain)
-			cs := wildcardSimilarity(domain, srvDomain)
-			if cs > -1 && cs >= hs {
-				hs = cs
-				srv = sg.srvs[srvID]
-				matchedDomain = srvDomain
+	for _, srvID := range sg.gwIDSrvIDs[gatewayID] {
+		for _, srvRegexp := range sg.srvRegexps[srvID] {
+			if srvRegexp.MatchString(domain) {
+				return sg.srvs[srvID], srvRegexp.String()
 			}
 		}
 	}
-	return srv, matchedDomain
+
+	return nil, ""
 }
 
 func (sg *ServerGateway) Start() {
@@ -170,41 +170,4 @@ func (sg *ServerGateway) Close() error {
 	}
 	sg.quit <- true
 	return nil
-}
-
-// wildcardSimilarity determines the similarity of a domain to a wildcard domain
-// If the similarity ends on a '*' then the domain is comparable to the wildcard domain
-// then it returns the length of the equal string slice. If it is an exact match
-// then it returns the length of the domain string + 1.
-// Else if they are not comparable because the equal string slice ends on any rune
-// that is not '*' it returns -1
-func wildcardSimilarity(domain, wildcardDomain string) int {
-	ra, rb := []rune(domain), []rune(wildcardDomain)
-	la, lb := len(domain)-1, len(wildcardDomain)-1
-
-	// Determine shorter string length
-	var sl int
-	if la > lb {
-		sl = lb
-	} else {
-		sl = la
-	}
-
-	i := 0
-	for i = 0; i <= sl; i++ {
-		if ra[la-i] != rb[lb-i] {
-			// If the similarity does not end on a wildcard then return -1 for no comparable
-			if rb[lb-i] != '*' {
-				return -1
-			}
-			break
-		}
-	}
-
-	// If it is an exact match then make it the most similar
-	if i == lb {
-		i++
-	}
-
-	return i
 }
