@@ -58,7 +58,9 @@ func (r OverrideStatusResponse) ResponseJSON(resp status.ResponseJSON) status.Re
 	}
 
 	if r.MOTD != nil {
-		resp.Description = status.DescriptionJSON{Text: *r.MOTD}
+		resp.Description = status.DescriptionJSON{
+			Text: *r.MOTD,
+		}
 	}
 
 	return resp

@@ -98,5 +98,4 @@ defaults:
         motd: |
           Powered by Infrared
           §6Server at {{serverDomain}} is not responding.
-      bandwidth:
-        storage: default
+      statusCacheTTL: 5s

@@ -35,12 +35,12 @@ func UnmarshalClientBoundResponse(packet protocol.Packet) (ClientBoundResponse, 
 }
 
 type ResponseJSON struct {
-	Version            VersionJSON `json:"version"`
-	Players            PlayersJSON `json:"players"`
-	Description        any         `json:"description"`
-	Favicon            string      `json:"favicon,omitempty"`
-	PreviewsChat       bool        `json:"previewsChat"`
-	EnforcesSecureChat bool        `json:"enforcesSecureChat"`
+	Version            VersionJSON     `json:"version"`
+	Players            PlayersJSON     `json:"players"`
+	Description        DescriptionJSON `json:"description"`
+	Favicon            string          `json:"favicon,omitempty"`
+	PreviewsChat       bool            `json:"previewsChat"`
+	EnforcesSecureChat bool            `json:"enforcesSecureChat"`
 	// FMLModInfo should be set if the client is expecting a FML server
 	// to response. This is necessary for the client to recognise the
 	// server as a valid Forge server.

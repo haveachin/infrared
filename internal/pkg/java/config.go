@@ -14,6 +14,9 @@ import (
 
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/internal/pkg/config"
+	"github.com/haveachin/infrared/internal/pkg/java/protocol"
+	"github.com/haveachin/infrared/internal/pkg/java/protocol/handshaking"
+	"github.com/haveachin/infrared/internal/pkg/java/protocol/status"
 )
 
 type ServerConfig struct {
@@ -28,6 +31,7 @@ type ServerConfig struct {
 	OverrideStatus     OverrideServerStatusConfig `mapstructure:"overrideStatus"`
 	DialTimeoutStatus  ServerStatusConfig         `mapstructure:"dialTimeoutStatus"`
 	Gateways           []string                   `mapstructure:"gateways"`
+	StatusCacheTTL     time.Duration              `mapstructure:"statusCacheTTL"`
 }
 
 type OverrideServerStatusConfig struct {
@@ -285,27 +289,41 @@ func newServer(id string, cfg ServerConfig) (infrared.Server, error) {
 		return nil, err
 	}
 
-	return &InfraredServer{
-		Server: Server{
-			ID:      id,
-			Domains: cfg.Domains,
-			Dialer: net.Dialer{
-				Timeout: cfg.DialTimeout,
-				LocalAddr: &net.TCPAddr{
-					IP: net.ParseIP(cfg.ProxyBind),
-				},
+	srv := Server{
+		ID:      id,
+		Domains: cfg.Domains,
+		Dialer: net.Dialer{
+			Timeout: cfg.DialTimeout,
+			LocalAddr: &net.TCPAddr{
+				IP: net.ParseIP(cfg.ProxyBind),
 			},
-			Addr:                  cfg.Address,
-			AddrHost:              host,
-			AddrPort:              port,
-			SendProxyProtocol:     cfg.SendProxyProtocol,
-			SendRealIP:            cfg.SendRealIP,
-			OverrideAddress:       cfg.OverrideAddress,
-			DialTimeoutMessage:    cfg.DialTimeoutMessage,
-			OverrideStatus:        overrideStatus,
-			DialTimeoutStatusJSON: string(bb),
-			GatewayIDs:            cfg.Gateways,
 		},
+		Addr:                  cfg.Address,
+		AddrHost:              host,
+		AddrPort:              port,
+		SendProxyProtocol:     cfg.SendProxyProtocol,
+		SendRealIP:            cfg.SendRealIP,
+		OverrideAddress:       cfg.OverrideAddress,
+		DialTimeoutMessage:    cfg.DialTimeoutMessage,
+		OverrideStatus:        overrideStatus,
+		DialTimeoutStatusJSON: string(bb),
+		GatewayIDs:            cfg.Gateways,
+	}
+
+	srv.statusResponseJSONProvider = &statusResponseJSONProvider{
+		server: srv,
+		handshakePk: handshaking.ServerBoundHandshake{
+			ProtocolVersion: 0,
+			ServerAddress:   protocol.String(host),
+			ServerPort:      protocol.UnsignedShort(port),
+			NextState:       handshaking.StateStatusServerBoundHandshake,
+		}.Marshal(),
+		statusRequestPk: status.ServerBoundRequest{}.Marshal(),
+		cacheTTL:        cfg.StatusCacheTTL,
+	}
+
+	return &InfraredServer{
+		Server: srv,
 	}, nil
 }
 
