@@ -1,0 +1,4 @@
+# Enables the prometheus server for real time metric tracking.
+#
+#prometheus:
+  #bind: :9070

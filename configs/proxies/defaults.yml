@@ -30,7 +30,7 @@ defaults:
           
           # The protocol version number. For more info see https://wiki.vg/Bedrock_Protocol_version_numbers
           #
-          protocolVersion: 544 
+          protocolVersion: 544
           
           # Name of the version
           #
@@ -98,4 +98,70 @@ defaults:
         motd: |
           Powered by Infrared
           §6Server at {{serverDomain}} is not responding.
+      
+      # Infrared caches the server ping response so that status pings don't spam the minecraft server.
+      # This is the Time To Live of the cache.
+      #
       statusCacheTTL: 5s
+
+java:
+  # Channel Capacity (ChanCap) is the capacity of a single channel
+  # You can think about channels like queues to this would translate
+  # to queue size. These describe the amount of connections that can
+  # be buffed before the proxy starts dropping connections.
+  #
+  chanCaps:
+    # The capacity of the channel from the gateway to the processing nodes
+    # If this is unset or 0
+    #
+    connProcessor: 100
+    
+    # The capacity of the channel from the processing nodes to the server gateway
+    #
+    server: 100
+    
+    # The capacity of the channel from the server gateway to the connection pool
+    #
+    connPool: 10
+  
+  # Processing nodes are the place where most of the processing is handled.
+  processingNode:
+    # Count describes the number of processing nodes that concurrently process
+    # incoming connections. By increasing the count of processing nodes you can
+    # tremendously reduce the effect of DDoS effects at the cost of performance.
+    # If your CPU has a lot of threads then feel free to increase this number.
+    #
+    count: 10
+    
+    # This is the amount of time a client has to get processed before it get's disconnected
+    # from the proxy. If you don't expect players form other continents you should decrease
+    # this to some 100ms. If players have issues to connect you should increase this in small increments.
+    #
+    clientTimeout: 300ms
+  
+  # Middleware configurations
+  middlewares:
+    # Rate limiter limits the amount of request a single IP can do in a specific windows of time.
+    rateLimiter:
+      # The request limit it the amount of requests a single IP can make in a specific window of time.
+      #
+      requestLimit: 1
+      
+      # This is the window of time in that a single IP can make a specific amount of requests.
+      #
+      windowLength: 50ms
+
+# See Java above
+#
+bedrock:
+  chanCap:
+    connProcessor: 100
+    server: 100
+    connPool: 10
+  processingNode:
+    count: 10
+    clientTimeout: 1000ms
+  middlewares:
+    rateLimiter:
+      requestLimit: 1
+      windowLength: 50ms

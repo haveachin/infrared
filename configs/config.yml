@@ -1,6 +1,33 @@
 # Provides provide configuration files/options for Infrared
 #
 providers:
+  # Config files that Infrared should read from.
+  #
+  file:
+    # The directories that Infrared should read configs from.
+    #
+    directories: 
+      -
+        directory: ./proxies
+
+        # Watch the directory for changes in files.
+        #
+        watch: true
+      -
+        directory: ./plugins
+        watch: true
+
+    # If you don't want to read whole folder you can just read single files with this.
+    # Watching individual files (rather than directories) is generally not recommended as many tools update files atomically.
+    # Instead of "just" writing to the file a temporary file will be written to first, and if successful the temporary file
+    # is moved to to destination removing the original, or some variant thereof.
+    # The watcher on the original file is now lost, as it no longer exists.
+    #
+    files:
+      -
+        file: config.yml
+        watch: true
+  
   # Minecraft Servers that run in Docker containers can have labels attached to them.
   # These labels help you configure proxies on the fly in your docker-compose.yml for example.
   #
@@ -25,169 +52,3 @@ providers:
     # If Infrared should watch the network for changes in containers.
     #
     #watch: true
-
-  # Config files that Infrared should read from.
-  #
-  file:
-    # The directory that Infrared should read configs from.
-    #
-    directory: ./proxies
-    
-    # Watch the directory for changes in files.
-    #
-    watch: true
-
-#trafficLimiters:
-  #default:
-    # Server IDs to watch the traffic
-    #
-    #serverIds:
-    #  - default
-    
-    # File is used to persistently store data
-    #
-    #file: bandwidth.yml
-    
-    # This is the amount of traffic until the server gets limited.
-    # Valid sizes are B, KB, MB, GB, TB, PB and EB.
-    #
-    #trafficLimit: 1TB
-
-    # Sets the schedule for the job that resets the consumed bytes from the traffic limiter.
-    # For more info on the Cron sysntax see here: https://en.wikipedia.org/wiki/Cron
-    #
-    #resetCron: "@monthly"
-    
-    # The message that is displayed to a client when they try to connect
-    # but the server is out of bandwidth.
-    #
-    #outOfBandwidthMessage: Sorry {{username}}, but the server is out of bandwidth.
-
-    # This is the ping response that clients see of your server when it is out of bandwidth.
-    #
-    #outOfBandwidthStatus:
-      #versionName: Infrared
-      #protocolNumber: 0
-      #maxPlayerCount: 0
-      #playerCount: 0
-      #iconPath: icons/default.png
-      #motd: |
-      #  Powered by Infrared
-      #  §6Server at {{serverDomain}} is out of bandwidth.
-
-# Enables the API to access real time data.
-#
-#api:
-  #bind: :8080
-  #allowedOrigins:
-  #  - "http://*"
-  #  - "https://*"
-
-# Enables the prometheus server for real time metric tracking.
-#
-#prometheus:
-  #bind: :9070
-
-# Configuration for webhooks
-#
-#webhooks:
-  # A webhook defined by an ID. In this case "default"
-  #
-  #default:
-    # Gateway IDs to listen for events to. All events that the connection triggers
-    # have also the gateway ID attached to them.
-    #
-    #gatewayIds:
-    #  - default
-
-    # The URL to POST the JSON to
-    #
-    #url: https://example.com/callback
-
-    # Dial timeout is the amount of time that Infrared waits for it cancels the POST request.
-    # This is best set in defaults to not have to copy-paste this all the time. See bottom of the file.
-    #
-    #dialTimeout: 1s
-    
-    # Event Topics to listen for.
-    # Available events are:
-    # - AcceptedConn - When a new connection to Infrared is made.
-    # - PreProcessing - Before the new connection is processed.
-    # - PostProcessing - After a connection is processed.
-    # - PrePlayerJoin - Before a client is connecting to the target server.
-    # - PlayerJoin - When a player joins a server.
-    # - PlayerLeave - When a player leaves the server.
-    #
-    #events:
-    #  - PlayerJoin
-    #  - PlayerLeave
-
-java:
-  # Channel Capacity (ChanCap) is the capacity of a single channel
-  # You can think about channels like queues to this would translate
-  # to queue size. These describe the amount of connections that can
-  # be buffed before the proxy starts dropping connections.
-  #
-  chanCaps:
-    # The capacity of the channel from the gateway to the processing nodes
-    # If this is unset or 0
-    #
-    connProcessor: 100
-    
-    # The capacity of the channel from the processing nodes to the server gateway
-    #
-    server: 100
-    
-    # The capacity of the channel from the server gateway to the connection pool
-    #
-    connPool: 10
-  
-  # Processing nodes are the place where most of the processing is handled.
-  processingNode:
-    # Count describes the number of processing nodes that concurrently process
-    # incoming connections. By increasing the count of processing nodes you can
-    # tremendously reduce the effect of DDoS effects at the cost of performance.
-    # If your CPU has a lot of threads then feel free to increase this number.
-    #
-    count: 10
-    
-    # This is the amount of time a client has to get processed before it get's disconnected
-    # from the proxy. If you don't expect players form other continents you should decrease
-    # this to some 100ms. If players have issues to connect you should increase this in small increments.
-    #
-    clientTimeout: 300ms
-  
-  # Middleware configurations
-  middlewares:
-    # Rate limiter limits the amount of request a single IP can do in a specific windows of time.
-    rateLimiter:
-      # The request limit it the amount of requests a single IP can make in a specific window of time.
-      #
-      requestLimit: 1
-      
-      # This is the window of time in that a single IP can make a specific amount of requests.
-      #
-      windowLength: 50ms
-
-# See Java above
-#
-bedrock:
-  chanCap:
-    connProcessor: 100
-    server: 100
-    connPool: 10
-  processingNode:
-    count: 10
-    clientTimeout: 1000ms
-  middlewares:
-    rateLimiter:
-      requestLimit: 1
-      windowLength: 50ms
-
-# Defaults are global default values that can be 
-#
-#defaults:
-  #webhook:
-    # Sets the dial timeout for every webhook. This can be individually overridden.
-    #
-    #dialTimeout: 1s

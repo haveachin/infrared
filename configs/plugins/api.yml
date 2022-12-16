@@ -1,0 +1,7 @@
+# Enables the API to access real time data.
+#
+#api:
+  #bind: :8080
+  #allowedOrigins:
+  #  - "http://*"
+  #  - "https://*"
