@@ -46,7 +46,7 @@ java:
 
       # Address of the server that Infrared sends the players to.
       #
-      address: mc.haveachin.de:25565
+      address: example.com:25565
 
       # Optional fields:
       # Also look at the defaults.yml file for more optional fields.

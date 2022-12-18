@@ -8,16 +8,20 @@ import (
 
 const (
 	// MaxSizeServerBoundLoginStart might be a bit generous, but there is no offical max size for the public key
-	MaxSizeServerBoundLoginStart       = 1 + 16 + 1 + 8 + 3000 + 3000 + 1 + 16
-	IDServerBoundLoginStart byte = 0x00
+	MaxSizeServerBoundLoginStart      = 1 + 16 + 1 + 8 + 3000 + 3000 + 1 + 16
+	IDServerBoundLoginStart      byte = 0x00
 )
 
 type ServerLoginStart struct {
-	Name          protocol.String
-	HasPublicKey  protocol.Boolean
-	Timestamp     protocol.Long
-	PublicKey     protocol.ByteArray
-	Signature     protocol.ByteArray
+	Name         protocol.String
+	HasPublicKey protocol.Boolean
+
+	// Added in 1.19; removed in 1.19.3
+	Timestamp protocol.Long
+	PublicKey protocol.ByteArray
+	Signature protocol.ByteArray
+
+	// Added in 1.19
 	HasPlayerUUID protocol.Boolean
 	PlayerUUID    protocol.UUID
 }
@@ -62,13 +66,15 @@ func UnmarshalServerBoundLoginStart(packet protocol.Packet, version int32) (Serv
 		return pk, nil
 	}
 
-	if err := protocol.ScanFields(r, &pk.HasPublicKey); err != nil {
-		return pk, err
-	}
-
-	if pk.HasPublicKey {
-		if err := protocol.ScanFields(r, &pk.Timestamp, &pk.PublicKey, &pk.Signature); err != nil {
+	if version < protocol.Version_1_19_3 {
+		if err := protocol.ScanFields(r, &pk.HasPublicKey); err != nil {
 			return pk, err
+		}
+
+		if pk.HasPublicKey {
+			if err := protocol.ScanFields(r, &pk.Timestamp, &pk.PublicKey, &pk.Signature); err != nil {
+				return pk, err
+			}
 		}
 	}
 
