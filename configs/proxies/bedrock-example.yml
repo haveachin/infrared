@@ -1,13 +1,15 @@
-bedrock:
-  gateways:
-    default:
-      listeners:
-        default:
-          bind: 0.0.0.0:19132
-  servers:
-    default:
-      gateways:
-        - default
-      domains:
-        - "*"
-      address: example.com:19132
+# Basic bedrock example config
+#
+#bedrock:
+#  gateways:
+#    default:
+#      listeners:
+#        default:
+#          bind: 0.0.0.0:19132
+#  servers:
+#    default:
+#      gateways:
+#        - default
+#      domains:
+#        - ".*"
+#      address: example.com:19132

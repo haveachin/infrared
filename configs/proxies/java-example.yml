@@ -42,11 +42,11 @@ java:
       # More about wildcard characters: https://en.wikipedia.org/wiki/Wildcard_character
       #
       domains:
-        - "*"
+        - ".*"
 
       # Address of the server that Infrared sends the players to.
       #
-      address: example.com:25565
+      address: mc.haveachin.de:25565
 
       # Optional fields:
       # Also look at the defaults.yml file for more optional fields.

@@ -23,10 +23,12 @@ providers:
     # is moved to to destination removing the original, or some variant thereof.
     # The watcher on the original file is now lost, as it no longer exists.
     #
-    files:
-      -
-        file: config.yml
-        watch: true
+    # LIMITATIONS: Do NOT add the main config file (this file) to this.
+    #
+    #files:
+    #  -
+    #    file: example.yml
+    #    watch: true
   
   # Minecraft Servers that run in Docker containers can have labels attached to them.
   # These labels help you configure proxies on the fly in your docker-compose.yml for example.
