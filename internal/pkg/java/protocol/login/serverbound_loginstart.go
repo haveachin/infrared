@@ -58,7 +58,7 @@ func UnmarshalServerBoundLoginStart(packet protocol.Packet, version int32) (Serv
 		return pk, err
 	}
 
-	if version < protocol.Version_1_19 {
+	if version < protocol.Version_1_19 || version > protocol.Version_1_19_2 {
 		return pk, nil
 	}
 
