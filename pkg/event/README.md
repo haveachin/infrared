@@ -1,1 +1,1 @@
-Yoinked from [dcarbone/seb](https://github.com/dcarbone/seb/tree/8b417b859612cdf39f48e6beea618cce2416064b) with modifications
+Inspired by [dcarbone/seb](https://github.com/dcarbone/seb/tree/8b417b859612cdf39f48e6beea618cce2416064b)

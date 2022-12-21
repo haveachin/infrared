@@ -39,10 +39,10 @@ java:
       # You can have multiple domains here or just one.
       # Currently this holds just a wildcard character as a domain
       # meaning that is accepts every domain that a player uses.
-      # More about wildcard characters: https://en.wikipedia.org/wiki/Wildcard_character
+      # Supports '*' and '?' wildcards in the pattern string.
       #
       domains:
-        - ".*"
+        - "*"
 
       # Address of the server that Infrared sends the players to.
       #
@@ -52,6 +52,7 @@ java:
       # Also look at the defaults.yml file for more optional fields.
       #
       #proxyBind: 0.0.0.0
+      #proxyPass: socks5://127.0.0.1:1080
       #sendProxyProtocol: true
       #sendRealIP: true
       #overrideStatus:

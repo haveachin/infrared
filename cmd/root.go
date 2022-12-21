@@ -23,6 +23,13 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	devEnvironment  = "dev"
+	prodEnvironment = "prod"
+
+	configDefaultPath = "configs/"
+)
+
 var (
 	files   embed.FS
 	version string
@@ -35,13 +42,15 @@ var (
 	pluginManager infrared.PluginManager
 
 	mu      sync.Mutex
-	proxies = map[infrared.Edition]*infrared.Proxy{}
+	proxies = map[infrared.Edition]infrared.Proxy{}
 
 	rootCmd = &cobra.Command{
 		Use:   "infrared",
 		Short: "Starts the infrared proxy",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := initLogger(); err != nil {
+			var err error
+			logger, err = newLogger(environment)
+			if err != nil {
 				return err
 			}
 			defer logger.Sync()
@@ -55,7 +64,7 @@ var (
 			)
 
 			if _, err := os.Stat(configPath); err != nil && errors.Is(err, os.ErrNotExist) {
-				if err := safeWriteFromEmbeddedFS("configs", "."); err != nil {
+				if err := safeWriteFromEmbeddedFS(configDefaultPath, "."); err != nil {
 					return err
 				}
 			}
@@ -134,17 +143,15 @@ func init() {
 	// rootCmd.AddCommand(migrateCmd)
 }
 
-func initLogger() error {
-	var err error
-	switch environment {
-	case "dev":
-		logger, err = zap.NewDevelopment()
-	case "prod":
-		logger, err = zap.NewProduction()
+func newLogger(env string) (*zap.Logger, error) {
+	switch env {
+	case devEnvironment:
+		return zap.NewDevelopment()
+	case prodEnvironment:
+		return zap.NewProduction()
 	default:
-		return fmt.Errorf("unsupported environment %q", environment)
+		return nil, fmt.Errorf("unsupported environment %q", environment)
 	}
-	return err
 }
 
 // Execute executes the root command.

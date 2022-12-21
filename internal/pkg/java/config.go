@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/url"
 	"os"
 	"strconv"
 	"time"
 
 	"github.com/imdario/mergo"
+	"golang.org/x/net/proxy"
 
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/internal/pkg/config"
@@ -23,6 +25,7 @@ type ServerConfig struct {
 	Domains            []string                   `mapstructure:"domains"`
 	Address            string                     `mapstructure:"address"`
 	ProxyBind          string                     `mapstructure:"proxyBind"`
+	ProxyPass          string                     `mapstructure:"proxyPass"`
 	SendProxyProtocol  bool                       `mapstructure:"sendProxyProtocol"`
 	SendRealIP         bool                       `mapstructure:"sendRealIP"`
 	OverrideAddress    bool                       `mapstructure:"overrideAddress"`
@@ -289,15 +292,29 @@ func newServer(id string, cfg ServerConfig) (infrared.Server, error) {
 		return nil, err
 	}
 
-	srv := Server{
-		ID:      id,
-		Domains: cfg.Domains,
-		Dialer: net.Dialer{
-			Timeout: cfg.DialTimeout,
-			LocalAddr: &net.TCPAddr{
-				IP: net.ParseIP(cfg.ProxyBind),
-			},
+	var dialer proxy.Dialer = &net.Dialer{
+		Timeout: cfg.DialTimeout,
+		LocalAddr: &net.TCPAddr{
+			IP: net.ParseIP(cfg.ProxyBind),
 		},
+	}
+
+	if cfg.ProxyPass != "" {
+		proxyURL, err := url.Parse(cfg.ProxyPass)
+		if err != nil {
+			return nil, err
+		}
+
+		dialer, err = proxy.FromURL(proxyURL, dialer)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	srv := Server{
+		ID:                    id,
+		Domains:               cfg.Domains,
+		Dialer:                dialer,
 		Addr:                  cfg.Address,
 		AddrHost:              host,
 		AddrPort:              port,

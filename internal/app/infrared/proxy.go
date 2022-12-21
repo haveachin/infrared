@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/haveachin/infrared/pkg/event"
+	"go.uber.org/multierr"
 	"go.uber.org/zap"
 )
 
@@ -36,7 +37,16 @@ type RateLimiterSettings struct {
 	WindowLength time.Duration
 }
 
-type Proxy struct {
+type Proxy interface {
+	Reload(cfg ProxyConfig) error
+	ListenAndServe(bus event.Bus, logger *zap.Logger)
+	Close() error
+
+	Players() []Player
+	PlayerCount() int
+}
+
+type proxy struct {
 	listenersManager ListenersManager
 	settings         ProxySettings
 	gateways         []Gateway
@@ -50,7 +60,7 @@ type Proxy struct {
 	eventBus         event.Bus
 }
 
-func NewProxy(cfg ProxyConfig) (*Proxy, error) {
+func NewProxy(cfg ProxyConfig) (*proxy, error) {
 	gws, err := cfg.LoadGateways()
 	if err != nil {
 		return nil, err
@@ -86,7 +96,7 @@ func NewProxy(cfg ProxyConfig) (*Proxy, error) {
 	cpnCh := make(chan Conn, chCaps.ConnProcessor)
 	srvCh := make(chan ProcessedConn, chCaps.Server)
 	poolCh := make(chan ConnTunnel, chCaps.ConnPool)
-	return &Proxy{
+	return &proxy{
 		listenersManager: ListenersManager{
 			New:       cfg.ListenerBuilder(),
 			listeners: map[string]*managedListener{},
@@ -120,7 +130,7 @@ func NewProxy(cfg ProxyConfig) (*Proxy, error) {
 	}, nil
 }
 
-func (p *Proxy) setEventBus(bus event.Bus) {
+func (p *proxy) setEventBus(bus event.Bus) {
 	p.eventBus = bus
 
 	for _, gw := range p.gateways {
@@ -132,7 +142,7 @@ func (p *Proxy) setEventBus(bus event.Bus) {
 	p.serverGateway.EventBus = bus
 }
 
-func (p *Proxy) setLogger(logger *zap.Logger) {
+func (p *proxy) setLogger(logger *zap.Logger) {
 	p.logger = logger
 	p.listenersManager.logger = logger
 
@@ -145,7 +155,7 @@ func (p *Proxy) setLogger(logger *zap.Logger) {
 	p.connPool.Logger = logger
 }
 
-func (p *Proxy) ListenAndServe(bus event.Bus, logger *zap.Logger) {
+func (p *proxy) ListenAndServe(bus event.Bus, logger *zap.Logger) {
 	p.setEventBus(bus)
 	p.setLogger(logger)
 	p.cpnPool.SetSize(p.settings.CPNCount)
@@ -159,7 +169,7 @@ func (p *Proxy) ListenAndServe(bus event.Bus, logger *zap.Logger) {
 	p.serverGateway.Start()
 }
 
-func (p *Proxy) Reload(cfg ProxyConfig) error {
+func (p *proxy) Reload(cfg ProxyConfig) error {
 	np, err := NewProxy(cfg)
 	if err != nil {
 		return err
@@ -196,7 +206,7 @@ func (p *Proxy) Reload(cfg ProxyConfig) error {
 	return nil
 }
 
-func (p *Proxy) swapCPNChan(cpnCh chan Conn) {
+func (p *proxy) swapCPNChan(cpnCh chan Conn) {
 	close(p.cpnCh)
 	for c := range p.cpnCh {
 		cpnCh <- c
@@ -204,7 +214,7 @@ func (p *Proxy) swapCPNChan(cpnCh chan Conn) {
 	p.cpnCh = cpnCh
 }
 
-func (p *Proxy) swapSrvChan(srvCh chan ProcessedConn) {
+func (p *proxy) swapSrvChan(srvCh chan ProcessedConn) {
 	close(p.srvCh)
 	for c := range p.srvCh {
 		srvCh <- c
@@ -212,7 +222,7 @@ func (p *Proxy) swapSrvChan(srvCh chan ProcessedConn) {
 	p.srvCh = srvCh
 }
 
-func (p *Proxy) swapPoolChan(poolCh chan ConnTunnel) {
+func (p *proxy) swapPoolChan(poolCh chan ConnTunnel) {
 	close(p.poolCh)
 	for c := range p.poolCh {
 		poolCh <- c
@@ -220,18 +230,20 @@ func (p *Proxy) swapPoolChan(poolCh chan ConnTunnel) {
 	p.poolCh = poolCh
 }
 
-func (p *Proxy) Close() {
+func (p *proxy) Close() error {
+	var err error
 	for _, gw := range p.gateways {
-		gw.Close()
+		err = multierr.Append(err, gw.Close())
 	}
-	p.serverGateway.Close()
+	err = multierr.Append(err, p.serverGateway.Close())
 	p.cpnPool.Close()
 	close(p.cpnCh)
 	close(p.srvCh)
 	close(p.poolCh)
+	return err
 }
 
-func (p *Proxy) Players() []Player {
+func (p *proxy) Players() []Player {
 	p.connPool.mu.Lock()
 	defer p.connPool.mu.Unlock()
 
@@ -240,4 +252,11 @@ func (p *Proxy) Players() []Player {
 		pp = append(pp, ct.Conn)
 	}
 	return pp
+}
+
+func (p *proxy) PlayerCount() int {
+	p.connPool.mu.Lock()
+	defer p.connPool.mu.Unlock()
+
+	return len(p.connPool.pool)
 }

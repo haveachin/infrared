@@ -150,7 +150,7 @@ func (l *rateLimiter) Handler(next Handler) Handler {
 		}
 
 		l.limitCounter.Increment(key, currentWindow)
-		next.ProcessConn(c)
+		next.ServeProtocol(c)
 	})
 }
 

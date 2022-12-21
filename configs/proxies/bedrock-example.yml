@@ -11,5 +11,5 @@
 #      gateways:
 #        - default
 #      domains:
-#        - ".*"
+#        - "*"
 #      address: example.com:19132

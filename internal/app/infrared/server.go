@@ -4,10 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"regexp"
 	"strings"
 
 	"github.com/haveachin/infrared/pkg/event"
+	"github.com/haveachin/infrared/pkg/wildcard"
 	"go.uber.org/zap"
 )
 
@@ -50,8 +50,8 @@ type ServerGateway struct {
 	gwIDSrvIDs map[string][]string
 	// Server ID mapped to server
 	srvs map[string]Server
-	// Server ID mapped to server domain regexps
-	srvRegexps map[string][]*regexp.Regexp
+	// Server ID mapped to server domain wildcard expressions
+	srvExprs map[string][]string
 }
 
 func (sg *ServerGateway) init() {
@@ -78,29 +78,21 @@ func (sg *ServerGateway) indexIDs() {
 }
 
 func (sg *ServerGateway) compileDomainExprs() {
-	sg.srvRegexps = map[string][]*regexp.Regexp{}
+	sg.srvExprs = map[string][]string{}
 	for _, srv := range sg.Servers {
-		regexps := make([]*regexp.Regexp, 0, len(srv.Domains()))
+		exprs := make([]string, 0, len(srv.Domains()))
 		for _, expr := range srv.Domains() {
-			regexp, err := regexp.Compile(expr)
-			if err != nil {
-				sg.Logger.Error("failed to compile expression",
-					zap.Error(err),
-					zap.String("expression", expr),
-				)
-				continue
-			}
-			regexps = append(regexps, regexp)
+			exprs = append(exprs, expr)
 		}
-		sg.srvRegexps[srv.ID()] = regexps
+		sg.srvExprs[srv.ID()] = exprs
 	}
 }
 
 func (sg *ServerGateway) findServer(gatewayID, domain string) (Server, string) {
 	for _, srvID := range sg.gwIDSrvIDs[gatewayID] {
-		for _, srvRegexp := range sg.srvRegexps[srvID] {
-			if srvRegexp.MatchString(domain) {
-				return sg.srvs[srvID], srvRegexp.String()
+		for _, srvExpr := range sg.srvExprs[srvID] {
+			if wildcard.Match(srvExpr, domain) {
+				return sg.srvs[srvID], srvExpr
 			}
 		}
 	}

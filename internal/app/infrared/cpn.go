@@ -12,12 +12,12 @@ import (
 )
 
 type Handler interface {
-	ProcessConn(c Conn)
+	ServeProtocol(c Conn)
 }
 
 type HandlerFunc func(c Conn)
 
-func (f HandlerFunc) ProcessConn(c Conn) {
+func (f HandlerFunc) ServeProtocol(c Conn) {
 	f(c)
 }
 
@@ -98,7 +98,7 @@ func (cpn CPN) ListenAndServe(quit <-chan bool) {
 				}
 
 				cpn.Out <- procConn
-			})).ProcessConn(c)
+			})).ServeProtocol(c)
 		case <-quit:
 			return
 		}

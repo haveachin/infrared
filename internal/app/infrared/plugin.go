@@ -20,6 +20,7 @@ type Player interface {
 type API interface {
 	PlayerByUsername(edition Edition, username string) Player
 	Players(edition Edition, usernamePattern string) ([]Player, error)
+	PlayerCount(edition Edition) int
 }
 
 type PluginAPI interface {
@@ -41,7 +42,7 @@ type Plugin interface {
 type pluginAPI struct {
 	eventBus      event.Bus
 	logger        *zap.Logger
-	proxies       map[Edition]*Proxy
+	proxies       map[Edition]Proxy
 	pluginManager PluginManager
 }
 
@@ -86,8 +87,12 @@ func (api pluginAPI) Players(edition Edition, usernameRegex string) ([]Player, e
 	return pp, nil
 }
 
+func (api pluginAPI) PlayerCount(edition Edition) int {
+	return api.proxies[edition].PlayerCount()
+}
+
 type PluginManager struct {
-	Proxies  map[Edition]*Proxy
+	Proxies  map[Edition]Proxy
 	Plugins  []Plugin
 	Logger   *zap.Logger
 	EventBus event.Bus

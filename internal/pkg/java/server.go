@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/pires/go-proxyproto"
+	"golang.org/x/net/proxy"
 
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol"
@@ -92,7 +93,7 @@ type Server struct {
 	SendProxyProtocol           bool
 	SendRealIP                  bool
 	OverrideAddress             bool
-	Dialer                      net.Dialer
+	Dialer                      proxy.Dialer
 	OverrideStatus              OverrideStatusResponse
 	OverrideStatusCacheDeadline time.Time
 	DialTimeoutMessage          string
