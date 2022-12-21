@@ -42,7 +42,7 @@ curl -LO https://github.com/haveachin/infrared/releases/download/{version}/infra
 
 Downloading by using Powershell on Windows:
 ```Powershell
-Invoke-WebRequest -Uri https://github.com/haveachin/infrared/releases/download/v1.3.4/infrared_Windows_x86_64.zip -OutFile c:\temp\infrared.zip
+Invoke-WebRequest -Uri https://github.com/haveachin/infrared/releases/download/v1.3.4/infrared_Windows_x86_64.zip -OutFile c:\infrared.zip
 ```
 
 ### Extracting the binary
@@ -52,7 +52,7 @@ Extracting by using the terminal on macOS or GNU/Linux:
 tar -xzf infrared_{architecture}.tar.gz
 ```
 
-Downloading by using Powershell on Windows:
+Extracting by using Powershell on Windows:
 ```Powershell
 Expand-Archive c:\infrared.zip -DestinationPath c:\
 ```

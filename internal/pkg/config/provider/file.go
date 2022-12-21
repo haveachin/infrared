@@ -170,13 +170,41 @@ func (p file) readConfigData() (Data, error) {
 }
 
 func readConfigsFromDir(dir string, v any) error {
-	readConfig := func(path string, info fs.FileInfo, err error) error {
+	fi, err := os.Lstat(dir)
+	if err != nil {
+		return err
+	}
+
+	if fi.Mode()&os.ModeSymlink == os.ModeSymlink {
+		dir, err = os.Readlink(dir)
+		if err != nil {
+			return err
+		}
+	}
+
+	readConfig := func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
-		if info.IsDir() {
+		if d.IsDir() {
 			return nil
+		}
+
+		if d.Type()&os.ModeSymlink == os.ModeSymlink {
+			path, err := filepath.EvalSymlinks(path)
+			if err != nil {
+				return err
+			}
+
+			fi, err := os.Lstat(path)
+			if err != nil {
+				return err
+			}
+
+			if fi.IsDir() {
+				return nil
+			}
 		}
 
 		cfgData := map[string]any{}
@@ -187,16 +215,33 @@ func readConfigsFromDir(dir string, v any) error {
 		return mergo.Merge(v, cfgData, mergo.WithOverride)
 	}
 
-	return filepath.Walk(dir, readConfig)
+	return filepath.WalkDir(dir, readConfig)
 }
 
-func ReadConfigFile(filename string, v any) error {
-	bb, err := os.ReadFile(filename)
+func ReadConfigFile(name string, v any) error {
+	name, err := filepath.EvalSymlinks(name)
 	if err != nil {
 		return err
 	}
 
-	ext := filepath.Ext(filename)[1:]
+	fi, err := os.Lstat(name)
+	if err != nil {
+		return err
+	}
+
+	if fi.Mode()&os.ModeSymlink == os.ModeSymlink {
+		name, err = os.Readlink(name)
+		if err != nil {
+			return err
+		}
+	}
+
+	bb, err := os.ReadFile(name)
+	if err != nil {
+		return err
+	}
+
+	ext := filepath.Ext(name)[1:]
 	switch ext {
 	case "json":
 		if err := json.Unmarshal(bb, v); err != nil {
