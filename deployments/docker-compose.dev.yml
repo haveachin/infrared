@@ -11,7 +11,8 @@ services:
       - 25566:25565/tcp
     environment:
       EULA: "TRUE"
-      VERSION: "1.19.2"
+      VERSION: "1.19.3"
+      TYPE: PAPER
       #TYPE: "FORGE"
       #FORGE_VERSION: "43.1.1"
     networks:

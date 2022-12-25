@@ -5,6 +5,7 @@ tests:
 
 devenv:
 	docker-compose -p infrared -f deployments/docker-compose.dev.yml up
+	docker-compose -p infrared -f deployments/docker-compose.dev.yml down
 
 run:
 	go run -race . -c config.yml -w dev/ -e dev

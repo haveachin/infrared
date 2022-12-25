@@ -32,9 +32,14 @@ func (s *statusResponseJSONProvider) isStatusCacheValid() bool {
 	return s.cacheSetAt.Add(s.cacheTTL).After(time.Now())
 }
 
-func (s *statusResponseJSONProvider) requestNewStatusResponseJSON() (status.ResponseJSON, error) {
+func (s *statusResponseJSONProvider) requestNewStatusResponseJSON(pc *ProcessedConn) (status.ResponseJSON, error) {
 	rc, err := s.server.dial()
 	if err != nil {
+		return status.ResponseJSON{}, err
+	}
+
+	if err := s.server.prepareConns(pc, rc); err != nil {
+		rc.Close()
 		return status.ResponseJSON{}, err
 	}
 
@@ -61,7 +66,7 @@ func (s *statusResponseJSONProvider) requestNewStatusResponseJSON() (status.Resp
 	return respJSON, nil
 }
 
-func (s *statusResponseJSONProvider) StatusResponseJSON() (status.ResponseJSON, error) {
+func (s *statusResponseJSONProvider) StatusResponseJSON(pc *ProcessedConn) (status.ResponseJSON, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -69,7 +74,7 @@ func (s *statusResponseJSONProvider) StatusResponseJSON() (status.ResponseJSON, 
 		return s.statusResponseJSONCache, nil
 	}
 
-	respJSON, err := s.requestNewStatusResponseJSON()
+	respJSON, err := s.requestNewStatusResponseJSON(pc)
 	if err != nil {
 		return status.ResponseJSON{}, err
 	}
@@ -81,7 +86,7 @@ func (s *statusResponseJSONProvider) StatusResponseJSON() (status.ResponseJSON, 
 }
 
 type StatusResponseJSONProvider interface {
-	StatusResponseJSON() (status.ResponseJSON, error)
+	StatusResponseJSON(pc *ProcessedConn) (status.ResponseJSON, error)
 }
 
 type Server struct {
@@ -133,10 +138,24 @@ func (s Server) handleConn(c net.Conn) (infrared.Conn, error) {
 		return nil, err
 	}
 
+	if err := s.prepareConns(pc, rc); err != nil {
+		rc.Close()
+		return nil, err
+	}
+
+	// Sends the handshake and the request or login packet to the server
+	if err := rc.WritePackets(pc.readPks...); err != nil {
+		rc.Close()
+		return nil, err
+	}
+
+	return rc, nil
+}
+
+func (s Server) prepareConns(pc *ProcessedConn, rc net.Conn) error {
 	if s.SendProxyProtocol {
 		if err := writeProxyProtocolHeader(pc.RemoteAddr(), rc); err != nil {
-			defer rc.Close()
-			return nil, err
+			return err
 		}
 	}
 
@@ -151,13 +170,7 @@ func (s Server) handleConn(c net.Conn) (infrared.Conn, error) {
 		pc.readPks[0] = pc.handshake.Marshal()
 	}
 
-	// Sends the handshake and the request or login packet to the server
-	if err := rc.WritePackets(pc.readPks...); err != nil {
-		defer rc.Close()
-		return nil, err
-	}
-
-	return rc, nil
+	return nil
 }
 
 func (s Server) handleDialTimeoutStatusRequest(pc *ProcessedConn) error {
@@ -211,7 +224,7 @@ func (s Server) handleStatusPing(pc *ProcessedConn) error {
 }
 
 func (s Server) overrideStatusResponse(pc *ProcessedConn) error {
-	respJSON, err := s.statusResponseJSONProvider.StatusResponseJSON()
+	respJSON, err := s.statusResponseJSONProvider.StatusResponseJSON(pc)
 	if err != nil {
 		return err
 	}
