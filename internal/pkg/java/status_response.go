@@ -1,6 +1,7 @@
 package java
 
 import (
+	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol/status"
 )
 
@@ -32,7 +33,7 @@ type OverrideStatusResponse struct {
 	MOTD           *string
 }
 
-func (r OverrideStatusResponse) ResponseJSON(resp status.ResponseJSON) status.ResponseJSON {
+func (r OverrideStatusResponse) ResponseJSON(resp status.ResponseJSON, pc *ProcessedConn, s Server) status.ResponseJSON {
 	if r.Icon != nil {
 		resp.Favicon = *r.Icon
 	}
@@ -59,11 +60,15 @@ func (r OverrideStatusResponse) ResponseJSON(resp status.ResponseJSON) status.Re
 
 	if r.MOTD != nil {
 		resp.Description = status.DescriptionJSON{
-			Text: *r.MOTD,
+			Text: infrared.ExecuteServerMessageTemplate(*r.MOTD, pc, s.InfraredServer()),
 		}
 	}
 
 	return resp
+}
+
+func (r OverrideStatusResponse) ExecuteServerMessageTemplate(pc ProcessedConn, s Server) {
+
 }
 
 type ServerStatusResponse struct {

@@ -29,7 +29,7 @@ type statusResponseJSONProvider struct {
 }
 
 func (s *statusResponseJSONProvider) isStatusCacheValid() bool {
-	return s.cacheSetAt.Add(s.cacheTTL).After(time.Now())
+	return s.cacheTTL > 0 && s.cacheSetAt.Add(s.cacheTTL).After(time.Now())
 }
 
 func (s *statusResponseJSONProvider) requestNewStatusResponseJSON(pc *ProcessedConn) (status.ResponseJSON, error) {
@@ -229,8 +229,7 @@ func (s Server) overrideStatusResponse(pc *ProcessedConn) error {
 		return err
 	}
 
-	respJSON = s.OverrideStatus.ResponseJSON(respJSON)
-	respJSON.Description.Text = infrared.ExecuteServerMessageTemplate(respJSON.Description.Text, pc, s.InfraredServer())
+	respJSON = s.OverrideStatus.ResponseJSON(respJSON, pc, s)
 	bb, err := json.Marshal(respJSON)
 	if err != nil {
 		return err
