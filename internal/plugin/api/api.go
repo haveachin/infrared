@@ -39,7 +39,7 @@ func (p Plugin) Version() string {
 	return "internal"
 }
 
-func (p Plugin) Init() {}
+func (p *Plugin) Init() {}
 
 func (p *Plugin) Load(cfg map[string]any) error {
 	if err := config.Unmarshal(cfg, &p.Config); err != nil {

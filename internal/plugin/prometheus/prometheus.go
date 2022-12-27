@@ -44,7 +44,7 @@ func (p Plugin) Version() string {
 	return "internal"
 }
 
-func (p Plugin) Init() {
+func (p *Plugin) Init() {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
 	p.mux = mux
