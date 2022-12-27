@@ -7,10 +7,8 @@ import (
 )
 
 type Reply struct {
-	EventID   string
-	HandlerID string
-	Data      any
-	Err       error
+	Data any
+	Err  error
 }
 
 type Event struct {

@@ -100,8 +100,7 @@ func (p *Plugin) Enable(api infrared.PluginAPI) error {
 	p.logger = api.Logger()
 	p.eventBus = api.EventBus()
 
-	id, _ := p.eventBus.AttachHandlerAsyncFunc("", p.handleEvent)
-	p.eventID = id
+	p.eventID = p.eventBus.HandleFuncAsync(p.handleEvent)
 
 	return nil
 }

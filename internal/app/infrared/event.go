@@ -23,8 +23,6 @@ func isEventCanceled(replyChan <-chan event.Reply, logger *zap.Logger) bool {
 		}
 
 		logger.Info("event canceled",
-			zap.String("eventId", reply.EventID),
-			zap.String("handlerId", reply.HandlerID),
 			zap.String("reason", reply.Err.Error()),
 		)
 

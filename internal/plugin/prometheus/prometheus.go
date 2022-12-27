@@ -107,8 +107,7 @@ func (p Plugin) Disable() error {
 }
 
 func (p *Plugin) registerEventHandler() {
-	id, _ := p.eventBus.AttachHandlerAsyncFunc("", p.handleEvent)
-	p.eventID = id
+	p.eventID = p.eventBus.HandleFuncAsync(p.handleEvent)
 }
 
 func (p Plugin) startMetricsServer() {

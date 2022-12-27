@@ -21,10 +21,10 @@ type Bus interface {
 	PushTo(to string, data any, topic ...string) error
 	Request(data any, topics ...string) <-chan Reply
 	RequestFrom(to string, data any, topics ...string) (<-chan Reply, error)
-	AttachHandler(id string, h HandlerSync, topics ...string) (handlerID string, replaced bool)
-	AttachHandlerFunc(id string, fn HandlerSyncFunc, topics ...string) (handlerID string, replaced bool)
-	AttachHandlerAsync(id string, h Handler, topics ...string) (handlerID string, replaced bool)
-	AttachHandlerAsyncFunc(id string, fh HandlerFunc, topics ...string) (handlerID string, replaced bool)
+	Handle(h HandlerSync, topics ...string) (handlerID string)
+	HandleAsync(h Handler, topics ...string) (handlerID string)
+	HandleFunc(fn HandlerSyncFunc, topics ...string) (handlerID string)
+	HandleFuncAsync(fn HandlerFunc, topics ...string) (handlerID string)
 	DetachRecipient(id string) error
 	DetachAllRecipients() (n int)
 }
@@ -57,28 +57,26 @@ func (b *internalBus) RequestFrom(to string, data any, topics ...string) (<-chan
 	return b.doRequest(to, data, topics...)
 }
 
-func (b *internalBus) AttachHandler(id string, h HandlerSync, topics ...string) (string, bool) {
-	return b.attachHandler(id, HandlerFunc(func(e Event) {
+func (b *internalBus) Handle(h HandlerSync, topics ...string) string {
+	return b.attachHandler(HandlerFunc(func(e Event) {
 		if e.replyChan == nil {
 			panic("attached to async topic")
 		}
 
 		data, err := h.HandleSync(e)
 		e.replyChan <- Reply{
-			EventID:   e.ID,
-			HandlerID: id,
-			Data:      data,
-			Err:       err,
+			Data: data,
+			Err:  err,
 		}
 	}), topics)
 }
 
-func (b *internalBus) AttachHandlerFunc(id string, fn HandlerSyncFunc, topics ...string) (string, bool) {
-	return b.AttachHandler(id, fn, topics...)
+func (b *internalBus) HandleFunc(fn HandlerSyncFunc, topics ...string) string {
+	return b.Handle(fn, topics...)
 }
 
-func (b *internalBus) AttachHandlerAsync(id string, h Handler, topics ...string) (string, bool) {
-	return b.attachHandler(id, HandlerFunc(func(e Event) {
+func (b *internalBus) HandleAsync(h Handler, topics ...string) string {
+	return b.attachHandler(HandlerFunc(func(e Event) {
 		if e.replyChan != nil {
 			e.replyChan <- Reply{}
 		}
@@ -87,8 +85,8 @@ func (b *internalBus) AttachHandlerAsync(id string, h Handler, topics ...string)
 	}), topics)
 }
 
-func (b *internalBus) AttachHandlerAsyncFunc(id string, fn HandlerFunc, topics ...string) (string, bool) {
-	return b.AttachHandlerAsync(id, fn, topics...)
+func (b *internalBus) HandleFuncAsync(fn HandlerFunc, topics ...string) string {
+	return b.HandleAsync(fn, topics...)
 }
 
 func (b *internalBus) DetachRecipient(id string) error {
@@ -138,29 +136,24 @@ func (b *internalBus) sendEventTo(to string, e Event) error {
 	return ErrRecipientNotFound
 }
 
-func (b *internalBus) attachHandler(id string, h Handler, topics []string) (string, bool) {
+func (b *internalBus) attachHandler(h Handler, topics []string) string {
 	if h == nil {
-		panic(fmt.Sprintf("AttachHandler called with id %q and nil handler", id))
+		panic(fmt.Sprintf("AttachHandler called with nil handler"))
 	}
 
 	if topics != nil {
 		h = topicFilterFunc(topics, h)
 	}
 
-	if id == "" {
-		id = uuid.Must(uuid.NewV4()).String()
-	}
-
 	b.Lock()
 	defer b.Unlock()
-	w, replaced := b.workers[id]
-	if replaced {
-		w.close()
+	for {
+		id := uuid.Must(uuid.NewV4()).String()
+		if _, ok := b.workers[id]; !ok {
+			b.workers[id] = newWorker(id, h)
+			return id
+		}
 	}
-
-	b.workers[id] = newWorker(id, h)
-
-	return id, replaced
 }
 
 func (b *internalBus) doRequest(to string, data any, topics ...string) (<-chan Reply, error) {

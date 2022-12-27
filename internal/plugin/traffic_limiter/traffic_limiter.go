@@ -104,15 +104,8 @@ func (p *Plugin) startCronJobs() error {
 }
 
 func (p *Plugin) registerEventHandler() {
-	preConnConnectingID, _ := p.eventBus.AttachHandlerFunc("", p.onPreConnConnecting,
-		infrared.PrePlayerJoinEventTopic,
-	)
-	p.eventIDs = append(p.eventIDs, preConnConnectingID)
-
-	playerLeaveID, _ := p.eventBus.AttachHandlerAsyncFunc("", p.onPlayerLeave,
-		infrared.PlayerLeaveEventTopicAsync,
-	)
-	p.eventIDs = append(p.eventIDs, playerLeaveID)
+	p.eventIDs = append(p.eventIDs, p.eventBus.HandleFunc(p.onPreConnConnecting, infrared.PrePlayerJoinEventTopic))
+	p.eventIDs = append(p.eventIDs, p.eventBus.HandleFuncAsync(p.onPlayerLeave, infrared.PlayerLeaveEventTopicAsync))
 }
 
 func (p Plugin) onPlayerLeave(e event.Event) {
