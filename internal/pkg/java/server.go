@@ -18,9 +18,7 @@ import (
 )
 
 type statusResponseJSONProvider struct {
-	server          Server
-	handshakePk     protocol.Packet
-	statusRequestPk protocol.Packet
+	server Server
 
 	mu                      sync.Mutex
 	cacheTTL                time.Duration
@@ -43,7 +41,7 @@ func (s *statusResponseJSONProvider) requestNewStatusResponseJSON(pc *ProcessedC
 		return status.ResponseJSON{}, err
 	}
 
-	if err := rc.WritePackets(s.handshakePk, s.statusRequestPk); err != nil {
+	if err := rc.WritePackets(pc.readPks...); err != nil {
 		return status.ResponseJSON{}, err
 	}
 

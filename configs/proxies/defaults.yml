@@ -102,7 +102,7 @@ defaults:
       # Infrared caches the server ping response so that status pings don't spam the minecraft server.
       # This is the Time To Live of the cache.
       #
-      statusCacheTTL: 10s
+      #statusCacheTTL: 10s
 
 java:
   # Channel Capacity (ChanCap) is the capacity of a single channel
@@ -145,11 +145,11 @@ java:
     rateLimiter:
       # The request limit it the amount of requests a single IP can make in a specific window of time.
       #
-      requestLimit: 1
+      requestLimit: 10
       
       # This is the window of time in that a single IP can make a specific amount of requests.
       #
-      windowLength: 50ms
+      windowLength: 500ms
 
 # See Java above
 #
