@@ -2,7 +2,9 @@ package prometheus
 
 import (
 	"context"
+	"errors"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/haveachin/infrared/internal/app/infrared"
@@ -16,7 +18,8 @@ import (
 
 type PluginConfig struct {
 	Prometheus struct {
-		Bind string `mapstructure:"bind"`
+		Enable bool   `mapstructure:"enable"`
+		Bind   string `mapstructure:"bind"`
 	} `mapstructure:"prometheus"`
 }
 
@@ -41,11 +44,7 @@ func (p Plugin) Version() string {
 	return "internal"
 }
 
-func (p *Plugin) Load(cfg map[string]any) error {
-	if err := config.Unmarshal(cfg, &p.Config); err != nil {
-		return err
-	}
-
+func (p Plugin) Init() {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
 	p.mux = mux
@@ -58,6 +57,16 @@ func (p *Plugin) Load(cfg map[string]any) error {
 		Name: "infrared_connected",
 		Help: "The total number of connected players per Server and edition",
 	}, []string{"host", "server", "edition"})
+}
+
+func (p *Plugin) Load(cfg map[string]any) error {
+	if err := config.Unmarshal(cfg, &p.Config); err != nil {
+		return err
+	}
+
+	if !p.Config.Prometheus.Enable {
+		return infrared.ErrPluginViaConfigDisabled
+	}
 	return nil
 }
 
@@ -67,12 +76,12 @@ func (p *Plugin) Reload(cfg map[string]any) error {
 		return err
 	}
 
-	if pluginCfg.Prometheus.Bind == p.Config.Prometheus.Bind {
-		return nil
+	if !pluginCfg.Prometheus.Enable {
+		return infrared.ErrPluginViaConfigDisabled
 	}
 
-	if pluginCfg.Prometheus.Bind == "" {
-		return p.Disable()
+	if pluginCfg.Prometheus.Bind == p.Config.Prometheus.Bind {
+		return nil
 	}
 
 	p.Config = pluginCfg
@@ -83,10 +92,6 @@ func (p *Plugin) Reload(cfg map[string]any) error {
 }
 
 func (p *Plugin) Enable(api infrared.PluginAPI) error {
-	if p.Config.Prometheus.Bind == "" {
-		return nil
-	}
-
 	p.logger = api.Logger()
 	p.eventBus = api.EventBus()
 	p.quit = make(chan bool)
@@ -117,7 +122,7 @@ func (p Plugin) startMetricsServer() {
 	}
 
 	go func() {
-		if err := srv.ListenAndServe(); err != nil {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, os.ErrClosed) {
 			p.logger.Error("failed to start server", zap.Error(err))
 			return
 		}

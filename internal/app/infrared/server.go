@@ -80,10 +80,8 @@ func (sg *ServerGateway) indexIDs() {
 func (sg *ServerGateway) compileDomainExprs() {
 	sg.srvExprs = map[string][]string{}
 	for _, srv := range sg.Servers {
-		exprs := make([]string, 0, len(srv.Domains()))
-		for _, expr := range srv.Domains() {
-			exprs = append(exprs, expr)
-		}
+		exprs := make([]string, len(srv.Domains()))
+		copy(exprs, srv.Domains())
 		sg.srvExprs[srv.ID()] = exprs
 	}
 }

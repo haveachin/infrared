@@ -16,6 +16,7 @@ import (
 
 type PluginConfig struct {
 	API struct {
+		Enable         bool     `mapstructure:"enable"`
 		Bind           string   `mapstructure:"bind"`
 		AllowedOrigins []string `mapstructure:"allowedOrigins"`
 	} `mapstructure:"api"`
@@ -25,8 +26,8 @@ type Plugin struct {
 	Config   PluginConfig
 	logger   *zap.Logger
 	eventBus event.Bus
+	api      infrared.API
 
-	mux  http.Handler
 	quit chan bool
 }
 
@@ -38,9 +39,15 @@ func (p Plugin) Version() string {
 	return "internal"
 }
 
+func (p Plugin) Init() {}
+
 func (p *Plugin) Load(cfg map[string]any) error {
 	if err := config.Unmarshal(cfg, &p.Config); err != nil {
 		return err
+	}
+
+	if !p.Config.API.Enable {
+		return infrared.ErrPluginViaConfigDisabled
 	}
 
 	return nil
@@ -52,12 +59,12 @@ func (p *Plugin) Reload(cfg map[string]any) error {
 		return err
 	}
 
-	if pluginCfg.API.Bind == p.Config.API.Bind {
-		return nil
+	if !pluginCfg.API.Enable {
+		return infrared.ErrPluginViaConfigDisabled
 	}
 
-	if pluginCfg.API.Bind == "" {
-		return p.Disable()
+	if pluginCfg.API.Bind == p.Config.API.Bind {
+		return nil
 	}
 
 	p.Config = pluginCfg
@@ -68,29 +75,10 @@ func (p *Plugin) Reload(cfg map[string]any) error {
 }
 
 func (p *Plugin) Enable(api infrared.PluginAPI) error {
-	if p.Config.API.Bind == "" {
-		return nil
-	}
-
 	p.logger = api.Logger()
 	p.eventBus = api.EventBus()
+	p.api = api
 	p.quit = make(chan bool)
-
-	r := chi.NewRouter()
-	r.Use(middleware.RealIP)
-	r.Use(middleware.Recoverer)
-	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   p.Config.API.AllowedOrigins,
-		AllowedMethods:   []string{"GET", "DELETE"},
-		AllowedHeaders:   []string{"Accept", "Content-Type"},
-		AllowCredentials: false,
-	}))
-	r.Route("/{edition}/players", func(r chi.Router) {
-		r.Get("/{username}", getPlayerHandler(api))
-		r.Get("/", getPlayersHandler(api))
-		r.Delete("/{username}", deletePlayerHandler(api))
-	})
-	p.mux = r
 
 	go p.startAPIServer()
 	return nil
@@ -105,8 +93,23 @@ func (p Plugin) Disable() error {
 }
 
 func (p Plugin) startAPIServer() {
+	r := chi.NewRouter()
+	r.Use(middleware.RealIP)
+	r.Use(middleware.Recoverer)
+	r.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   p.Config.API.AllowedOrigins,
+		AllowedMethods:   []string{"GET", "DELETE"},
+		AllowedHeaders:   []string{"Accept", "Content-Type"},
+		AllowCredentials: false,
+	}))
+	r.Route("/{edition}/players", func(r chi.Router) {
+		r.Get("/{username}", getPlayerHandler(p.api))
+		r.Get("/", getPlayersHandler(p.api))
+		r.Delete("/{username}", deletePlayerHandler(p.api))
+	})
+
 	srv := http.Server{
-		Handler: p.mux,
+		Handler: r,
 		Addr:    p.Config.API.Bind,
 	}
 

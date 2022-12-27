@@ -26,8 +26,6 @@ import (
 const (
 	devEnvironment  = "dev"
 	prodEnvironment = "prod"
-
-	configDefaultPath = "configs/"
 )
 
 var (
@@ -64,7 +62,7 @@ var (
 			)
 
 			if _, err := os.Stat(configPath); err != nil && errors.Is(err, os.ErrNotExist) {
-				if err := safeWriteFromEmbeddedFS(configDefaultPath, "."); err != nil {
+				if err := safeWriteFromEmbeddedFS("configs", "."); err != nil {
 					return err
 				}
 			}
@@ -103,25 +101,25 @@ var (
 
 			eventBus := event.NewInternalBus()
 			pluginManager = infrared.PluginManager{
-				Proxies: proxies,
-				Plugins: []infrared.Plugin{
-					&webhook.Plugin{},
-					&prometheus.Plugin{},
-					&api.Plugin{},
-					&traffic_limiter.Plugin{},
-				},
+				Proxies:  proxies,
 				Logger:   logger,
 				EventBus: eventBus,
 			}
-			logger.Info("loading plugins")
+			pluginManager.RegisterPlugin(&webhook.Plugin{})
+			pluginManager.RegisterPlugin(&prometheus.Plugin{})
+			pluginManager.RegisterPlugin(&api.Plugin{})
+			pluginManager.RegisterPlugin(&traffic_limiter.Plugin{})
+
+			logger.Debug("loading plugins")
 			pluginManager.LoadPlugins(data)
-			logger.Info("enabling plugins")
+			logger.Debug("enabling plugins")
 			pluginManager.EnablePlugins()
 			defer pluginManager.DisablePlugins()
 
-			logger.Info("starting proxies")
+			logger.Debug("starting proxies")
 			for _, proxy := range proxies {
 				go proxy.ListenAndServe(eventBus, logger)
+				defer proxy.Close()
 			}
 
 			sc := make(chan os.Signal, 1)

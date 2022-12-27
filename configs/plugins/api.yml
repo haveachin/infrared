@@ -1,7 +1,16 @@
 # Enables the API to access real time data.
 #
 #api:
+  # Enables the plugin
+  #
+  #enable: true
+  
+  # The address that the server binds to
+  #
   #bind: :8080
+  
+  # Sets this in the allowed origin header
+  #
   #allowedOrigins:
   #  - "http://*"
   #  - "https://*"

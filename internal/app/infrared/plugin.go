@@ -1,11 +1,16 @@
 package infrared
 
 import (
+	"errors"
 	"net"
 	"regexp"
 
 	"github.com/haveachin/infrared/pkg/event"
 	"go.uber.org/zap"
+)
+
+var (
+	ErrPluginViaConfigDisabled = errors.New("plugin was disabled via config")
 )
 
 type Player interface {
@@ -33,6 +38,7 @@ type PluginAPI interface {
 type Plugin interface {
 	Name() string
 	Version() string
+	Init()
 	Load(cfg map[string]any) error
 	Reload(cfg map[string]any) error
 	Enable(api PluginAPI) error
@@ -91,67 +97,145 @@ func (api pluginAPI) PlayerCount(edition Edition) int {
 	return api.proxies[edition].PlayerCount()
 }
 
+type PluginState int
+
+const (
+	PluginStateDisabled PluginState = iota
+	PluginStateLoaded
+	PluginStateEnabled
+)
+
 type PluginManager struct {
 	Proxies  map[Edition]Proxy
-	Plugins  []Plugin
 	Logger   *zap.Logger
 	EventBus event.Bus
+
+	plugins map[Plugin]PluginState
+}
+
+func (pm PluginManager) pluginLogger(p Plugin) *zap.Logger {
+	return pm.Logger.With(
+		zap.String("pluginName", p.Name()),
+		zap.String("pluginVersion", p.Version()),
+	)
+}
+
+func (pm *PluginManager) RegisterPlugin(p Plugin) {
+	if pm.plugins == nil {
+		pm.plugins = map[Plugin]PluginState{}
+	}
+
+	p.Init()
+	pm.plugins[p] = PluginStateDisabled
 }
 
 func (pm PluginManager) LoadPlugins(cfg map[string]any) {
-	for _, p := range pm.Plugins {
-		if err := p.Load(cfg); err != nil {
-			pm.Logger.Error("failed to load plugin",
-				zap.Error(err),
-				zap.String("pluginName", p.Name()),
-				zap.String("pluginVersion", p.Version()),
-			)
-		}
+	for p := range pm.plugins {
+		pm.loadPlugin(p, cfg)
 	}
 }
 
-func (pm PluginManager) ReloadPlugins(cfg map[string]any) {
-	for _, p := range pm.Plugins {
-		if err := p.Reload(cfg); err != nil {
-			pm.Logger.Error("failed to reload plugin",
+func (pm PluginManager) loadPlugin(p Plugin, cfg map[string]any) {
+	if err := p.Load(cfg); err != nil {
+		logger := pm.pluginLogger(p)
+		if errors.Is(err, ErrPluginViaConfigDisabled) {
+			logger.Debug("Plugin was disabled via config")
+		} else {
+			logger.Error("failed to load plugin",
 				zap.Error(err),
-				zap.String("pluginName", p.Name()),
-				zap.String("pluginVersion", p.Version()),
 			)
 		}
+		return
+	}
+
+	pm.plugins[p] = PluginStateLoaded
+}
+
+func (pm *PluginManager) ReloadPlugins(cfg map[string]any) {
+	for p := range pm.plugins {
+		pm.reloadPlugin(p, cfg)
 	}
 }
 
-func (pm PluginManager) EnablePlugins() {
-	for _, p := range pm.Plugins {
-		pluginLogger := pm.Logger.With(
-			zap.String("pluginName", p.Name()),
-			zap.String("pluginVersion", p.Version()),
+func (pm *PluginManager) reloadPlugin(p Plugin, cfg map[string]any) {
+	logger := pm.pluginLogger(p)
+	if err := p.Reload(cfg); err != nil {
+		if errors.Is(err, ErrPluginViaConfigDisabled) {
+			if pm.isPluginEnabled(p) {
+				logger.Debug("disabling plugin via reload")
+				pm.disablePlugin(p)
+			} else {
+				logger.Debug("No change in plugin state")
+			}
+			return
+		}
+
+		logger.Error("failed to reload plugin",
+			zap.Error(err),
 		)
-		api := pluginAPI{
-			proxies:       pm.Proxies,
-			pluginManager: pm,
-			eventBus:      pm.EventBus,
-			logger:        pluginLogger,
-		}
+		return
+	}
 
-		pluginLogger.Info("enabling plugin")
-		if err := p.Enable(&api); err != nil {
-			pluginLogger.Error("Failed to enable plugin",
-				zap.Error(err),
-			)
-		}
+	if pm.isPluginEnabled(p) {
+		return
+	}
+
+	logger.Debug("enabling plugin via reload")
+	pm.loadPlugin(p, cfg)
+	pm.enablePlugin(p)
+}
+
+func (pm *PluginManager) isPluginLoaded(p Plugin) bool {
+	s, ok := pm.plugins[p]
+	return ok && s == PluginStateLoaded
+}
+
+func (pm *PluginManager) isPluginEnabled(p Plugin) bool {
+	s, ok := pm.plugins[p]
+	return ok && s == PluginStateEnabled
+}
+
+func (pm *PluginManager) EnablePlugins() {
+	for p := range pm.plugins {
+		pm.enablePlugin(p)
 	}
 }
 
-func (pm PluginManager) DisablePlugins() {
-	for _, p := range pm.Plugins {
-		if err := p.Disable(); err != nil {
-			pm.Logger.Error("failed to disable plugin",
-				zap.Error(err),
-				zap.String("pluginName", p.Name()),
-				zap.String("pluginVersion", p.Version()),
-			)
-		}
+func (pm *PluginManager) enablePlugin(p Plugin) {
+	if !pm.isPluginLoaded(p) {
+		return
 	}
+
+	logger := pm.pluginLogger(p)
+	api := pluginAPI{
+		proxies:       pm.Proxies,
+		pluginManager: *pm,
+		eventBus:      pm.EventBus,
+		logger:        logger,
+	}
+
+	if err := p.Enable(&api); err != nil {
+		logger.Error("Failed to enable plugin",
+			zap.Error(err),
+		)
+	}
+	pm.plugins[p] = PluginStateEnabled
+	logger.Info("enabled plugin")
+}
+
+func (pm *PluginManager) DisablePlugins() {
+	for p := range pm.plugins {
+		pm.disablePlugin(p)
+	}
+}
+
+func (pm *PluginManager) disablePlugin(p Plugin) {
+	logger := pm.pluginLogger(p)
+	if err := p.Disable(); err != nil {
+		logger.Error("failed to disable plugin",
+			zap.Error(err),
+		)
+	}
+	logger.Info("disabling plugin")
+	pm.plugins[p] = PluginStateDisabled
 }

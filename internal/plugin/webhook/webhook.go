@@ -14,8 +14,10 @@ import (
 )
 
 type PluginConfig struct {
-	Enabled  bool                     `mapstructure:"enabled"`
-	Webhooks map[string]webhookConfig `mapstructure:"webhooks"`
+	Webhook struct {
+		Enable   bool                     `mapstructure:"enable"`
+		Webhooks map[string]webhookConfig `mapstructure:"webhooks"`
+	} `mapstructure:"webhook"`
 	Defaults struct {
 		Webhook webhookConfig `mapstructure:"webhook"`
 	} `mapstructure:"defaults"`
@@ -23,7 +25,7 @@ type PluginConfig struct {
 
 func (cfg PluginConfig) loadWebhooks() (map[string][]webhook.Webhook, error) {
 	webhooks := map[string][]webhook.Webhook{}
-	for id, whCfg := range cfg.Webhooks {
+	for id, whCfg := range cfg.Webhook.Webhooks {
 		if err := mergo.Merge(&whCfg, cfg.Defaults.Webhook); err != nil {
 			return nil, err
 		}
@@ -74,9 +76,15 @@ func (p Plugin) Version() string {
 	return "internal"
 }
 
+func (p Plugin) Init() {}
+
 func (p *Plugin) Load(cfg map[string]any) error {
 	if err := config.Unmarshal(cfg, &p.Config); err != nil {
 		return err
+	}
+
+	if !p.Config.Webhook.Enable {
+		return infrared.ErrPluginViaConfigDisabled
 	}
 
 	whks, err := p.Config.loadWebhooks()
@@ -89,14 +97,14 @@ func (p *Plugin) Load(cfg map[string]any) error {
 }
 
 func (p *Plugin) Reload(cfg map[string]any) error {
-	return p.Load(cfg)
+	if err := p.Load(cfg); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (p *Plugin) Enable(api infrared.PluginAPI) error {
-	if !p.Config.Enabled {
-		return nil
-	}
-
 	p.logger = api.Logger()
 	p.eventBus = api.EventBus()
 

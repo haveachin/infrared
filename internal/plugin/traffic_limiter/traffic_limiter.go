@@ -26,8 +26,11 @@ type trafficLimiter struct {
 }
 
 type PluginConfig struct {
-	TrafficLimiters map[string]trafficLimiterConfig `mapstructure:"trafficLimiters"`
-	Defaults        struct {
+	TrafficLimiter struct {
+		Enable          bool                            `mapstructure:"enable"`
+		TrafficLimiters map[string]trafficLimiterConfig `mapstructure:"trafficLimiters"`
+	} `mapstructure:"trafficLimiter"`
+	Defaults struct {
 		TrafficLimiter trafficLimiterConfig `mapstructure:"trafficLimiter"`
 	} `mapstructure:"defaults"`
 }
@@ -49,9 +52,15 @@ func (p Plugin) Version() string {
 	return "internal"
 }
 
+func (p Plugin) Init() {}
+
 func (p *Plugin) Load(cfg map[string]any) error {
 	if err := config.Unmarshal(cfg, &p.Config); err != nil {
 		return err
+	}
+
+	if !p.Config.TrafficLimiter.Enable {
+		return infrared.ErrPluginViaConfigDisabled
 	}
 
 	trafficLimiters, err := p.Config.loadTrafficLimiterConfigs()
@@ -64,12 +73,10 @@ func (p *Plugin) Load(cfg map[string]any) error {
 }
 
 func (p *Plugin) Reload(cfg map[string]any) error {
-	var pluginCfg PluginConfig
-	if err := config.Unmarshal(cfg, &pluginCfg); err != nil {
+	if err := p.Load(cfg); err != nil {
 		return err
 	}
 
-	p.Config = pluginCfg
 	return nil
 }
 

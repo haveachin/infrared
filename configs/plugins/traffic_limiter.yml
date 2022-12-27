@@ -1,37 +1,49 @@
-#trafficLimiters:
-  #default:
-    # Server IDs to watch the traffic
+# Configuration for traffic limiters
+#
+#trafficLimiter:
+  # Enables the plugin
+  #
+  #enable: true
+  
+  # A map of traffic limiter configurations
+  #
+  #trafficLimiters:
+    # This is just an ID. In this case "default",
+    # but you can give it a name that makes sense for you.
     #
-    #serverIds:
-    #  - default
-    
-    # File is used to persistently store data
-    #
-    #file: bandwidth.yml
-    
-    # This is the amount of traffic until the server gets limited.
-    # Valid sizes are B, KB, MB, GB, TB, PB and EB.
-    #
-    #trafficLimit: 1TB
+    #default:
+      # Server IDs to watch the traffic
+      #
+      #serverIds:
+      #  - default
+      
+      # File is used to persistently store data
+      #
+      #file: bandwidth.yml
+      
+      # This is the amount of traffic until the server gets limited.
+      # Valid sizes are B, KB, MB, GB, TB, PB and EB.
+      #
+      #trafficLimit: 1TB
 
-    # Sets the schedule for the job that resets the consumed bytes from the traffic limiter.
-    # For more info on the Cron sysntax see here: https://en.wikipedia.org/wiki/Cron
-    #
-    #resetCron: "@monthly"
-    
-    # The message that is displayed to a client when they try to connect
-    # but the server is out of bandwidth.
-    #
-    #outOfBandwidthMessage: Sorry {{username}}, but the server is out of bandwidth.
+      # Sets the schedule for the job that resets the consumed bytes from the traffic limiter.
+      # For more info on the Cron sysntax see here: https://en.wikipedia.org/wiki/Cron
+      #
+      #resetCron: "@monthly"
+      
+      # The message that is displayed to a client when they try to connect
+      # but the server is out of bandwidth.
+      #
+      #outOfBandwidthMessage: Sorry {{username}}, but the server is out of bandwidth.
 
-    # This is the ping response that clients see of your server when it is out of bandwidth.
-    #
-    #outOfBandwidthStatus:
-      #versionName: Infrared
-      #protocolNumber: 0
-      #maxPlayerCount: 0
-      #playerCount: 0
-      #iconPath: icons/default.png
-      #motd: |
-      #  Powered by Infrared
-      #  §6Server at {{serverDomain}} is out of bandwidth.
+      # This is the ping response that clients see of your server when it is out of bandwidth.
+      #
+      #outOfBandwidthStatus:
+        #versionName: Infrared
+        #protocolNumber: 0
+        #maxPlayerCount: 0
+        #playerCount: 0
+        #iconPath: icons/default.png
+        #motd: |
+        #  Powered by Infrared
+        #  §6Server at {{serverDomain}} is out of bandwidth.

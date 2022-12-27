@@ -1,4 +1,10 @@
 # Enables the prometheus server for real time metric tracking.
 #
 #prometheus:
+  # Enables the plugin
+  #
+  #enable: true
+  
+  # The address that the server binds to
+  #
   #bind: :9070
