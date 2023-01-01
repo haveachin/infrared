@@ -2,7 +2,6 @@ package infrared
 
 import (
 	"errors"
-	"net"
 	"regexp"
 
 	"github.com/haveachin/infrared/pkg/event"
@@ -13,18 +12,16 @@ var (
 	ErrPluginViaConfigDisabled = errors.New("plugin was disabled via config")
 )
 
-type Player interface {
-	Username() string
-	Edition() Edition
-	GatewayID() string
-	RemoteAddr() net.Addr
-	LocalAddr() net.Addr
-	Close() error
-}
-
 type API interface {
-	PlayerByUsername(edition Edition, username string) Player
-	Players(edition Edition, usernamePattern string) ([]Player, error)
+	// PlayerByUsername returns a Player with a specified username and Edition if they are currently being proxied.
+	PlayerByUsername(username string, edition Edition) Player
+
+	// Players returns a slice of Player that are currently being proxied filtered by a regular expression.
+	// If a edition is specified more than once than the slice of Player will contain duplicates.
+	// If no editions are specified this returns an empty slice.
+	Players(usernameRegex string, editions ...Edition) ([]Player, error)
+
+	// Returns the amount of players that are currently being proxied with the specified Edition.
 	PlayerCount(edition Edition) int
 }
 
@@ -46,26 +43,24 @@ type Plugin interface {
 }
 
 type pluginAPI struct {
-	eventBus      event.Bus
-	logger        *zap.Logger
-	proxies       map[Edition]Proxy
-	pluginManager PluginManager
+	logger *zap.Logger
+	pm     *PluginManager
 }
 
 func (api pluginAPI) EventBus() event.Bus {
-	return api.eventBus
+	return api.pm.EventBus
 }
 
 func (api pluginAPI) Logger() *zap.Logger {
 	return api.logger
 }
 
-func (api pluginAPI) PlayerByUsername(edition Edition, username string) Player {
+func (api pluginAPI) PlayerByUsername(username string, edition Edition) Player {
 	if username == "" {
 		return nil
 	}
 
-	for _, player := range api.proxies[edition].Players() {
+	for _, player := range api.pm.Proxies[edition].Players() {
 		if player.Username() == username {
 			return player
 		}
@@ -73,9 +68,17 @@ func (api pluginAPI) PlayerByUsername(edition Edition, username string) Player {
 	return nil
 }
 
-func (api pluginAPI) Players(edition Edition, usernameRegex string) ([]Player, error) {
-	players := api.proxies[edition].Players()
-	if usernameRegex == "" {
+func (api pluginAPI) Players(usernameRegex string, editions ...Edition) ([]Player, error) {
+	if len(editions) == 0 {
+		return []Player{}, nil
+	}
+
+	players := []Player{}
+	for _, edition := range editions {
+		players = append(players, api.pm.Proxies[edition].Players()...)
+	}
+
+	if usernameRegex == ".*" {
 		return players, nil
 	}
 
@@ -84,7 +87,7 @@ func (api pluginAPI) Players(edition Edition, usernameRegex string) ([]Player, e
 		return nil, err
 	}
 
-	pp := make([]Player, 0, len(players))
+	pp := []Player{}
 	for _, player := range players {
 		if pattern.MatchString(player.Username()) {
 			pp = append(pp, player)
@@ -94,7 +97,7 @@ func (api pluginAPI) Players(edition Edition, usernameRegex string) ([]Player, e
 }
 
 func (api pluginAPI) PlayerCount(edition Edition) int {
-	return api.proxies[edition].PlayerCount()
+	return api.pm.Proxies[edition].PlayerCount()
 }
 
 type PluginState int
@@ -127,6 +130,7 @@ func (pm *PluginManager) RegisterPlugin(p Plugin) {
 
 	p.Init()
 	pm.plugins[p] = PluginStateDisabled
+	pm.pluginLogger(p).Debug("plugin registered")
 }
 
 func (pm PluginManager) LoadPlugins(cfg map[string]any) {
@@ -139,7 +143,7 @@ func (pm PluginManager) loadPlugin(p Plugin, cfg map[string]any) {
 	if err := p.Load(cfg); err != nil {
 		logger := pm.pluginLogger(p)
 		if errors.Is(err, ErrPluginViaConfigDisabled) {
-			logger.Debug("Plugin was disabled via config")
+			logger.Debug("plugin was disabled via config")
 		} else {
 			logger.Error("failed to load plugin",
 				zap.Error(err),
@@ -162,10 +166,10 @@ func (pm *PluginManager) reloadPlugin(p Plugin, cfg map[string]any) {
 	if err := p.Reload(cfg); err != nil {
 		if errors.Is(err, ErrPluginViaConfigDisabled) {
 			if pm.isPluginEnabled(p) {
-				logger.Debug("disabling plugin via reload")
 				pm.disablePlugin(p)
+				logger.Debug("disabled plugin via reload")
 			} else {
-				logger.Debug("No change in plugin state")
+				logger.Debug("no change in plugin state")
 			}
 			return
 		}
@@ -180,9 +184,9 @@ func (pm *PluginManager) reloadPlugin(p Plugin, cfg map[string]any) {
 		return
 	}
 
-	logger.Debug("enabling plugin via reload")
 	pm.loadPlugin(p, cfg)
 	pm.enablePlugin(p)
+	logger.Debug("enabled plugin via reload")
 }
 
 func (pm *PluginManager) isPluginLoaded(p Plugin) bool {
@@ -207,15 +211,13 @@ func (pm *PluginManager) enablePlugin(p Plugin) {
 	}
 
 	logger := pm.pluginLogger(p)
-	api := pluginAPI{
-		proxies:       pm.Proxies,
-		pluginManager: *pm,
-		eventBus:      pm.EventBus,
-		logger:        logger,
+	api := &pluginAPI{
+		pm:     pm,
+		logger: logger,
 	}
 
-	if err := p.Enable(&api); err != nil {
-		logger.Error("Failed to enable plugin",
+	if err := p.Enable(api); err != nil {
+		logger.Error("failed to enable plugin",
 			zap.Error(err),
 		)
 	}
@@ -230,12 +232,16 @@ func (pm *PluginManager) DisablePlugins() {
 }
 
 func (pm *PluginManager) disablePlugin(p Plugin) {
+	if !pm.isPluginEnabled(p) {
+		return
+	}
+
 	logger := pm.pluginLogger(p)
 	if err := p.Disable(); err != nil {
 		logger.Error("failed to disable plugin",
 			zap.Error(err),
 		)
 	}
-	logger.Info("disabling plugin")
 	pm.plugins[p] = PluginStateDisabled
+	logger.Info("disabled plugin")
 }

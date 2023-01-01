@@ -38,15 +38,23 @@ type Gateway struct {
 func (gw *Gateway) initListeners() {
 	gw.listeners = make([]net.Listener, len(gw.Listeners))
 	for n, listener := range gw.Listeners {
+		logger := gw.Logger.With(
+			zap.String("address", listener.Bind),
+		)
+
 		l, err := gw.ListenersManager.Listen(listener.Bind, func(l net.Listener) {
 			pl := l.(*ProxyProtocolListener)
 			pl.active = listener.ReceiveProxyProtocol
+
+			if listener.ReceiveProxyProtocol {
+				logger.Warn("receiving proxy protocol")
+			}
 		})
 		if err != nil {
-			gw.Logger.Warn("unable to bind listener",
+			logger.Warn("unable to bind listener",
 				zap.Error(err),
-				zap.String("address", listener.Bind),
 			)
+			continue
 		}
 
 		gw.Listeners[n].Listener = l
@@ -117,13 +125,15 @@ func (gw *InfraredGateway) Listeners() []net.Listener {
 func (gw *InfraredGateway) WrapConn(c net.Conn, l net.Listener) net.Conn {
 	listener := l.(*Listener)
 	return &Conn{
-		Conn:                     c,
-		r:                        bufio.NewReader(c),
-		w:                        c,
-		realIP:                   listener.ReceiveRealIP,
-		gatewayID:                gw.gateway.ID,
-		serverNotFoundMessage:    listener.ServerNotFoundMessage,
-		serverNotFoundStatusJSON: listener.serverNotFoundStatusJSON,
+		Conn:      c,
+		r:         bufio.NewReader(c),
+		w:         c,
+		realIP:    listener.ReceiveRealIP,
+		gatewayID: gw.gateway.ID,
+		serverNotFoundDisconnector: PlayerDisconnecter{
+			message:    listener.ServerNotFoundMessage,
+			statusJSON: listener.serverNotFoundStatusJSON,
+		},
 	}
 }
 

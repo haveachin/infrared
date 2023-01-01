@@ -16,11 +16,13 @@ import (
 	"github.com/haveachin/infrared/internal/pkg/java"
 	"github.com/haveachin/infrared/internal/plugin/api"
 	"github.com/haveachin/infrared/internal/plugin/prometheus"
+	"github.com/haveachin/infrared/internal/plugin/session_validator"
 	"github.com/haveachin/infrared/internal/plugin/traffic_limiter"
 	"github.com/haveachin/infrared/internal/plugin/webhook"
 	"github.com/haveachin/infrared/pkg/event"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 const (
@@ -35,6 +37,7 @@ var (
 	configPath  string
 	workingDir  string
 	environment string
+	logEncoder  string
 
 	logger        *zap.Logger
 	pluginManager infrared.PluginManager
@@ -109,6 +112,7 @@ var (
 			pluginManager.RegisterPlugin(&prometheus.Plugin{})
 			pluginManager.RegisterPlugin(&api.Plugin{})
 			pluginManager.RegisterPlugin(&traffic_limiter.Plugin{})
+			pluginManager.RegisterPlugin(&session_validator.Plugin{})
 
 			logger.Debug("loading plugins")
 			pluginManager.LoadPlugins(data)
@@ -133,6 +137,7 @@ var (
 func init() {
 	rootCmd.PersistentFlags().StringVarP(&workingDir, "working-dir", "w", ".", "set the working directory")
 	rootCmd.PersistentFlags().StringVarP(&environment, "environment", "e", "prod", "set the deployment environment")
+	rootCmd.PersistentFlags().StringVarP(&logEncoder, "log-encoder", "l", "console", "set the log encoder")
 	rootCmd.Flags().StringVarP(&configPath, "config", "c", "config.yml", "path of the config file")
 
 	rootCmd.AddCommand(licenseCmd)
@@ -146,7 +151,14 @@ func newLogger(env string) (*zap.Logger, error) {
 	case devEnvironment:
 		return zap.NewDevelopment()
 	case prodEnvironment:
-		return zap.NewProduction()
+		cfg := zap.NewProductionConfig()
+		cfg.Encoding = logEncoder
+		if logEncoder == "console" {
+			cfg.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+		}
+		cfg.EncoderConfig.EncodeTime = zapcore.RFC3339TimeEncoder
+		cfg.DisableCaller = true
+		return cfg.Build()
 	default:
 		return nil, fmt.Errorf("unsupported environment %q", environment)
 	}

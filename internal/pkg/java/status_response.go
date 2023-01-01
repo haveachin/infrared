@@ -23,7 +23,7 @@ func (ps PlayerSamples) PlayerSampleJSON() []status.PlayerSampleJSON {
 	return ss
 }
 
-type OverrideStatusResponse struct {
+type OverrideServerStatusResponse struct {
 	VersionName    *string
 	ProtocolNumber *int
 	MaxPlayerCount *int
@@ -33,7 +33,9 @@ type OverrideStatusResponse struct {
 	MOTD           *string
 }
 
-func (r OverrideStatusResponse) ResponseJSON(resp status.ResponseJSON, pc *ProcessedConn, s Server) status.ResponseJSON {
+type MOTDOption infrared.MessageOption
+
+func (r OverrideServerStatusResponse) ResponseJSON(resp status.ResponseJSON, motdOpts ...MOTDOption) status.ResponseJSON {
 	if r.Icon != nil {
 		resp.Favicon = *r.Icon
 	}
@@ -59,16 +61,17 @@ func (r OverrideStatusResponse) ResponseJSON(resp status.ResponseJSON, pc *Proce
 	}
 
 	if r.MOTD != nil {
+		motd := *r.MOTD
+		for _, opt := range motdOpts {
+			motd = opt(motd)
+		}
+
 		resp.Description = status.DescriptionJSON{
-			Text: infrared.ExecuteServerMessageTemplate(*r.MOTD, pc, s.InfraredServer()),
+			Text: motd,
 		}
 	}
 
 	return resp
-}
-
-func (r OverrideStatusResponse) ExecuteServerMessageTemplate(pc ProcessedConn, s Server) {
-
 }
 
 type ServerStatusResponse struct {

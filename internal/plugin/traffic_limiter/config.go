@@ -1,10 +1,11 @@
 package traffic_limiter
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/c2h5oh/datasize"
+	"github.com/haveachin/infrared/internal/app/infrared"
+	"github.com/haveachin/infrared/internal/pkg/bedrock"
 	"github.com/haveachin/infrared/internal/pkg/java"
 	"github.com/imdario/mergo"
 )
@@ -36,14 +37,19 @@ func (cfg PluginConfig) loadTrafficLimiterConfigs() (map[string]trafficLimiter, 
 			storages[bwCfg.File] = storage
 		}
 
-		statusJSON, err := java.NewServerServerStatus(bwCfg.OutOfBandwidthStatus)
+		statusJSON, err := java.NewServerStatus(bwCfg.OutOfBandwidthStatus)
 		if err != nil {
 			return nil, err
 		}
 
-		bb, err := json.Marshal(statusJSON.ResponseJSON())
+		javaDisconnecter, err := java.NewPlayerDisconnecter(statusJSON.ResponseJSON(), bwCfg.OutOfBandwidthMessage)
 		if err != nil {
 			return nil, err
+		}
+
+		disconnecters := map[infrared.Edition]infrared.PlayerDisconnecter{
+			infrared.JavaEdition:    javaDisconnecter,
+			infrared.BedrockEdition: bedrock.NewPlayerDisconnecter(bwCfg.OutOfBandwidthMessage),
 		}
 
 		for _, sID := range bwCfg.ServerIDs {
@@ -53,12 +59,11 @@ func (cfg PluginConfig) loadTrafficLimiterConfigs() (map[string]trafficLimiter, 
 			}
 
 			trafficLimiters[sID] = trafficLimiter{
-				file:                     bwCfg.File,
-				trafficLimit:             bwCfg.TrafficLimit,
-				resetCron:                bwCfg.ResetCron,
-				storage:                  storage,
-				OutOfBandwidthMessage:    bwCfg.OutOfBandwidthMessage,
-				OutOfBandwidthStatusJSON: string(bb),
+				file:                       bwCfg.File,
+				trafficLimit:               bwCfg.TrafficLimit,
+				resetCron:                  bwCfg.ResetCron,
+				storage:                    storage,
+				OutOfBandwidthDisconnecter: infrared.NewMultiPlayerDisconnecter(disconnecters),
 			}
 		}
 	}

@@ -45,7 +45,7 @@ type ConnProcessor interface {
 type CPN struct {
 	ConnProcessor
 	In          <-chan Conn
-	Out         chan<- ProcessedConn
+	Out         chan<- Player
 	Logger      *zap.Logger
 	EventBus    event.Bus
 	Middlewares []func(Handler) Handler
@@ -83,13 +83,13 @@ func (cpn CPN) ListenAndServe(quit <-chan bool) {
 					c.Close()
 					return
 				}
-				procConn := pc.(ProcessedConn)
+				procConn := pc.(Player)
 				c.SetDeadline(time.Time{})
 
 				connLogger.Debug("sending client to server gateway")
 
 				replyChan := cpn.EventBus.Request(PostConnProcessingEvent{
-					ProcessedConn: procConn,
+					Player: procConn,
 				}, PostProcessingEventTopic)
 
 				if isEventCanceled(replyChan, connLogger) {

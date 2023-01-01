@@ -16,19 +16,19 @@ import (
 )
 
 type fileConfig struct {
-	File  string `json:"file" yaml:"file"`
-	Watch bool   `json:"watch" yaml:"watch"`
+	File  string `mapstructure:"file"`
+	Watch bool   `mapstructure:"watch"`
 }
 
 type directoryConfig struct {
-	Directory string `json:"directory" yaml:"directory"`
-	Watch     bool   `json:"watch" yaml:"watch"`
+	Directory string `mapstructure:"directory"`
+	Watch     bool   `mapstructure:"watch"`
 	// Recursive bool   `json:"recursive" yaml:"recursive"`
 }
 
 type FileConfig struct {
-	Directories []directoryConfig `json:"directories" yaml:"directories"`
-	Files       []fileConfig      `json:"files" yaml:"files"`
+	Directories []directoryConfig `mapstructure:"directories"`
+	Files       []fileConfig      `mapstructure:"files"`
 }
 
 type file struct {

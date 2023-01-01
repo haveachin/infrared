@@ -40,22 +40,22 @@ type PreConnProcessingEvent struct {
 }
 
 type PostConnProcessingEvent struct {
-	ProcessedConn ProcessedConn
+	Player Player
 }
 
 type PreConnConnectingEvent struct {
-	ProcessedConn ProcessedConn
-	Server        Server
+	Player Player
+	Server Server
 }
 
 type PlayerJoinEvent struct {
-	ProcessedConn ProcessedConn
+	Player        Player
 	Server        Server
 	MatchedDomain string
 }
 
 type PlayerLeaveEvent struct {
-	ProcessedConn ProcessedConn
+	Player        Player
 	Server        Server
 	MatchedDomain string
 	ConsumedBytes int64

@@ -21,7 +21,7 @@ func logConn(c net.Conn) []zap.Field {
 	}
 }
 
-func logProcessedConn(pc ProcessedConn) []zap.Field {
+func logProcessedConn(pc Player) []zap.Field {
 	return []zap.Field{
 		zap.String("connNetwork", pc.LocalAddr().Network()),
 		zap.String("connLocalAddr", pc.LocalAddr().String()),

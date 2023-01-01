@@ -50,7 +50,7 @@ func getPlayerHandler(api infrared.API) http.HandlerFunc {
 		}
 
 		username := chi.URLParam(r, "username")
-		player := api.PlayerByUsername(edition, username)
+		player := api.PlayerByUsername(username, edition)
 		if player == nil {
 			w.WriteHeader(http.StatusNotFound)
 			return
@@ -78,7 +78,7 @@ func getPlayersHandler(api infrared.API) http.HandlerFunc {
 			return
 		}
 
-		players, err := api.Players(edition, requestDTO.UsernameRegex)
+		players, err := api.Players(requestDTO.UsernameRegex, edition)
 		if err != nil {
 			render.Status(r, http.StatusUnprocessableEntity)
 			render.JSON(w, r, newErrorDTO(err))
@@ -105,7 +105,7 @@ func deletePlayerHandler(api infrared.API) http.HandlerFunc {
 		}
 
 		username := chi.URLParam(r, "username")
-		player := api.PlayerByUsername(edition, username)
+		player := api.PlayerByUsername(username, edition)
 		if player == nil {
 			w.WriteHeader(http.StatusNotFound)
 			return

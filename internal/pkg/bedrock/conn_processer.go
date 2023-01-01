@@ -29,20 +29,20 @@ type ConnProcessor struct {
 }
 
 func (cp ConnProcessor) ProcessConn(c net.Conn) (net.Conn, error) {
-	pc := ProcessedConn{
+	player := Player{
 		Conn:       *c.(*Conn),
 		remoteAddr: c.RemoteAddr(),
 	}
 
-	if pc.proxyProtocol {
+	if player.proxyProtocol {
 		header, err := proxyproto.Read(bufio.NewReader(c))
 		if err != nil {
 			return nil, err
 		}
-		pc.remoteAddr = header.SourceAddr
+		player.remoteAddr = header.SourceAddr
 	}
 
-	pksData, err := pc.ReadPackets()
+	pksData, err := player.ReadPackets()
 	if err != nil {
 		return nil, err
 	}
@@ -51,48 +51,48 @@ func (cp ConnProcessor) ProcessConn(c net.Conn) (net.Conn, error) {
 		return nil, fmt.Errorf("invalid amount of packets received: expected 1; got %d", len(pksData))
 	}
 
-	if err := handlePacket(&pc, pksData[0]); err != nil {
+	if err := handlePacket(&player, pksData[0]); err != nil {
 		return nil, err
 	}
 
-	if strings.Contains(pc.serverAddr, ":") {
-		pc.serverAddr, _, err = net.SplitHostPort(pc.serverAddr)
+	if strings.Contains(player.serverAddr, ":") {
+		player.serverAddr, _, err = net.SplitHostPort(player.serverAddr)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	return &pc, nil
+	return &player, nil
 }
 
-func handlePacket(pc *ProcessedConn, pkData packet.Data) error {
+func handlePacket(player *Player, pkData packet.Data) error {
 	switch pkData.Header.PacketID {
 	case packet.IDRequestNetworkSettings:
-		return handleNetworkSettings(pc, pkData)
+		return handleNetworkSettings(player, pkData)
 	case packet.IDLogin:
-		return handleLogin(pc, pkData)
+		return handleLogin(player, pkData)
 	default:
 		return fmt.Errorf("unknown packet with ID 0x%x", pkData.Header.PacketID)
 	}
 }
 
-func handleNetworkSettings(pc *ProcessedConn, pkData packet.Data) error {
+func handleNetworkSettings(player *Player, pkData packet.Data) error {
 	var requestNetworkSettingsPk packet.RequestNetworkSettings
 	if err := pkData.Decode(&requestNetworkSettingsPk); err != nil {
 		return err
 	}
-	pc.requestNetworkSettingsPkData = &pkData
-	pc.version = requestNetworkSettingsPk.ClientProtocol
+	player.requestNetworkSettingsPkData = &pkData
+	player.version = requestNetworkSettingsPk.ClientProtocol
 
-	if err := pc.WritePacket(&packet.NetworkSettings{
+	if err := player.WritePacket(&packet.NetworkSettings{
 		CompressionThreshold: 512,
-		CompressionAlgorithm: pc.compression,
+		CompressionAlgorithm: player.compression,
 	}); err != nil {
 		return err
 	}
-	pc.EnableCompression(pc.compression)
+	player.EnableCompression(player.compression)
 
-	pksData, err := pc.ReadPackets()
+	pksData, err := player.ReadPackets()
 	if err != nil {
 		return err
 	}
@@ -101,21 +101,21 @@ func handleNetworkSettings(pc *ProcessedConn, pkData packet.Data) error {
 		return fmt.Errorf("invalid amount of packets received: expected 1; got %d", len(pksData))
 	}
 
-	return handleLogin(pc, pksData[0])
+	return handleLogin(player, pksData[0])
 }
 
-func handleLogin(pc *ProcessedConn, pkData packet.Data) error {
+func handleLogin(player *Player, pkData packet.Data) error {
 	var loginPk packet.Login
 	if err := pkData.Decode(&loginPk); err != nil {
 		return err
 	}
-	pc.loginPkData = pkData
+	player.loginPkData = pkData
 
 	iData, cData, err := login.Parse(loginPk.ConnectionRequest)
 	if err != nil {
 		return err
 	}
-	pc.username = iData.DisplayName
-	pc.serverAddr = cData.ServerAddress
+	player.username = iData.DisplayName
+	player.serverAddr = cData.ServerAddress
 	return nil
 }

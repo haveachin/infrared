@@ -64,34 +64,36 @@ func (cp *ConnPool) handlePlayerStatus(ct ConnTunnel) {
 func (cp *ConnPool) handlePlayerLogin(ct ConnTunnel) {
 	defer ct.Conn.Close()
 
-	cp.addToPool(ct)
-	defer cp.removeFromPool(ct)
-
 	logger := cp.Logger.With(logProcessedConn(ct.Conn)...)
+	consumedBytes := int64(0)
+
+	cp.addToPool(ct)
+	defer func() {
+		logger.Info("disconnected client")
+		cp.removeFromPool(ct)
+		cp.EventBus.Push(PlayerLeaveEvent{
+			Player:        ct.Conn,
+			Server:        ct.Server,
+			MatchedDomain: ct.MatchedDomain,
+			ConsumedBytes: consumedBytes,
+		}, PlayerLeaveEventTopicAsync)
+	}()
+
 	replyChan := cp.EventBus.Request(PlayerJoinEvent{
-		ProcessedConn: ct.Conn,
+		Player:        ct.Conn,
 		Server:        ct.Server,
 		MatchedDomain: ct.MatchedDomain,
 	}, PlayerJoinEventTopic)
-
 	if isEventCanceled(replyChan, logger) {
 		return
 	}
 
 	logger.Info("connecting client to server")
-	consumedBytes, err := ct.Start()
+	var err error
+	consumedBytes, err = ct.Start()
 	if err != nil {
 		logger.Info("closing connection", zap.Error(err))
-		return
 	}
-
-	logger.Info("disconnecting client")
-	cp.EventBus.Push(PlayerLeaveEvent{
-		ProcessedConn: ct.Conn,
-		Server:        ct.Server,
-		MatchedDomain: ct.MatchedDomain,
-		ConsumedBytes: consumedBytes,
-	}, PlayerLeaveEventTopicAsync)
 }
 
 func (cp *ConnPool) Reload(cfg ConnPoolConfig) {

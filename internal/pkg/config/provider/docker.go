@@ -14,11 +14,11 @@ import (
 )
 
 type DockerConfig struct {
-	ClientTimeout time.Duration `json:"clientTimeout" yaml:"clientTimeout"`
-	LabelPrefix   string        `json:"labelPrefix" yaml:"labelPrefix"`
-	Endpoint      string        `json:"endpoint" yaml:"endpoint"`
-	Network       string        `json:"network" yaml:"network"`
-	Watch         bool          `json:"watch" yaml:"watch"`
+	ClientTimeout time.Duration `mapstructure:"clientTimeout"`
+	LabelPrefix   string        `mapstructure:"labelPrefix"`
+	Endpoint      string        `mapstructure:"endpoint"`
+	Network       string        `mapstructure:"network"`
+	Watch         bool          `mapstructure:"watch"`
 }
 
 type docker struct {
@@ -90,8 +90,7 @@ func (p docker) readConfigData() (Data, error) {
 
 			key = strings.TrimPrefix(key, p.LabelPrefix)
 
-			if strings.HasPrefix(value, "[") {
-				value = strings.Trim(value, "[]")
+			if strings.Contains(value, ",") {
 				setNestedValue(data, key, strings.Split(value, ","))
 			} else {
 				setNestedValue(data, key, value)

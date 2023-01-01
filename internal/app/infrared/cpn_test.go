@@ -18,14 +18,14 @@ func TestCPN_ListenAndServe(t *testing.T) {
 		name    string
 		err     error
 		in      *MockConn
-		out     *MockProcessedConn
+		out     *MockPlayer
 		procDur time.Duration
 		procErr error
 	}{
 		{
 			name:    "ProcessConn",
 			in:      mockConn(ctrl),
-			out:     mockProcessedConn(ctrl),
+			out:     mockPlayer(ctrl),
 			procDur: time.Millisecond,
 		},
 		{
@@ -60,7 +60,7 @@ func TestCPN_ListenAndServe(t *testing.T) {
 			}
 
 			in := make(chan infrared.Conn)
-			out := make(chan infrared.ProcessedConn, 1)
+			out := make(chan infrared.Player, 1)
 			cpn := infrared.CPN{
 				ConnProcessor: cp,
 				In:            in,

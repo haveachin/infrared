@@ -54,7 +54,7 @@ type proxy struct {
 	serverGateway    ServerGateway
 	connPool         ConnPool
 	cpnCh            chan Conn
-	srvCh            chan ProcessedConn
+	srvCh            chan Player
 	poolCh           chan ConnTunnel
 	logger           *zap.Logger
 	eventBus         event.Bus
@@ -94,7 +94,7 @@ func NewProxy(cfg ProxyConfig) (*proxy, error) {
 
 	chCaps := stg.ChannelCaps
 	cpnCh := make(chan Conn, chCaps.ConnProcessor)
-	srvCh := make(chan ProcessedConn, chCaps.Server)
+	srvCh := make(chan Player, chCaps.Server)
 	poolCh := make(chan ConnTunnel, chCaps.ConnPool)
 	return &proxy{
 		listenersManager: ListenersManager{
@@ -214,7 +214,7 @@ func (p *proxy) swapCPNChan(cpnCh chan Conn) {
 	p.cpnCh = cpnCh
 }
 
-func (p *proxy) swapSrvChan(srvCh chan ProcessedConn) {
+func (p *proxy) swapSrvChan(srvCh chan Player) {
 	close(p.srvCh)
 	for c := range p.srvCh {
 		srvCh <- c

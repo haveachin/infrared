@@ -2,7 +2,6 @@ package java
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -185,10 +184,8 @@ func (cfg Config) LoadServers() ([]infrared.Server, error) {
 }
 
 func (cfg Config) LoadConnProcessor() (infrared.ConnProcessor, error) {
-	return &InfraredConnProcessor{
-		ConnProcessor: ConnProcessor{
-			ClientTimeout: cfg.Java.ConnProcessor.ClientTimeout,
-		},
+	return &ConnProcessor{
+		clientTimeout: cfg.Java.ConnProcessor.ClientTimeout,
 	}, nil
 }
 
@@ -229,7 +226,7 @@ func (cfg Config) loadListeners(gatewayID string) (map[string]ListenerConfig, er
 }
 
 func newListener(id string, cfg ListenerConfig) (Listener, error) {
-	status, err := NewServerServerStatus(cfg.ServerNotFoundStatus)
+	status, err := NewServerStatus(cfg.ServerNotFoundStatus)
 	if err != nil {
 		return Listener{}, err
 	}
@@ -263,18 +260,17 @@ func newGateway(id string, cfg GatewayConfig) (infrared.Gateway, error) {
 }
 
 func newServer(id string, cfg ServerConfig) (infrared.Server, error) {
-	overrideStatus, err := newOverrideServerStatus(cfg.OverrideStatus)
+	overrideStatus, err := NewOverrideServerStatus(cfg.OverrideStatus)
 	if err != nil {
 		return nil, err
 	}
 
-	dialTimeoutStatus, err := NewServerServerStatus(cfg.DialTimeoutStatus)
+	dialTimeoutStatus, err := NewServerStatus(cfg.DialTimeoutStatus)
 	if err != nil {
 		return nil, err
 	}
 
-	respJSON := dialTimeoutStatus.ResponseJSON()
-	bb, err := json.Marshal(respJSON)
+	dialTimeoutDisconnector, err := NewPlayerDisconnecter(dialTimeoutStatus.ResponseJSON(), cfg.DialTimeoutMessage)
 	if err != nil {
 		return nil, err
 	}
@@ -308,20 +304,19 @@ func newServer(id string, cfg ServerConfig) (infrared.Server, error) {
 		}
 	}
 
-	srv := Server{
-		ID:                    id,
-		Domains:               cfg.Domains,
-		Dialer:                dialer,
-		Addr:                  cfg.Address,
-		AddrHost:              host,
-		AddrPort:              port,
-		SendProxyProtocol:     cfg.SendProxyProtocol,
-		SendRealIP:            cfg.SendRealIP,
-		OverrideAddress:       cfg.OverrideAddress,
-		DialTimeoutMessage:    cfg.DialTimeoutMessage,
-		OverrideStatus:        overrideStatus,
-		DialTimeoutStatusJSON: string(bb),
-		GatewayIDs:            cfg.Gateways,
+	srv := &Server{
+		id:                      id,
+		domains:                 cfg.Domains,
+		dialer:                  dialer,
+		addr:                    cfg.Address,
+		addrHost:                host,
+		addrPort:                port,
+		sendProxyProtocol:       cfg.SendProxyProtocol,
+		sendRealIP:              cfg.SendRealIP,
+		overrideAddress:         cfg.OverrideAddress,
+		dialTimeoutDisconnector: dialTimeoutDisconnector,
+		overrideStatus:          overrideStatus,
+		gatewayIDs:              cfg.Gateways,
 	}
 
 	srv.statusResponseJSONProvider = &statusResponseJSONProvider{
@@ -329,22 +324,20 @@ func newServer(id string, cfg ServerConfig) (infrared.Server, error) {
 		cacheTTL: cfg.StatusCacheTTL,
 	}
 
-	return &InfraredServer{
-		Server: srv,
-	}, nil
+	return srv, nil
 }
 
-func newOverrideServerStatus(cfg OverrideServerStatusConfig) (OverrideStatusResponse, error) {
+func NewOverrideServerStatus(cfg OverrideServerStatusConfig) (OverrideServerStatusResponse, error) {
 	var iconPtr *string
 	if cfg.IconPath != nil {
 		icon, err := LoadImageAndEncodeToBase64String(*cfg.IconPath)
 		if err != nil {
-			return OverrideStatusResponse{}, err
+			return OverrideServerStatusResponse{}, err
 		}
 		iconPtr = &icon
 	}
 
-	return OverrideStatusResponse{
+	return OverrideServerStatusResponse{
 		VersionName:    cfg.VersionName,
 		ProtocolNumber: cfg.ProtocolNumber,
 		MaxPlayerCount: cfg.MaxPlayerCount,
@@ -355,11 +348,12 @@ func newOverrideServerStatus(cfg OverrideServerStatusConfig) (OverrideStatusResp
 	}, nil
 }
 
-func NewServerServerStatus(cfg ServerStatusConfig) (ServerStatusResponse, error) {
+func NewServerStatus(cfg ServerStatusConfig) (ServerStatusResponse, error) {
 	icon, err := LoadImageAndEncodeToBase64String(cfg.IconPath)
 	if err != nil {
 		return ServerStatusResponse{}, err
 	}
+
 	return ServerStatusResponse{
 		VersionName:    cfg.VersionName,
 		ProtocolNumber: cfg.ProtocolNumber,

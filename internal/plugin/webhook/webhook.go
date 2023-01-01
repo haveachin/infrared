@@ -113,7 +113,7 @@ func (p *Plugin) Enable(api infrared.PluginAPI) error {
 	return nil
 }
 
-func (p Plugin) Disable() error {
+func (p *Plugin) Disable() error {
 	p.eventBus.DetachRecipient(p.eventID)
 	return nil
 }
@@ -143,7 +143,7 @@ func unmarshalConn(data *eventData, c infrared.Conn) {
 	data.GatewayID = c.GatewayID()
 }
 
-func unmarshalProcessedConn(data *eventData, pc infrared.ProcessedConn) {
+func unmarshalProcessedConn(data *eventData, pc infrared.Player) {
 	unmarshalConn(data, pc)
 	data.Server.ServerAddr = pc.ServerAddr()
 	data.Conn.Username = pc.Username()
@@ -164,15 +164,15 @@ func (p Plugin) handleEvent(e event.Event) {
 	case infrared.PreConnProcessingEvent:
 		unmarshalConn(&data, e.Conn)
 	case infrared.PostConnProcessingEvent:
-		unmarshalProcessedConn(&data, e.ProcessedConn)
+		unmarshalProcessedConn(&data, e.Player)
 	case infrared.PreConnConnectingEvent:
-		unmarshalProcessedConn(&data, e.ProcessedConn)
+		unmarshalProcessedConn(&data, e.Player)
 		unmarshalServer(&data, e.Server)
 	case infrared.PlayerJoinEvent:
-		unmarshalProcessedConn(&data, e.ProcessedConn)
+		unmarshalProcessedConn(&data, e.Player)
 		unmarshalServer(&data, e.Server)
 	case infrared.PlayerLeaveEvent:
-		unmarshalProcessedConn(&data, e.ProcessedConn)
+		unmarshalProcessedConn(&data, e.Player)
 		unmarshalServer(&data, e.Server)
 	default:
 		return

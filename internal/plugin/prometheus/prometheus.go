@@ -142,11 +142,11 @@ func (p Plugin) startMetricsServer() {
 func (p Plugin) handleEvent(e event.Event) {
 	switch e := e.Data.(type) {
 	case infrared.PostConnProcessingEvent:
-		edition := e.ProcessedConn.Edition()
-		domain := e.ProcessedConn.ServerAddr()
+		edition := e.Player.Edition()
+		domain := e.Player.ServerAddr()
 		switch edition {
 		case infrared.JavaEdition:
-			if e.ProcessedConn.IsLoginRequest() {
+			if e.Player.IsLoginRequest() {
 				p.handshakeCount.With(prometheus.Labels{"host": domain, "type": "login", "edition": "java"}).Inc()
 			} else {
 				p.handshakeCount.With(prometheus.Labels{"host": domain, "type": "status", "edition": "java"}).Inc()
@@ -155,12 +155,12 @@ func (p Plugin) handleEvent(e event.Event) {
 			p.handshakeCount.With(prometheus.Labels{"host": domain, "type": "login", "edition": "bedrock"}).Inc()
 		}
 	case infrared.PlayerJoinEvent:
-		edition := e.ProcessedConn.Edition().String()
+		edition := e.Player.Edition().String()
 		server := e.Server.ID()
 		domain := e.MatchedDomain
 		p.playersConnected.With(prometheus.Labels{"host": domain, "server": server, "edition": edition}).Inc()
 	case infrared.PlayerLeaveEvent:
-		edition := e.ProcessedConn.Edition().String()
+		edition := e.Player.Edition().String()
 		server := e.Server.ID()
 		domain := e.MatchedDomain
 		p.playersConnected.With(prometheus.Labels{"host": domain, "server": server, "edition": edition}).Dec()

@@ -9,8 +9,6 @@ import (
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol/handshaking"
-	"github.com/haveachin/infrared/internal/pkg/java/protocol/login"
-	"github.com/haveachin/infrared/internal/pkg/java/protocol/status"
 )
 
 type PacketWriter interface {
@@ -30,10 +28,9 @@ type PacketPeeker interface {
 
 type Conn struct {
 	net.Conn
-	gatewayID                string
-	realIP                   bool
-	serverNotFoundMessage    string
-	serverNotFoundStatusJSON string
+	gatewayID                  string
+	realIP                     bool
+	serverNotFoundDisconnector PlayerDisconnecter
 
 	r *bufio.Reader
 	w io.Writer
@@ -128,7 +125,7 @@ func (c *Conn) WritePackets(pks ...protocol.Packet) error {
 	return nil
 }
 
-type ProcessedConn struct {
+type Player struct {
 	Conn
 	readPks    []protocol.Packet
 	handshake  handshaking.ServerBoundHandshake
@@ -137,46 +134,29 @@ type ProcessedConn struct {
 	username   string
 }
 
-func (pc ProcessedConn) RemoteAddr() net.Addr {
-	return pc.remoteAddr
+func (p Player) RemoteAddr() net.Addr {
+	return p.remoteAddr
 }
 
-func (pc ProcessedConn) Username() string {
-	return pc.username
+func (p Player) Username() string {
+	return p.username
 }
 
-func (pc ProcessedConn) ServerAddr() string {
-	return pc.serverAddr
+func (p Player) ServerAddr() string {
+	return p.serverAddr
 }
 
-func (pc ProcessedConn) IsLoginRequest() bool {
-	return pc.handshake.IsLoginRequest()
+func (p Player) IsLoginRequest() bool {
+	return p.handshake.IsLoginRequest()
 }
 
-func (pc ProcessedConn) DisconnectServerNotFound() error {
-	defer pc.Close()
+func (p *Player) DisconnectServerNotFound() error {
+	return p.serverNotFoundDisconnector.DisconnectPlayer(p, infrared.ApplyTemplates(
+		infrared.TimeMessageTemplates(),
+		infrared.PlayerMessageTemplates(p),
+	))
+}
 
-	if pc.handshake.IsLoginRequest() {
-		msg := infrared.ExecuteMessageTemplate(pc.serverNotFoundMessage, &pc)
-		pk := login.ClientBoundDisconnect{
-			Reason: protocol.Chat(fmt.Sprintf("{\"text\":\"%s\"}", msg)),
-		}.Marshal()
-		return pc.WritePacket(pk)
-	}
-
-	msg := infrared.ExecuteMessageTemplate(pc.serverNotFoundStatusJSON, &pc)
-	pk := status.ClientBoundResponse{
-		JSONResponse: protocol.String(msg),
-	}.Marshal()
-
-	if err := pc.WritePacket(pk); err != nil {
-		return err
-	}
-
-	ping, err := pc.ReadPacket(status.MaxSizeServerBoundPingRequest)
-	if err != nil {
-		return err
-	}
-
-	return pc.WritePacket(ping)
+func (p *Player) RemoteIP() net.IP {
+	return p.RemoteAddr().(*net.TCPAddr).IP
 }

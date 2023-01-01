@@ -67,14 +67,25 @@ type Gateway struct {
 func (gw *Gateway) initListeners() {
 	gw.listeners = make([]net.Listener, len(gw.Listeners))
 	for n, listener := range gw.Listeners {
+		logger := gw.Logger.With(
+			zap.String("address", listener.Bind),
+		)
+
 		l, err := gw.ListenersManager.Listen(listener.Bind, func(l net.Listener) {
 			pl := l.(*proxyProtocolListener)
 			rl := pl.Listener
 			pong := listener.PingStatus.marshal(rl)
 			rl.PongData(pong)
 			pl.proxyProtocolPacketConn.active = listener.ReceiveProxyProtocol
+
+			if listener.ReceiveProxyProtocol {
+				logger.Warn("receiving proxy protocol")
+			}
 		})
 		if err != nil {
+			logger.Warn("unable to bind listener",
+				zap.Error(err),
+			)
 			continue
 		}
 
@@ -139,13 +150,15 @@ func (gw *InfraredGateway) Listeners() []net.Listener {
 func (gw *InfraredGateway) WrapConn(c net.Conn, l net.Listener) net.Conn {
 	listener := l.(*Listener)
 	return &Conn{
-		Conn:                  c.(*raknet.Conn),
-		decoder:               packet.NewDecoder(c),
-		encoder:               packet.NewEncoder(c),
-		gatewayID:             gw.gateway.ID,
-		proxyProtocol:         listener.ReceiveProxyProtocol,
-		serverNotFoundMessage: listener.ServerNotFoundMessage,
-		compression:           listener.Compression,
+		Conn:          c.(*raknet.Conn),
+		decoder:       packet.NewDecoder(c),
+		encoder:       packet.NewEncoder(c),
+		gatewayID:     gw.gateway.ID,
+		proxyProtocol: listener.ReceiveProxyProtocol,
+		serverNotFoundDisconnector: PlayerDisconnecter{
+			message: listener.ServerNotFoundMessage,
+		},
+		compression: listener.Compression,
 	}
 }
 

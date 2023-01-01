@@ -207,16 +207,7 @@ func (cfg Config) loadListeners(gatewayID string) (map[string]ListenerConfig, er
 }
 
 func newPingStatus(cfg PingStatusConfig) PingStatus {
-	return PingStatus{
-		Edition:         cfg.Edition,
-		ProtocolVersion: cfg.ProtocolVersion,
-		VersionName:     cfg.VersionName,
-		PlayerCount:     cfg.PlayerCount,
-		MaxPlayerCount:  cfg.MaxPlayerCount,
-		GameMode:        cfg.GameMode,
-		GameModeNumeric: cfg.GameModeNumeric,
-		MOTD:            cfg.MOTD,
-	}
+	return PingStatus(cfg)
 }
 
 func newListener(id string, cfg ListenerConfig) (Listener, error) {
@@ -255,23 +246,21 @@ func newGateway(id string, cfg GatewayConfig) (infrared.Gateway, error) {
 }
 
 func newServer(id string, cfg ServerConfig) infrared.Server {
-	return &InfraredServer{
-		Server: Server{
-			ID:      id,
-			Domains: cfg.Domains,
-			Dialer: raknet.Dialer{
-				UpstreamDialer: &net.Dialer{
-					Timeout: cfg.DialTimeout,
-					LocalAddr: &net.UDPAddr{
-						IP: net.ParseIP(cfg.ProxyBind),
-					},
+	return &Server{
+		id:      id,
+		domains: cfg.Domains,
+		dialer: raknet.Dialer{
+			UpstreamDialer: &net.Dialer{
+				Timeout: cfg.DialTimeout,
+				LocalAddr: &net.UDPAddr{
+					IP: net.ParseIP(cfg.ProxyBind),
 				},
 			},
-			Address:            cfg.Address,
-			SendProxyProtocol:  cfg.SendProxyProtocol,
-			DialTimeoutMessage: cfg.DialTimeoutMessage,
-			GatewayIDs:         cfg.Gateways,
 		},
+		address:                 cfg.Address,
+		sendProxyProtocol:       cfg.SendProxyProtocol,
+		dialTimeoutDisconnecter: NewPlayerDisconnecter(cfg.DialTimeoutMessage),
+		gatewayIDs:              cfg.Gateways,
 	}
 }
 

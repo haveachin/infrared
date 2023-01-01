@@ -5,7 +5,7 @@
   #
   #enable: true
   
-  # A map of webhook configurations to webhooks
+  # A map of webhook configurations
   #
   #webhooks:
     # This is just an ID. In this case "default",

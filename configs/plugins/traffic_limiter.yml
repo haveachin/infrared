@@ -4,6 +4,15 @@
   # Enables the plugin
   #
   #enable: true
+
+  # Postgres to safe traffic consumption persistently.
+  #
+  #postgres:
+    # Connection URI
+    # URI: https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING
+    # Parameters: https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-PARAMKEYWORDS
+    #
+    #uri: postgres://postgres:postgres@localhost:5432/infrared?sslmode=disable
   
   # A map of traffic limiter configurations
   #

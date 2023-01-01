@@ -3,7 +3,6 @@ package java
 import (
 	"bufio"
 	"encoding/json"
-	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -13,12 +12,11 @@ import (
 
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol"
-	"github.com/haveachin/infrared/internal/pkg/java/protocol/login"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol/status"
 )
 
 type statusResponseJSONProvider struct {
-	server Server
+	server *Server
 
 	mu                      sync.Mutex
 	cacheTTL                time.Duration
@@ -30,18 +28,18 @@ func (s *statusResponseJSONProvider) isStatusCacheValid() bool {
 	return s.cacheTTL > 0 && s.cacheSetAt.Add(s.cacheTTL).After(time.Now())
 }
 
-func (s *statusResponseJSONProvider) requestNewStatusResponseJSON(pc *ProcessedConn) (status.ResponseJSON, error) {
-	rc, err := s.server.dial()
+func (s *statusResponseJSONProvider) requestNewStatusResponseJSON(p *Player) (status.ResponseJSON, error) {
+	rc, err := s.server.Dial()
 	if err != nil {
 		return status.ResponseJSON{}, err
 	}
 
-	if err := s.server.prepareConns(pc, rc); err != nil {
+	if err := s.server.prepareConns(p, rc); err != nil {
 		rc.Close()
 		return status.ResponseJSON{}, err
 	}
 
-	if err := rc.WritePackets(pc.readPks...); err != nil {
+	if err := rc.WritePackets(p.readPks...); err != nil {
 		return status.ResponseJSON{}, err
 	}
 
@@ -64,7 +62,7 @@ func (s *statusResponseJSONProvider) requestNewStatusResponseJSON(pc *ProcessedC
 	return respJSON, nil
 }
 
-func (s *statusResponseJSONProvider) StatusResponseJSON(pc *ProcessedConn) (status.ResponseJSON, error) {
+func (s *statusResponseJSONProvider) StatusResponseJSON(p *Player) (status.ResponseJSON, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -72,7 +70,7 @@ func (s *statusResponseJSONProvider) StatusResponseJSON(pc *ProcessedConn) (stat
 		return s.statusResponseJSONCache, nil
 	}
 
-	respJSON, err := s.requestNewStatusResponseJSON(pc)
+	respJSON, err := s.requestNewStatusResponseJSON(p)
 	if err != nil {
 		return status.ResponseJSON{}, err
 	}
@@ -84,30 +82,43 @@ func (s *statusResponseJSONProvider) StatusResponseJSON(pc *ProcessedConn) (stat
 }
 
 type StatusResponseJSONProvider interface {
-	StatusResponseJSON(pc *ProcessedConn) (status.ResponseJSON, error)
+	StatusResponseJSON(p *Player) (status.ResponseJSON, error)
 }
 
 type Server struct {
-	ID                          string
-	Domains                     []string
-	Addr                        string
-	AddrHost                    string
-	AddrPort                    int
-	SendProxyProtocol           bool
-	SendRealIP                  bool
-	OverrideAddress             bool
-	Dialer                      proxy.Dialer
-	OverrideStatus              OverrideStatusResponse
-	OverrideStatusCacheDeadline time.Time
-	DialTimeoutMessage          string
-	DialTimeoutStatusJSON       string
-	GatewayIDs                  []string
-
+	id                         string
+	domains                    []string
+	addr                       string
+	addrHost                   string
+	addrPort                   int
+	sendProxyProtocol          bool
+	sendRealIP                 bool
+	overrideAddress            bool
+	dialer                     proxy.Dialer
+	overrideStatus             OverrideServerStatusResponse
+	dialTimeoutDisconnector    *PlayerDisconnecter
+	gatewayIDs                 []string
 	statusResponseJSONProvider StatusResponseJSONProvider
 }
 
-func (s Server) dial() (*Conn, error) {
-	c, err := s.Dialer.Dial("tcp", s.Addr)
+func (s Server) Edition() infrared.Edition {
+	return infrared.JavaEdition
+}
+
+func (s Server) ID() string {
+	return s.id
+}
+
+func (s Server) Domains() []string {
+	return s.domains
+}
+
+func (s Server) GatewayIDs() []string {
+	return s.gatewayIDs
+}
+
+func (s Server) Dial() (*Conn, error) {
+	c, err := s.dialer.Dial("tcp", s.addr)
 	if err != nil {
 		return nil, err
 	}
@@ -119,8 +130,8 @@ func (s Server) dial() (*Conn, error) {
 	}, nil
 }
 
-func (s Server) handleConn(c net.Conn) (infrared.Conn, error) {
-	pc := c.(*ProcessedConn)
+func (s Server) HandleConn(c net.Conn) (infrared.Conn, error) {
+	pc := c.(*Player)
 	if pc.handshake.IsStatusRequest() {
 		if err := s.handleStatusPing(pc); err != nil {
 			return nil, err
@@ -128,7 +139,7 @@ func (s Server) handleConn(c net.Conn) (infrared.Conn, error) {
 		return nil, infrared.ErrClientStatusRequest
 	}
 
-	rc, err := s.dial()
+	rc, err := s.Dial()
 	if err != nil {
 		if err := s.handleDialTimeout(pc); err != nil {
 			return nil, err
@@ -150,90 +161,70 @@ func (s Server) handleConn(c net.Conn) (infrared.Conn, error) {
 	return rc, nil
 }
 
-func (s Server) prepareConns(pc *ProcessedConn, rc net.Conn) error {
-	if s.SendProxyProtocol {
-		if err := writeProxyProtocolHeader(pc.RemoteAddr(), rc); err != nil {
+func (s Server) prepareConns(p *Player, rc net.Conn) error {
+	if s.sendProxyProtocol {
+		if err := writeProxyProtocolHeader(p.RemoteAddr(), rc); err != nil {
 			return err
 		}
 	}
 
-	if s.SendRealIP {
-		pc.handshake.UpgradeToRealIP(pc.RemoteAddr(), time.Now())
-		pc.readPks[0] = pc.handshake.Marshal()
+	if s.sendRealIP {
+		p.handshake.UpgradeToRealIP(p.RemoteAddr(), time.Now())
+		p.readPks[0] = p.handshake.Marshal()
 	}
 
-	if s.OverrideAddress {
-		pc.handshake.SetServerAddress(s.AddrHost)
-		pc.handshake.ServerPort = protocol.UnsignedShort(s.AddrPort)
-		pc.readPks[0] = pc.handshake.Marshal()
+	if s.overrideAddress {
+		p.handshake.SetServerAddress(s.addrHost)
+		p.handshake.ServerPort = protocol.UnsignedShort(s.addrPort)
+		p.readPks[0] = p.handshake.Marshal()
 	}
 
 	return nil
 }
 
-func (s Server) handleDialTimeoutStatusRequest(pc *ProcessedConn) error {
-	msg := infrared.ExecuteServerMessageTemplate(s.DialTimeoutStatusJSON, pc, s.InfraredServer())
-	respPk := status.ClientBoundResponse{
-		JSONResponse: protocol.String(msg),
-	}.Marshal()
-
-	if err := pc.WritePacket(respPk); err != nil {
+func (s Server) handleDialTimeout(p *Player) error {
+	if err := s.dialTimeoutDisconnector.DisconnectPlayer(p); err != nil {
 		return err
 	}
 
-	ping, err := pc.ReadPacket(status.MaxSizeServerBoundPingRequest)
-	if err != nil {
-		return err
-	}
-
-	return pc.WritePacket(ping)
-}
-
-func (s Server) handleDialTimeoutLoginRequest(pc *ProcessedConn) error {
-	msg := infrared.ExecuteMessageTemplate(s.DialTimeoutMessage, pc)
-	pk := login.ClientBoundDisconnect{
-		Reason: protocol.Chat(fmt.Sprintf("{\"text\":\"%s\"}", msg)),
-	}.Marshal()
-	return pc.WritePacket(pk)
-}
-
-func (s Server) handleDialTimeout(c *ProcessedConn) error {
-	if c.handshake.IsStatusRequest() {
-		if err := s.handleDialTimeoutStatusRequest(c); err != nil {
-			return err
-		}
+	if p.handshake.IsStatusRequest() {
 		return infrared.ErrClientStatusRequest
 	}
 
-	return s.handleDialTimeoutLoginRequest(c)
+	return nil
 }
 
-func (s Server) handleStatusPing(pc *ProcessedConn) error {
-	if err := s.overrideStatusResponse(pc); err != nil {
+func (s Server) handleStatusPing(p *Player) error {
+	if err := s.overrideStatusResponse(p); err != nil {
 		return err
 	}
 
-	ping, err := pc.ReadPacket(status.MaxSizeServerBoundPingRequest)
+	ping, err := p.ReadPacket(status.MaxSizeServerBoundPingRequest)
 	if err != nil {
 		return err
 	}
 
-	return pc.WritePacket(ping)
+	return p.WritePacket(ping)
 }
 
-func (s Server) overrideStatusResponse(pc *ProcessedConn) error {
-	respJSON, err := s.statusResponseJSONProvider.StatusResponseJSON(pc)
+func (s Server) overrideStatusResponse(p *Player) error {
+	respJSON, err := s.statusResponseJSONProvider.StatusResponseJSON(p)
 	if err != nil {
 		return err
 	}
 
-	respJSON = s.OverrideStatus.ResponseJSON(respJSON, pc, s)
+	respJSON = s.overrideStatus.ResponseJSON(respJSON, MOTDOption(infrared.ApplyTemplates(
+		infrared.TimeMessageTemplates(),
+		infrared.PlayerMessageTemplates(p),
+		infrared.ServerMessageTemplate(s),
+	)))
+
 	bb, err := json.Marshal(respJSON)
 	if err != nil {
 		return err
 	}
 
-	return pc.WritePacket(status.ClientBoundResponse{
+	return p.WritePacket(status.ClientBoundResponse{
 		JSONResponse: protocol.String(bb),
 	}.Marshal())
 }
@@ -257,37 +248,4 @@ func writeProxyProtocolHeader(addr net.Addr, rc net.Conn) error {
 		return err
 	}
 	return nil
-}
-
-func (s Server) InfraredServer() infrared.Server {
-	return InfraredServer{
-		Server: s,
-	}
-}
-
-type InfraredServer struct {
-	Server Server
-}
-
-func (s InfraredServer) Edition() infrared.Edition {
-	return infrared.JavaEdition
-}
-
-func (s InfraredServer) ID() string {
-	return s.Server.ID
-}
-
-func (s InfraredServer) Domains() []string {
-	return s.Server.Domains
-}
-
-func (s InfraredServer) GatewayIDs() []string {
-	return s.Server.GatewayIDs
-}
-
-func (s InfraredServer) Dial() (infrared.Conn, error) {
-	return s.Server.dial()
-}
-func (s InfraredServer) HandleConn(c net.Conn) (infrared.Conn, error) {
-	return s.Server.handleConn(c)
 }

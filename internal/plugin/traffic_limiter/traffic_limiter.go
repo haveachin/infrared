@@ -2,27 +2,21 @@ package traffic_limiter
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/c2h5oh/datasize"
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/internal/pkg/config"
-	"github.com/haveachin/infrared/internal/pkg/java"
-	"github.com/haveachin/infrared/internal/pkg/java/protocol"
-	"github.com/haveachin/infrared/internal/pkg/java/protocol/login"
-	"github.com/haveachin/infrared/internal/pkg/java/protocol/status"
 	"github.com/haveachin/infrared/pkg/event"
 	"github.com/robfig/cron/v3"
 	"go.uber.org/zap"
 )
 
 type trafficLimiter struct {
-	file                     string
-	trafficLimit             datasize.ByteSize
-	resetCron                string
-	storage                  *storage
-	OutOfBandwidthStatusJSON string
-	OutOfBandwidthMessage    string
+	file                       string
+	trafficLimit               datasize.ByteSize
+	resetCron                  string
+	storage                    *storage
+	OutOfBandwidthDisconnecter infrared.PlayerDisconnecter
 }
 
 type PluginConfig struct {
@@ -147,42 +141,12 @@ func (p Plugin) onPreConnConnecting(e event.Event) (any, error) {
 
 		if t.trafficLimit <= datasize.ByteSize(totalBytes) {
 			p.logger.Info("traffic limit reached", zap.String("serverID", e.Server.ID()))
-			t.disconnectPlayer(e.ProcessedConn)
+			t.OutOfBandwidthDisconnecter.DisconnectPlayer(e.Player, infrared.ApplyTemplates(
+				infrared.TimeMessageTemplates(),
+				infrared.PlayerMessageTemplates(e.Player),
+			))
 			return nil, errors.New("traffic limit reached")
 		}
 	}
 	return nil, nil
-}
-
-func (t *trafficLimiter) disconnectPlayer(pc infrared.ProcessedConn) error {
-	defer pc.Close()
-
-	switch pc := pc.(type) {
-	case *java.ProcessedConn:
-		if pc.IsLoginRequest() {
-			msg := infrared.ExecuteMessageTemplate(t.OutOfBandwidthMessage, pc)
-			pk := login.ClientBoundDisconnect{
-				Reason: protocol.Chat(fmt.Sprintf("{\"text\":\"%s\"}", msg)),
-			}.Marshal()
-			return pc.WritePacket(pk)
-		}
-
-		msg := infrared.ExecuteMessageTemplate(t.OutOfBandwidthStatusJSON, pc)
-		pk := status.ClientBoundResponse{
-			JSONResponse: protocol.String(msg),
-		}.Marshal()
-
-		if err := pc.WritePacket(pk); err != nil {
-			return err
-		}
-
-		ping, err := pc.ReadPacket(status.MaxSizeServerBoundPingRequest)
-		if err != nil {
-			return err
-		}
-
-		return pc.WritePacket(ping)
-	default:
-		return errors.New("could not disconnect player")
-	}
 }

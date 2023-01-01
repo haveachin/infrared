@@ -2,9 +2,7 @@ package infrared
 
 import (
 	"errors"
-	"fmt"
 	"net"
-	"strings"
 
 	"github.com/haveachin/infrared/pkg/event"
 	"github.com/haveachin/infrared/pkg/wildcard"
@@ -21,22 +19,10 @@ type Server interface {
 	Edition() Edition
 }
 
-func ExecuteServerMessageTemplate(msg string, pc ProcessedConn, s Server) string {
-	tmpls := map[string]string{
-		"serverId": s.ID(),
-	}
-
-	for k, v := range tmpls {
-		msg = strings.Replace(msg, fmt.Sprintf("{{%s}}", k), v, -1)
-	}
-
-	return ExecuteMessageTemplate(msg, pc)
-}
-
 type ServerGatewayConfig struct {
 	Gateways []Gateway
 	Servers  []Server
-	In       <-chan ProcessedConn
+	In       <-chan Player
 	Out      chan<- ConnTunnel
 	Logger   *zap.Logger
 	EventBus event.Bus
@@ -105,36 +91,36 @@ func (sg *ServerGateway) Start() {
 
 	for {
 		select {
-		case pc, ok := <-sg.In:
+		case player, ok := <-sg.In:
 			if !ok {
 				sg.Logger.Debug("server gateway quitting; incoming channel was closed")
 				return
 			}
-			pcLogger := sg.Logger.With(logProcessedConn(pc)...)
-			pcLogger.Debug("looking up server address")
+			logger := sg.Logger.With(logProcessedConn(player)...)
+			logger.Debug("looking up server address")
 
-			srv, matchedDomain := sg.findServer(pc.GatewayID(), pc.ServerAddr())
+			srv, matchedDomain := sg.findServer(player.GatewayID(), player.ServerAddr())
 			if srv == nil {
-				pcLogger.Info("failed to find server; disconnecting client")
-				_ = pc.DisconnectServerNotFound()
+				logger.Info("failed to find server; disconnecting client")
+				_ = player.DisconnectServerNotFound()
 				continue
 			}
 
-			pcLogger = pcLogger.With(logServer(srv)...)
-			pcLogger.Debug("found server")
+			logger = logger.With(logServer(srv)...)
+			logger.Debug("found server")
 
 			replyChan := sg.EventBus.Request(PreConnConnectingEvent{
-				ProcessedConn: pc,
-				Server:        srv,
+				Player: player,
+				Server: srv,
 			}, PrePlayerJoinEventTopic)
 
-			if isEventCanceled(replyChan, pcLogger) {
-				pc.Close()
+			if isEventCanceled(replyChan, logger) {
+				player.Close()
 				continue
 			}
 
 			sg.Out <- ConnTunnel{
-				Conn:          pc,
+				Conn:          player,
 				Server:        srv,
 				MatchedDomain: matchedDomain,
 			}

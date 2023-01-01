@@ -12,10 +12,9 @@ import (
 
 type baseConfig struct {
 	Providers struct {
-		Docker provider.DockerConfig `json:"docker" yaml:"docker"`
-		File   provider.FileConfig   `json:"file" yaml:"file"`
-	} `json:"providers" yaml:"providers"`
-	Watch bool `json:"watch" yaml:"watch"`
+		Docker provider.DockerConfig `mapstructure:"docker"`
+		File   provider.FileConfig   `mapstructure:"file"`
+	} `mapstructure:"providers"`
 }
 
 type config struct {
@@ -42,7 +41,7 @@ func New(path string, onChange OnChange, logger *zap.Logger) (Config, error) {
 	}
 
 	var providerCfg baseConfig
-	if err := provider.ReadConfigFile(path, &providerCfg); err != nil {
+	if err := Unmarshal(configMap, &providerCfg); err != nil {
 		return nil, err
 	}
 

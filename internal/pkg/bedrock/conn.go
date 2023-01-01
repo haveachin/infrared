@@ -18,10 +18,10 @@ type Conn struct {
 	decoder *packet.Decoder
 	encoder *packet.Encoder
 
-	gatewayID             string
-	proxyProtocol         bool
-	serverNotFoundMessage string
-	compression           packet.Compression
+	gatewayID                  string
+	proxyProtocol              bool
+	serverNotFoundDisconnector PlayerDisconnecter
+	compression                packet.Compression
 }
 
 func (c *Conn) EnableCompression(compression packet.Compression) {
@@ -86,7 +86,7 @@ func (c *Conn) Edition() infrared.Edition {
 	return infrared.BedrockEdition
 }
 
-type ProcessedConn struct {
+type Player struct {
 	Conn
 	remoteAddr    net.Addr
 	serverAddr    string
@@ -98,36 +98,29 @@ type ProcessedConn struct {
 	loginPkData                  packet.Data
 }
 
-func (pc ProcessedConn) RemoteAddr() net.Addr {
-	return pc.remoteAddr
+func (p Player) RemoteAddr() net.Addr {
+	return p.remoteAddr
 }
 
-func (pc ProcessedConn) Username() string {
-	return pc.username
+func (p Player) Username() string {
+	return p.username
 }
 
-func (pc ProcessedConn) ServerAddr() string {
-	return pc.serverAddr
+func (p Player) ServerAddr() string {
+	return p.serverAddr
 }
 
-func (pc ProcessedConn) IsLoginRequest() bool {
+func (p Player) IsLoginRequest() bool {
 	return true
 }
 
-func (pc ProcessedConn) DisconnectServerNotFound() error {
-	return pc.disconnect(pc.serverNotFoundMessage)
+func (p *Player) DisconnectServerNotFound() error {
+	return p.serverNotFoundDisconnector.DisconnectPlayer(p, infrared.ApplyTemplates(
+		infrared.TimeMessageTemplates(),
+		infrared.PlayerMessageTemplates(p),
+	))
 }
 
-func (pc ProcessedConn) disconnect(msg string) error {
-	defer pc.Close()
-	pk := packet.Disconnect{
-		HideDisconnectionScreen: msg == "",
-		Message:                 msg,
-	}
-
-	if err := pc.WritePacket(&pk); err != nil {
-		return err
-	}
-
-	return nil
+func (p *Player) RemoteIP() net.IP {
+	return p.RemoteAddr().(*net.UDPAddr).IP
 }

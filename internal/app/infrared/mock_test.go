@@ -1,4 +1,4 @@
-//go:generate mockgen -destination=infrared_mock_test.go -package=infrared_test github.com/haveachin/infrared/internal/app/infrared Conn,ConnProcessor,ProcessedConn,Server
+//go:generate mockgen -destination=infrared_mock_test.go -package=infrared_test github.com/haveachin/infrared/internal/app/infrared Conn,ConnProcessor,Player,Server
 //go:generate mockgen -destination=net_mock_test.go -package=infrared_test net Addr
 //go:generate mockgen -destination=event_mock_test.go -package=infrared_test github.com/haveachin/infrared/pkg/event Bus
 package infrared_test
@@ -23,8 +23,8 @@ func mockConn(ctrl *gomock.Controller) *MockConn {
 	return c
 }
 
-func mockProcessedConn(ctrl *gomock.Controller) *MockProcessedConn {
-	pc := NewMockProcessedConn(ctrl)
+func mockPlayer(ctrl *gomock.Controller) *MockPlayer {
+	pc := NewMockPlayer(ctrl)
 	pc.EXPECT().LocalAddr().AnyTimes().Return(mockAddr(ctrl))
 	pc.EXPECT().RemoteAddr().AnyTimes().Return(mockAddr(ctrl))
 	pc.EXPECT().Edition().AnyTimes().Return(infrared.JavaEdition)

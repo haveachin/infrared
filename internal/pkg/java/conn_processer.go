@@ -3,7 +3,6 @@ package java
 import (
 	"net"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/haveachin/infrared/internal/pkg/java/protocol"
@@ -12,76 +11,69 @@ import (
 	"github.com/haveachin/infrared/internal/pkg/java/protocol/status"
 )
 
-type InfraredConnProcessor struct {
-	ConnProcessor
-	mu sync.RWMutex
-}
-
-func (cp *InfraredConnProcessor) ClientTimeout() time.Duration {
-	cp.mu.RLock()
-	defer cp.mu.RUnlock()
-	return cp.ConnProcessor.ClientTimeout
-}
-
 type ConnProcessor struct {
-	ClientTimeout time.Duration
+	clientTimeout time.Duration
+}
+
+func (cp ConnProcessor) ClientTimeout() time.Duration {
+	return cp.clientTimeout
 }
 
 func (cp ConnProcessor) ProcessConn(c net.Conn) (net.Conn, error) {
-	pc := ProcessedConn{
+	player := &Player{
 		Conn:       *c.(*Conn),
 		remoteAddr: c.RemoteAddr(),
 		readPks:    make([]protocol.Packet, 0, 2),
 	}
 
-	pk, err := pc.ReadPacket(handshaking.MaxSizeServerBoundHandshake)
+	pk, err := player.ReadPacket(handshaking.MaxSizeServerBoundHandshake)
 	if err != nil {
 		return nil, err
 	}
-	pc.readPks = append(pc.readPks, pk)
+	player.readPks = append(player.readPks, pk)
 
 	hs, err := handshaking.UnmarshalServerBoundHandshake(pk)
 	if err != nil {
 		return nil, err
 	}
-	pc.handshake = hs
+	player.handshake = hs
 
-	pc.serverAddr = hs.ParseServerAddress()
-	if strings.Contains(pc.serverAddr, ":") {
-		pc.serverAddr, _, err = net.SplitHostPort(pc.serverAddr)
+	player.serverAddr = hs.ParseServerAddress()
+	if strings.Contains(player.serverAddr, ":") {
+		player.serverAddr, _, err = net.SplitHostPort(player.serverAddr)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	if pc.realIP {
+	if player.realIP {
 		addr, _, _, err := hs.ParseRealIP()
 		if err != nil {
 			return nil, err
 		}
-		pc.remoteAddr = addr
+		player.remoteAddr = addr
 	}
 
 	if hs.IsStatusRequest() {
-		pk, err := pc.ReadPacket(status.MaxSizeServerBoundPingRequest)
+		pk, err := player.ReadPacket(status.MaxSizeServerBoundPingRequest)
 		if err != nil {
 			return nil, err
 		}
-		pc.readPks = append(pc.readPks, pk)
-		return &pc, nil
+		player.readPks = append(player.readPks, pk)
+		return player, nil
 	}
 
-	pk, err = pc.ReadPacket(login.MaxSizeServerBoundLoginStart)
+	pk, err = player.ReadPacket(login.MaxSizeServerBoundLoginStart)
 	if err != nil {
 		return nil, err
 	}
-	pc.readPks = append(pc.readPks, pk)
+	player.readPks = append(player.readPks, pk)
 
 	ls, err := login.UnmarshalServerBoundLoginStart(pk, int32(hs.ProtocolVersion))
 	if err != nil {
 		return nil, err
 	}
-	pc.username = string(ls.Name)
+	player.username = string(ls.Name)
 
-	return &pc, nil
+	return player, nil
 }

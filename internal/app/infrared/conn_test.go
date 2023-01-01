@@ -43,9 +43,10 @@ func TestExecuteMessageTemplate(t *testing.T) {
 	for _, tc := range tt {
 		t.Run(tc.name, func(t *testing.T) {
 			ctrl := gomock.NewController(t)
-			pc := mockProcessedConn(ctrl)
+			p := mockPlayer(ctrl)
+			playerTmpls := infrared.PlayerMessageTemplates(p)
 
-			msg := infrared.ExecuteMessageTemplate(tc.tmpl, pc)
+			msg := infrared.ExecuteMessageTemplate(tc.tmpl, playerTmpls)
 			if tc.msg != msg {
 				t.Fail()
 			}
