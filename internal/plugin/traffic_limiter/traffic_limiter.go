@@ -15,7 +15,7 @@ type trafficLimiter struct {
 	file                       string
 	trafficLimit               datasize.ByteSize
 	resetCron                  string
-	storage                    *storage
+	storage                    storage
 	OutOfBandwidthDisconnecter infrared.PlayerDisconnecter
 }
 
@@ -127,7 +127,7 @@ func (p Plugin) onPlayerLeave(e event.Event) {
 
 func (p Plugin) onPreConnConnecting(e event.Event) (any, error) {
 	switch e := e.Data.(type) {
-	case infrared.PreConnConnectingEvent:
+	case infrared.PerPlayerJoinEvent:
 		t, ok := p.trafficLimiters[e.Server.ID()]
 		if !ok {
 			return nil, nil

@@ -13,10 +13,9 @@ services:
       - 19132:19132/udp
     volumes:
       - ../dev:/infrared
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - infrared
-    environment:
-      INFRARED_CONFIG: "/infrared/config.yml"
 
   minecraft-server:
     image: itzg/minecraft-server:java17
@@ -24,6 +23,12 @@ services:
     restart: "no"
     environment:
       EULA: "TRUE"
+    networks:
+      - infrared
+    labels:
+      - infrared.java.servers.devserver.gateways=[default]
+      - infrared.java.servers.devserver.domains=[*]
+      - infrared.java.servers.devserver.address=minecraft-server:25565
 
 networks:
   infrared:

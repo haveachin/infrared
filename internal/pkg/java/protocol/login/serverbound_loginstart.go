@@ -8,7 +8,7 @@ import (
 
 const (
 	// MaxSizeServerBoundLoginStart might be a bit generous, but there is no offical max size for the public key
-	MaxSizeServerBoundLoginStart      = 1 + 16 + 1 + 8 + 3000 + 3000 + 1 + 16
+	MaxSizeServerBoundLoginStart      = 1 + 16*4 + 1 + 8 + 3000 + 3000 + 1 + 16
 	IDServerBoundLoginStart      byte = 0x00
 )
 

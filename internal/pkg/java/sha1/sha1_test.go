@@ -1,4 +1,4 @@
-package session
+package sha1
 
 import "testing"
 
@@ -22,10 +22,9 @@ func TestHash_HexDigest(t *testing.T) {
 	}
 
 	for _, test := range tt {
-		notchSha1 := NewSha1Hash()
-		notchSha1.Update([]byte(test.username))
-		hash := notchSha1.HexDigest()
-		if test.hash != hash {
+		hash := NewHash()
+		hash.Update([]byte(test.username))
+		if test.hash != hash.HexDigest() {
 			t.Errorf("HexDigest of %s should be %s; got: %s", test.username, test.hash, hash)
 		}
 	}

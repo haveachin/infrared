@@ -149,7 +149,7 @@ func (l *rateLimiter) Handler(next Handler) Handler {
 			return
 		}
 
-		l.limitCounter.Increment(key, currentWindow)
+		l.limitCounter.Inc(key, currentWindow)
 		next.ServeProtocol(c)
 	})
 }
@@ -166,7 +166,7 @@ type count struct {
 	updatedAt time.Time
 }
 
-func (c *localCounter) Increment(key string, currentWindow time.Time) {
+func (c *localCounter) Inc(key string, currentWindow time.Time) {
 	c.evict()
 
 	c.mu.Lock()

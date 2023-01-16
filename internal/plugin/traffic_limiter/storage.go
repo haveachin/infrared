@@ -10,18 +10,24 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type storage struct {
+type storage interface {
+	ConsumedBytes(serverID string) (int64, error)
+	AddConsumedBytes(serverID string, consumedBytes int64) (int64, error)
+	ResetConsumedBytes(serverID string) error
+}
+
+type yamlStorage struct {
 	path  string
 	mu    sync.Mutex
 	cache *Bandwidth
 }
 
-func newStorage(path string) (*storage, error) {
+func newYAMLStorage(path string) (storage, error) {
 	if err := createFileIfNotExist(path); err != nil {
 		return nil, err
 	}
 
-	return &storage{
+	return &yamlStorage{
 		path: path,
 	}, nil
 }
@@ -60,7 +66,7 @@ type BandwidthServer struct {
 	LastResetAt   time.Time `yaml:"lastResetAt"`
 }
 
-func (s *storage) readBandwidth() (*Bandwidth, error) {
+func (s *yamlStorage) readBandwidth() (*Bandwidth, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -87,7 +93,7 @@ func (s *storage) readBandwidth() (*Bandwidth, error) {
 	return bw, nil
 }
 
-func (s *storage) writeBandwidth(bw *Bandwidth) error {
+func (s *yamlStorage) writeBandwidth(bw *Bandwidth) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -101,7 +107,7 @@ func (s *storage) writeBandwidth(bw *Bandwidth) error {
 	return os.WriteFile(s.path, data, 0644)
 }
 
-func (s *storage) ConsumedBytes(serverID string) (int64, error) {
+func (s *yamlStorage) ConsumedBytes(serverID string) (int64, error) {
 	bw, err := s.readBandwidth()
 	if err != nil {
 		return 0, err
@@ -110,7 +116,7 @@ func (s *storage) ConsumedBytes(serverID string) (int64, error) {
 	return bw.Servers[serverID].ConsumedBytes, nil
 }
 
-func (s *storage) AddConsumedBytes(serverID string, consumedBytes int64) (int64, error) {
+func (s *yamlStorage) AddConsumedBytes(serverID string, consumedBytes int64) (int64, error) {
 	bw, err := s.readBandwidth()
 	if err != nil {
 		return 0, err
@@ -132,7 +138,7 @@ func (s *storage) AddConsumedBytes(serverID string, consumedBytes int64) (int64,
 	return srv.ConsumedBytes, nil
 }
 
-func (s *storage) ResetConsumedBytes(serverID string) error {
+func (s *yamlStorage) ResetConsumedBytes(serverID string) error {
 	bw, err := s.readBandwidth()
 	if err != nil {
 		return err

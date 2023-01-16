@@ -1,31 +1,31 @@
 # Configuration for webhooks
 #
-#webhook:
+webhook:
   # Enables the plugin
   #
   #enable: true
   
   # A map of webhook configurations
   #
-  #webhooks:
+  webhooks:
     # This is just an ID. In this case "default",
     # but you can give it a name that makes sense for you.
     #
-    #default:
+    default:
       # Gateway IDs to listen for events to. All events that the connection triggers
       # have also the gateway ID attached to them.
       #
-      #gatewayIds:
-      #  - default
+      gatewayIds:
+        - default
 
       # The URL to POST the JSON to
       #
-      #url: https://example.com/callback
+      url: https://example.com/callback
 
       # Dial timeout is the amount of time that Infrared waits for it cancels the POST request.
       # This is best set in defaults to not have to copy-paste this all the time. See bottom of the file.
       #
-      #dialTimeout: 1s
+      dialTimeout: 1s
       
       # Event Topics to listen for.
       # Available events are:
@@ -36,14 +36,14 @@
       # - PlayerJoin - When a player joins a server.
       # - PlayerLeave - When a player leaves the server.
       #
-      #events:
-      #  - PlayerJoin
-      #  - PlayerLeave
+      events:
+        - PlayerJoin
+        - PlayerLeave
 
 # Defaults are global default values that can be 
 #
-#defaults:
-  #webhook:
+defaults:
+  webhook:
     # Sets the dial timeout for every webhook. This can be individually overridden.
     #
-    #dialTimeout: 1s
+    dialTimeout: 1s

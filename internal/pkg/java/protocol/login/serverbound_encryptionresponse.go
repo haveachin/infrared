@@ -3,8 +3,8 @@ package login
 import "github.com/haveachin/infrared/internal/pkg/java/protocol"
 
 const (
-	IDServerBoundEncryptionResponse = 0x01
-	MaxSizeServerBoundEncryptionResponse
+	IDServerBoundEncryptionResponse      = 0x01
+	MaxSizeServerBoundEncryptionResponse = 1 + 5 + 128 + 5 + 128
 )
 
 type ServerBoundEncryptionResponse struct {

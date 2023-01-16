@@ -41,7 +41,6 @@ func (cp *ConnPool) Start() {
 			} else {
 				go cp.handlePlayerStatus(ct)
 			}
-
 		case reload := <-cp.reload:
 			reload()
 		case <-cp.quit:

@@ -1,4 +1,4 @@
-package session
+package sha1
 
 import (
 	"crypto/sha1"
@@ -7,23 +7,23 @@ import (
 	"strings"
 )
 
-type Sha1Hash struct {
+type Hash struct {
 	hash.Hash
 }
 
-func NewSha1Hash() Sha1Hash {
-	return Sha1Hash{
+func NewHash() Hash {
+	return Hash{
 		Hash: sha1.New(),
 	}
 }
 
-func (h Sha1Hash) Update(b []byte) {
+func (h Hash) Update(b []byte) {
 	// This will never return an error like documented in hash.Hash
 	// so ignoring this error is ok
 	_, _ = h.Write(b)
 }
 
-func (h Sha1Hash) HexDigest() string {
+func (h Hash) HexDigest() string {
 	hashBytes := h.Sum(nil)
 
 	negative := (hashBytes[0] & 0x80) == 0x80

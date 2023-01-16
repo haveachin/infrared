@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"log"
 	"net"
+	"time"
 
 	"github.com/haveachin/infrared/internal/pkg/java/protocol"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol/handshaking"
@@ -55,6 +56,7 @@ func main() {
 		//writeProxyProtocolHeader(randomAddr(), c)
 		c.Write(handshakePayload)
 		c.Write(loginStartPayload)
+		time.Sleep(time.Millisecond)
 	}
 }
 

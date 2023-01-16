@@ -21,7 +21,7 @@ type trafficLimiterConfig struct {
 
 func (cfg PluginConfig) loadTrafficLimiterConfigs() (map[string]trafficLimiter, error) {
 	trafficLimiters := map[string]trafficLimiter{}
-	storages := map[string]*storage{}
+	storages := map[string]storage{}
 	for _, bwCfg := range cfg.TrafficLimiter.TrafficLimiters {
 		if err := mergo.Merge(&bwCfg, cfg.Defaults.TrafficLimiter); err != nil {
 			return nil, err
@@ -30,7 +30,7 @@ func (cfg PluginConfig) loadTrafficLimiterConfigs() (map[string]trafficLimiter, 
 		storage, ok := storages[bwCfg.File]
 		if !ok {
 			var err error
-			storage, err = newStorage(bwCfg.File)
+			storage, err = newYAMLStorage(bwCfg.File)
 			if err != nil {
 				return nil, err
 			}

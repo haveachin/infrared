@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"net"
 	"time"
 
@@ -39,8 +40,16 @@ func newRedis(cfg redisConfig) (*redisStorage, error) {
 		return nil, err
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), opts.ReadTimeout)
+	defer cancel()
+
+	cli := redis.NewClient(opts)
+	if err := cli.Ping(ctx).Err(); err != nil {
+		return nil, fmt.Errorf("failed to ping redis; %v", err)
+	}
+
 	return &redisStorage{
-		cli:          redis.NewClient(opts),
+		cli:          cli,
 		readTimeout:  opts.ReadTimeout,
 		writeTimeout: opts.WriteTimeout,
 		ttl:          cfg.TTL,
@@ -48,12 +57,11 @@ func newRedis(cfg redisConfig) (*redisStorage, error) {
 }
 
 func hashUsernameAndIP(username string, ip net.IP) string {
-	// preallowcate 8 bytes for uint64 hash
-	sum := make([]byte, 0, 8)
 	key := xxhash.New()
 	key.WriteString(username)
-	key.WriteString(ip.String())
-	key.Sum(sum)
+	key.Write(ip)
+	// preallowcate 8 bytes for uint64 hash
+	sum := key.Sum(make([]byte, 0, 8))
 	return hex.EncodeToString(sum)
 }
 
@@ -75,6 +83,5 @@ func (s redisStorage) GetValidation(username string, ip net.IP) (uuid.UUID, erro
 		}
 		return uuid.Nil, err
 	}
-
-	return uuid.FromString(v)
+	return uuid.FromBytes([]byte(v))
 }

@@ -1,54 +1,46 @@
 # Session validator validates online minecraft clients when under attack
 #
-#sessionValidator:
+sessionValidator:
   # Enables the plugin
   #
   #enable: true
 
   # A map of session validator configurations
   #
-  #sessionValidators:
+  sessionValidators:
     # This is just an ID. In this case "default",
     # but you can give it a name that makes sense for you.
     #
-    #default:
+    default:
       # Server IDs to watch the traffic
       #
-      #gatewayIds:
-      #  - default
+      serverIds:
+        - default
 
 # Defaults are global default values that can be 
 #
-#defaults:
-  #sessionValidator:
+defaults:
+  sessionValidator:
     # If this threshold is reached then the plugin will start to validate sessions.
     # Set this to < 1 to always validate sessions.
     #
-    #cpsThreshold: 50
+    cpsThreshold: 50
 
     # Redis config for caching
     #
-    #redis:
+    redis:
       # Connection URI
       #
-      #uri: redis://:redis@localhost:6789/0
+      uri: redis://:@localhost:6379/0?read_timeout=5s&write_timeout=5s
+      
+      # Time to live of the data once written into the database
+      #
+      ttl: 24h
   
     # The message that is displayed to a client when are successfully validated and should rejoin.
     #
-    #validationSuccessMessage: Successfully validated! Please rejoin.
+    validationSuccessMessage: Successfully validated! Please rejoin.
 
     # The message that is displayed to a client when are successfully validated and should rejoin.
     #
-    #validationFailureMessage: Failed to validate.
-
-    # This is the ping response that clients see of your server when it is out of bandwidth.
-    #
-    #unvalidatedStatus:
-      #versionName: Infrared
-      #protocolNumber: 0
-      #maxPlayerCount: 0
-      #playerCount: 0
-      #iconPath: icons/default.png
-      #motd: |
-      #  Powered by Infrared
-      #  §6Server at {{serverDomain}} is out of bandwidth.
+    validationFailureMessage: Failed to validate.

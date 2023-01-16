@@ -71,8 +71,7 @@ func (cpn CPN) ListenAndServe(quit <-chan bool) {
 				continue
 			}
 
-			c.SetDeadline(time.Now().Add(cpn.ClientTimeout()))
-			chain(cpn.Middlewares, HandlerFunc(func(c Conn) {
+			handleConn := func(c Conn) {
 				pc, err := cpn.ConnProcessor.ProcessConn(c)
 				if err != nil {
 					if errors.Is(err, os.ErrDeadlineExceeded) {
@@ -98,7 +97,10 @@ func (cpn CPN) ListenAndServe(quit <-chan bool) {
 				}
 
 				cpn.Out <- procConn
-			})).ServeProtocol(c)
+			}
+
+			c.SetDeadline(time.Now().Add(cpn.ClientTimeout()))
+			chain(cpn.Middlewares, HandlerFunc(handleConn)).ServeProtocol(c)
 		case <-quit:
 			return
 		}

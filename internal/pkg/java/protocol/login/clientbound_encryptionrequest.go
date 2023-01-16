@@ -2,7 +2,9 @@ package login
 
 import "github.com/haveachin/infrared/internal/pkg/java/protocol"
 
-const IDClientBoundEncryptionRequest byte = 0x01
+const (
+	IDClientBoundEncryptionRequest       byte = 0x01
+)
 
 type ClientBoundEncryptionRequest struct {
 	ServerID    protocol.String

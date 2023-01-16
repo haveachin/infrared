@@ -25,19 +25,14 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-const (
-	devEnvironment  = "dev"
-	prodEnvironment = "prod"
-)
-
 var (
 	files   embed.FS
 	version string
 
-	configPath  string
-	workingDir  string
-	environment string
-	logEncoder  string
+	configPath  = "config.yml"
+	workingDir  = "."
+	environment = "prod"
+	logEncoder  = "console"
 
 	logger        *zap.Logger
 	pluginManager infrared.PluginManager
@@ -134,11 +129,25 @@ var (
 	}
 )
 
+func envString(name string, defVal string) string {
+	envString := os.Getenv(name)
+	if envString == "" {
+		return defVal
+	}
+
+	return envString
+}
+
 func init() {
-	rootCmd.PersistentFlags().StringVarP(&workingDir, "working-dir", "w", ".", "set the working directory")
-	rootCmd.PersistentFlags().StringVarP(&environment, "environment", "e", "prod", "set the deployment environment")
-	rootCmd.PersistentFlags().StringVarP(&logEncoder, "log-encoder", "l", "console", "set the log encoder")
-	rootCmd.Flags().StringVarP(&configPath, "config", "c", "config.yml", "path of the config file")
+	envVarPrefix := "INFRARED_"
+	workingDir = envString(envVarPrefix+"WORKING_DIR", workingDir)
+	rootCmd.PersistentFlags().StringVarP(&workingDir, "working-dir", "w", workingDir, "set the working directory")
+	environment = envString(envVarPrefix+"ENVIRONMENT", environment)
+	rootCmd.PersistentFlags().StringVarP(&environment, "environment", "e", environment, "set the deployment environment")
+	logEncoder = envString(envVarPrefix+"LOG_ENCODER", logEncoder)
+	rootCmd.PersistentFlags().StringVarP(&logEncoder, "log-encoder", "l", logEncoder, "set the log encoder")
+	configPath = envString(envVarPrefix+"CONFIG", configPath)
+	rootCmd.Flags().StringVarP(&configPath, "config", "c", configPath, "path of the config file")
 
 	rootCmd.AddCommand(licenseCmd)
 	rootCmd.AddCommand(versionCmd)
@@ -148,9 +157,11 @@ func init() {
 
 func newLogger(env string) (*zap.Logger, error) {
 	switch env {
-	case devEnvironment:
+	case "nop":
+		return zap.NewNop(), nil
+	case "dev":
 		return zap.NewDevelopment()
-	case prodEnvironment:
+	case "prod":
 		cfg := zap.NewProductionConfig()
 		cfg.Encoding = logEncoder
 		if logEncoder == "console" {
@@ -158,6 +169,7 @@ func newLogger(env string) (*zap.Logger, error) {
 		}
 		cfg.EncoderConfig.EncodeTime = zapcore.RFC3339TimeEncoder
 		cfg.DisableCaller = true
+		cfg.DisableStacktrace = true
 		return cfg.Build()
 	default:
 		return nil, fmt.Errorf("unsupported environment %q", environment)

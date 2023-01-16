@@ -36,7 +36,7 @@ type Gateway struct {
 }
 
 func (gw *Gateway) initListeners() {
-	gw.listeners = make([]net.Listener, len(gw.Listeners))
+	gw.listeners = make([]net.Listener, 0, len(gw.Listeners))
 	for n, listener := range gw.Listeners {
 		logger := gw.Logger.With(
 			zap.String("address", listener.Bind),
@@ -58,7 +58,7 @@ func (gw *Gateway) initListeners() {
 		}
 
 		gw.Listeners[n].Listener = l
-		gw.listeners[n] = &gw.Listeners[n]
+		gw.listeners = append(gw.listeners, &gw.Listeners[n])
 
 		rJSON := listener.ServerNotFoundStatus.ResponseJSON()
 		bb, err := json.Marshal(rJSON)

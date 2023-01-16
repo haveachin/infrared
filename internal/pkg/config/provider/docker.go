@@ -90,7 +90,8 @@ func (p docker) readConfigData() (Data, error) {
 
 			key = strings.TrimPrefix(key, p.LabelPrefix)
 
-			if strings.Contains(value, ",") {
+			if strings.HasPrefix(value, "[") {
+				value = strings.Trim(value, "[]")
 				setNestedValue(data, key, strings.Split(value, ","))
 			} else {
 				setNestedValue(data, key, value)

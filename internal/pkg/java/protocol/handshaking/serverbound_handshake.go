@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	MaxSizeServerBoundHandshake = 1 + 2 + 255 + 2 + 1
+	MaxSizeServerBoundHandshake = 1 + 2 + 255*4 + 2 + 1
 
 	IDServerBoundHandshake byte = 0x00
 

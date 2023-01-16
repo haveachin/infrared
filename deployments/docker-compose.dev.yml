@@ -3,7 +3,7 @@ version: "3"
 services:
   minecraft-java-server:
     image: itzg/minecraft-server:java17
-    container_name: minecraft-java-server
+    container_name: infrared-dev-minecraft-java-server
     restart: "no"
     volumes:
       - ../dev/minecraft-java:/data
@@ -17,15 +17,14 @@ services:
       #FORGE_VERSION: "43.1.1"
     networks:
       - infrared
-    #labels:
-      #- infrared.java.servers.devserver.gateways=[default]
-      #- infrared.java.servers.devserver.domains=[localhost]
-      #- infrared.java.servers.devserver.address=:25566
-      #- infrared.java.servers.devserver.overrideStatus.motd=Docker Lables
+    labels:
+      - infrared.java.servers.devserver.gateways=[default]
+      - infrared.java.servers.devserver.domains=[*]
+      - infrared.java.servers.devserver.address=:25566
 
   minecraft-bedrock-server:
     image: itzg/minecraft-bedrock-server:latest
-    container_name: minecraft-bedrock-server
+    container_name: infrared-dev-minecraft-bedrock-server
     restart: "no"
     volumes:
       - ../dev/minecraft-bedrock:/data
@@ -37,8 +36,16 @@ services:
       - infrared
     labels:
       - infrared.bedrock.servers.devserver.gateways=[default]
-      - infrared.bedrock.servers.devserver.domains=[192.168.1.69]
+      - infrared.bedrock.servers.devserver.domains=[*]
       - infrared.bedrock.servers.devserver.address=:19133
+
+  redis:
+    image: redis
+    container_name: infrared-dev-redis
+    ports:
+      - 6379:6379/tcp
+    networks:
+      - infrared
 
 networks:
   infrared:

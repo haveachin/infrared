@@ -131,7 +131,7 @@ java:
     # tremendously reduce the effect of DDoS effects at the cost of performance.
     # If your CPU has a lot of threads then feel free to increase this number.
     #
-    count: 10
+    count: 100
     
     # This is the amount of time a client has to get processed before it get's disconnected
     # from the proxy. If you don't expect players form other continents you should decrease
@@ -163,5 +163,5 @@ bedrock:
     clientTimeout: 1000ms
   middlewares:
     rateLimiter:
-      requestLimit: 1
-      windowLength: 50ms
+      requestLimit: 10
+      windowLength: 500ms

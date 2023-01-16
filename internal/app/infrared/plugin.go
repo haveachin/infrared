@@ -156,7 +156,12 @@ func (pm PluginManager) loadPlugin(p Plugin, cfg map[string]any) {
 }
 
 func (pm *PluginManager) ReloadPlugins(cfg map[string]any) {
-	for p := range pm.plugins {
+	for p, s := range pm.plugins {
+		if s == PluginStateDisabled {
+			pm.loadPlugin(p, cfg)
+			return
+		}
+
 		pm.reloadPlugin(p, cfg)
 	}
 }

@@ -2,11 +2,14 @@ package java
 
 import (
 	"bufio"
+	"crypto/aes"
+	"crypto/cipher"
 	"fmt"
 	"io"
 	"net"
 
 	"github.com/haveachin/infrared/internal/app/infrared"
+	"github.com/haveachin/infrared/internal/pkg/java/cfb8"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol/handshaking"
 )
@@ -32,8 +35,9 @@ type Conn struct {
 	realIP                     bool
 	serverNotFoundDisconnector PlayerDisconnecter
 
-	r *bufio.Reader
-	w io.Writer
+	isEncrypted bool
+	r           *bufio.Reader
+	w           io.Writer
 }
 
 func (c *Conn) Pipe(rc net.Conn) (int64, error) {
@@ -123,6 +127,39 @@ func (c *Conn) WritePackets(pks ...protocol.Packet) error {
 		}
 	}
 	return nil
+}
+
+// SetCipher sets the decode/encode stream for this Conn
+func (c *Conn) SetCipher(ecoStream, decoStream cipher.Stream) {
+	c.isEncrypted = true
+	c.r = bufio.NewReader(cipher.StreamReader{
+		S: decoStream,
+		R: c.Conn,
+	})
+	c.w = cipher.StreamWriter{
+		S: ecoStream,
+		W: c.Conn,
+	}
+}
+
+func (c *Conn) SetEncryption(sharedSecret []byte) error {
+	block, err := aes.NewCipher(sharedSecret)
+	if err != nil {
+		return err
+	}
+
+	c.SetCipher(
+		cfb8.NewEncrypter(block, sharedSecret),
+		cfb8.NewDecrypter(block, sharedSecret),
+	)
+	return nil
+}
+
+func (c *Conn) Close() error {
+	if err := c.Conn.(*net.TCPConn).SetLinger(0); err != nil {
+		return err
+	}
+	return c.Conn.Close()
 }
 
 type Player struct {

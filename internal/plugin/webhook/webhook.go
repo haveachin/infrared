@@ -165,7 +165,7 @@ func (p Plugin) handleEvent(e event.Event) {
 		unmarshalConn(&data, e.Conn)
 	case infrared.PostConnProcessingEvent:
 		unmarshalProcessedConn(&data, e.Player)
-	case infrared.PreConnConnectingEvent:
+	case infrared.PerPlayerJoinEvent:
 		unmarshalProcessedConn(&data, e.Player)
 		unmarshalServer(&data, e.Server)
 	case infrared.PlayerJoinEvent:

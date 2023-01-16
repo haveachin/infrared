@@ -6,21 +6,22 @@ import (
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/internal/pkg/bedrock"
 	"github.com/haveachin/infrared/internal/pkg/java"
+	"github.com/haveachin/infrared/internal/pkg/java/protocol/status"
 	"github.com/imdario/mergo"
 )
 
 type sessionValidatorConfig struct {
-	GatewayIDs              []string                `mapstructure:"gatewayIds"`
-	CPSThreshold            int                     `mapstructure:"cpsThreshold"`
-	SessionValidatedMessage string                  `mapstructure:"sessionValidateMessage"`
-	SessionValidatedStatus  java.ServerStatusConfig `mapstructure:"sessionValidateStatus"`
-	Redis                   redisConfig             `mapstructure:"redis"`
+	ServerIDs                []string    `mapstructure:"ServerIds"`
+	CPSThreshold             int         `mapstructure:"cpsThreshold"`
+	ValidationSuccessMessage string      `mapstructure:"validationSuccessMessage"`
+	ValidationFailureMessage string      `mapstructure:"validationFailureMessage"`
+	Redis                    redisConfig `mapstructure:"redis"`
 }
 
 type PluginConfig struct {
 	SessionValidator struct {
-		Enable            bool                              `mapstructure:"enabled"`
-		SessionValidators map[string]sessionValidatorConfig `mapstructure:"sessionValidator"`
+		Enable            bool                              `mapstructure:"enable"`
+		SessionValidators map[string]sessionValidatorConfig `mapstructure:"sessionValidators"`
 	} `mapstructure:"sessionValidator"`
 	Defaults struct {
 		SessionValidator sessionValidatorConfig `mapstructure:"sessionValidator"`
@@ -39,30 +40,47 @@ func (cfg PluginConfig) loadSessionValidatorConfigs() (map[string]validator, err
 			return nil, err
 		}
 
-		statusJSON, err := java.NewServerStatus(svCfg.SessionValidatedStatus)
-		if err != nil {
-			return nil, err
-		}
-
-		javaSuccessDisconnecter, err := java.NewPlayerDisconnecter(statusJSON.ResponseJSON(), svCfg.SessionValidatedMessage)
+		javaSuccessDisconnecter, err := java.NewPlayerDisconnecter(status.ResponseJSON{}, svCfg.ValidationSuccessMessage)
 		if err != nil {
 			return nil, err
 		}
 
 		successPlayerDisconnecters := map[infrared.Edition]infrared.PlayerDisconnecter{
 			infrared.JavaEdition:    javaSuccessDisconnecter,
-			infrared.BedrockEdition: bedrock.NewPlayerDisconnecter(svCfg.SessionValidatedMessage),
+			infrared.BedrockEdition: bedrock.NewPlayerDisconnecter(svCfg.ValidationSuccessMessage),
 		}
 
-		for _, gID := range svCfg.GatewayIDs {
-			_, ok := validators[gID]
+		javaFailureDisconnecter, err := java.NewPlayerDisconnecter(status.ResponseJSON{}, svCfg.ValidationFailureMessage)
+		if err != nil {
+			return nil, err
+		}
+
+		failurePlayerDisconnecters := map[infrared.Edition]infrared.PlayerDisconnecter{
+			infrared.JavaEdition:    javaFailureDisconnecter,
+			infrared.BedrockEdition: bedrock.NewPlayerDisconnecter(svCfg.ValidationFailureMessage),
+		}
+
+		for _, sID := range svCfg.ServerIDs {
+			_, ok := validators[sID]
 			if ok {
-				return nil, fmt.Errorf("server with ID %q already has a traffic limiter", gID)
+				return nil, fmt.Errorf("server with ID %q already has a traffic limiter", sID)
 			}
 
-			validators[gID] = cachedSessionService{
-				storage:             storage,
+			enc, pubKey, err := java.NewDefaultSessionEncrypter()
+			if err != nil {
+				return nil, err
+			}
+
+			validators[sID] = storageValidator{
+				storage: storage,
+				service: javaValidator{
+					auth: &java.HTTPSessionAuthenticator{
+						BaseURL: "https://sessionserver.mojang.com",
+					},
+					enc: enc,
+				}.Validator("", pubKey),
 				successDisconnector: infrared.NewMultiPlayerDisconnecter(successPlayerDisconnecters),
+				failureDisconnector: infrared.NewMultiPlayerDisconnecter(failurePlayerDisconnecters),
 			}
 		}
 	}

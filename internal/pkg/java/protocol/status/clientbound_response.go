@@ -3,7 +3,7 @@ package status
 import "github.com/haveachin/infrared/internal/pkg/java/protocol"
 
 const (
-	MaxSizeClientBoundResponse      = 1 + 32767
+	MaxSizeClientBoundResponse      = 1 + 32767*4
 	IDClientBoundResponse      byte = 0x00
 )
 

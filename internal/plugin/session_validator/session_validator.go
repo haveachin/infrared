@@ -2,10 +2,15 @@ package session_validator
 
 import (
 	"errors"
+	"sync"
+	"time"
 
 	"github.com/gofrs/uuid"
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/internal/pkg/config"
+	"github.com/haveachin/infrared/internal/pkg/java"
+	"github.com/haveachin/infrared/internal/pkg/java/protocol"
+	"github.com/haveachin/infrared/internal/pkg/java/protocol/login"
 	"github.com/haveachin/infrared/pkg/event"
 	"go.uber.org/zap"
 )
@@ -17,18 +22,23 @@ type Plugin struct {
 
 	eventID string
 
-	validators map[string]validator
+	validators sync.Map
+	cpsCounter cpsCounter
 }
 
-func (p Plugin) Name() string {
+func (p *Plugin) Name() string {
 	return "Session Validator"
 }
 
-func (p Plugin) Version() string {
+func (p *Plugin) Version() string {
 	return "internal"
 }
 
-func (p Plugin) Init() {}
+func (p *Plugin) Init() {
+	p.cpsCounter = cpsCounter{
+		counters: map[time.Time]uint32{},
+	}
+}
 
 func (p *Plugin) Load(cfg map[string]any) error {
 	if err := config.Unmarshal(cfg, &p.config); err != nil {
@@ -38,6 +48,22 @@ func (p *Plugin) Load(cfg map[string]any) error {
 	if !p.config.SessionValidator.Enable {
 		return infrared.ErrPluginViaConfigDisabled
 	}
+
+	validators, err := p.config.loadSessionValidatorConfigs()
+	if err != nil {
+		return err
+	}
+
+	clearMap := func(k any, v any) bool {
+		p.validators.Delete(k)
+		return true
+	}
+	p.validators.Range(clearMap)
+
+	for k, v := range validators {
+		p.validators.Store(k, v)
+	}
+
 	return nil
 }
 
@@ -45,7 +71,9 @@ func (p *Plugin) Reload(cfg map[string]any) error {
 	if err := p.Load(cfg); err != nil {
 		return err
 	}
-
+	p.eventBus.DetachRecipient(p.eventID)
+	cpsThreshold := p.config.Defaults.SessionValidator.CPSThreshold
+	p.eventID = p.eventBus.HandleFunc(p.onPlayerJoin(cpsThreshold), infrared.PlayerJoinEventTopic)
 	return nil
 }
 
@@ -53,84 +81,181 @@ func (p *Plugin) Enable(api infrared.PluginAPI) error {
 	p.logger = api.Logger()
 	p.eventBus = api.EventBus()
 
-	p.eventID = p.eventBus.HandleFunc(p.onPostProcessing, infrared.PostProcessingEventTopic)
+	cpsThreshold := p.config.Defaults.SessionValidator.CPSThreshold
+	p.eventID = p.eventBus.HandleFunc(p.onPlayerJoin(cpsThreshold), infrared.PlayerJoinEventTopic)
 
 	return nil
 }
 
-func (p Plugin) Disable() error {
+func (p *Plugin) Disable() error {
 	p.eventBus.DetachRecipient(p.eventID)
 	return nil
 }
 
-func (p Plugin) onPostProcessing(e event.Event) (any, error) {
-	switch data := e.Data.(type) {
-	case infrared.PostConnProcessingEvent:
-		player := data.Player
-		validator := p.validators[player.GatewayID()]
-		playerUUID, err := validator.Validate(player)
-		if err != nil {
-			p.logger.Error("failed to validate session",
-				zap.Error(err),
-			)
-			return nil, err
+func (p *Plugin) onPlayerJoin(cpsThreshold int) event.HandlerSyncFunc {
+	handleEvent := func(e event.Event) (any, error) {
+		switch data := e.Data.(type) {
+		case infrared.PlayerJoinEvent:
+			player := data.Player
+			serverID := data.Server.ID()
+			if err := p.validatePlayer(player, serverID); err != nil {
+				return nil, err
+			}
+		}
+		return nil, nil
+	}
+
+	if cpsThreshold <= 0 {
+		return handleEvent
+	}
+
+	return func(e event.Event) (any, error) {
+		p.cpsCounter.Inc()
+		cps := p.cpsCounter.CPS()
+		if cps < uint32(cpsThreshold) {
+			return nil, nil
 		}
 
-		p.logger.Debug("validated player",
-			zap.String("uuid", playerUUID.String()),
-		)
+		return handleEvent(e)
 	}
-	return nil, nil
+}
+
+func (p *Plugin) validatePlayer(player infrared.Player, serverID string) error {
+	v, ok := p.validators.Load(serverID)
+	if !ok {
+		return nil
+	}
+	val := v.(validator)
+
+	playerUUID, err := val.Validate(player)
+	if err != nil {
+		if errors.Is(err, errDisconnectAfterSuccessfullValidation) {
+			return err
+		}
+		p.logger.Debug("failed to validate session",
+			zap.Error(err),
+		)
+		return err
+	}
+
+	p.logger.Debug("validated player",
+		zap.String("uuid", playerUUID.String()),
+	)
+	return nil
 }
 
 type validator interface {
 	Validate(infrared.Player) (uuid.UUID, error)
 }
 
-type cachedSessionService struct {
+type validatorFunc func(infrared.Player) (uuid.UUID, error)
+
+func (fn validatorFunc) Validate(p infrared.Player) (uuid.UUID, error) {
+	return fn(p)
+}
+
+var errDisconnectAfterSuccessfullValidation = errors.New("disconnect after successfull validation")
+
+type storageValidator struct {
 	storage             storage
 	service             validator
 	successDisconnector infrared.PlayerDisconnecter
 	failureDisconnector infrared.PlayerDisconnecter
 }
 
-func (c cachedSessionService) Validate(player infrared.Player) (uuid.UUID, error) {
-	playerUUID, err := c.storage.GetValidation(player.Username(), player.RemoteIP())
+func (v storageValidator) Validate(player infrared.Player) (uuid.UUID, error) {
+	playerUUID, err := v.storage.GetValidation(player.Username(), player.RemoteIP())
 	if err != nil {
 		if errors.Is(err, errValidationNotFound) {
-			playerUUID, err = c.validate(player)
-			if err != nil {
-				c.failureDisconnector.DisconnectPlayer(player)
-				return uuid.Nil, nil
+			playerUUID, err = v.validate(player)
+			if err == nil {
+				v.successDisconnector.DisconnectPlayer(player, infrared.ApplyTemplates(
+					infrared.TimeMessageTemplates(),
+					infrared.PlayerMessageTemplates(player),
+				))
+				return playerUUID, errDisconnectAfterSuccessfullValidation
 			}
-			c.successDisconnector.DisconnectPlayer(player)
-			return playerUUID, nil
 		}
+		v.failureDisconnector.DisconnectPlayer(player, infrared.ApplyTemplates(
+			infrared.TimeMessageTemplates(),
+			infrared.PlayerMessageTemplates(player),
+		))
+		return uuid.Nil, err
 	}
 
 	return playerUUID, nil
 }
 
-func (c cachedSessionService) validate(player infrared.Player) (uuid.UUID, error) {
-	playerUUID, err := c.service.Validate(player)
+func (v storageValidator) validate(player infrared.Player) (uuid.UUID, error) {
+	playerUUID, err := v.service.Validate(player)
 	if err != nil {
 		return uuid.Nil, err
 	}
 
-	if err := c.storage.PutValidation(player.Username(), player.RemoteIP(), playerUUID); err != nil {
+	if err := v.storage.PutValidation(player.Username(), player.RemoteIP(), playerUUID); err != nil {
 		return uuid.Nil, err
 	}
 
 	return playerUUID, nil
 }
 
-type sessionServerValidator struct {
-	baseURL string
+type javaValidator struct {
+	enc  java.SessionEncrypter
+	auth java.SessionAuthenticator
 }
 
-func (s sessionServerValidator) Validate(player infrared.Player) (uuid.UUID, error) {
-
+func (jv javaValidator) Validator(serverID string, pubKey []byte) validator {
+	return validatorFunc(func(player infrared.Player) (uuid.UUID, error) {
+		switch p := player.(type) {
+		case *java.Player:
+			session, err := jv.validatePlayer(p, serverID, pubKey)
+			if err != nil {
+				return uuid.Nil, err
+			}
+			return session.PlayerUUID, nil
+		default:
+			return uuid.Nil, errors.New("not supported")
+		}
+	})
 }
 
-func 
-docker build -f build/package/Dockerfile --no-cache -t haveachin/infrared:latest https://github.com/haveachin/infrared.git#v2.0.0-alpha.11
+func (jv javaValidator) validatePlayer(player *java.Player, serverID string, pubKey []byte) (*java.Session, error) {
+	verifyToken, err := jv.enc.GenerateVerifyToken()
+	if err != nil {
+		return nil, err
+	}
+
+	reqPk := login.ClientBoundEncryptionRequest{
+		ServerID:    protocol.String(serverID),
+		PublicKey:   pubKey,
+		VerifyToken: verifyToken,
+	}.Marshal()
+
+	player.SetDeadline(time.Now().Add(time.Millisecond * 500))
+	if err := player.WritePacket(reqPk); err != nil {
+		return nil, err
+	}
+
+	respPk, err := player.ReadPacket(login.MaxSizeServerBoundEncryptionResponse)
+	if err != nil {
+		return nil, err
+	}
+	player.SetDeadline(time.Time{})
+
+	resp, err := login.UnmarshalServerBoundEncryptionResponse(respPk)
+	if err != nil {
+		return nil, err
+	}
+
+	sharedSecret, err := jv.enc.DecryptAndVerifySharedSecret(verifyToken, resp.VerifyToken, resp.SharedSecret)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := player.SetEncryption(sharedSecret); err != nil {
+		return nil, err
+	}
+
+	sessionHash := java.GenerateSessionHash(serverID, sharedSecret, pubKey)
+	return jv.auth.AuthenticateSession(player.Username(), sessionHash)
+}

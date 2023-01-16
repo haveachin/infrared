@@ -37,6 +37,10 @@ func ListenAndServe(gw Gateway, cpnChan chan<- Conn) {
 	wg := sync.WaitGroup{}
 
 	for _, listener := range gw.Listeners() {
+		if listener == nil {
+			continue
+		}
+
 		wg.Add(1)
 		go func(l net.Listener, logger *zap.Logger) {
 			for {

@@ -43,7 +43,7 @@ type PostConnProcessingEvent struct {
 	Player Player
 }
 
-type PreConnConnectingEvent struct {
+type PerPlayerJoinEvent struct {
 	Player Player
 	Server Server
 }

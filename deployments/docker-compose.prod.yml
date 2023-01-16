@@ -12,11 +12,16 @@ services:
       - 19132:19132/udp
     volumes:
       - ./data/infrared:/infrared
+      #- /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - infrared
-    environment:
-      # Only change this if you know what you are doing
-      INFRARED_CONFIG: "/infrared/config.yml"
+
+  #redis:
+  #  image: redis
+  #  container_name: infrared-redis
+  #  restart: always
+  #  networks:
+  #    - infrared
 
 networks:
   infrared:
