@@ -131,29 +131,30 @@ func (s Server) Dial() (*Conn, error) {
 }
 
 func (s Server) HandleConn(c net.Conn) (infrared.Conn, error) {
-	pc := c.(*Player)
-	if pc.handshake.IsStatusRequest() {
-		if err := s.handleStatusPing(pc); err != nil {
+	player := c.(*Player)
+	rc, err := s.Dial()
+	if err != nil {
+		if err := s.handleDialTimeout(player); err != nil {
+			return nil, err
+		}
+		return nil, err
+	}
+
+	if player.handshake.IsStatusRequest() {
+		defer rc.Close()
+		if err := s.handleStatusPing(player); err != nil {
 			return nil, err
 		}
 		return nil, infrared.ErrClientStatusRequest
 	}
 
-	rc, err := s.Dial()
-	if err != nil {
-		if err := s.handleDialTimeout(pc); err != nil {
-			return nil, err
-		}
-		return nil, err
-	}
-
-	if err := s.prepareConns(pc, rc); err != nil {
+	if err := s.prepareConns(player, rc); err != nil {
 		rc.Close()
 		return nil, err
 	}
 
 	// Sends the handshake and the request or login packet to the server
-	if err := rc.WritePackets(pc.readPks...); err != nil {
+	if err := rc.WritePackets(player.readPks...); err != nil {
 		rc.Close()
 		return nil, err
 	}
@@ -183,7 +184,11 @@ func (s Server) prepareConns(p *Player, rc net.Conn) error {
 }
 
 func (s Server) handleDialTimeout(p *Player) error {
-	if err := s.dialTimeoutDisconnector.DisconnectPlayer(p); err != nil {
+	if err := s.dialTimeoutDisconnector.DisconnectPlayer(p, infrared.ApplyTemplates(
+		infrared.TimeMessageTemplates(),
+		infrared.PlayerMessageTemplates(p),
+		infrared.ServerMessageTemplate(s),
+	)); err != nil {
 		return err
 	}
 

@@ -52,11 +52,11 @@ func (p *Plugin) Init() {
 	p.handshakeCount = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "infrared_handshakes",
 		Help: "The total number of handshakes made to each Server per edition",
-	}, []string{"host", "type", "edition"})
+	}, []string{"requested_domain", "request_type", "edition"})
 	p.playersConnected = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "infrared_connected",
 		Help: "The total number of connected players per Server and edition",
-	}, []string{"host", "server", "edition"})
+	}, []string{"requested_domain", "matched_domain", "server_id", "edition"})
 }
 
 func (p *Plugin) Load(cfg map[string]any) error {
@@ -142,34 +142,28 @@ func (p Plugin) startMetricsServer() {
 func (p Plugin) handleEvent(e event.Event) {
 	switch e := e.Data.(type) {
 	case infrared.PostConnProcessingEvent:
-		edition := e.Player.Edition()
-		domain := e.Player.ServerAddr()
-		switch edition {
-		case infrared.JavaEdition:
-			if e.Player.IsLoginRequest() {
-				p.handshakeCount.With(prometheus.Labels{"host": domain, "type": "login", "edition": "java"}).Inc()
-			} else {
-				p.handshakeCount.With(prometheus.Labels{"host": domain, "type": "status", "edition": "java"}).Inc()
-			}
-		case infrared.BedrockEdition:
-			p.handshakeCount.With(prometheus.Labels{"host": domain, "type": "login", "edition": "bedrock"}).Inc()
+		requestType := "status"
+		if e.Player.IsLoginRequest() {
+			requestType = "login"
 		}
+		p.handshakeCount.With(prometheus.Labels{
+			"requested_domain": e.Player.ServerAddr(),
+			"request_type":     requestType,
+			"edition":          e.Player.Edition().String(),
+		}).Inc()
 	case infrared.PlayerJoinEvent:
-		edition := e.Player.Edition().String()
-		server := e.Server.ID()
-		domain := e.MatchedDomain
-		p.playersConnected.With(prometheus.Labels{"host": domain, "server": server, "edition": edition}).Inc()
+		p.playersConnected.With(prometheus.Labels{
+			"requested_domain": e.Player.ServerAddr(),
+			"matched_domain":   e.MatchedDomain,
+			"server_id":        e.Server.ID(),
+			"edition":          e.Player.Edition().String(),
+		}).Inc()
 	case infrared.PlayerLeaveEvent:
-		edition := e.Player.Edition().String()
-		server := e.Server.ID()
-		domain := e.MatchedDomain
-		p.playersConnected.With(prometheus.Labels{"host": domain, "server": server, "edition": edition}).Dec()
-		/*case infrared.ServerRegisterEvent:
-		edition := e.Server.Edition().String()
-		server := e.Server.ID()
-		for _, domain := range e.Server.Domains() {
-			domain = strings.ToLower(domain)
-			p.playersConnected.With(prometheus.Labels{"host": domain, "server": server, "edition": edition})
-		}*/
+		p.playersConnected.With(prometheus.Labels{
+			"requested_domain": e.Player.ServerAddr(),
+			"matched_domain":   e.MatchedDomain,
+			"server_id":        e.Server.ID(),
+			"edition":          e.Player.Edition().String(),
+		}).Dec()
 	}
 }

@@ -155,7 +155,7 @@ func (c *Conn) SetEncryption(sharedSecret []byte) error {
 	return nil
 }
 
-func (c *Conn) Close() error {
+func (c *Conn) ForceClose() error {
 	if err := c.Conn.(*net.TCPConn).SetLinger(0); err != nil {
 		return err
 	}

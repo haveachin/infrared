@@ -38,10 +38,12 @@ type ResponseJSON struct {
 	Version VersionJSON `json:"version"`
 	Players PlayersJSON `json:"players"`
 	// This has to be any to support the new chat style system
-	Description        any    `json:"description"`
-	Favicon            string `json:"favicon,omitempty"`
-	PreviewsChat       bool   `json:"previewsChat"`
-	EnforcesSecureChat bool   `json:"enforcesSecureChat"`
+	Description any    `json:"description"`
+	Favicon     string `json:"favicon,omitempty"`
+	// Added since 1.19
+	PreviewsChat bool `json:"previewsChat"`
+	// Added since 1.19.1
+	EnforcesSecureChat bool `json:"enforcesSecureChat"`
 	// FMLModInfo should be set if the client is expecting a FML server
 	// to response. This is necessary for the client to recognise the
 	// server as a valid Forge server.

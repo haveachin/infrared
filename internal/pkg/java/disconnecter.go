@@ -7,7 +7,6 @@ import (
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol/login"
-	"github.com/haveachin/infrared/internal/pkg/java/protocol/play"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol/status"
 )
 
@@ -32,22 +31,19 @@ func (d PlayerDisconnecter) DisconnectPlayer(p infrared.Player, opts ...infrared
 	defer p.Close()
 	player := p.(*Player)
 
-	msg := d.message
+	msg := d.statusJSON
+	if p.IsLoginRequest() {
+		msg = d.message
+	}
+
 	for _, opt := range opts {
 		msg = opt(msg)
 	}
 
 	if p.IsLoginRequest() {
-		var pk protocol.Packet
-		if player.isEncrypted {
-			pk = login.ClientBoundDisconnect{
-				Reason: protocol.Chat(fmt.Sprintf("{\"text\":\"%s\"}", msg)),
-			}.Marshal()
-		} else {
-			pk = play.ClientBoundDisconnect{
-				Reason: protocol.Chat(fmt.Sprintf("{\"text\":\"%s\"}", msg)),
-			}.Marshal()
-		}
+		pk := login.ClientBoundDisconnect{
+			Reason: protocol.Chat(fmt.Sprintf("{\"text\":\"%s\"}", msg)),
+		}.Marshal()
 		return player.WritePacket(pk)
 	}
 

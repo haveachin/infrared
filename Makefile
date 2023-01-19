@@ -10,6 +10,10 @@ envtest:
 	docker-compose -p infrared -f deployments/docker-compose.test.yml build --no-cache --force-rm
 	docker-compose -p infrared -f deployments/docker-compose.test.yml up --force-recreate --remove-orphans
 
+tailwindcss:
+	curl -sL https://github.com/tailwindlabs/tailwindcss/releases/download/v3.2.4/tailwindcss-linux-x64 -o website/tailwindcss
+	chmod +x website/tailwindcss
+
 run:
 	go run -race . -c config.yml -w dev/ -e dev
 

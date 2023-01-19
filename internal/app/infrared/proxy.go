@@ -115,8 +115,8 @@ func NewProxy(cfg ProxyConfig) (*proxy, error) {
 			ServerGatewayConfig: ServerGatewayConfig{
 				Gateways: gws,
 				Servers:  srvs,
-				In:       srvCh,
-				Out:      poolCh,
+				InChan:   srvCh,
+				OutChan:  poolCh,
 			},
 		},
 		connPool: ConnPool{

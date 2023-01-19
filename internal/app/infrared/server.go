@@ -22,8 +22,8 @@ type Server interface {
 type ServerGatewayConfig struct {
 	Gateways []Gateway
 	Servers  []Server
-	In       <-chan Player
-	Out      chan<- ConnTunnel
+	InChan   <-chan Player
+	OutChan  chan<- ConnTunnel
 	Logger   *zap.Logger
 	EventBus event.Bus
 }
@@ -31,8 +31,8 @@ type ServerGatewayConfig struct {
 type ServerGateway struct {
 	ServerGatewayConfig
 
-	reload     chan func()
-	quit       chan bool
+	reloadChan chan func()
+	quitChan   chan bool
 	gwIDSrvIDs map[string][]string
 	// Server ID mapped to server
 	srvs map[string]Server
@@ -85,13 +85,13 @@ func (sg *ServerGateway) findServer(gatewayID, domain string) (Server, string) {
 }
 
 func (sg *ServerGateway) Start() {
-	sg.reload = make(chan func())
-	sg.quit = make(chan bool)
+	sg.reloadChan = make(chan func())
+	sg.quitChan = make(chan bool)
 	sg.init()
 
 	for {
 		select {
-		case player, ok := <-sg.In:
+		case player, ok := <-sg.InChan:
 			if !ok {
 				sg.Logger.Debug("server gateway quitting; incoming channel was closed")
 				return
@@ -119,15 +119,15 @@ func (sg *ServerGateway) Start() {
 				continue
 			}
 
-			sg.Out <- ConnTunnel{
+			sg.OutChan <- ConnTunnel{
 				Conn:          player,
 				Server:        srv,
 				MatchedDomain: matchedDomain,
 			}
-		case reload := <-sg.reload:
+		case reload := <-sg.reloadChan:
 			reload()
 			sg.init()
-		case <-sg.quit:
+		case <-sg.quitChan:
 			sg.Logger.Debug("server gateway quitting; received quit signal")
 			return
 		}
@@ -135,15 +135,19 @@ func (sg *ServerGateway) Start() {
 }
 
 func (sg *ServerGateway) Reload(cfg ServerGatewayConfig) {
-	sg.reload <- func() {
+	if sg.reloadChan == nil {
+		return
+	}
+
+	sg.reloadChan <- func() {
 		sg.ServerGatewayConfig = cfg
 	}
 }
 
 func (sg *ServerGateway) Close() error {
-	if sg.quit == nil {
+	if sg.quitChan == nil {
 		return errors.New("server gateway was not running")
 	}
-	sg.quit <- true
+	sg.quitChan <- true
 	return nil
 }

@@ -152,13 +152,15 @@ func (ct ConnTunnel) Start() (int64, error) {
 	}
 	defer rc.Close()
 
-	var consumedBytes int64
+	consumedBytesChan := make(chan int64)
 	go func() {
 		n, _ := ct.Conn.Pipe(rc)
-		consumedBytes += n
+		consumedBytesChan <- n
+		close(consumedBytesChan)
 	}()
 	n, _ := rc.Pipe(ct.Conn)
-	consumedBytes += n
+	consumedBytes := n
+	consumedBytes += <-consumedBytesChan
 	return consumedBytes, nil
 }
 
