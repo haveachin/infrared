@@ -26,7 +26,7 @@ type ServerLoginStart struct {
 	PlayerUUID    protocol.UUID
 }
 
-func (pk ServerLoginStart) Marshal(version int32) protocol.Packet {
+func (pk ServerLoginStart) Marshal(version protocol.Version) protocol.Packet {
 	if version < protocol.Version_1_19 {
 		return protocol.MarshalPacket(
 			IDServerBoundLoginStart,
@@ -50,7 +50,7 @@ func (pk ServerLoginStart) Marshal(version int32) protocol.Packet {
 	)
 }
 
-func UnmarshalServerBoundLoginStart(packet protocol.Packet, version int32) (ServerLoginStart, error) {
+func UnmarshalServerBoundLoginStart(packet protocol.Packet, version protocol.Version) (ServerLoginStart, error) {
 	var pk ServerLoginStart
 
 	if packet.ID != IDServerBoundLoginStart {

@@ -3,6 +3,7 @@ package bedrock
 import (
 	"bytes"
 	"net"
+	"strconv"
 
 	"github.com/haveachin/infrared/internal"
 	"github.com/haveachin/infrared/internal/app/infrared"
@@ -86,6 +87,16 @@ func (c *Conn) Edition() infrared.Edition {
 	return infrared.BedrockEdition
 }
 
+type Version int32
+
+func (v Version) ProtocolNumber() int32 {
+	return int32(v)
+}
+
+func (v Version) Name() string {
+	return strconv.Itoa(int(v))
+}
+
 type Player struct {
 	Conn
 	remoteAddr    net.Addr
@@ -96,6 +107,10 @@ type Player struct {
 
 	requestNetworkSettingsPkData *packet.Data
 	loginPkData                  packet.Data
+}
+
+func (p Player) Version() infrared.Version {
+	return Version(p.version)
 }
 
 func (p Player) RemoteAddr() net.Addr {

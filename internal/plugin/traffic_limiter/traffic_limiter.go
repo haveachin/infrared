@@ -127,7 +127,7 @@ func (p Plugin) onPlayerLeave(e event.Event) {
 
 func (p Plugin) onPreConnConnecting(e event.Event) (any, error) {
 	switch e := e.Data.(type) {
-	case infrared.PerPlayerJoinEvent:
+	case infrared.PrePlayerJoinEvent:
 		t, ok := p.trafficLimiters[e.Server.ID()]
 		if !ok {
 			return nil, nil

@@ -1,6 +1,7 @@
 package infrared
 
 import (
+	"sync"
 	"time"
 
 	"github.com/haveachin/infrared/pkg/event"
@@ -58,6 +59,7 @@ type proxy struct {
 	poolCh           chan ConnTunnel
 	logger           *zap.Logger
 	eventBus         event.Bus
+	mu               sync.Mutex
 }
 
 func NewProxy(cfg ProxyConfig) (*proxy, error) {
@@ -156,6 +158,7 @@ func (p *proxy) setLogger(logger *zap.Logger) {
 }
 
 func (p *proxy) ListenAndServe(bus event.Bus, logger *zap.Logger) {
+	p.mu.Lock()
 	p.setEventBus(bus)
 	p.setLogger(logger)
 	p.cpnPool.SetSize(p.settings.CPNCount)
@@ -164,12 +167,16 @@ func (p *proxy) ListenAndServe(bus event.Bus, logger *zap.Logger) {
 		gw.SetListenersManager(&p.listenersManager)
 		go ListenAndServe(gw, p.cpnCh)
 	}
+	p.mu.Unlock()
 
 	go p.connPool.Start()
 	p.serverGateway.Start()
 }
 
 func (p *proxy) Reload(cfg ProxyConfig) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
 	np, err := NewProxy(cfg)
 	if err != nil {
 		return err
@@ -201,7 +208,7 @@ func (p *proxy) Reload(cfg ProxyConfig) error {
 		gw.SetLogger(p.logger)
 		go ListenAndServe(gw, p.cpnCh)
 	}
-	p.listenersManager.prune()
+	//p.listenersManager.prune()
 
 	return nil
 }

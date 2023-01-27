@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 	"time"
 
@@ -49,6 +50,11 @@ type Conn interface {
 	Pipe(c net.Conn) (n int64, err error)
 }
 
+type Version interface {
+	Name() string
+	ProtocolNumber() int32
+}
+
 // Player is a already processed connection that waits to be handles by a server
 // All methods need to be thread-safe
 type Player interface {
@@ -64,6 +70,8 @@ type Player interface {
 	IsLoginRequest() bool
 	// RemoteIP returns the remote IP address of the player
 	RemoteIP() net.IP
+	// Version returns Minecraft Version
+	Version() Version
 }
 
 type PlayerDisconnecter interface {
@@ -116,11 +124,13 @@ func TimeMessageTemplates() map[string]string {
 
 func PlayerMessageTemplates(p Player) map[string]string {
 	return map[string]string{
-		"username":      p.Username(),
-		"remoteAddress": p.RemoteAddr().String(),
-		"localAddress":  p.LocalAddr().String(),
-		"serverDomain":  p.ServerAddr(),
-		"gatewayId":     p.GatewayID(),
+		"username":       p.Username(),
+		"remoteAddress":  p.RemoteAddr().String(),
+		"localAddress":   p.LocalAddr().String(),
+		"serverDomain":   p.ServerAddr(),
+		"gatewayId":      p.GatewayID(),
+		"versionName":    p.Version().Name(),
+		"protocolNumber": strconv.Itoa(int(p.Version().ProtocolNumber())),
 	}
 }
 

@@ -69,7 +69,7 @@ func (cp ConnProcessor) ProcessConn(c net.Conn) (net.Conn, error) {
 	}
 	player.readPks = append(player.readPks, pk)
 
-	ls, err := login.UnmarshalServerBoundLoginStart(pk, int32(hs.ProtocolVersion))
+	ls, err := login.UnmarshalServerBoundLoginStart(pk, protocol.Version(hs.ProtocolVersion))
 	if err != nil {
 		return nil, err
 	}

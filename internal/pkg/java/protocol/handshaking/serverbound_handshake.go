@@ -129,10 +129,6 @@ func (pk ServerBoundHandshake) ParseRealIP() (net.Addr, time.Time, []byte, error
 }
 
 func (pk *ServerBoundHandshake) UpgradeToRealIP(clientAddr net.Addr, timestamp time.Time) {
-	if pk.IsRealIPAddress() {
-		return
-	}
-
 	addr := string(pk.ServerAddress)
 	addrWithForge := strings.SplitN(addr, SeparatorForge, 3)
 

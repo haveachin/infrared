@@ -47,8 +47,12 @@ func ListenAndServe(gw Gateway, cpnChan chan<- Conn) {
 				c, err := l.Accept()
 				if err != nil {
 					if errors.Is(net.ErrClosed, err) {
+						logger.Debug("listener closed")
 						break
 					}
+					logger.Debug("listener accept error",
+						zap.Error(err),
+					)
 					continue
 				}
 

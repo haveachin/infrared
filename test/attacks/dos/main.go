@@ -23,11 +23,7 @@ func init() {
 		NextState:       2,
 	}
 	pk := handshake.Marshal()
-	bb, err := pk.Marshal()
-	if err != nil {
-		log.Fatal(err)
-	}
-	handshakePayload = bb
+	handshakePayload = pk.Marshal()
 
 	loginStart := login.ServerLoginStart{
 		Name:          "Test",
@@ -35,11 +31,7 @@ func init() {
 		HasPlayerUUID: false,
 	}
 	pk = loginStart.Marshal(protocol.Version_1_19)
-	bb, err = pk.Marshal()
-	if err != nil {
-		log.Fatal(err)
-	}
-	loginStartPayload = bb
+	loginStartPayload = pk.Marshal()
 }
 
 func main() {

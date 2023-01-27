@@ -34,6 +34,7 @@ type Plugin struct {
 
 	handshakeCount   *prometheus.CounterVec
 	playersConnected *prometheus.GaugeVec
+	consumedBytes    *prometheus.CounterVec
 }
 
 func (p Plugin) Name() string {
@@ -51,12 +52,16 @@ func (p *Plugin) Init() {
 
 	p.handshakeCount = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "infrared_handshakes",
-		Help: "The total number of handshakes made to each Server per edition",
+		Help: "The total number of handshakes made to each server per edition",
 	}, []string{"requested_domain", "request_type", "edition"})
 	p.playersConnected = promauto.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "infrared_connected",
-		Help: "The total number of connected players per Server and edition",
+		Help: "The total number of connected players per server and edition",
 	}, []string{"requested_domain", "matched_domain", "server_id", "edition"})
+	p.consumedBytes = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "infrared_consumed_bytes",
+		Help: "The total number of consumed bytes made to each server per edition",
+	}, []string{"server_id", "edition"})
 }
 
 func (p *Plugin) Load(cfg map[string]any) error {
@@ -165,5 +170,9 @@ func (p Plugin) handleEvent(e event.Event) {
 			"server_id":        e.Server.ID(),
 			"edition":          e.Player.Edition().String(),
 		}).Dec()
+		p.consumedBytes.With(prometheus.Labels{
+			"server_id": e.Server.ID(),
+			"edition":   e.Player.Edition().String(),
+		}).Add(float64(e.ConsumedBytes))
 	}
 }

@@ -111,11 +111,8 @@ func (c *Conn) PeekPackets(n int, maxSizes ...int32) ([]protocol.Packet, error) 
 
 // WritePacket write a Packet to Conn.
 func (c *Conn) WritePacket(pk protocol.Packet) error {
-	bb, err := pk.Marshal()
-	if err != nil {
-		return err
-	}
-	_, err = c.w.Write(bb)
+	bb := pk.Marshal()
+	_, err := c.w.Write(bb)
 	return err
 }
 
@@ -169,6 +166,10 @@ type Player struct {
 	remoteAddr net.Addr
 	serverAddr string
 	username   string
+}
+
+func (p Player) Version() infrared.Version {
+	return protocol.Version(p.handshake.ProtocolVersion)
 }
 
 func (p Player) RemoteAddr() net.Addr {

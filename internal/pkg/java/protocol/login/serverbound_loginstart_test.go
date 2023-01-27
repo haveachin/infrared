@@ -9,7 +9,7 @@ import (
 func TestUnmarshalServerBoundLoginStart(t *testing.T) {
 	tt := []struct {
 		packet             protocol.Packet
-		version            int32
+		version            protocol.Version
 		unmarshalledPacket ServerLoginStart
 	}{
 		{

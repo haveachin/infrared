@@ -43,9 +43,10 @@ type PostConnProcessingEvent struct {
 	Player Player
 }
 
-type PerPlayerJoinEvent struct {
-	Player Player
-	Server Server
+type PrePlayerJoinEvent struct {
+	Player        Player
+	Server        Server
+	MatchedDomain string
 }
 
 type PlayerJoinEvent struct {

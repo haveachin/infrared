@@ -68,11 +68,16 @@ func (p *Plugin) Load(cfg map[string]any) error {
 }
 
 func (p *Plugin) Reload(cfg map[string]any) error {
+	if p.eventBus == nil {
+		return errors.New("")
+	}
+
 	if err := p.Load(cfg); err != nil {
 		return err
 	}
-	p.eventBus.DetachRecipient(p.eventID)
+
 	cpsThreshold := p.config.Defaults.SessionValidator.CPSThreshold
+	p.eventBus.DetachRecipient(p.eventID)
 	p.eventID = p.eventBus.HandleFunc(p.onPlayerJoin(cpsThreshold), infrared.PlayerJoinEventTopic)
 	return nil
 }

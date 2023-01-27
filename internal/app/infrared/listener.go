@@ -49,26 +49,30 @@ func (l *Listener) Close() error {
 
 type managedListener struct {
 	net.Listener
-	connCh     chan net.Conn
+	connChan   chan net.Conn
+	errChan    chan error
 	subscriber atomic.Uint32
 }
 
 func newManagedListener(l net.Listener) *managedListener {
-	connCh := make(chan net.Conn)
+	connChan := make(chan net.Conn)
+	errChan := make(chan error)
 	go func() {
 		for {
 			c, err := l.Accept()
 			if err != nil {
-				return
+				errChan <- err
+				continue
 			}
 
-			connCh <- c
+			connChan <- c
 		}
 	}()
 
 	return &managedListener{
 		Listener: l,
-		connCh:   connCh,
+		connChan: connChan,
+		errChan:  errChan,
 	}
 }
 
@@ -76,8 +80,8 @@ func (ml *managedListener) newSubscriber() net.Listener {
 	ml.subscriber.Inc()
 	return &Listener{
 		listener: ml.Listener,
-		connCh:   ml.connCh,
-		errCh:    make(chan error),
+		connCh:   ml.connChan,
+		errCh:    ml.errChan,
 		onClose: func() error {
 			ml.subscriber.Dec()
 			return nil

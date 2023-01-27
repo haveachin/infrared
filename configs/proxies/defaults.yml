@@ -100,7 +100,8 @@ defaults:
           §6Server at {{serverDomain}} is not responding.
       
       # Infrared caches the server ping response so that status pings don't spam the minecraft server.
-      # This is the Time To Live of the cache.
+      # This is the Time To Live of the cache. Set this to <=0 to disable caching.
+      # For multi version support keep this disabled.
       #
       #statusCacheTTL: 10s
 

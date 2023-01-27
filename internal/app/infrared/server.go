@@ -3,6 +3,7 @@ package infrared
 import (
 	"errors"
 	"net"
+	"sync"
 
 	"github.com/haveachin/infrared/pkg/event"
 	"github.com/haveachin/infrared/pkg/wildcard"
@@ -31,6 +32,7 @@ type ServerGatewayConfig struct {
 type ServerGateway struct {
 	ServerGatewayConfig
 
+	mu         sync.Mutex
 	reloadChan chan func()
 	quitChan   chan bool
 	gwIDSrvIDs map[string][]string
@@ -85,8 +87,10 @@ func (sg *ServerGateway) findServer(gatewayID, domain string) (Server, string) {
 }
 
 func (sg *ServerGateway) Start() {
+	sg.mu.Lock()
 	sg.reloadChan = make(chan func())
 	sg.quitChan = make(chan bool)
+	sg.mu.Unlock()
 	sg.init()
 
 	for {
@@ -109,9 +113,10 @@ func (sg *ServerGateway) Start() {
 			logger = logger.With(logServer(srv)...)
 			logger.Debug("found server")
 
-			replyChan := sg.EventBus.Request(PerPlayerJoinEvent{
-				Player: player,
-				Server: srv,
+			replyChan := sg.EventBus.Request(PrePlayerJoinEvent{
+				Player:        player,
+				Server:        srv,
+				MatchedDomain: matchedDomain,
 			}, PrePlayerJoinEventTopic)
 
 			if isEventCanceled(replyChan, logger) {
@@ -135,6 +140,9 @@ func (sg *ServerGateway) Start() {
 }
 
 func (sg *ServerGateway) Reload(cfg ServerGatewayConfig) {
+	sg.mu.Lock()
+	defer sg.mu.Unlock()
+
 	if sg.reloadChan == nil {
 		return
 	}
@@ -145,9 +153,13 @@ func (sg *ServerGateway) Reload(cfg ServerGatewayConfig) {
 }
 
 func (sg *ServerGateway) Close() error {
+	sg.mu.Lock()
+	defer sg.mu.Unlock()
+
 	if sg.quitChan == nil {
 		return errors.New("server gateway was not running")
 	}
+
 	sg.quitChan <- true
 	return nil
 }

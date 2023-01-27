@@ -15,6 +15,7 @@ import (
 
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/internal/pkg/config"
+	"github.com/haveachin/infrared/internal/pkg/java/protocol"
 )
 
 type ServerConfig struct {
@@ -320,8 +321,10 @@ func newServer(id string, cfg ServerConfig) (infrared.Server, error) {
 	}
 
 	srv.statusResponseJSONProvider = &statusResponseJSONProvider{
-		server:   srv,
-		cacheTTL: cfg.StatusCacheTTL,
+		server:              srv,
+		cacheTTL:            cfg.StatusCacheTTL,
+		statusHash:          map[protocol.Version]uint64{},
+		statusResponseCache: map[uint64]*statusCacheEntry{},
 	}
 
 	return srv, nil

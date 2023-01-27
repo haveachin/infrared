@@ -18,14 +18,14 @@ func (pk Packet) Scan(fields ...FieldDecoder) error {
 }
 
 // Marshal encodes the packet and all it's fields
-func (pk *Packet) Marshal() ([]byte, error) {
+func (pk *Packet) Marshal() []byte {
 	var packedData []byte
 	data := []byte{pk.ID}
 	data = append(data, pk.Data...)
 
 	packedData = append(packedData, VarInt(int32(len(data))).Encode()...)
 
-	return append(packedData, data...), nil
+	return append(packedData, data...)
 }
 
 // ScanFields decodes a byte stream into fields

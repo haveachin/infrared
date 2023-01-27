@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net"
 	"sync"
+	"sync/atomic"
 
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/pkg/event"
@@ -44,7 +45,7 @@ func (gw *Gateway) initListeners() {
 
 		l, err := gw.ListenersManager.Listen(listener.Bind, func(l net.Listener) {
 			pl := l.(*ProxyProtocolListener)
-			pl.active = listener.ReceiveProxyProtocol
+			pl.active.Store(listener.ReceiveProxyProtocol)
 
 			if listener.ReceiveProxyProtocol {
 				logger.Warn("receiving proxy protocol")
@@ -160,11 +161,12 @@ func (c ProxyProtocolConn) RemoteAddr() net.Addr {
 
 type ProxyProtocolListener struct {
 	net.Listener
-	active bool
+
+	active atomic.Bool
 }
 
-func (l ProxyProtocolListener) Accept() (net.Conn, error) {
-	if !l.active {
+func (l *ProxyProtocolListener) Accept() (net.Conn, error) {
+	if !l.active.Load() {
 		return l.Listener.Accept()
 	}
 

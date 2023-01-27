@@ -29,11 +29,7 @@ func TestPacket_Marshal(t *testing.T) {
 	}
 
 	for _, tc := range tt {
-		actual, err := tc.packet.Marshal()
-		if err != nil {
-			t.Error(err)
-		}
-
+		actual := tc.packet.Marshal()
 		if !bytes.Equal(actual, tc.expected) {
 			t.Errorf("got: %v; want: %v", actual, tc.expected)
 		}

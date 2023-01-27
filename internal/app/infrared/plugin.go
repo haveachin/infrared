@@ -139,7 +139,7 @@ func (pm PluginManager) LoadPlugins(cfg map[string]any) {
 	}
 }
 
-func (pm PluginManager) loadPlugin(p Plugin, cfg map[string]any) {
+func (pm PluginManager) loadPlugin(p Plugin, cfg map[string]any) error {
 	if err := p.Load(cfg); err != nil {
 		logger := pm.pluginLogger(p)
 		if errors.Is(err, ErrPluginViaConfigDisabled) {
@@ -149,19 +149,15 @@ func (pm PluginManager) loadPlugin(p Plugin, cfg map[string]any) {
 				zap.Error(err),
 			)
 		}
-		return
+		return err
 	}
 
 	pm.plugins[p] = PluginStateLoaded
+	return nil
 }
 
 func (pm *PluginManager) ReloadPlugins(cfg map[string]any) {
-	for p, s := range pm.plugins {
-		if s == PluginStateDisabled {
-			pm.loadPlugin(p, cfg)
-			return
-		}
-
+	for p := range pm.plugins {
 		pm.reloadPlugin(p, cfg)
 	}
 }

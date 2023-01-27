@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cespare/xxhash/v2"
 	"github.com/pires/go-proxyproto"
 	"golang.org/x/net/proxy"
 
@@ -15,70 +16,129 @@ import (
 	"github.com/haveachin/infrared/internal/pkg/java/protocol/status"
 )
 
+type statusCacheEntry struct {
+	expiresAt      time.Time
+	statusResponse status.ResponseJSON
+}
+
+func (e statusCacheEntry) isExpired() bool {
+	return e.expiresAt.Before(time.Now())
+}
+
 type statusResponseJSONProvider struct {
 	server *Server
 
-	mu                      sync.Mutex
-	cacheTTL                time.Duration
-	cacheSetAt              time.Time
-	statusResponseJSONCache status.ResponseJSON
+	mu                  sync.Mutex
+	cacheTTL            time.Duration
+	statusHash          map[protocol.Version]uint64
+	statusResponseCache map[uint64]*statusCacheEntry
 }
 
-func (s *statusResponseJSONProvider) isStatusCacheValid() bool {
-	return s.cacheTTL > 0 && s.cacheSetAt.Add(s.cacheTTL).After(time.Now())
-}
-
-func (s *statusResponseJSONProvider) requestNewStatusResponseJSON(p *Player) (status.ResponseJSON, error) {
+func (s *statusResponseJSONProvider) requestNewStatusResponseJSON(p *Player) (uint64, status.ResponseJSON, error) {
 	rc, err := s.server.Dial()
 	if err != nil {
-		return status.ResponseJSON{}, err
+		return 0, status.ResponseJSON{}, err
 	}
 
 	if err := s.server.prepareConns(p, rc); err != nil {
 		rc.Close()
-		return status.ResponseJSON{}, err
+		return 0, status.ResponseJSON{}, err
 	}
 
 	if err := rc.WritePackets(p.readPks...); err != nil {
-		return status.ResponseJSON{}, err
+		return 0, status.ResponseJSON{}, err
 	}
 
 	pk, err := rc.ReadPacket(status.MaxSizeClientBoundResponse)
 	if err != nil {
-		return status.ResponseJSON{}, err
+		return 0, status.ResponseJSON{}, err
 	}
 	rc.Close()
 
+	hash := xxhash.New()
+	hash.Write(pk.Marshal())
+
 	respPk, err := status.UnmarshalClientBoundResponse(pk)
 	if err != nil {
-		return status.ResponseJSON{}, err
+		return 0, status.ResponseJSON{}, err
 	}
 
 	var respJSON status.ResponseJSON
 	if err := json.Unmarshal([]byte(respPk.JSONResponse), &respJSON); err != nil {
-		return status.ResponseJSON{}, err
+		return 0, status.ResponseJSON{}, err
 	}
 
-	return respJSON, nil
+	return hash.Sum64(), respJSON, nil
 }
 
 func (s *statusResponseJSONProvider) StatusResponseJSON(p *Player) (status.ResponseJSON, error) {
+	if s.cacheTTL <= 0 {
+		_, statusResp, err := s.requestNewStatusResponseJSON(p)
+		return statusResp, err
+	}
+
+	// Prunes all expired status reponses
+	s.prune()
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if s.isStatusCacheValid() {
-		return s.statusResponseJSONCache, nil
+	protVer := protocol.Version(p.handshake.ProtocolVersion)
+	hash, ok := s.statusHash[protVer]
+	if !ok {
+		hash, newStatusResp, err := s.requestNewStatusResponseJSON(p)
+		if err != nil {
+			return status.ResponseJSON{}, err
+		}
+		s.statusHash[protVer] = hash
+
+		entry, ok := s.statusResponseCache[hash]
+		if !ok {
+			s.statusResponseCache[hash] = &statusCacheEntry{
+				expiresAt:      time.Now().Add(s.cacheTTL),
+				statusResponse: newStatusResp,
+			}
+			return newStatusResp, nil
+		}
+		return entry.statusResponse, nil
 	}
 
-	respJSON, err := s.requestNewStatusResponseJSON(p)
-	if err != nil {
-		return status.ResponseJSON{}, err
+	entry, ok := s.statusResponseCache[hash]
+	if !ok {
+		hash, newStatusResp, err := s.requestNewStatusResponseJSON(p)
+		if err != nil {
+			return status.ResponseJSON{}, err
+		}
+
+		s.statusResponseCache[hash] = &statusCacheEntry{
+			expiresAt:      time.Now().Add(s.cacheTTL),
+			statusResponse: newStatusResp,
+		}
+
+		return newStatusResp, nil
+	}
+	return entry.statusResponse, nil
+}
+
+func (s *statusResponseJSONProvider) prune() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	expiredHashes := []uint64{}
+	for hash, entry := range s.statusResponseCache {
+		if entry.isExpired() {
+			delete(s.statusResponseCache, hash)
+			expiredHashes = append(expiredHashes, hash)
+		}
 	}
 
-	s.statusResponseJSONCache = respJSON
-	s.cacheSetAt = time.Now()
-
-	return respJSON, nil
+	for protVer, hash := range s.statusHash {
+		for _, expiredHash := range expiredHashes {
+			if hash == expiredHash {
+				delete(s.statusHash, protVer)
+			}
+		}
+	}
 }
 
 type StatusResponseJSONProvider interface {
