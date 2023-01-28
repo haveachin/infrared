@@ -161,11 +161,13 @@ func (c *Conn) ForceClose() error {
 
 type Player struct {
 	Conn
-	readPks    []protocol.Packet
-	handshake  handshaking.ServerBoundHandshake
-	remoteAddr net.Addr
-	serverAddr string
-	username   string
+	readPks       []protocol.Packet
+	handshake     handshaking.ServerBoundHandshake
+	remoteAddr    net.Addr
+	requestedAddr string
+	username      string
+	matchedAddr   string
+	serverID      string
 }
 
 func (p Player) Version() infrared.Version {
@@ -180,8 +182,20 @@ func (p Player) Username() string {
 	return p.username
 }
 
-func (p Player) ServerAddr() string {
-	return p.serverAddr
+func (p Player) ServerID() string {
+	return p.serverID
+}
+
+func (p Player) RequestedAddr() string {
+	return p.requestedAddr
+}
+
+func (p Player) MatchedAddr() string {
+	return p.matchedAddr
+}
+
+func (p *Player) SetMatchedAddr(addr string) {
+	p.matchedAddr = addr
 }
 
 func (p Player) IsLoginRequest() bool {

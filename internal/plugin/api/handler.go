@@ -9,43 +9,12 @@ import (
 	"github.com/haveachin/infrared/internal/app/infrared"
 )
 
-type errorDTO struct {
-	Message string `json:"message"`
-}
-
-func newErrorDTO(err error) errorDTO {
-	return errorDTO{
-		Message: err.Error(),
-	}
-}
-
-type getPlayersRequestDTO struct {
-	UsernameRegex string `schema:"usernameRegex"`
-}
-
-type playerDTO struct {
-	Username   string `json:"username"`
-	GatewayID  string `json:"gatewayId"`
-	RemoteAddr string `json:"remoteAddress"`
-	LocalAddr  string `json:"localAddress"`
-}
-
-func newPlayerDTO(p infrared.Player) playerDTO {
-	return playerDTO{
-		Username:   p.Username(),
-		GatewayID:  p.GatewayID(),
-		RemoteAddr: p.RemoteAddr().String(),
-		LocalAddr:  p.LocalAddr().String(),
-	}
-}
-
 func getPlayerHandler(api infrared.API) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		editionString := chi.URLParam(r, "edition")
 		edition, err := infrared.EditionFromString(editionString)
 		if err != nil {
-			render.Status(r, http.StatusUnprocessableEntity)
-			render.JSON(w, r, newErrorDTO(err))
+			http.Error(w, err.Error(), http.StatusUnprocessableEntity)
 			return
 		}
 
@@ -56,41 +25,73 @@ func getPlayerHandler(api infrared.API) http.HandlerFunc {
 			return
 		}
 
-		render.JSON(w, r, newPlayerDTO(player))
+		dto := struct {
+			Username      string `json:"username"`
+			GatewayID     string `json:"gatewayId"`
+			RemoteAddr    string `json:"remoteAddress"`
+			LocalAddr     string `json:"localAddress"`
+			Version       string `json:"version"`
+			ServerID      string `json:"serverId"`
+			ServerAddr    string `json:"serverAddress"`
+			RequestedAddr string `json:"requestedAddress"`
+		}{
+			Username:      player.Username(),
+			GatewayID:     player.GatewayID(),
+			RemoteAddr:    player.RemoteAddr().String(),
+			LocalAddr:     player.LocalAddr().String(),
+			Version:       player.Version().Name(),
+			ServerID:      player.ServerID(),
+			ServerAddr:    player.MatchedAddr(),
+			RequestedAddr: player.RequestedAddr(),
+		}
+
+		render.JSON(w, r, dto)
 	}
 }
 
 func getPlayersHandler(api infrared.API) http.HandlerFunc {
 	decoder := schema.NewDecoder()
 	return func(w http.ResponseWriter, r *http.Request) {
-		var requestDTO getPlayersRequestDTO
-		if err := decoder.Decode(&requestDTO, r.URL.Query()); err != nil {
-			render.Status(r, http.StatusBadRequest)
-			render.JSON(w, r, newErrorDTO(err))
+		reqDTO := &struct {
+			UsernameRegex string `schema:"usernameRegex"`
+		}{}
+
+		if err := decoder.Decode(reqDTO, r.URL.Query()); err != nil {
+			http.Error(w, err.Error(), http.StatusUnprocessableEntity)
 			return
 		}
 
 		editionString := chi.URLParam(r, "edition")
 		edition, err := infrared.EditionFromString(editionString)
 		if err != nil {
-			render.Status(r, http.StatusUnprocessableEntity)
-			render.JSON(w, r, newErrorDTO(err))
+			http.Error(w, err.Error(), http.StatusUnprocessableEntity)
 			return
 		}
 
-		players, err := api.Players(requestDTO.UsernameRegex, edition)
+		players, err := api.Players(reqDTO.UsernameRegex, edition)
 		if err != nil {
-			render.Status(r, http.StatusUnprocessableEntity)
-			render.JSON(w, r, newErrorDTO(err))
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 
-		playerDTOs := make([]playerDTO, len(players))
-		for i, p := range players {
-			playerDTOs[i] = newPlayerDTO(p)
+		type respDTO struct {
+			Username   string `json:"username"`
+			RemoteAddr string `json:"remoteAddress"`
+			GatewayID  string `json:"gatewayId"`
+			ServerID   string `json:"serverId"`
 		}
 
-		render.JSON(w, r, playerDTOs)
+		respDTOs := make([]respDTO, len(players))
+		for i, p := range players {
+			respDTOs[i] = respDTO{
+				Username:   p.Username(),
+				RemoteAddr: p.RemoteAddr().String(),
+				GatewayID:  p.GatewayID(),
+				ServerID:   p.ServerID(),
+			}
+		}
+
+		render.JSON(w, r, respDTOs)
 	}
 }
 
@@ -99,8 +100,7 @@ func deletePlayerHandler(api infrared.API) http.HandlerFunc {
 		editionString := chi.URLParam(r, "edition")
 		edition, err := infrared.EditionFromString(editionString)
 		if err != nil {
-			render.Status(r, http.StatusUnprocessableEntity)
-			render.JSON(w, r, newErrorDTO(err))
+			http.Error(w, err.Error(), http.StatusUnprocessableEntity)
 			return
 		}
 
@@ -110,8 +110,8 @@ func deletePlayerHandler(api infrared.API) http.HandlerFunc {
 			w.WriteHeader(http.StatusNotFound)
 			return
 		}
-
 		player.Close()
+
 		w.WriteHeader(http.StatusNoContent)
 	}
 }

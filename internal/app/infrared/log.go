@@ -26,7 +26,7 @@ func logProcessedConn(pc Player) []zap.Field {
 		zap.String("connNetwork", pc.LocalAddr().Network()),
 		zap.String("connLocalAddr", pc.LocalAddr().String()),
 		zap.String("connRemoteAddr", pc.RemoteAddr().String()),
-		zap.String("requestedServerAddr", pc.ServerAddr()),
+		zap.String("requestedServerAddr", pc.MatchedAddr()),
 		zap.String("username", pc.Username()),
 		zap.String("gatewayId", pc.GatewayID()),
 		zap.Bool("isLoginRequest", pc.IsLoginRequest()),

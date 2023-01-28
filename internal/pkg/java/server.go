@@ -192,6 +192,7 @@ func (s Server) Dial() (*Conn, error) {
 
 func (s Server) HandleConn(c net.Conn) (infrared.Conn, error) {
 	player := c.(*Player)
+	player.serverID = s.id
 	rc, err := s.Dial()
 	if err != nil {
 		if err := s.handleDialTimeout(player); err != nil {

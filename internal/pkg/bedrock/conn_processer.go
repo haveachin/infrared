@@ -55,8 +55,8 @@ func (cp ConnProcessor) ProcessConn(c net.Conn) (net.Conn, error) {
 		return nil, err
 	}
 
-	if strings.Contains(player.serverAddr, ":") {
-		player.serverAddr, _, err = net.SplitHostPort(player.serverAddr)
+	if strings.Contains(player.requestedAddr, ":") {
+		player.requestedAddr, _, err = net.SplitHostPort(player.requestedAddr)
 		if err != nil {
 			return nil, err
 		}
@@ -116,6 +116,6 @@ func handleLogin(player *Player, pkData packet.Data) error {
 		return err
 	}
 	player.username = iData.DisplayName
-	player.serverAddr = cData.ServerAddress
+	player.requestedAddr = cData.ServerAddress
 	return nil
 }

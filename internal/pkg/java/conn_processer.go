@@ -38,9 +38,9 @@ func (cp ConnProcessor) ProcessConn(c net.Conn) (net.Conn, error) {
 	}
 	player.handshake = hs
 
-	player.serverAddr = hs.ParseServerAddress()
-	if strings.Contains(player.serverAddr, ":") {
-		player.serverAddr, _, err = net.SplitHostPort(player.serverAddr)
+	player.requestedAddr = hs.ParseServerAddress()
+	if strings.Contains(player.requestedAddr, ":") {
+		player.requestedAddr, _, err = net.SplitHostPort(player.requestedAddr)
 		if err != nil {
 			return nil, err
 		}

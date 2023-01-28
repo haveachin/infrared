@@ -52,6 +52,7 @@ func (s Server) Dial() (*Conn, error) {
 
 func (s Server) HandleConn(c net.Conn) (infrared.Conn, error) {
 	player := c.(*Player)
+	player.serverID = s.id
 
 	if s.sendProxyProtocol {
 		s.dialer.UpstreamDialer = &proxyProtocolDialer{

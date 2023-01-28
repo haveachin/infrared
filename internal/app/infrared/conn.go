@@ -61,9 +61,12 @@ type Player interface {
 	Conn
 	// Username returns the username of the connecting player
 	Username() string
-	// ServerAddr returns the exact Server Address string
-	// that the client send to the server
-	ServerAddr() string
+	// RequestedAddr returns the exact Server Address string that the client send to the server
+	RequestedAddr() string
+	// MatchedAddr returns the address of the server the player joined
+	MatchedAddr() string
+	// ServerAddr sets the address of the server the player joined
+	SetMatchedAddr(string)
 	// DisconnectServerNotFound disconnects the client when the server is not found
 	DisconnectServerNotFound() error
 	// IsLoginRequest returns true if the client wants to log into the server, false if they don't
@@ -72,6 +75,8 @@ type Player interface {
 	RemoteIP() net.IP
 	// Version returns Minecraft Version
 	Version() Version
+	// ServerID returns the ID of the server that the player joined
+	ServerID() string
 }
 
 type PlayerDisconnecter interface {
@@ -127,7 +132,7 @@ func PlayerMessageTemplates(p Player) map[string]string {
 		"username":       p.Username(),
 		"remoteAddress":  p.RemoteAddr().String(),
 		"localAddress":   p.LocalAddr().String(),
-		"serverDomain":   p.ServerAddr(),
+		"serverDomain":   p.MatchedAddr(),
 		"gatewayId":      p.GatewayID(),
 		"versionName":    p.Version().Name(),
 		"protocolNumber": strconv.Itoa(int(p.Version().ProtocolNumber())),

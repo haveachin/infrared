@@ -147,7 +147,7 @@ func unmarshalConn(data *eventData, c infrared.Conn) {
 
 func unmarshalProcessedConn(data *eventData, pc infrared.Player) {
 	unmarshalConn(data, pc)
-	data.Server.ServerAddr = pc.ServerAddr()
+	data.Server.ServerAddr = pc.MatchedAddr()
 	data.Conn.Username = pc.Username()
 	var isLoginRequest = pc.IsLoginRequest()
 	data.IsLoginRequest = &isLoginRequest

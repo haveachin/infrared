@@ -100,7 +100,9 @@ func (v Version) Name() string {
 type Player struct {
 	Conn
 	remoteAddr    net.Addr
-	serverAddr    string
+	requestedAddr string
+	matchedAddr   string
+	serverID      string
 	username      string
 	proxyProtocol bool
 	version       int32
@@ -121,8 +123,20 @@ func (p Player) Username() string {
 	return p.username
 }
 
-func (p Player) ServerAddr() string {
-	return p.serverAddr
+func (p Player) ServerID() string {
+	return p.serverID
+}
+
+func (p Player) RequestedAddr() string {
+	return p.requestedAddr
+}
+
+func (p Player) MatchedAddr() string {
+	return p.matchedAddr
+}
+
+func (p *Player) SetMatchedAddr(addr string) {
+	p.matchedAddr = addr
 }
 
 func (p Player) IsLoginRequest() bool {

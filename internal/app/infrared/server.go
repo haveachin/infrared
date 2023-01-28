@@ -103,12 +103,13 @@ func (sg *ServerGateway) Start() {
 			logger := sg.Logger.With(logProcessedConn(player)...)
 			logger.Debug("looking up server address")
 
-			srv, matchedDomain := sg.findServer(player.GatewayID(), player.ServerAddr())
+			srv, matchedDomain := sg.findServer(player.GatewayID(), player.MatchedAddr())
 			if srv == nil {
 				logger.Info("failed to find server; disconnecting client")
 				_ = player.DisconnectServerNotFound()
 				continue
 			}
+			player.SetMatchedAddr(matchedDomain)
 
 			logger = logger.With(logServer(srv)...)
 			logger.Debug("found server")

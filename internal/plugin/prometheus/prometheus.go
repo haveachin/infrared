@@ -151,20 +151,20 @@ func (p Plugin) handleEvent(e event.Event) {
 			requestType = "login"
 		}
 		p.handshakeCount.With(prometheus.Labels{
-			"requested_domain": e.Player.ServerAddr(),
+			"requested_domain": e.Player.RequestedAddr(),
 			"request_type":     requestType,
 			"edition":          e.Player.Edition().String(),
 		}).Inc()
 	case infrared.PlayerJoinEvent:
 		p.playersConnected.With(prometheus.Labels{
-			"requested_domain": e.Player.ServerAddr(),
+			"requested_domain": e.Player.RequestedAddr(),
 			"matched_domain":   e.MatchedDomain,
 			"server_id":        e.Server.ID(),
 			"edition":          e.Player.Edition().String(),
 		}).Inc()
 	case infrared.PlayerLeaveEvent:
 		p.playersConnected.With(prometheus.Labels{
-			"requested_domain": e.Player.ServerAddr(),
+			"requested_domain": e.Player.RequestedAddr(),
 			"matched_domain":   e.MatchedDomain,
 			"server_id":        e.Server.ID(),
 			"edition":          e.Player.Edition().String(),
