@@ -129,13 +129,14 @@ func TimeMessageTemplates() map[string]string {
 
 func PlayerMessageTemplates(p Player) map[string]string {
 	return map[string]string{
-		"username":       p.Username(),
-		"remoteAddress":  p.RemoteAddr().String(),
-		"localAddress":   p.LocalAddr().String(),
-		"serverDomain":   p.MatchedAddr(),
-		"gatewayId":      p.GatewayID(),
-		"versionName":    p.Version().Name(),
-		"protocolNumber": strconv.Itoa(int(p.Version().ProtocolNumber())),
+		"username":         p.Username(),
+		"remoteAddress":    p.RemoteAddr().String(),
+		"localAddress":     p.LocalAddr().String(),
+		"matchedAddress":   p.MatchedAddr(),
+		"requestedAddress": p.RequestedAddr(),
+		"gatewayId":        p.GatewayID(),
+		"versionName":      p.Version().Name(),
+		"protocolNumber":   strconv.Itoa(int(p.Version().ProtocolNumber())),
 	}
 }
 

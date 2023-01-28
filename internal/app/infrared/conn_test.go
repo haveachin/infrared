@@ -29,9 +29,9 @@ func TestExecuteMessageTemplate(t *testing.T) {
 			msg:  "ip:port",
 		},
 		{
-			name: "ServerDomain",
-			tmpl: "{{serverDomain}}",
-			msg:  "serverAddr",
+			name: "MatchedAddress",
+			tmpl: "{{matchedAddress}}",
+			msg:  "matchedAddr",
 		},
 		{
 			name: "GatewayID",
