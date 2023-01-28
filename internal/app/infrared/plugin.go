@@ -4,6 +4,7 @@ import (
 	"errors"
 	"regexp"
 
+	"github.com/haveachin/infrared/internal/pkg/config"
 	"github.com/haveachin/infrared/pkg/event"
 	"go.uber.org/zap"
 )
@@ -29,6 +30,7 @@ type PluginAPI interface {
 	API
 
 	EventBus() event.Bus
+	Config() config.Config
 	Logger() *zap.Logger
 }
 
@@ -49,6 +51,10 @@ type pluginAPI struct {
 
 func (api pluginAPI) EventBus() event.Bus {
 	return api.pm.EventBus
+}
+
+func (api pluginAPI) Config() config.Config {
+	return api.pm.Config
 }
 
 func (api pluginAPI) Logger() *zap.Logger {
@@ -112,6 +118,7 @@ type PluginManager struct {
 	Proxies  map[Edition]Proxy
 	Logger   *zap.Logger
 	EventBus event.Bus
+	Config   config.Config
 
 	plugins map[Plugin]PluginState
 }

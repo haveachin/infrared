@@ -28,6 +28,7 @@ type Plugin struct {
 	logger   *zap.Logger
 	eventBus event.Bus
 	api      infrared.API
+	cfgAPI   config.Config
 
 	quit chan bool
 }
@@ -81,6 +82,7 @@ func (p *Plugin) Enable(api infrared.PluginAPI) error {
 	p.logger = api.Logger()
 	p.eventBus = api.EventBus()
 	p.api = api
+	p.cfgAPI = api.Config()
 	p.quit = make(chan bool)
 
 	go p.startAPIServer()
@@ -109,6 +111,13 @@ func (p Plugin) startAPIServer() {
 		r.Get("/{username}", getPlayerHandler(p.api))
 		r.Get("/", getPlayersHandler(p.api))
 		r.Delete("/{username}", deletePlayerHandler(p.api))
+	})
+
+	r.Route("/configs", func(r chi.Router) {
+		r.Get("/{configID}", getConfig(p.cfgAPI))
+		r.Get("/", getConfigs(p.cfgAPI))
+		r.Put("/{configID}", putConfig())
+		r.Delete("/{configID}", deleteConfig())
 	})
 
 	srv := http.Server{

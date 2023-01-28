@@ -3,7 +3,7 @@
 webhook:
   # Enables the plugin
   #
-  #enable: true
+  enable: false
   
   # A map of webhook configurations
   #

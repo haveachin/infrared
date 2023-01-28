@@ -102,6 +102,7 @@ var (
 				Proxies:  proxies,
 				Logger:   logger,
 				EventBus: eventBus,
+				Config:   cfg,
 			}
 			pluginManager.RegisterPlugin(&webhook.Plugin{})
 			pluginManager.RegisterPlugin(&prometheus.Plugin{})

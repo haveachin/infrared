@@ -101,9 +101,8 @@ defaults:
       
       # Infrared caches the server ping response so that status pings don't spam the minecraft server.
       # This is the Time To Live of the cache. Set this to <=0 to disable caching.
-      # For multi version support keep this disabled.
       #
-      #statusCacheTTL: 10s
+      statusCacheTTL: 10s
 
 java:
   # Channel Capacity (ChanCap) is the capacity of a single channel

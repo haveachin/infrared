@@ -21,20 +21,20 @@ type DockerConfig struct {
 	Watch         bool          `mapstructure:"watch"`
 }
 
-type docker struct {
+type Docker struct {
 	DockerConfig
 	client *client.Client
 	logger *zap.Logger
 }
 
 func NewDocker(cfg DockerConfig, logger *zap.Logger) Provider {
-	return &docker{
+	return &Docker{
 		DockerConfig: cfg,
 		logger:       logger,
 	}
 }
 
-func (p *docker) Provide(dataCh chan<- Data) (Data, error) {
+func (p *Docker) Provide(dataCh chan<- Data) (Data, error) {
 	if p.Endpoint == "" {
 		return Data{}, nil
 	}
@@ -49,7 +49,7 @@ func (p *docker) Provide(dataCh chan<- Data) (Data, error) {
 	}
 	p.client = cli
 
-	data, err := p.readConfigData()
+	cfg, err := p.readConfigData()
 	if err != nil {
 		return Data{}, err
 	}
@@ -59,16 +59,27 @@ func (p *docker) Provide(dataCh chan<- Data) (Data, error) {
 			if err := p.watch(dataCh); err != nil {
 				p.logger.Error("failed while watching provider",
 					zap.Error(err),
-					zap.String("provider", data.Type.String()),
+					zap.String("provider", DockerType.String()),
 				)
 			}
 		}()
 	}
 
-	return data, nil
+	return Data{
+		Type:   DockerType,
+		Config: cfg,
+	}, nil
 }
 
-func (p docker) readConfigData() (Data, error) {
+func (p Docker) Config() (map[string]any, error) {
+	if p.client == nil {
+		return nil, nil
+	}
+
+	return p.readConfigData()
+}
+
+func (p Docker) readConfigData() (map[string]any, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), p.ClientTimeout)
 	defer cancel()
 	containers, err := p.client.ContainerList(ctx, types.ContainerListOptions{
@@ -78,10 +89,10 @@ func (p docker) readConfigData() (Data, error) {
 		}),
 	})
 	if err != nil {
-		return Data{}, err
+		return nil, err
 	}
 
-	data := map[string]any{}
+	cfg := map[string]any{}
 	for _, container := range containers {
 		for key, value := range container.Labels {
 			if !strings.HasPrefix(key, p.LabelPrefix) {
@@ -92,17 +103,13 @@ func (p docker) readConfigData() (Data, error) {
 
 			if strings.HasPrefix(value, "[") {
 				value = strings.Trim(value, "[]")
-				setNestedValue(data, key, strings.Split(value, ","))
+				setNestedValue(cfg, key, strings.Split(value, ","))
 			} else {
-				setNestedValue(data, key, value)
+				setNestedValue(cfg, key, value)
 			}
 		}
 	}
-
-	return Data{
-		Type:   DockerType,
-		Config: data,
-	}, nil
+	return cfg, nil
 }
 
 func setNestedValue(m map[string]any, nestedKey string, value any) {
@@ -118,7 +125,7 @@ func setNestedValue(m map[string]any, nestedKey string, value any) {
 	m[keys[len(keys)-1]] = value
 }
 
-func (p docker) watch(dataCh chan<- Data) error {
+func (p Docker) watch(dataCh chan<- Data) error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	events, errs := p.client.Events(ctx, types.EventsOptions{
@@ -131,7 +138,7 @@ func (p docker) watch(dataCh chan<- Data) error {
 	for {
 		select {
 		case e := <-events:
-			data, err := p.readConfigData()
+			cfg, err := p.readConfigData()
 			if err != nil {
 				p.logger.Info("failed to read data", zap.Error(err))
 				continue
@@ -140,7 +147,10 @@ func (p docker) watch(dataCh chan<- Data) error {
 			if e.Action == "start" ||
 				e.Action == "die" ||
 				strings.HasPrefix(e.Action, "health_status") {
-				dataCh <- data
+				dataCh <- Data{
+					Type:   DockerType,
+					Config: cfg,
+				}
 			}
 		case err := <-errs:
 			if errors.Is(err, io.EOF) {
@@ -151,7 +161,7 @@ func (p docker) watch(dataCh chan<- Data) error {
 	}
 }
 
-func (p docker) Close() error {
+func (p Docker) Close() error {
 	if p.client != nil {
 		if err := p.client.Close(); err != nil {
 			return err

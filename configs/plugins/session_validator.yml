@@ -3,7 +3,7 @@
 sessionValidator:
   # Enables the plugin
   #
-  #enable: true
+  enable: false
 
   # A map of session validator configurations
   #

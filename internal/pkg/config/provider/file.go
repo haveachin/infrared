@@ -1,9 +1,9 @@
 package provider
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -31,8 +31,8 @@ type FileConfig struct {
 	Files       []fileConfig      `mapstructure:"files"`
 }
 
-type file struct {
-	FileConfig
+type File struct {
+	config    FileConfig
 	watcher   *atomic.Value[*fsnotify.Watcher]
 	logger    *zap.Logger
 	watchDirs []string
@@ -52,15 +52,15 @@ func NewFile(cfg FileConfig, logger *zap.Logger) Provider {
 		}
 	}
 
-	return &file{
-		FileConfig: cfg,
-		watcher:    atomic.NewValue[*fsnotify.Watcher](nil),
-		logger:     logger,
-		watchDirs:  watchDirs,
+	return &File{
+		config:    cfg,
+		watcher:   atomic.NewValue[*fsnotify.Watcher](nil),
+		logger:    logger,
+		watchDirs: watchDirs,
 	}
 }
 
-func (p *file) Provide(dataCh chan<- Data) (Data, error) {
+func (p *File) Provide(dataCh chan<- Data) (Data, error) {
 	data, err := p.readConfigData()
 	if err != nil && len(p.watchDirs) <= 0 {
 		return Data{}, err
@@ -80,7 +80,24 @@ func (p *file) Provide(dataCh chan<- Data) (Data, error) {
 	return data, nil
 }
 
-func (p *file) watch(dataCh chan<- Data) error {
+// Configs returns a map with the relative file name as key and the config map as value
+func (p File) Configs() map[string]map[string]any {
+	cfgs := map[string]map[string]any{}
+	for _, filePath := range p.filePaths() {
+		cfg := map[string]any{}
+		if err := ReadConfigFile(filePath, &cfg); err != nil {
+			p.logger.Error("failed to read config from file",
+				zap.Error(err),
+				zap.String("path", filePath),
+			)
+			continue
+		}
+		cfgs[filePath] = cfg
+	}
+	return cfgs
+}
+
+func (p *File) watch(dataCh chan<- Data) error {
 	if p.watcher.Load() != nil {
 		return errors.New("already watching")
 	}
@@ -134,7 +151,7 @@ func (p *file) watch(dataCh chan<- Data) error {
 	}
 }
 
-func (p file) Close() error {
+func (p File) Close() error {
 	if p.watcher != nil {
 		if err := p.watcher.Load().Close(); err != nil {
 			return err
@@ -143,22 +160,41 @@ func (p file) Close() error {
 	return nil
 }
 
-func (p file) readConfigData() (Data, error) {
-	cfg := map[string]any{}
-	for _, dirCfg := range p.Directories {
-		if err := readConfigsFromDir(dirCfg.Directory, &cfg); err != nil {
+func (p File) filePaths() []string {
+	filePaths := []string{}
+	for _, dirCfg := range p.config.Directories {
+		paths, err := filePathsFromDir(dirCfg.Directory)
+		if err != nil {
 			p.logger.Error("failed to read config from directory",
 				zap.Error(err),
 				zap.String("directory", dirCfg.Directory),
 			)
 		}
+		filePaths = append(filePaths, paths...)
 	}
 
-	for _, fileDir := range p.Files {
-		if err := ReadConfigFile(fileDir.File, &cfg); err != nil {
+	for _, fileDir := range p.config.Files {
+		filePaths = append(filePaths, fileDir.File)
+	}
+	return filePaths
+}
+
+func (p File) readConfigData() (Data, error) {
+	cfg := map[string]any{}
+	for _, filePath := range p.filePaths() {
+		fileCfg := map[string]any{}
+		if err := ReadConfigFile(filePath, &fileCfg); err != nil {
 			p.logger.Error("failed to read config from file",
 				zap.Error(err),
-				zap.String("directory", fileDir.File),
+				zap.String("path", filePath),
+			)
+			continue
+		}
+
+		if err := mergo.Merge(&cfg, fileCfg, mergo.WithOverride); err != nil {
+			p.logger.Error("failed to merge configs",
+				zap.Error(err),
+				zap.String("path", filePath),
 			)
 		}
 	}
@@ -169,19 +205,20 @@ func (p file) readConfigData() (Data, error) {
 	}, nil
 }
 
-func readConfigsFromDir(dir string, v any) error {
+func filePathsFromDir(dir string) ([]string, error) {
 	fi, err := os.Lstat(dir)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	if fi.Mode()&os.ModeSymlink == os.ModeSymlink {
 		dir, err = os.Readlink(dir)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
+	filePaths := []string{}
 	readConfig := func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -207,15 +244,11 @@ func readConfigsFromDir(dir string, v any) error {
 			}
 		}
 
-		cfgData := map[string]any{}
-		if err := ReadConfigFile(path, &cfgData); err != nil {
-			return fmt.Errorf("could not read %s; %v", path, err)
-		}
-
-		return mergo.Merge(v, cfgData, mergo.WithOverride)
+		filePaths = append(filePaths, path)
+		return nil
 	}
 
-	return filepath.WalkDir(dir, readConfig)
+	return filePaths, filepath.WalkDir(dir, readConfig)
 }
 
 func ReadConfigFile(name string, v any) error {
@@ -255,4 +288,59 @@ func ReadConfigFile(name string, v any) error {
 		return errors.New("unsupported file type")
 	}
 	return nil
+}
+
+func WriteConfigFile(path string, cfg map[string]any) error {
+	dir, file := filepath.Split(path)
+	fi, err := os.Lstat(dir)
+	if err != nil {
+		return err
+	}
+
+	if fi.Mode()&os.ModeSymlink == os.ModeSymlink {
+		dir, err = os.Readlink(dir)
+		if err != nil {
+			return err
+		}
+	}
+	path = filepath.Join(dir, file)
+
+	var bb []byte
+	switch ext := filepath.Ext(file)[1:]; ext {
+	case "json":
+		bb, err = json.MarshalIndent(cfg, "", "  ")
+		if err != nil {
+			return err
+		}
+	case "yml", "yaml":
+		buf := bytes.NewBuffer([]byte{})
+		enc := yaml.NewEncoder(buf)
+		enc.SetIndent(2)
+		if err := enc.Encode(cfg); err != nil {
+			return err
+		}
+		enc.Close()
+		bb = buf.Bytes()
+	default:
+		return errors.New("unsupported file type")
+	}
+
+	return os.WriteFile(path, bb, 0666)
+}
+
+func RemoveConfigFile(path string) error {
+	dir, file := filepath.Split(path)
+	fi, err := os.Lstat(dir)
+	if err != nil {
+		return err
+	}
+
+	if fi.Mode()&os.ModeSymlink == os.ModeSymlink {
+		dir, err = os.Readlink(dir)
+		if err != nil {
+			return err
+		}
+	}
+	path = filepath.Join(dir, file)
+	return os.Remove(path)
 }

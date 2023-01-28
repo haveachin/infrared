@@ -3,7 +3,7 @@
 trafficLimiter:
   # Enables the plugin
   #
-  #enable: true
+  enable: false
   
   # A map of traffic limiter configurations
   #

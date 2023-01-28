@@ -18,19 +18,21 @@ type baseConfig struct {
 }
 
 type config struct {
-	baseConfig
+	config baseConfig
 	logger *zap.Logger
 
 	dataChan chan provider.Data
 	onChange OnChange
 
 	mu           sync.RWMutex
+	providers    map[provider.Type]provider.Provider
 	providerData map[provider.Type]map[string]any
 }
 
 type OnChange func(newConfig map[string]any)
 
 type Config interface {
+	Providers() map[provider.Type]provider.Provider
 	Read() (map[string]any, error)
 }
 
@@ -50,21 +52,20 @@ func New(path string, onChange OnChange, logger *zap.Logger) (Config, error) {
 	}
 
 	cfg := config{
-		baseConfig: providerCfg,
-		logger:     logger,
-		dataChan:   make(chan provider.Data),
-		onChange:   onChange,
+		config:   providerCfg,
+		logger:   logger,
+		dataChan: make(chan provider.Data),
+		onChange: onChange,
+		providers: map[provider.Type]provider.Provider{
+			provider.FileType:   provider.NewFile(providerCfg.Providers.File, logger),
+			provider.DockerType: provider.NewDocker(providerCfg.Providers.Docker, logger),
+		},
 		providerData: map[provider.Type]map[string]any{
 			provider.ConfigType: configMap,
 		},
 	}
 
-	providers := []provider.Provider{
-		provider.NewFile(cfg.Providers.File, logger),
-		provider.NewDocker(cfg.Providers.Docker, logger),
-	}
-
-	for _, prov := range providers {
+	for _, prov := range cfg.providers {
 		data, err := prov.Provide(cfg.dataChan)
 		if err != nil {
 			logger.Fatal("failed to provide config data",
@@ -103,6 +104,17 @@ func (c *config) listenToProviders() {
 		}
 		c.onChange(cfg)
 	}
+}
+
+func (c *config) Providers() map[provider.Type]provider.Provider {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	providersCopy := map[provider.Type]provider.Provider{}
+	for k, v := range c.providers {
+		providersCopy[k] = v
+	}
+	return providersCopy
 }
 
 func (c *config) Read() (map[string]any, error) {

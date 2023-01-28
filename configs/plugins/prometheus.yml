@@ -3,7 +3,7 @@
 prometheus:
   # Enables the plugin
   #
-  #enable: true
+  enable: false
   
   # The address that the server binds to
   #

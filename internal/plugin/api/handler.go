@@ -1,12 +1,16 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
+	"net/url"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/gorilla/schema"
 	"github.com/haveachin/infrared/internal/app/infrared"
+	"github.com/haveachin/infrared/internal/pkg/config"
+	"github.com/haveachin/infrared/internal/pkg/config/provider"
 )
 
 func getPlayerHandler(api infrared.API) http.HandlerFunc {
@@ -111,6 +115,90 @@ func deletePlayerHandler(api infrared.API) http.HandlerFunc {
 			return
 		}
 		player.Close()
+
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func getConfig(cfg config.Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		configID := chi.URLParam(r, "configID")
+		configPath, err := url.PathUnescape(configID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		cfg := map[string]any{}
+		if err := provider.ReadConfigFile(configPath, cfg); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		render.JSON(w, r, cfg)
+	}
+}
+
+func getConfigs(cfg config.Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		prov := cfg.Providers()
+		fileProv := prov[provider.FileType].(*provider.File)
+		dockerProv := prov[provider.DockerType].(*provider.Docker)
+		dockerCfg, err := dockerProv.Config()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		dto := struct {
+			File   map[string]map[string]any `json:"file,omitempty"`
+			Docker map[string]any            `json:"docker,omitempty"`
+		}{
+			File:   fileProv.Configs(),
+			Docker: dockerCfg,
+		}
+
+		render.JSON(w, r, dto)
+	}
+}
+
+func putConfig() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		configID := chi.URLParam(r, "configID")
+		configPath, err := url.PathUnescape(configID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		cfg := map[string]any{}
+		if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
+			http.Error(w, err.Error(), http.StatusUnprocessableEntity)
+			return
+		}
+
+		if err := provider.WriteConfigFile(configPath, cfg); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func deleteConfig() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		configID := chi.URLParam(r, "configID")
+		configPath, err := url.PathUnescape(configID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		if err := provider.RemoveConfigFile(configPath); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
 		w.WriteHeader(http.StatusNoContent)
 	}
