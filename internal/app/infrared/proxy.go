@@ -208,7 +208,7 @@ func (p *proxy) Reload(cfg ProxyConfig) error {
 		gw.SetLogger(p.logger)
 		go ListenAndServe(gw, p.cpnCh)
 	}
-	//p.listenersManager.prune()
+	p.listenersManager.prune()
 
 	return nil
 }

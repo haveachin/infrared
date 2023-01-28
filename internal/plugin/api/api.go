@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"time"
 
@@ -42,9 +43,11 @@ func (p Plugin) Version() string {
 func (p *Plugin) Init() {}
 
 func (p *Plugin) Load(cfg map[string]any) error {
-	if err := config.Unmarshal(cfg, &p.Config); err != nil {
+	pluginCfg := PluginConfig{}
+	if err := config.Unmarshal(cfg, &pluginCfg); err != nil {
 		return err
 	}
+	p.Config = pluginCfg
 
 	if !p.Config.API.Enable {
 		return infrared.ErrPluginViaConfigDisabled
@@ -114,7 +117,7 @@ func (p Plugin) startAPIServer() {
 	}
 
 	go func() {
-		if err := srv.ListenAndServe(); err != nil {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			p.logger.Error("failed to start server", zap.Error(err))
 			return
 		}

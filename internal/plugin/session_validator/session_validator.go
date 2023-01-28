@@ -41,9 +41,11 @@ func (p *Plugin) Init() {
 }
 
 func (p *Plugin) Load(cfg map[string]any) error {
-	if err := config.Unmarshal(cfg, &p.config); err != nil {
+	pluginCfg := PluginConfig{}
+	if err := config.Unmarshal(cfg, &pluginCfg); err != nil {
 		return err
 	}
+	p.config = pluginCfg
 
 	if !p.config.SessionValidator.Enable {
 		return infrared.ErrPluginViaConfigDisabled
@@ -68,10 +70,6 @@ func (p *Plugin) Load(cfg map[string]any) error {
 }
 
 func (p *Plugin) Reload(cfg map[string]any) error {
-	if p.eventBus == nil {
-		return errors.New("")
-	}
-
 	if err := p.Load(cfg); err != nil {
 		return err
 	}

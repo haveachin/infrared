@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/haveachin/infrared/internal/app/infrared"
@@ -65,9 +64,11 @@ func (p *Plugin) Init() {
 }
 
 func (p *Plugin) Load(cfg map[string]any) error {
-	if err := config.Unmarshal(cfg, &p.Config); err != nil {
+	pluginCfg := PluginConfig{}
+	if err := config.Unmarshal(cfg, &pluginCfg); err != nil {
 		return err
 	}
+	p.Config = pluginCfg
 
 	if !p.Config.Prometheus.Enable {
 		return infrared.ErrPluginViaConfigDisabled
@@ -107,12 +108,10 @@ func (p *Plugin) Enable(api infrared.PluginAPI) error {
 	return nil
 }
 
-func (p Plugin) Disable() error {
+func (p *Plugin) Disable() error {
 	p.eventBus.DetachRecipient(p.eventID)
-	select {
-	case p.quit <- true:
-	default:
-	}
+	p.quit <- true
+	close(p.quit)
 	return nil
 }
 
@@ -127,7 +126,7 @@ func (p Plugin) startMetricsServer() {
 	}
 
 	go func() {
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, os.ErrClosed) {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			p.logger.Error("failed to start server", zap.Error(err))
 			return
 		}

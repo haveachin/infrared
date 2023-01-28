@@ -139,7 +139,7 @@ func (pm PluginManager) LoadPlugins(cfg map[string]any) {
 	}
 }
 
-func (pm PluginManager) loadPlugin(p Plugin, cfg map[string]any) error {
+func (pm PluginManager) loadPlugin(p Plugin, cfg map[string]any) {
 	if err := p.Load(cfg); err != nil {
 		logger := pm.pluginLogger(p)
 		if errors.Is(err, ErrPluginViaConfigDisabled) {
@@ -149,11 +149,10 @@ func (pm PluginManager) loadPlugin(p Plugin, cfg map[string]any) error {
 				zap.Error(err),
 			)
 		}
-		return err
+		return
 	}
 
 	pm.plugins[p] = PluginStateLoaded
-	return nil
 }
 
 func (pm *PluginManager) ReloadPlugins(cfg map[string]any) {
@@ -164,30 +163,43 @@ func (pm *PluginManager) ReloadPlugins(cfg map[string]any) {
 
 func (pm *PluginManager) reloadPlugin(p Plugin, cfg map[string]any) {
 	logger := pm.pluginLogger(p)
-	if err := p.Reload(cfg); err != nil {
-		if errors.Is(err, ErrPluginViaConfigDisabled) {
-			if pm.isPluginEnabled(p) {
-				pm.disablePlugin(p)
-				logger.Debug("disabled plugin via reload")
-			} else {
+
+	if !pm.isPluginEnabled(p) {
+		if err := p.Load(cfg); err != nil {
+			if errors.Is(err, ErrPluginViaConfigDisabled) {
 				logger.Debug("no change in plugin state")
+				return
 			}
+			logger.Error("failed to load plugin",
+				zap.Error(err),
+			)
 			return
 		}
+		pm.plugins[p] = PluginStateLoaded
 
+		pm.enablePlugin(p)
+		logger.Debug("enabled plugin via reload")
+		return
+	}
+
+	switch err := p.Reload(cfg); err {
+	case nil:
+		logger.Debug("no change in plugin state")
+		return
+	case ErrPluginViaConfigDisabled:
+		if pm.isPluginEnabled(p) {
+			pm.disablePlugin(p)
+			logger.Debug("disabled plugin via reload")
+		} else {
+			logger.Debug("no change in plugin state")
+		}
+		return
+	default:
 		logger.Error("failed to reload plugin",
 			zap.Error(err),
 		)
 		return
 	}
-
-	if pm.isPluginEnabled(p) {
-		return
-	}
-
-	pm.loadPlugin(p, cfg)
-	pm.enablePlugin(p)
-	logger.Debug("enabled plugin via reload")
 }
 
 func (pm *PluginManager) isPluginLoaded(p Plugin) bool {
