@@ -128,6 +128,7 @@ func (p Plugin) startAPIServer() {
 		r.Route("/configs", func(r chi.Router) {
 			r.Get("/{configID}", getConfig(p.cfgAPI))
 			r.Get("/", getConfigs(p.cfgAPI))
+			r.Post("/reload", reloadConfigs(p.cfgAPI))
 			r.Put("/{configID}", putConfig())
 			r.Delete("/{configID}", deleteConfig())
 		})

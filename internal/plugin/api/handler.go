@@ -227,3 +227,15 @@ func deleteConfig() http.HandlerFunc {
 		w.WriteHeader(http.StatusNoContent)
 	}
 }
+
+func reloadConfigs(cfg config.Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if err := cfg.Reload(); err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			render.JSON(w, r, newErrorDTO(err))
+			return
+		}
+
+		w.WriteHeader(http.StatusNoContent)
+	}
+}

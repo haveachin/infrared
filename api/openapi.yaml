@@ -98,6 +98,16 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /configs/reload:
+    post:
+      tags:
+        - "Config"
+      summary: Reads all configs and reloads Infrared
+      responses:
+        '204':
+          description: No content
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
 components:
   responses:
