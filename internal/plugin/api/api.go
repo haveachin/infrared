@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	embed_api "github.com/haveachin/infrared/api"
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/internal/pkg/config"
 	"github.com/haveachin/infrared/pkg/event"
@@ -107,17 +108,29 @@ func (p Plugin) startAPIServer() {
 		AllowedHeaders:   []string{"Accept", "Content-Type"},
 		AllowCredentials: false,
 	}))
-	r.Route("/{edition}/players", func(r chi.Router) {
-		r.Get("/{username}", getPlayerHandler(p.api))
-		r.Get("/", getPlayersHandler(p.api))
-		r.Delete("/{username}", deletePlayerHandler(p.api))
-	})
 
-	r.Route("/configs", func(r chi.Router) {
-		r.Get("/{configID}", getConfig(p.cfgAPI))
-		r.Get("/", getConfigs(p.cfgAPI))
-		r.Put("/{configID}", putConfig())
-		r.Delete("/{configID}", deleteConfig())
+	openAPIPath := "/openapi.yaml"
+	r.HandleFunc(openAPIPath, func(w http.ResponseWriter, r *http.Request) {
+		w.Write(embed_api.OpenAPISpecs)
+	})
+	r.Handle("/docs", swaggerUIHandler(SwaggerUIOpts{
+		SpecURL: openAPIPath,
+		Title:   "Infrared API Docs",
+	}))
+
+	r.Route("/v1", func(r chi.Router) {
+		r.Route("/{edition}/players", func(r chi.Router) {
+			r.Get("/{username}", getPlayerHandler(p.api))
+			r.Get("/", getPlayersHandler(p.api))
+			r.Delete("/{username}", deletePlayerHandler(p.api))
+		})
+
+		r.Route("/configs", func(r chi.Router) {
+			r.Get("/{configID}", getConfig(p.cfgAPI))
+			r.Get("/", getConfigs(p.cfgAPI))
+			r.Put("/{configID}", putConfig())
+			r.Delete("/{configID}", deleteConfig())
+		})
 	})
 
 	srv := http.Server{

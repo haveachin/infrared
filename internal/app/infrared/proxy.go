@@ -15,7 +15,7 @@ type ProxyConfig interface {
 	LoadServers() ([]Server, error)
 	LoadConnProcessor() (ConnProcessor, error)
 	LoadProxySettings() (ProxySettings, error)
-	LoadMiddlewareSettings() (MiddlewareSettings, error)
+	LoadMiddlewareSettings() MiddlewareSettings
 }
 
 type ProxyChannelCaps struct {
@@ -30,10 +30,11 @@ type ProxySettings struct {
 }
 
 type MiddlewareSettings struct {
-	RateLimiter *RateLimiterSettings
+	RateLimiter RateLimiterSettings
 }
 
 type RateLimiterSettings struct {
+	Enable       bool
 	RequestLimit int
 	WindowLength time.Duration
 }
@@ -83,13 +84,9 @@ func NewProxy(cfg ProxyConfig) (*proxy, error) {
 		return nil, err
 	}
 
-	mwStg, err := cfg.LoadMiddlewareSettings()
-	if err != nil {
-		return nil, err
-	}
-
 	mws := []func(Handler) Handler{}
-	if mwStg.RateLimiter != nil {
+	mwStg := cfg.LoadMiddlewareSettings()
+	if mwStg.RateLimiter.Enable {
 		stg := mwStg.RateLimiter
 		mws = append(mws, RateLimitByIP(stg.RequestLimit, stg.WindowLength))
 	}

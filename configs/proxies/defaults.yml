@@ -143,6 +143,10 @@ java:
   middlewares:
     # Rate limiter limits the amount of request a single IP can do in a specific windows of time.
     rateLimiter:
+      # Enables the middleware
+      #
+      enable: true
+
       # The request limit it the amount of requests a single IP can make in a specific window of time.
       #
       requestLimit: 10
@@ -163,5 +167,6 @@ bedrock:
     clientTimeout: 1000ms
   middlewares:
     rateLimiter:
+      enable: true
       requestLimit: 10
       windowLength: 500ms

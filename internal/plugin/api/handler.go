@@ -13,12 +13,23 @@ import (
 	"github.com/haveachin/infrared/internal/pkg/config/provider"
 )
 
+type errorDTO struct {
+	Message string `json:"message"`
+}
+
+func newErrorDTO(err error) errorDTO {
+	return errorDTO{
+		Message: err.Error(),
+	}
+}
+
 func getPlayerHandler(api infrared.API) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		editionString := chi.URLParam(r, "edition")
 		edition, err := infrared.EditionFromString(editionString)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusUnprocessableEntity)
+			w.WriteHeader(http.StatusBadRequest)
+			render.JSON(w, r, newErrorDTO(err))
 			return
 		}
 
@@ -36,7 +47,7 @@ func getPlayerHandler(api infrared.API) http.HandlerFunc {
 			LocalAddr     string `json:"localAddress"`
 			Version       string `json:"version"`
 			ServerID      string `json:"serverId"`
-			ServerAddr    string `json:"serverAddress"`
+			MatchedAddr   string `json:"matchedAddress"`
 			RequestedAddr string `json:"requestedAddress"`
 		}{
 			Username:      player.Username(),
@@ -45,7 +56,7 @@ func getPlayerHandler(api infrared.API) http.HandlerFunc {
 			LocalAddr:     player.LocalAddr().String(),
 			Version:       player.Version().Name(),
 			ServerID:      player.ServerID(),
-			ServerAddr:    player.MatchedAddr(),
+			MatchedAddr:   player.MatchedAddr(),
 			RequestedAddr: player.RequestedAddr(),
 		}
 
@@ -61,20 +72,23 @@ func getPlayersHandler(api infrared.API) http.HandlerFunc {
 		}{}
 
 		if err := decoder.Decode(reqDTO, r.URL.Query()); err != nil {
-			http.Error(w, err.Error(), http.StatusUnprocessableEntity)
+			w.WriteHeader(http.StatusBadRequest)
+			render.JSON(w, r, newErrorDTO(err))
 			return
 		}
 
 		editionString := chi.URLParam(r, "edition")
 		edition, err := infrared.EditionFromString(editionString)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusUnprocessableEntity)
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			render.JSON(w, r, newErrorDTO(err))
 			return
 		}
 
 		players, err := api.Players(reqDTO.UsernameRegex, edition)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			w.WriteHeader(http.StatusUnprocessableEntity)
+			render.JSON(w, r, newErrorDTO(err))
 			return
 		}
 
@@ -104,7 +118,8 @@ func deletePlayerHandler(api infrared.API) http.HandlerFunc {
 		editionString := chi.URLParam(r, "edition")
 		edition, err := infrared.EditionFromString(editionString)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusUnprocessableEntity)
+			w.WriteHeader(http.StatusBadRequest)
+			render.JSON(w, r, newErrorDTO(err))
 			return
 		}
 
@@ -125,13 +140,15 @@ func getConfig(cfg config.Config) http.HandlerFunc {
 		configID := chi.URLParam(r, "configID")
 		configPath, err := url.PathUnescape(configID)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			w.WriteHeader(http.StatusBadRequest)
+			render.JSON(w, r, newErrorDTO(err))
 			return
 		}
 
 		cfg := map[string]any{}
 		if err := provider.ReadConfigFile(configPath, cfg); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			w.WriteHeader(http.StatusInternalServerError)
+			render.JSON(w, r, newErrorDTO(err))
 			return
 		}
 
@@ -146,7 +163,8 @@ func getConfigs(cfg config.Config) http.HandlerFunc {
 		dockerProv := prov[provider.DockerType].(*provider.Docker)
 		dockerCfg, err := dockerProv.Config()
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			w.WriteHeader(http.StatusInternalServerError)
+			render.JSON(w, r, newErrorDTO(err))
 			return
 		}
 
@@ -167,22 +185,26 @@ func putConfig() http.HandlerFunc {
 		configID := chi.URLParam(r, "configID")
 		configPath, err := url.PathUnescape(configID)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			w.WriteHeader(http.StatusBadRequest)
+			render.JSON(w, r, newErrorDTO(err))
 			return
 		}
 
 		cfg := map[string]any{}
 		if err := json.NewDecoder(r.Body).Decode(&cfg); err != nil {
-			http.Error(w, err.Error(), http.StatusUnprocessableEntity)
+			w.WriteHeader(http.StatusBadRequest)
+			render.JSON(w, r, newErrorDTO(err))
 			return
 		}
 
 		if err := provider.WriteConfigFile(configPath, cfg); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			w.WriteHeader(http.StatusInternalServerError)
+			render.JSON(w, r, newErrorDTO(err))
 			return
 		}
 
-		w.WriteHeader(http.StatusNoContent)
+		w.WriteHeader(http.StatusCreated)
+		render.JSON(w, r, cfg)
 	}
 }
 
@@ -191,12 +213,14 @@ func deleteConfig() http.HandlerFunc {
 		configID := chi.URLParam(r, "configID")
 		configPath, err := url.PathUnescape(configID)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
+			w.WriteHeader(http.StatusBadRequest)
+			render.JSON(w, r, newErrorDTO(err))
 			return
 		}
 
 		if err := provider.RemoveConfigFile(configPath); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			w.WriteHeader(http.StatusInternalServerError)
+			render.JSON(w, r, newErrorDTO(err))
 			return
 		}
 
