@@ -92,7 +92,6 @@ const (
   <head>
     <meta charset="UTF-8">
 		<title>{{ .Title }}</title>
-
     <link rel="stylesheet" type="text/css" href="{{ .SwaggerStylesURL }}" >
     <link rel="icon" type="image/png" href="{{ .Favicon32 }}" sizes="32x32" />
     <link rel="icon" type="image/png" href="{{ .Favicon16 }}" sizes="16x16" />
@@ -103,14 +102,12 @@ const (
         overflow: -moz-scrollbars-vertical;
         overflow-y: scroll;
       }
-
       *,
       *:before,
       *:after
       {
         box-sizing: inherit;
       }
-
       body
       {
         margin:0;
@@ -118,10 +115,8 @@ const (
       }
     </style>
   </head>
-
   <body>
     <div id="swagger-ui"></div>
-
     <script src="{{ .SwaggerURL }}"> </script>
     <script src="{{ .SwaggerPresetURL }}"> </script>
     <script>
@@ -141,7 +136,6 @@ const (
         layout: "StandaloneLayout",
       })
       // End Swagger UI call region
-
       window.ui = ui
     }
   </script>

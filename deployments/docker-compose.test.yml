@@ -11,6 +11,8 @@ services:
     ports:
       - 25565:25565/tcp
       - 19132:19132/udp
+      - 8080:8080/tcp
+      - 9070:9070/tcp
     volumes:
       - ../dev:/infrared
       - /var/run/docker.sock:/var/run/docker.sock:ro

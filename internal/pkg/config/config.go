@@ -34,7 +34,7 @@ type OnChange func(newConfig map[string]any)
 type Config interface {
 	Providers() map[provider.Type]provider.Provider
 	Read() (map[string]any, error)
-	Reload() error
+	Reload() (map[string]any, error)
 }
 
 func New(path string, onChange OnChange, logger *zap.Logger) (Config, error) {
@@ -96,7 +96,7 @@ func (c *config) listenToProviders() {
 			zap.String("provider", data.Type.String()),
 		)
 
-		if err := c.Reload(); err != nil {
+		if _, err := c.Reload(); err != nil {
 			c.logger.Error("failed to reload config",
 				zap.Error(err),
 			)
@@ -105,13 +105,13 @@ func (c *config) listenToProviders() {
 	}
 }
 
-func (c *config) Reload() error {
+func (c *config) Reload() (map[string]any, error) {
 	cfg, err := c.Read()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	c.onChange(cfg)
-	return nil
+	return cfg, nil
 }
 
 func (c *config) Providers() map[provider.Type]provider.Provider {

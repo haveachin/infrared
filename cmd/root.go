@@ -224,6 +224,8 @@ func onConfigChange(cfg map[string]any) {
 	mu.Lock()
 	defer mu.Unlock()
 
+	logger.Info("reloading configs")
+
 	javaPrxCfg, err := java.NewProxyConfigFromMap(cfg)
 	if err != nil {
 		logger.Error("failed to load java config",
@@ -245,7 +247,7 @@ func onConfigChange(cfg map[string]any) {
 		infrared.BedrockEdition: bedrockPrxCfg,
 	}
 
-	logger.Debug("Reloading proxies")
+	logger.Debug("reloading proxies")
 	for n, p := range proxies {
 		if err := p.Reload(prxCfgs[n]); err != nil {
 			logger.Error("failed to reload proxy",
@@ -254,6 +256,6 @@ func onConfigChange(cfg map[string]any) {
 		}
 	}
 
-	logger.Debug("Reloading plugins")
+	logger.Debug("reloading plugins")
 	pluginManager.ReloadPlugins(cfg)
 }

@@ -10,6 +10,10 @@ services:
       - 25565:25565/tcp
       # Port for Bedrock Edition
       - 19132:19132/udp
+      # API
+      #- 8080:8080/tcp
+      # Prometheus
+      #- 9070:9070/tcp
     volumes:
       - ./data/infrared:/infrared
       #- /var/run/docker.sock:/var/run/docker.sock:ro

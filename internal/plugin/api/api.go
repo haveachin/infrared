@@ -99,6 +99,38 @@ func (p Plugin) Disable() error {
 }
 
 func (p Plugin) startAPIServer() {
+	srv := http.Server{
+		Handler: p.router(),
+		Addr:    p.Config.API.Bind,
+	}
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			p.logger.Error("failed to start server", zap.Error(err))
+			return
+		}
+	}()
+
+	p.logger.Info("started api server",
+		zap.String("bind", p.Config.API.Bind),
+	)
+
+	<-p.quit
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	srv.Shutdown(ctx)
+}
+
+//	@title			Infrared API
+//	@version		1.0
+//	@description	API that is baked into Infrared via internal plugin.
+
+//	@license.name	AGPL-3.0
+//	@license.url	https://www.gnu.org/licenses/agpl-3.0.txt
+
+//	@BasePath	/v1
+func (p Plugin) router() http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
@@ -109,9 +141,9 @@ func (p Plugin) startAPIServer() {
 		AllowCredentials: false,
 	}))
 
-	openAPIPath := "/openapi.yaml"
+	openAPIPath := "/swagger.yaml"
 	r.HandleFunc(openAPIPath, func(w http.ResponseWriter, r *http.Request) {
-		w.Write(embed_api.OpenAPISpecs)
+		w.Write(embed_api.SwaggerSpecs)
 	})
 	r.Handle("/docs", swaggerUIHandler(SwaggerUIOpts{
 		SpecURL: openAPIPath,
@@ -133,26 +165,5 @@ func (p Plugin) startAPIServer() {
 			r.Delete("/{configID}", deleteConfig())
 		})
 	})
-
-	srv := http.Server{
-		Handler: r,
-		Addr:    p.Config.API.Bind,
-	}
-
-	go func() {
-		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-			p.logger.Error("failed to start server", zap.Error(err))
-			return
-		}
-	}()
-
-	p.logger.Info("started api server",
-		zap.String("bind", p.Config.API.Bind),
-	)
-
-	<-p.quit
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	srv.Shutdown(ctx)
+	return r
 }

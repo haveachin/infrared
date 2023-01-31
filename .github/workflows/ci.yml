@@ -47,7 +47,9 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
       - name: Build
-        run: go build -ldflags "-X main.version=${{ github.ref_name }}" -o main .
+        run: |
+          make swag
+          go build -ldflags "-X main.version=${{ github.ref_name }}" -o main .
 
   build-container:
     name: Build Container

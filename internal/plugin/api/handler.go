@@ -15,7 +15,7 @@ import (
 
 type errorDTO struct {
 	Message string `json:"message"`
-}
+} //	@name	Error
 
 func newErrorDTO(err error) errorDTO {
 	return errorDTO{
@@ -23,7 +23,28 @@ func newErrorDTO(err error) errorDTO {
 	}
 }
 
+//	@Summary		Get a player
+//	@Description	Get a player for an edition by username
+//	@Tags			Player
+//	@Produce		json
+//	@Param			edition		path		string	true	"Minecraft edition"	Enums(java, bedrock)
+//	@Param			username	path		string	true	"Player username"
+//	@Success		200			{object}	api.getPlayerHandler.respDTO
+//	@Failure		400			{object}	api.errorDTO
+//	@Failure		404
+//	@Router			/{edition}/players/{username} [get]
 func getPlayerHandler(api infrared.API) http.HandlerFunc {
+	type respDTO struct {
+		Username      string `json:"username" example:"H4v34ch1n"`
+		GatewayID     string `json:"gatewayId" example:"default"`
+		RemoteAddr    string `json:"remoteAddress" example:"123.45.67.89:45372"`
+		LocalAddr     string `json:"localAddress" example:"127.0.0.1:54265"`
+		Version       string `json:"version" example:"1.19.3"`
+		ServerID      string `json:"serverId" example:"default"`
+		MatchedAddr   string `json:"matchedAddress" example:"*.example.com"`
+		RequestedAddr string `json:"requestedAddress" example:"mc.example.com"`
+	} //	@Name	Player
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		editionString := chi.URLParam(r, "edition")
 		edition, err := infrared.EditionFromString(editionString)
@@ -40,16 +61,7 @@ func getPlayerHandler(api infrared.API) http.HandlerFunc {
 			return
 		}
 
-		dto := struct {
-			Username      string `json:"username"`
-			GatewayID     string `json:"gatewayId"`
-			RemoteAddr    string `json:"remoteAddress"`
-			LocalAddr     string `json:"localAddress"`
-			Version       string `json:"version"`
-			ServerID      string `json:"serverId"`
-			MatchedAddr   string `json:"matchedAddress"`
-			RequestedAddr string `json:"requestedAddress"`
-		}{
+		dto := respDTO{
 			Username:      player.Username(),
 			GatewayID:     player.GatewayID(),
 			RemoteAddr:    player.RemoteAddr().String(),
@@ -64,14 +76,32 @@ func getPlayerHandler(api infrared.API) http.HandlerFunc {
 	}
 }
 
+//	@Summary		Query players per edition
+//	@Description	Query players per edition and filter them by username via regular expression
+//	@Tags			Player
+//	@Produce		json
+//	@Param			edition			path		string	true	"Minecraft edition"	Enums(java, bedrock)
+//	@Param			usernameRegex	query		string	false	"A regular expression to query usernames"
+//	@Success		200				{array}		api.getPlayersHandler.respDTOItem
+//	@Failure		400				{object}	api.errorDTO
+//	@Failure		422				{object}	api.errorDTO
+//	@Router			/{edition}/players [get]
 func getPlayersHandler(api infrared.API) http.HandlerFunc {
+	type reqDTOQuery struct {
+		UsernameRegex string `schema:"usernameRegex"`
+	}
+
+	type respDTOItem struct {
+		Username   string `json:"username" example:"H4v34ch1n"`
+		RemoteAddr string `json:"remoteAddress" example:"123.45.67.89:45372"`
+		GatewayID  string `json:"gatewayId" example:"default"`
+		ServerID   string `json:"serverId" example:"default"`
+	} //	@Name	PlayerItem
+
 	decoder := schema.NewDecoder()
 	return func(w http.ResponseWriter, r *http.Request) {
-		reqDTO := &struct {
-			UsernameRegex string `schema:"usernameRegex"`
-		}{}
-
-		if err := decoder.Decode(reqDTO, r.URL.Query()); err != nil {
+		reqDTOQuery := &reqDTOQuery{}
+		if err := decoder.Decode(reqDTOQuery, r.URL.Query()); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			render.JSON(w, r, newErrorDTO(err))
 			return
@@ -85,23 +115,16 @@ func getPlayersHandler(api infrared.API) http.HandlerFunc {
 			return
 		}
 
-		players, err := api.Players(reqDTO.UsernameRegex, edition)
+		players, err := api.Players(reqDTOQuery.UsernameRegex, edition)
 		if err != nil {
 			w.WriteHeader(http.StatusUnprocessableEntity)
 			render.JSON(w, r, newErrorDTO(err))
 			return
 		}
 
-		type respDTO struct {
-			Username   string `json:"username"`
-			RemoteAddr string `json:"remoteAddress"`
-			GatewayID  string `json:"gatewayId"`
-			ServerID   string `json:"serverId"`
-		}
-
-		respDTOs := make([]respDTO, len(players))
+		respDTO := make([]respDTOItem, len(players))
 		for i, p := range players {
-			respDTOs[i] = respDTO{
+			respDTO[i] = respDTOItem{
 				Username:   p.Username(),
 				RemoteAddr: p.RemoteAddr().String(),
 				GatewayID:  p.GatewayID(),
@@ -109,10 +132,20 @@ func getPlayersHandler(api infrared.API) http.HandlerFunc {
 			}
 		}
 
-		render.JSON(w, r, respDTOs)
+		render.JSON(w, r, respDTO)
 	}
 }
 
+//	@Summary		Disconnect a player
+//	@Description	Disconnect a player by edition via username
+//	@Tags			Player
+//	@Produce		json
+//	@Param			edition		path	string	true	"Minecraft edition"	Enums(java, bedrock)
+//	@Param			username	path	string	true	"Player username"
+//	@Success		204
+//	@Failure		400	{object}	api.errorDTO
+//	@Failure		404
+//	@Router			/{edition}/players/{username} [delete]
 func deletePlayerHandler(api infrared.API) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		editionString := chi.URLParam(r, "edition")
@@ -135,6 +168,15 @@ func deletePlayerHandler(api infrared.API) http.HandlerFunc {
 	}
 }
 
+//	@Summary		Get a config
+//	@Description	Get a config via ID
+//	@Tags			Config
+//	@Produce		json
+//	@Param			configId	path		string	true	"Config ID"
+//	@Success		200			{string}	string	"See the documentation or configs folder for more info on this complex struct"
+//	@Failure		400			{object}	api.errorDTO
+//	@Failure		500			{object}	api.errorDTO
+//	@Router			/configs/{configId} [get]
 func getConfig(cfg config.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		configID := chi.URLParam(r, "configID")
@@ -156,7 +198,19 @@ func getConfig(cfg config.Config) http.HandlerFunc {
 	}
 }
 
+//	@Summary		Get all configs
+//	@Description	Get all configs from all providers
+//	@Tags			Config
+//	@Produce		json
+//	@Success		200	{object}	api.getConfigs.respDTO
+//	@Failure		500	{object}	api.errorDTO
+//	@Router			/configs [get]
 func getConfigs(cfg config.Config) http.HandlerFunc {
+	type respDTO struct {
+		File   map[string]map[string]any `json:"file,omitempty"`
+		Docker map[string]any            `json:"docker,omitempty"`
+	} //	@Name	Configs
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		prov := cfg.Providers()
 		fileProv := prov[provider.FileType].(*provider.File)
@@ -168,18 +222,24 @@ func getConfigs(cfg config.Config) http.HandlerFunc {
 			return
 		}
 
-		dto := struct {
-			File   map[string]map[string]any `json:"file,omitempty"`
-			Docker map[string]any            `json:"docker,omitempty"`
-		}{
+		respDTO := respDTO{
 			File:   fileProv.Configs(),
 			Docker: dockerCfg,
 		}
 
-		render.JSON(w, r, dto)
+		render.JSON(w, r, respDTO)
 	}
 }
 
+//	@Summary		Create/Update a config
+//	@Description	Create/Update a config via ID
+//	@Tags			Config
+//	@Produce		json
+//	@Param			configId	path		string	true	"Config ID"
+//	@Success		201			{string}	string	"See the documentation or configs folder for more info on this complex struct"
+//	@Failure		400			{object}	api.errorDTO
+//	@Failure		500			{object}	api.errorDTO
+//	@Router			/configs/{configId} [put]
 func putConfig() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		configID := chi.URLParam(r, "configID")
@@ -208,6 +268,15 @@ func putConfig() http.HandlerFunc {
 	}
 }
 
+//	@Summary		Delete a config
+//	@Description	Delete a config via ID
+//	@Tags			Config
+//	@Produce		json
+//	@Param			configId	path	string	true	"Config ID"
+//	@Success		204
+//	@Failure		400	{object}	api.errorDTO
+//	@Failure		500	{object}	api.errorDTO
+//	@Router			/configs/{configId} [delete]
 func deleteConfig() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		configID := chi.URLParam(r, "configID")
@@ -228,14 +297,22 @@ func deleteConfig() http.HandlerFunc {
 	}
 }
 
+//	@Summary		Reloads Infrared
+//	@Description	Reads all configs and reloads Infrared
+//	@Tags			Config
+//	@Produce		json
+//	@Success		200	{string}	string	"See the documentation or configs folder for more info on this complex struct"
+//	@Failure		500	{object}	api.errorDTO
+//	@Router			/configs/reload [post]
 func reloadConfigs(cfg config.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if err := cfg.Reload(); err != nil {
+		cfg, err := cfg.Reload()
+		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			render.JSON(w, r, newErrorDTO(err))
 			return
 		}
 
-		w.WriteHeader(http.StatusNoContent)
+		render.JSON(w, r, cfg)
 	}
 }

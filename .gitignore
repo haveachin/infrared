@@ -20,3 +20,6 @@
 
 # Generated files
 *_mock_test.go
+
+# Generated Swagger Docs
+api/swagger.yaml

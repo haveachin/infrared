@@ -4,6 +4,7 @@ ARG VERSION
 COPY . /infrared
 WORKDIR /infrared
 ENV GO111MODULE=on
+RUN make swag
 RUN CGO_ENABLED=0 go build -ldflags "-X main.version=$VERSION" -o /main .
 
 FROM alpine:latest

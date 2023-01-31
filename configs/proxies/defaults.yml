@@ -45,7 +45,7 @@ defaults:
       
       # The message that is displayed to a client when they try to connect via an invalid domain.
       #
-      serverNotFoundMessage: Sorry {{username}}, but a server for {{serverDomain}} does not exist.
+      serverNotFoundMessage: Sorry {{username}}, but a server for {{requestedAddress}} does not exist.
 
     # Servers are server configurations that redirect players to a minecraft server.
     #
@@ -65,7 +65,7 @@ defaults:
       listener:
         # The message that is displayed to a client when they try to connect via an invalid domain.
         #
-        serverNotFoundMessage: Sorry {{username}}, but {{serverDomain}} was not found.
+        serverNotFoundMessage: Sorry {{username}}, but {{requestedAddress}} was not found.
 
         # The Java Edition has a different approach to handling status pings, than the Bedrock Edition.
         # This makes it possible to display a custom message to clients if the domain that they want
@@ -81,7 +81,7 @@ defaults:
           iconPath: icons/default.png
           motd: |
             Powered by Infrared
-            §c{{serverDomain}} was not found.
+            §c{{requestedAddress}} was not found.
     server:
       overrideAddress: true
       dialTimeout: 1s
@@ -97,7 +97,7 @@ defaults:
         iconPath: icons/default.png
         motd: |
           Powered by Infrared
-          §6Server at {{serverDomain}} is not responding.
+          §6Server at {{requestedAddress}} is not responding.
       
       # Infrared caches the server ping response so that status pings don't spam the minecraft server.
       # This is the Time To Live of the cache. Set this to <=0 to disable caching.

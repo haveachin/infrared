@@ -19,3 +19,8 @@ run:
 
 plantuml:
 	plantuml -tsvg *.md docs/*.md docs/plugins/*.md docs/*.plantuml docs/plugins/*.plantuml
+
+swag:
+	go install github.com/swaggo/swag/cmd/swag@latest
+	swag fmt -g internal/plugin/api/api.go
+	swag init -o api/ -g internal/plugin/api/api.go -ot yaml
