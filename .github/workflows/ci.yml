@@ -145,6 +145,8 @@ jobs:
         uses: actions/setup-go@v3
         with:
           go-version: ${{ env.GO_VERSION }}
+      - name: Generate Swagger docs
+        run: make swag
       - name: Run GoReleaser ${{ github.ref_name }}
         uses: goreleaser/goreleaser-action@v3
         with:
