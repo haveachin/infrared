@@ -14,3 +14,20 @@ api:
   allowedOrigins:
     - "http://*"
     - "https://*"
+
+  # Sets this in the allowed methods header
+  #
+  allowedMethods:
+    - GET
+    - POST
+    - PUT
+    - DELETE
+    - OPTIONS
+
+  # Sets this in the allowed headers header
+  #
+  allowedHeaders:
+    - Accept
+    - Content-Type
+    - Authorization
+    - X-CSRF-Token

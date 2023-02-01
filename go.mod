@@ -8,6 +8,7 @@ require (
 	github.com/df-mc/atomic v1.10.0
 	github.com/docker/docker v20.10.20+incompatible
 	github.com/fsnotify/fsnotify v1.6.0
+	github.com/gertd/wild v0.0.1
 	github.com/go-chi/chi/v5 v5.0.7
 	github.com/go-chi/cors v1.2.1
 	github.com/go-chi/render v1.0.2

@@ -21,6 +21,8 @@ type PluginConfig struct {
 		Enable         bool     `mapstructure:"enable"`
 		Bind           string   `mapstructure:"bind"`
 		AllowedOrigins []string `mapstructure:"allowedOrigins"`
+		AllowedMethods []string `mapstructure:"allowedMethods"`
+		AllowedHeaders []string `mapstructure:"allowedHeaders"`
 	} `mapstructure:"api"`
 }
 
@@ -136,8 +138,8 @@ func (p Plugin) router() http.Handler {
 	r.Use(middleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   p.Config.API.AllowedOrigins,
-		AllowedMethods:   []string{"GET", "DELETE"},
-		AllowedHeaders:   []string{"Accept", "Content-Type"},
+		AllowedMethods:   p.Config.API.AllowedMethods,
+		AllowedHeaders:   p.Config.API.AllowedHeaders,
 		AllowCredentials: false,
 	}))
 

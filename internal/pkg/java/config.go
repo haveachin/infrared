@@ -26,12 +26,12 @@ type ServerConfig struct {
 	SendProxyProtocol  bool                       `mapstructure:"sendProxyProtocol"`
 	SendRealIP         bool                       `mapstructure:"sendRealIP"`
 	OverrideAddress    bool                       `mapstructure:"overrideAddress"`
-	DialTimeout        time.Duration              `mapstructure:"dialTimeout"`
+	DialTimeout        time.Duration              `mapstructure:"dialTimeout" swaggertype:"primitive,string"`
 	DialTimeoutMessage string                     `mapstructure:"dialTimeoutMessage"`
 	OverrideStatus     OverrideServerStatusConfig `mapstructure:"overrideStatus"`
 	DialTimeoutStatus  ServerStatusConfig         `mapstructure:"dialTimeoutStatus"`
 	Gateways           []string                   `mapstructure:"gateways"`
-	StatusCacheTTL     time.Duration              `mapstructure:"statusCacheTTL"`
+	StatusCacheTTL     time.Duration              `mapstructure:"statusCacheTTL" swaggertype:"primitive,string"`
 }
 
 type OverrideServerStatusConfig struct {
@@ -74,7 +74,7 @@ type GatewayConfig struct {
 
 type ConnProcessorConfig struct {
 	Count         int           `mapstructure:"count"`
-	ClientTimeout time.Duration `mapstructure:"clientTimeout"`
+	ClientTimeout time.Duration `mapstructure:"clientTimeout" swaggertype:"primitive,string"`
 }
 
 type ChanCapsConfig struct {
@@ -90,7 +90,7 @@ type MiddlewareSettings struct {
 type RateLimiterSettings struct {
 	Enable       bool          `mapstructure:"enable"`
 	RequestLimit int           `mapstructure:"requestLimit"`
-	WindowLength time.Duration `mapstructure:"windowLength"`
+	WindowLength time.Duration `mapstructure:"windowLength" swaggertype:"primitive,string"`
 }
 
 type ProxyConfig struct {

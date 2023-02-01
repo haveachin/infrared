@@ -5,8 +5,8 @@ import (
 	"net"
 	"sync"
 
+	"github.com/gertd/wild"
 	"github.com/haveachin/infrared/pkg/event"
-	"github.com/haveachin/infrared/pkg/wildcard"
 	"go.uber.org/zap"
 )
 
@@ -77,7 +77,7 @@ func (sg *ServerGateway) compileDomainExprs() {
 func (sg *ServerGateway) findServer(gatewayID, domain string) (Server, string) {
 	for _, srvID := range sg.gwIDSrvIDs[gatewayID] {
 		for _, srvExpr := range sg.srvExprs[srvID] {
-			if wildcard.Match(srvExpr, domain) {
+			if wild.Match(srvExpr, domain, true) {
 				return sg.srvs[srvID], srvExpr
 			}
 		}
@@ -103,7 +103,7 @@ func (sg *ServerGateway) Start() {
 			logger := sg.Logger.With(logProcessedConn(player)...)
 			logger.Debug("looking up server address")
 
-			srv, matchedDomain := sg.findServer(player.GatewayID(), player.MatchedAddr())
+			srv, matchedDomain := sg.findServer(player.GatewayID(), player.RequestedAddr())
 			if srv == nil {
 				logger.Info("failed to find server; disconnecting client")
 				_ = player.DisconnectServerNotFound()

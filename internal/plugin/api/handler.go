@@ -234,9 +234,11 @@ func getConfigs(cfg config.Config) http.HandlerFunc {
 //	@Summary		Create/Update a config
 //	@Description	Create/Update a config via ID
 //	@Tags			Config
+//	@Accept			json
 //	@Produce		json
-//	@Param			configId	path		string	true	"Config ID"
-//	@Success		201			{string}	string	"See the documentation or configs folder for more info on this complex struct"
+//	@Param			request		body		map[string]any	true	"Config"
+//	@Param			configId	path		string			true	"Config ID"
+//	@Success		201			{string}	string			"See the documentation or configs folder for more info on this complex struct"
 //	@Failure		400			{object}	api.errorDTO
 //	@Failure		500			{object}	api.errorDTO
 //	@Router			/configs/{configId} [put]
