@@ -65,7 +65,6 @@ func (cpn CPN) ListenAndServe(quit <-chan bool) {
 			replyChan := cpn.EventBus.Request(PreConnProcessingEvent{
 				Conn: c,
 			}, PreProcessingEventTopic)
-
 			if isEventCanceled(replyChan, connLogger) {
 				c.Close()
 				continue
@@ -75,7 +74,7 @@ func (cpn CPN) ListenAndServe(quit <-chan bool) {
 				pc, err := cpn.ConnProcessor.ProcessConn(c)
 				if err != nil {
 					if errors.Is(err, os.ErrDeadlineExceeded) {
-						connLogger.Info("disconnecting connection; exceeded processing deadline")
+						connLogger.Debug("disconnecting connection; exceeded processing deadline")
 					} else {
 						connLogger.Debug("disconnecting connection; processing failed", zap.Error(err))
 					}
@@ -90,7 +89,6 @@ func (cpn CPN) ListenAndServe(quit <-chan bool) {
 				replyChan := cpn.EventBus.Request(PostConnProcessingEvent{
 					Player: procConn,
 				}, PostProcessingEventTopic)
-
 				if isEventCanceled(replyChan, connLogger) {
 					procConn.Close()
 					return

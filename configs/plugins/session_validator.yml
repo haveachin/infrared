@@ -26,6 +26,19 @@ defaults:
     #
     cpsThreshold: 50
 
+    # Time that the client has to:
+    # 1. Receive the encryption request
+    # 2. Generate a shared secret and session hash
+    # 3. Sent the session hash to the session servers
+    # 4. Responde with a encryption response
+    # If players have issues to connect you should increase this in small increments.
+    #
+    encryptionResponseTimeout: 2s
+
+    # The base URL to the session server
+    #
+    sessionServerBaseURL: https://sessionserver.mojang.com
+
     # Redis config for caching
     #
     redis:

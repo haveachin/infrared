@@ -2,6 +2,7 @@ package session_validator
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/internal/pkg/bedrock"
@@ -11,11 +12,13 @@ import (
 )
 
 type sessionValidatorConfig struct {
-	ServerIDs                []string    `mapstructure:"ServerIds"`
-	CPSThreshold             int         `mapstructure:"cpsThreshold"`
-	ValidationSuccessMessage string      `mapstructure:"validationSuccessMessage"`
-	ValidationFailureMessage string      `mapstructure:"validationFailureMessage"`
-	Redis                    redisConfig `mapstructure:"redis"`
+	ServerIDs                 []string      `mapstructure:"ServerIds"`
+	CPSThreshold              int           `mapstructure:"cpsThreshold"`
+	EncryptionResponseTimeout time.Duration `mapstructure:"encryptionResponseTimeout"`
+	SessionServerBaseURL      string        `mapstructure:"sessionServerBaseURL"`
+	ValidationSuccessMessage  string        `mapstructure:"validationSuccessMessage"`
+	ValidationFailureMessage  string        `mapstructure:"validationFailureMessage"`
+	Redis                     redisConfig   `mapstructure:"redis"`
 }
 
 type PluginConfig struct {
@@ -75,9 +78,10 @@ func (cfg PluginConfig) loadSessionValidatorConfigs() (map[string]validator, err
 				storage: storage,
 				service: javaValidator{
 					auth: &java.HTTPSessionAuthenticator{
-						BaseURL: "https://sessionserver.mojang.com",
+						BaseURL: svCfg.SessionServerBaseURL,
 					},
-					enc: enc,
+					enc:            enc,
+					encRespTimeout: svCfg.EncryptionResponseTimeout,
 				}.Validator("", pubKey),
 				successDisconnector: infrared.NewMultiPlayerDisconnecter(successPlayerDisconnecters),
 				failureDisconnector: infrared.NewMultiPlayerDisconnecter(failurePlayerDisconnecters),

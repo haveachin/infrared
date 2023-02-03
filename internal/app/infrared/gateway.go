@@ -63,7 +63,6 @@ func ListenAndServe(gw Gateway, cpnChan chan<- Conn) {
 				replyChan := gw.EventBus().Request(AcceptedConnEvent{
 					Conn: conn,
 				}, AcceptedConnEventTopic)
-
 				if isEventCanceled(replyChan, logger) {
 					conn.Close()
 					continue

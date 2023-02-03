@@ -15,7 +15,7 @@ tailwindcss:
 	chmod +x website/tailwindcss
 
 run:
-	go run -race . -c config.yml -w dev/ -e dev
+	go run . -c config.yml -w dev/ -e prod
 
 plantuml:
 	plantuml -tsvg *.md docs/*.md docs/plugins/*.md docs/*.plantuml docs/plugins/*.plantuml

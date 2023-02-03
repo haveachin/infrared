@@ -6,6 +6,9 @@ import (
 	"go.uber.org/zap"
 )
 
+// This is just a collection of utility functions to have consistent log fields
+// for every data field that is being logged.
+
 func logListener(l net.Listener) []zap.Field {
 	return []zap.Field{
 		zap.String("listenerNetwork", l.Addr().Network()),

@@ -2,6 +2,7 @@ package infrared
 
 import (
 	"fmt"
+	"log"
 	"math"
 	"net"
 	"strings"
@@ -136,20 +137,20 @@ func (r *rateLimiter) Status(key string) (bool, float64) {
 	return rate > float64(r.requestLimit), rate
 }
 
-func (l *rateLimiter) Handler(next Handler) Handler {
+func (r *rateLimiter) Handler(next Handler) Handler {
 	return HandlerFunc(func(c Conn) {
-		key := l.keyFn(c)
-		currentWindow := time.Now().UTC().Truncate(l.windowLength)
+		key := r.keyFn(c)
+		currentWindow := time.Now().UTC().Truncate(r.windowLength)
 
-		_, rate := l.Status(key)
+		_, rate := r.Status(key)
 		nrate := int(math.Round(rate))
 
-		if nrate >= l.requestLimit {
-			l.onRequestLimit(c)
+		if nrate >= r.requestLimit {
+			r.onRequestLimit(c)
 			return
 		}
 
-		l.limitCounter.Inc(key, currentWindow)
+		r.limitCounter.Inc(key, currentWindow)
 		next.ServeProtocol(c)
 	})
 }

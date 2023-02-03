@@ -3,6 +3,7 @@ package java
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol"
@@ -51,6 +52,7 @@ func (d PlayerDisconnecter) DisconnectPlayer(p infrared.Player, opts ...infrared
 		JSONResponse: protocol.String(msg),
 	}.Marshal()
 
+	player.SetDeadline(time.Now().Add(time.Second))
 	if err := player.WritePacket(pk); err != nil {
 		return err
 	}

@@ -149,7 +149,7 @@ java:
 
       # The request limit it the amount of requests a single IP can make in a specific window of time.
       #
-      requestLimit: 10
+      requestLimit: 6
       
       # This is the window of time in that a single IP can make a specific amount of requests.
       #
@@ -168,5 +168,5 @@ bedrock:
   middlewares:
     rateLimiter:
       enable: true
-      requestLimit: 10
+      requestLimit: 6
       windowLength: 500ms

@@ -2,9 +2,11 @@ package main
 
 import (
 	"crypto/rand"
+	"flag"
+	"io"
 	"log"
 	"net"
-	"time"
+	"os"
 
 	"github.com/haveachin/infrared/internal/pkg/java/protocol"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol/handshaking"
@@ -12,10 +14,12 @@ import (
 	"github.com/pires/go-proxyproto"
 )
 
-var handshakePayload []byte
-var loginStartPayload []byte
+var (
+	handshakePayload  []byte
+	loginStartPayload []byte
+)
 
-func init() {
+func initPayload() {
 	handshake := handshaking.ServerBoundHandshake{
 		ProtocolVersion: 758,
 		ServerAddress:   "localhost",
@@ -32,23 +36,61 @@ func init() {
 	}
 	pk = loginStart.Marshal(protocol.Version_1_19)
 	loginStartPayload = pk.Marshal()
+
+	log.Println(len(handshakePayload) + len(loginStartPayload))
+}
+
+var (
+	sendProxyProtocol = false
+)
+
+func initFlags() {
+	flag.BoolVar(&sendProxyProtocol, "p", sendProxyProtocol, "sends a proxy protocol v2 header before its payload")
+	flag.Parse()
+}
+
+func init() {
+	initFlags()
+	initPayload()
 }
 
 func main() {
+	targetAddr := "localhost:25565"
+
+	if len(os.Args) < 2 {
+		log.Println("No target address specified")
+		log.Printf("Defaulting to %s\n", targetAddr)
+	} else {
+		targetAddr = os.Args[1]
+	}
+
+	c, err := net.Dial("tcp", targetAddr)
+	if err != nil {
+		log.Fatal(err)
+	}
+	c.Close()
+
 	for i := 0; ; i++ {
-		if i > 0 && i%1000 == 0 {
+		if i > 0 && i%10 == 0 {
 			log.Printf("%d requests sent\n", i)
 		}
 
-		c, err := net.Dial("tcp", "localhost:25565")
-		if err != nil {
-			log.Fatal(err)
-		}
+		go func() {
+			c, err := net.Dial("tcp", targetAddr)
+			if err != nil {
+				return
+			}
 
-		//writeProxyProtocolHeader(randomAddr(), c)
-		c.Write(handshakePayload)
-		c.Write(loginStartPayload)
-		time.Sleep(time.Millisecond)
+			if sendProxyProtocol {
+				writeProxyProtocolHeader(randomAddr(), c)
+			}
+
+			c.Write(handshakePayload)
+			c.Write(loginStartPayload)
+			go io.ReadAll(c)
+			c.Write([]byte("dfighusdlgh"))
+		}()
+		//time.Sleep(time.Millisecond * 10)
 	}
 }
 

@@ -36,7 +36,7 @@ func (p *Plugin) Version() string {
 
 func (p *Plugin) Init() {
 	p.cpsCounter = cpsCounter{
-		counters: map[time.Time]uint32{},
+		counters: map[int64]uint32{},
 	}
 }
 
@@ -118,6 +118,9 @@ func (p *Plugin) onPlayerJoin(cpsThreshold int) event.HandlerSyncFunc {
 		if cps < uint32(cpsThreshold) {
 			return nil, nil
 		}
+		p.logger.Debug("threshold reached",
+			zap.Uint32("cps", cps),
+		)
 
 		return handleEvent(e)
 	}
@@ -205,6 +208,8 @@ func (v storageValidator) validate(player infrared.Player) (uuid.UUID, error) {
 type javaValidator struct {
 	enc  java.SessionEncrypter
 	auth java.SessionAuthenticator
+
+	encRespTimeout time.Duration
 }
 
 func (jv javaValidator) Validator(serverID string, pubKey []byte) validator {
@@ -234,11 +239,12 @@ func (jv javaValidator) validatePlayer(player *java.Player, serverID string, pub
 		VerifyToken: verifyToken,
 	}.Marshal()
 
-	player.SetDeadline(time.Now().Add(time.Millisecond * 500))
+	player.SetDeadline(time.Now().Add(time.Millisecond * 50))
 	if err := player.WritePacket(reqPk); err != nil {
 		return nil, err
 	}
 
+	player.SetDeadline(time.Now().Add(jv.encRespTimeout))
 	respPk, err := player.ReadPacket(login.MaxSizeServerBoundEncryptionResponse)
 	if err != nil {
 		return nil, err

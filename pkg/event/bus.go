@@ -237,7 +237,7 @@ func (w *worker) close() {
 
 func (w *worker) publish() {
 	for e := range w.in {
-		deadline := time.NewTimer(time.Second * 5)
+		deadline := time.NewTimer(time.Second)
 		select {
 		case w.out <- e:
 			if !deadline.Stop() {

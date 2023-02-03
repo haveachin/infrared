@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/haveachin/infrared/pkg/event"
 	"go.uber.org/zap"
@@ -55,9 +56,10 @@ func (cp *ConnPool) handlePlayerStatus(ct ConnTunnel) {
 	defer ct.Conn.Close()
 
 	logger := cp.Logger.With(logProcessedConn(ct.Conn)...)
-	logger.Info("connecting client to server")
+	logger.Debug("connecting client to server")
+	ct.Conn.SetDeadline(time.Now().Add(time.Millisecond * 500))
 	if _, err := ct.Start(); err != nil {
-		logger.Info("closing connection", zap.Error(err))
+		logger.Debug("closing connection", zap.Error(err))
 		return
 	}
 }
@@ -70,7 +72,7 @@ func (cp *ConnPool) handlePlayerLogin(ct ConnTunnel) {
 
 	cp.addToPool(ct)
 	defer func() {
-		logger.Info("disconnected client")
+		logger.Debug("disconnected client")
 		cp.removeFromPool(ct)
 		cp.EventBus.Push(PlayerLeaveEvent{
 			Player:        ct.Conn,
@@ -89,7 +91,7 @@ func (cp *ConnPool) handlePlayerLogin(ct ConnTunnel) {
 		return
 	}
 
-	logger.Info("connecting client to server")
+	logger.Info("connecting player to server")
 	var err error
 	consumedBytes, err = ct.Start()
 	if err != nil {

@@ -8,7 +8,7 @@ import (
 
 type cpsCounter struct {
 	lastEvict time.Time
-	counters  map[time.Time]uint32
+	counters  map[int64]uint32
 	mu        sync.Mutex
 }
 
@@ -22,7 +22,7 @@ func (c *cpsCounter) CPS() uint32 {
 }
 
 func (c *cpsCounter) Inc() {
-	key := time.Now().UTC().Truncate(time.Second)
+	key := time.Now().UTC().Truncate(time.Second).Unix()
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -36,8 +36,8 @@ func (c *cpsCounter) Inc() {
 }
 
 func (c *cpsCounter) get() (uint32, uint32) {
-	currkey := time.Now().UTC().Truncate(time.Second)
-	prevKey := currkey.Add(-time.Second)
+	currkey := time.Now().UTC().Truncate(time.Second).Unix()
+	prevKey := currkey - 1
 
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -62,7 +62,7 @@ func (c *cpsCounter) evict() {
 	c.lastEvict = time.Now()
 
 	for k := range c.counters {
-		if time.Since(k) >= time.Second*3 {
+		if time.Now().Unix()-k >= 3 {
 			delete(c.counters, k)
 		}
 	}

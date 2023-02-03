@@ -105,7 +105,7 @@ func (sg *ServerGateway) Start() {
 
 			srv, matchedDomain := sg.findServer(player.GatewayID(), player.RequestedAddr())
 			if srv == nil {
-				logger.Info("failed to find server; disconnecting client")
+				logger.Debug("failed to find server; disconnecting client")
 				_ = player.DisconnectServerNotFound()
 				continue
 			}
@@ -119,7 +119,6 @@ func (sg *ServerGateway) Start() {
 				Server:        srv,
 				MatchedDomain: matchedDomain,
 			}, PrePlayerJoinEventTopic)
-
 			if isEventCanceled(replyChan, logger) {
 				player.Close()
 				continue

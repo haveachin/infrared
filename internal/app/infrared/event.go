@@ -22,7 +22,7 @@ func isEventCanceled(replyChan <-chan event.Reply, logger *zap.Logger) bool {
 			continue
 		}
 
-		logger.Info("event canceled",
+		logger.Debug("event canceled",
 			zap.String("reason", reply.Err.Error()),
 		)
 
