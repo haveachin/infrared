@@ -18,7 +18,7 @@ require (
 	github.com/morikuni/aec v1.0.0 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.1 // indirect
-	github.com/pires/go-proxyproto v0.6.0
+	github.com/pires/go-proxyproto v0.6.1
 	github.com/prometheus/client_golang v1.10.0
 	github.com/sirupsen/logrus v1.7.0 // indirect
 	golang.org/x/net v0.0.0-20210119194325-5f4716e94777
