@@ -7,8 +7,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/haveachin/infrared/pkg/event"
 )
 
 type Edition string
@@ -157,7 +155,6 @@ type ConnTunnel struct {
 	// MatchedDomain is the domain that the client matched when resolving
 	// the server that it requested.
 	MatchedDomain string
-	EventBus      event.Bus
 }
 
 // Start starts to proxy the Conn to the Server. This call is blocking.

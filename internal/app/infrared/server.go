@@ -6,7 +6,6 @@ import (
 	"sync"
 
 	"github.com/gertd/wild"
-	"github.com/haveachin/infrared/pkg/event"
 	"go.uber.org/zap"
 )
 
@@ -26,7 +25,6 @@ type ServerGatewayConfig struct {
 	InChan   <-chan Player
 	OutChan  chan<- ConnTunnel
 	Logger   *zap.Logger
-	EventBus event.Bus
 }
 
 type ServerGateway struct {
@@ -114,14 +112,13 @@ func (sg *ServerGateway) Start() {
 			logger = logger.With(logServer(srv)...)
 			logger.Debug("found server")
 
-			replyChan := sg.EventBus.Request(PrePlayerJoinEvent{
+			if err := PrePlayerJoinEvent.Push(PrePlayerJoinPayload{
 				Player:        player,
 				Server:        srv,
 				MatchedDomain: matchedDomain,
-			}, PrePlayerJoinEventTopic)
-			if isEventCanceled(replyChan, logger) {
+			}); err != nil {
 				player.Close()
-				continue
+				return
 			}
 
 			sg.OutChan <- ConnTunnel{

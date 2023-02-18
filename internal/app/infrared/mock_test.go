@@ -1,6 +1,5 @@
 //go:generate mockgen -destination=infrared_mock_test.go -package=infrared_test github.com/haveachin/infrared/internal/app/infrared Conn,ConnProcessor,Player,Server,Version
 //go:generate mockgen -destination=net_mock_test.go -package=infrared_test net Addr
-//go:generate mockgen -destination=event_mock_test.go -package=infrared_test github.com/haveachin/infrared/pkg/event Bus
 package infrared_test
 
 import (

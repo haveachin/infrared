@@ -12,7 +12,6 @@ import (
 	embed_api "github.com/haveachin/infrared/api"
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/internal/pkg/config"
-	"github.com/haveachin/infrared/pkg/event"
 	"go.uber.org/zap"
 )
 
@@ -27,11 +26,10 @@ type PluginConfig struct {
 }
 
 type Plugin struct {
-	Config   PluginConfig
-	logger   *zap.Logger
-	eventBus event.Bus
-	api      infrared.API
-	cfgAPI   config.Config
+	Config PluginConfig
+	logger *zap.Logger
+	api    infrared.API
+	cfgAPI config.Config
 
 	quit chan bool
 }
@@ -83,7 +81,6 @@ func (p *Plugin) Reload(cfg map[string]any) error {
 
 func (p *Plugin) Enable(api infrared.PluginAPI) error {
 	p.logger = api.Logger()
-	p.eventBus = api.EventBus()
 	p.api = api
 	p.cfgAPI = api.Config()
 	p.quit = make(chan bool)

@@ -8,7 +8,6 @@ import (
 
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/internal/pkg/config"
-	"github.com/haveachin/infrared/pkg/event"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -23,13 +22,12 @@ type PluginConfig struct {
 }
 
 type Plugin struct {
-	Config   PluginConfig
-	logger   *zap.Logger
-	eventBus event.Bus
-	eventID  string
+	Config PluginConfig
+	logger *zap.Logger
 
-	mux  http.Handler
-	quit chan bool
+	eventChan chan any
+	mux       http.Handler
+	quit      chan bool
 
 	handshakeCount   *prometheus.CounterVec
 	playersConnected *prometheus.GaugeVec
@@ -61,6 +59,10 @@ func (p *Plugin) Init() {
 		Name: "infrared_consumed_bytes",
 		Help: "The total number of consumed bytes made to each server per edition",
 	}, []string{"server_id", "edition"})
+
+	infrared.PostConnProcessingEvent.HandleFunc(p.handlePostConnProcessingEvent)
+	infrared.PlayerJoinEvent.HandleFunc(p.handlePlayerJoinEvent)
+	infrared.PlayerLeaveEvent.HandleFunc(p.handlePlayerLeaveEvent)
 }
 
 func (p *Plugin) Load(cfg map[string]any) error {
@@ -99,24 +101,19 @@ func (p *Plugin) Reload(cfg map[string]any) error {
 
 func (p *Plugin) Enable(api infrared.PluginAPI) error {
 	p.logger = api.Logger()
-	p.eventBus = api.EventBus()
+	p.eventChan = make(chan any, 100)
 	p.quit = make(chan bool)
 
-	p.registerEventHandler()
-
+	go p.processEvents()
 	go p.startMetricsServer()
 	return nil
 }
 
 func (p *Plugin) Disable() error {
-	p.eventBus.DetachRecipient(p.eventID)
+	close(p.eventChan)
 	p.quit <- true
 	close(p.quit)
 	return nil
-}
-
-func (p *Plugin) registerEventHandler() {
-	p.eventID = p.eventBus.HandleFuncAsync(p.handleEvent)
 }
 
 func (p Plugin) startMetricsServer() {
@@ -143,35 +140,64 @@ func (p Plugin) startMetricsServer() {
 	srv.Shutdown(ctx)
 }
 
-func (p Plugin) handleEvent(e event.Event) {
-	switch e := e.Data.(type) {
-	case infrared.PostConnProcessingEvent:
-		requestType := "status"
-		if e.Player.IsLoginRequest() {
-			requestType = "login"
+func (p Plugin) handlePostConnProcessingEvent(e infrared.PostConnProcessingPayload) bool {
+	p.handleEvent(e)
+	return true
+}
+
+func (p Plugin) handlePlayerJoinEvent(e infrared.PlayerJoinPayload) bool {
+	p.handleEvent(e)
+	return true
+}
+
+func (p Plugin) handlePlayerLeaveEvent(e infrared.PlayerLeavePayload) bool {
+	p.handleEvent(e)
+	return true
+}
+
+func (p Plugin) handleEvent(e any) {
+	if !p.Config.Prometheus.Enable {
+		return
+	}
+
+	select {
+	case p.eventChan <- e:
+	default:
+		p.logger.Debug("rejected event; channel is full")
+	}
+}
+
+func (p Plugin) processEvents() {
+	for e := range p.eventChan {
+		switch e := e.(type) {
+		case infrared.PostConnProcessingPayload:
+			requestType := "status"
+			if e.Player.IsLoginRequest() {
+				requestType = "login"
+			}
+			p.handshakeCount.With(prometheus.Labels{
+				"requested_domain": e.Player.RequestedAddr(),
+				"request_type":     requestType,
+				"edition":          e.Player.Edition().String(),
+			}).Inc()
+		case infrared.PlayerJoinPayload:
+			p.playersConnected.With(prometheus.Labels{
+				"requested_domain": e.Player.RequestedAddr(),
+				"matched_domain":   e.MatchedDomain,
+				"server_id":        e.Server.ID(),
+				"edition":          e.Player.Edition().String(),
+			}).Inc()
+		case infrared.PlayerLeavePayload:
+			p.playersConnected.With(prometheus.Labels{
+				"requested_domain": e.Player.RequestedAddr(),
+				"matched_domain":   e.MatchedDomain,
+				"server_id":        e.Server.ID(),
+				"edition":          e.Player.Edition().String(),
+			}).Dec()
+			p.consumedBytes.With(prometheus.Labels{
+				"server_id": e.Server.ID(),
+				"edition":   e.Player.Edition().String(),
+			}).Add(float64(e.ConsumedBytes))
 		}
-		p.handshakeCount.With(prometheus.Labels{
-			"requested_domain": e.Player.RequestedAddr(),
-			"request_type":     requestType,
-			"edition":          e.Player.Edition().String(),
-		}).Inc()
-	case infrared.PlayerJoinEvent:
-		p.playersConnected.With(prometheus.Labels{
-			"requested_domain": e.Player.RequestedAddr(),
-			"matched_domain":   e.MatchedDomain,
-			"server_id":        e.Server.ID(),
-			"edition":          e.Player.Edition().String(),
-		}).Inc()
-	case infrared.PlayerLeaveEvent:
-		p.playersConnected.With(prometheus.Labels{
-			"requested_domain": e.Player.RequestedAddr(),
-			"matched_domain":   e.MatchedDomain,
-			"server_id":        e.Server.ID(),
-			"edition":          e.Player.Edition().String(),
-		}).Dec()
-		p.consumedBytes.With(prometheus.Labels{
-			"server_id": e.Server.ID(),
-			"edition":   e.Player.Edition().String(),
-		}).Add(float64(e.ConsumedBytes))
 	}
 }

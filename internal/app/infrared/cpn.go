@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/haveachin/infrared/pkg/event"
 	"go.uber.org/zap"
 )
 
@@ -47,7 +46,6 @@ type CPN struct {
 	In          <-chan Conn
 	Out         chan<- Player
 	Logger      *zap.Logger
-	EventBus    event.Bus
 	Middlewares []func(Handler) Handler
 }
 
@@ -59,16 +57,15 @@ func (cpn CPN) ListenAndServe(quit <-chan bool) {
 				return
 			}
 
+			if err := PreConnProcessingEvent.Push(PreConnProcessingPayload{
+				Conn: c,
+			}); err != nil {
+				c.Close()
+				return
+			}
+
 			connLogger := cpn.Logger.With(logConn(c)...)
 			connLogger.Debug("starting to process connection")
-
-			replyChan := cpn.EventBus.Request(PreConnProcessingEvent{
-				Conn: c,
-			}, PreProcessingEventTopic)
-			if isEventCanceled(replyChan, connLogger) {
-				c.Close()
-				continue
-			}
 
 			handleConn := func(c Conn) {
 				pc, err := cpn.ConnProcessor.ProcessConn(c)
@@ -86,11 +83,10 @@ func (cpn CPN) ListenAndServe(quit <-chan bool) {
 
 				connLogger.Debug("sending client to server gateway")
 
-				replyChan := cpn.EventBus.Request(PostConnProcessingEvent{
+				if err := PostConnProcessingEvent.Push(PostConnProcessingPayload{
 					Player: procConn,
-				}, PostProcessingEventTopic)
-				if isEventCanceled(replyChan, connLogger) {
-					procConn.Close()
+				}); err != nil {
+					c.Close()
 					return
 				}
 

@@ -1,61 +1,41 @@
 package infrared
 
-import (
-	"github.com/haveachin/infrared/pkg/event"
-	"go.uber.org/zap"
+import "github.com/haveachin/infrared/pkg/event"
+
+var (
+	AcceptedConnEvent       event.Event[AcceptedConnPayload]
+	PreConnProcessingEvent  event.Event[PreConnProcessingPayload]
+	PostConnProcessingEvent event.Event[PostConnProcessingPayload]
+	PrePlayerJoinEvent      event.Event[PrePlayerJoinPayload]
+	PlayerJoinEvent         event.Event[PlayerJoinPayload]
+	PlayerLeaveEvent        event.Event[PlayerLeavePayload]
 )
 
-const (
-	AcceptedConnEventTopic     = "AcceptedConn"
-	PreProcessingEventTopic    = "PreProcessing"
-	PostProcessingEventTopic   = "PostProcessing"
-	PrePlayerJoinEventTopic    = "PrePlayerJoin"
-	PlayerJoinEventTopic       = "PlayerJoin"
-	PlayerLeaveEventTopicAsync = "PlayerLeave"
-)
-
-// isEventCanceled evaluates all incoming replys and returns if the event
-// is canceled and the Reply that canceled it.
-func isEventCanceled(replyChan <-chan event.Reply, logger *zap.Logger) bool {
-	for reply := range replyChan {
-		if reply.Err == nil {
-			continue
-		}
-
-		logger.Debug("event canceled",
-			zap.String("reason", reply.Err.Error()),
-		)
-
-		return true
-	}
-	return false
-}
-
-type AcceptedConnEvent struct {
+type AcceptedConnPayload struct {
 	Conn Conn
 }
 
-type PreConnProcessingEvent struct {
+type PreConnProcessingPayload struct {
 	Conn Conn
 }
 
-type PostConnProcessingEvent struct {
+type PostConnProcessingPayload struct {
 	Player Player
 }
 
-type PrePlayerJoinEvent struct {
+type PrePlayerJoinPayload struct {
 	Player        Player
 	Server        Server
 	MatchedDomain string
 }
 
-type PlayerJoinEvent struct {
+type PlayerJoinPayload struct {
 	Player        Player
 	Server        Server
 	MatchedDomain string
 }
 
-type PlayerLeaveEvent struct {
+type PlayerLeavePayload struct {
 	Player        Player
 	Server        Server
 	MatchedDomain string
