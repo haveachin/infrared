@@ -1,12 +1,20 @@
 <p align="center">
-  <img width="300" height="auto" src="assets/logo_2000x2000.png">
+  <img width="300" height="auto" src="assets/Infrared_Logo_2000x2000.png">
 </p>
+
+<div style="float: left;">
 
 [![Discord](https://img.shields.io/discord/800456341088370698?label=discord&logo=discord)](https://discord.gg/r98YPRsZAx)
 [![Docker Pulls](https://img.shields.io/docker/pulls/haveachin/infrared?logo=docker)](https://hub.docker.com/r/haveachin/infrared)
 
 ![Test, Build, Release](https://github.com/haveachin/infrared/actions/workflows/test-build-release.yml/badge.svg)
 
+</div>
+
+<div style="float: right;">
+  <img height="60" src="assets/AGPLv3_Logo.svg"/>
+</div>
+<div style="clear: both;"/>
 
 # Infrared - a Minecraft Proxy
 
@@ -15,7 +23,7 @@ Ever wanted to have only one exposed port on your server for multiple Minecraft 
 Then Infrared is the tool you need!
 Infrared works as a reverse proxy using a sub-/domains to connect clients to a specific Minecraft server.
 
-## How to configure
+## Guides, Tutorials and Tips
 
 - [Install](docs/INSTALL.md)
 - [Usage](docs/USAGE.md)
@@ -39,12 +47,12 @@ Infrared works as a reverse proxy using a sub-/domains to connect clients to a s
 
 - [X] [Webhooks](docs/plugins/WEBHOOKS.md)
 - [X] [HTTP REST API with JSON](docs/plugins/HTTP_API.md)
-  - [ ] Create/Read/Update/Delete Configs
+  - [X] Create/Read/Update/Delete Configs
   - [X] Query connected players
   - [X] Disconnect players
 - [X] [Prometheus Analytics](docs/plugins/PROMETHEUS.md)
 - [X] [Traffic Limiter](docs/plugins/TRAFFIC_LIMITER.md)
-- [ ] [Session Validator](docs/plugins/SESSION_VALIDATOR.md)
+- [X] [Session Validator](docs/plugins/SESSION_VALIDATOR.md)
 
 ## Contributing
 
@@ -54,6 +62,10 @@ If you can't contribute by adding or modifying the source code, then you might b
 You can also contribute indirectly by donation.
 
 ## Coding Guidelines
+
+## Project Layout
+
+We try to use [golang-standards/project-layout](https://github.com/golang-standards/project-layout) as a reference. This should give Infrared a good This should give infrared a good foundation on which to grow. work to grow on.
 
 ### Commit Messages
 
@@ -73,3 +85,7 @@ Some tooling that can help you author those commit messages are the following pl
 ## Similar Projects
 
 * https://github.com/itzg/mc-router
+
+## Attributions
+
+* <a href="https://commons.wikimedia.org/wiki/File:AGPLv3_Logo.svg">Free Software Foundation</a>, Public domain, via Wikimedia Commons
