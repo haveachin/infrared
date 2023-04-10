@@ -23,4 +23,4 @@ plantuml:
 swag:
 	go install github.com/swaggo/swag/cmd/swag@latest
 	swag fmt -g internal/plugin/api/api.go
-	swag init -o api/ -g internal/plugin/api/api.go -ot yaml
+	swag init -o api/ -g internal/plugin/api/api.go -ot json,yaml

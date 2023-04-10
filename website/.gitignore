@@ -1,5 +1,2 @@
-# Minified Files
-*.min.*
-
-# Binaries
-tailwindcss
+node_modules/
+.vitepress/cache/

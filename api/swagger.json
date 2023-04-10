@@ -1,0 +1,428 @@
+{
+    "swagger": "2.0",
+    "info": {
+        "description": "API that is baked into Infrared via internal plugin.",
+        "title": "Infrared API",
+        "contact": {},
+        "license": {
+            "name": "AGPL-3.0",
+            "url": "https://www.gnu.org/licenses/agpl-3.0.txt"
+        },
+        "version": "1.0"
+    },
+    "basePath": "/v1",
+    "paths": {
+        "/configs": {
+            "get": {
+                "description": "Get all configs from all providers",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Config"
+                ],
+                "summary": "Get all configs",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.getConfigs.respDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.errorDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/configs/reload": {
+            "post": {
+                "description": "Reads all configs and reloads Infrared",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Config"
+                ],
+                "summary": "Reloads Infrared",
+                "responses": {
+                    "200": {
+                        "description": "See the documentation or configs folder for more info on this complex struct",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.errorDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/configs/{configId}": {
+            "get": {
+                "description": "Get a config via ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Config"
+                ],
+                "summary": "Get a config",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Config ID",
+                        "name": "configId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "See the documentation or configs folder for more info on this complex struct",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.errorDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.errorDTO"
+                        }
+                    }
+                }
+            },
+            "put": {
+                "description": "Create/Update a config via ID",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Config"
+                ],
+                "summary": "Create/Update a config",
+                "parameters": [
+                    {
+                        "description": "Config",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    {
+                        "type": "string",
+                        "description": "Config ID",
+                        "name": "configId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "See the documentation or configs folder for more info on this complex struct",
+                        "schema": {
+                            "type": "string"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.errorDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.errorDTO"
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "description": "Delete a config via ID",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Config"
+                ],
+                "summary": "Delete a config",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Config ID",
+                        "name": "configId",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.errorDTO"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/api.errorDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/{edition}/players": {
+            "get": {
+                "description": "Query players per edition and filter them by username via regular expression",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Player"
+                ],
+                "summary": "Query players per edition",
+                "parameters": [
+                    {
+                        "enum": [
+                            "java",
+                            "bedrock"
+                        ],
+                        "type": "string",
+                        "description": "Minecraft edition",
+                        "name": "edition",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "A regular expression to query usernames",
+                        "name": "usernameRegex",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/api.getPlayersHandler.respDTOItem"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.errorDTO"
+                        }
+                    },
+                    "422": {
+                        "description": "Unprocessable Entity",
+                        "schema": {
+                            "$ref": "#/definitions/api.errorDTO"
+                        }
+                    }
+                }
+            }
+        },
+        "/{edition}/players/{username}": {
+            "get": {
+                "description": "Get a player for an edition by username",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Player"
+                ],
+                "summary": "Get a player",
+                "parameters": [
+                    {
+                        "enum": [
+                            "java",
+                            "bedrock"
+                        ],
+                        "type": "string",
+                        "description": "Minecraft edition",
+                        "name": "edition",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Player username",
+                        "name": "username",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/api.getPlayerHandler.respDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.errorDTO"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found"
+                    }
+                }
+            },
+            "delete": {
+                "description": "Disconnect a player by edition via username",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Player"
+                ],
+                "summary": "Disconnect a player",
+                "parameters": [
+                    {
+                        "enum": [
+                            "java",
+                            "bedrock"
+                        ],
+                        "type": "string",
+                        "description": "Minecraft edition",
+                        "name": "edition",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Player username",
+                        "name": "username",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "$ref": "#/definitions/api.errorDTO"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found"
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "api.errorDTO": {
+            "type": "object",
+            "properties": {
+                "message": {
+                    "type": "string"
+                }
+            }
+        },
+        "api.getConfigs.respDTO": {
+            "type": "object",
+            "properties": {
+                "docker": {
+                    "type": "object",
+                    "additionalProperties": {}
+                },
+                "file": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "object",
+                        "additionalProperties": {}
+                    }
+                }
+            }
+        },
+        "api.getPlayerHandler.respDTO": {
+            "type": "object",
+            "properties": {
+                "gatewayId": {
+                    "type": "string",
+                    "example": "default"
+                },
+                "localAddress": {
+                    "type": "string",
+                    "example": "127.0.0.1:54265"
+                },
+                "matchedAddress": {
+                    "type": "string",
+                    "example": "*.example.com"
+                },
+                "remoteAddress": {
+                    "type": "string",
+                    "example": "123.45.67.89:45372"
+                },
+                "requestedAddress": {
+                    "type": "string",
+                    "example": "mc.example.com"
+                },
+                "serverId": {
+                    "type": "string",
+                    "example": "default"
+                },
+                "username": {
+                    "type": "string",
+                    "example": "H4v34ch1n"
+                },
+                "version": {
+                    "type": "string",
+                    "example": "1.19.3"
+                }
+            }
+        },
+        "api.getPlayersHandler.respDTOItem": {
+            "type": "object",
+            "properties": {
+                "gatewayId": {
+                    "type": "string",
+                    "example": "default"
+                },
+                "remoteAddress": {
+                    "type": "string",
+                    "example": "123.45.67.89:45372"
+                },
+                "serverId": {
+                    "type": "string",
+                    "example": "default"
+                },
+                "username": {
+                    "type": "string",
+                    "example": "H4v34ch1n"
+                }
+            }
+        }
+    }
+}
