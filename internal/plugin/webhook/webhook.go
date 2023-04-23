@@ -62,6 +62,7 @@ func newWebhook(id string, cfg webhookConfig) webhook.Webhook {
 type Plugin struct {
 	Config   PluginConfig
 	logger   *zap.Logger
+	eventBus event.Bus
 	eventID  string
 	// GatewayID mapped to webhooks
 	whks map[string][]webhook.Webhook
@@ -107,8 +108,9 @@ func (p *Plugin) Reload(cfg map[string]any) error {
 
 func (p *Plugin) Enable(api infrared.PluginAPI) error {
 	p.logger = api.Logger()
+	p.eventBus = api.EventBus()
 
-	p.eventID = p.eventBus.HandleFunc(p.handleEvent)
+	p.eventID = p.eventBus.HandleFuncAsync(p.handleEvent)
 
 	return nil
 }

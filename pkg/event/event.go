@@ -1,53 +1,58 @@
 package event
 
 import (
-	"errors"
-	"sync"
+	"time"
+
+	"github.com/gofrs/uuid"
 )
 
-type Handler[Payload any] interface {
-	Handle(p Payload) (ok bool)
+type Reply struct {
+	Data any
+	Err  error
 }
 
-type HandlerFunc[Payload any] func(p Payload) (ok bool)
-
-func (fn HandlerFunc[Payload]) Handle(p Payload) (ok bool) {
-	return fn(p)
+type Event struct {
+	ID         string
+	OccurredAt time.Time
+	Topics     []string
+	Data       any
+	replyChan  chan<- Reply
 }
 
-type Event[Payload any] struct {
-	sync.Mutex
-	handlers []HandlerFunc[Payload]
-}
-
-func (e *Event[Payload]) Handle(h Handler[Payload]) {
-	e.HandleFunc(h.Handle)
-}
-
-func (e *Event[Payload]) HandleFunc(fn HandlerFunc[Payload]) {
-	e.Lock()
-	defer e.Unlock()
-
-	if e.handlers == nil {
-		e.handlers = []HandlerFunc[Payload]{fn}
-		return
-	}
-
-	e.handlers = append(e.handlers, fn)
-}
-
-func (e *Event[Payload]) Push(p Payload) error {
-	e.Lock()
-	defer e.Unlock()
-
-	if e.handlers == nil {
-		return nil
-	}
-
-	for _, h := range e.handlers {
-		if ok := h(p); !ok {
-			return errors.New("event cancled")
+func (e Event) hasTopic(topic string) bool {
+	for _, t := range e.Topics {
+		if t == topic {
+			return true
 		}
 	}
-	return nil
+	return false
+}
+
+type HandlerSync interface {
+	HandleSync(Event) (any, error)
+}
+
+type HandlerSyncFunc func(Event) (any, error)
+
+func (fn HandlerSyncFunc) HandleSync(e Event) (any, error) {
+	return fn(e)
+}
+
+type Handler interface {
+	Handle(Event)
+}
+
+type HandlerFunc func(Event)
+
+func (fn HandlerFunc) Handle(e Event) {
+	fn(e)
+}
+
+func New(data any, topic ...string) Event {
+	return Event{
+		ID:         uuid.Must(uuid.NewV4()).String(),
+		OccurredAt: time.Now(),
+		Topics:     topic,
+		Data:       data,
+	}
 }

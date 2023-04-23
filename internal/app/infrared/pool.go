@@ -6,12 +6,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/haveachin/infrared/pkg/event"
 	"go.uber.org/zap"
 )
 
 type ConnPoolConfig struct {
-	In     <-chan ConnTunnel
-	Logger *zap.Logger
+	In       <-chan ConnTunnel
+	Logger   *zap.Logger
+	EventBus event.Bus
 }
 
 type ConnPool struct {
@@ -72,23 +74,20 @@ func (cp *ConnPool) handlePlayerLogin(ct ConnTunnel) {
 	defer func() {
 		logger.Debug("disconnected client")
 		cp.removeFromPool(ct)
-		if err := PlayerLeaveEvent.Push(PlayerLeavePayload{
+		cp.EventBus.Push(PlayerLeaveEvent{
 			Player:        ct.Conn,
 			Server:        ct.Server,
 			MatchedDomain: ct.MatchedDomain,
 			ConsumedBytes: consumedBytes,
-		}); err != nil {
-			cp.Close()
-			return
-		}
+		}, PlayerLeaveEventTopicAsync)
 	}()
 
-	if err := PlayerJoinEvent.Push(PlayerJoinPayload{
+	replyChan := cp.EventBus.Request(PlayerJoinEvent{
 		Player:        ct.Conn,
 		Server:        ct.Server,
 		MatchedDomain: ct.MatchedDomain,
-	}); err != nil {
-		cp.Close()
+	}, PlayerJoinEventTopic)
+	if isEventCanceled(replyChan, logger) {
 		return
 	}
 

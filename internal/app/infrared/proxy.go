@@ -4,6 +4,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/haveachin/infrared/pkg/event"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 )
@@ -40,7 +41,7 @@ type RateLimiterSettings struct {
 
 type Proxy interface {
 	Reload(cfg ProxyConfig) error
-	ListenAndServe(logger *zap.Logger)
+	ListenAndServe(bus event.Bus, logger *zap.Logger)
 	Close() error
 
 	Players() []Player
@@ -58,6 +59,7 @@ type proxy struct {
 	srvCh            chan Player
 	poolCh           chan ConnTunnel
 	logger           *zap.Logger
+	eventBus         event.Bus
 	mu               sync.Mutex
 }
 
@@ -127,6 +129,18 @@ func NewProxy(cfg ProxyConfig) (*proxy, error) {
 	}, nil
 }
 
+func (p *proxy) setEventBus(bus event.Bus) {
+	p.eventBus = bus
+
+	for _, gw := range p.gateways {
+		gw.SetEventBus(bus)
+	}
+
+	p.cpnPool.CPN.EventBus = bus
+	p.connPool.EventBus = bus
+	p.serverGateway.EventBus = bus
+}
+
 func (p *proxy) setLogger(logger *zap.Logger) {
 	p.logger = logger
 	p.listenersManager.logger = logger
@@ -140,8 +154,9 @@ func (p *proxy) setLogger(logger *zap.Logger) {
 	p.connPool.Logger = logger
 }
 
-func (p *proxy) ListenAndServe(logger *zap.Logger) {
+func (p *proxy) ListenAndServe(bus event.Bus, logger *zap.Logger) {
 	p.mu.Lock()
+	p.setEventBus(bus)
 	p.setLogger(logger)
 	p.cpnPool.SetSize(p.settings.CPNCount)
 
@@ -164,6 +179,7 @@ func (p *proxy) Reload(cfg ProxyConfig) error {
 		return err
 	}
 	np.setLogger(p.logger)
+	np.setEventBus(p.eventBus)
 
 	for _, gw := range p.gateways {
 		gw.Close()

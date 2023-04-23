@@ -5,6 +5,7 @@ import (
 	"net"
 	"sync"
 
+	"github.com/haveachin/infrared/pkg/event"
 	"go.uber.org/zap"
 )
 
@@ -17,6 +18,8 @@ type Gateway interface {
 
 	SetLogger(*zap.Logger)
 	Logger() *zap.Logger
+	SetEventBus(event.Bus)
+	EventBus() event.Bus
 
 	// Listeners returns a slice of all listeners that the Gateway has
 	Listeners() []net.Listener
@@ -52,15 +55,18 @@ func ListenAndServe(gw Gateway, cpnChan chan<- Conn) {
 					)
 					continue
 				}
+
 				conn := gw.WrapConn(c, l).(Conn)
 
-				if err := AcceptedConnEvent.Push(AcceptedConnPayload{
+				logger.Info("accepting new connection", logConn(c)...)
+
+				replyChan := gw.EventBus().Request(AcceptedConnEvent{
 					Conn: conn,
-				}); err != nil {
+				}, AcceptedConnEventTopic)
+				if isEventCanceled(replyChan, logger) {
 					conn.Close()
-					return
+					continue
 				}
-				logger.Debug("accepting new connection", logConn(c)...)
 
 				cpnChan <- conn
 			}

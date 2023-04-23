@@ -1,6 +1,8 @@
 package traffic_limiter
 
 import (
+	"errors"
+
 	"github.com/c2h5oh/datasize"
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/internal/pkg/config"
@@ -28,8 +30,10 @@ type PluginConfig struct {
 }
 
 type Plugin struct {
-	Config PluginConfig
-	logger *zap.Logger
+	Config   PluginConfig
+	logger   *zap.Logger
+	eventBus event.Bus
+	eventIDs []string
 	// ServerID mapped to trafficLimiter
 	trafficLimiters map[string]trafficLimiter
 }
@@ -74,6 +78,7 @@ func (p *Plugin) Reload(cfg map[string]any) error {
 
 func (p *Plugin) Enable(api infrared.PluginAPI) error {
 	p.logger = api.Logger()
+	p.eventBus = api.EventBus()
 
 	p.registerEventHandler()
 	p.startCronJobs()
@@ -103,7 +108,7 @@ func (p *Plugin) startCronJobs() error {
 
 func (p *Plugin) registerEventHandler() {
 	p.eventIDs = append(p.eventIDs, p.eventBus.HandleFunc(p.onPreConnConnecting, infrared.PrePlayerJoinEventTopic))
-	p.eventIDs = append(p.eventIDs, p.eventBus.HandleFunc(p.onPlayerLeave, infrared.PlayerLeaveEventTopic))
+	p.eventIDs = append(p.eventIDs, p.eventBus.HandleFuncAsync(p.onPlayerLeave, infrared.PlayerLeaveEventTopicAsync))
 }
 
 func (p Plugin) onPlayerLeave(e event.Event) {
@@ -122,18 +127,18 @@ func (p Plugin) onPlayerLeave(e event.Event) {
 	}
 }
 
-func (p Plugin) onPreConnConnecting(e event.Event) {
+func (p Plugin) onPreConnConnecting(e event.Event) (any, error) {
 	switch e := e.Data.(type) {
 	case infrared.PrePlayerJoinEvent:
 		t, ok := p.trafficLimiters[e.Server.ID()]
 		if !ok {
-			return
+			return nil, nil
 		}
 
 		totalBytes, err := t.storage.ConsumedBytes(e.Server.ID())
 		if err != nil {
 			p.logger.Error("failed to read consumed bytes", zap.Error(err))
-			return
+			return nil, nil
 		}
 
 		if t.trafficLimit <= datasize.ByteSize(totalBytes) {
@@ -142,7 +147,8 @@ func (p Plugin) onPreConnConnecting(e event.Event) {
 				infrared.TimeMessageTemplates(),
 				infrared.PlayerMessageTemplates(e.Player),
 			))
-			return
+			return nil, errors.New("traffic limit reached")
 		}
 	}
+	return nil, nil
 }

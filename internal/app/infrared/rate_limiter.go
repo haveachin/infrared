@@ -2,6 +2,7 @@ package infrared
 
 import (
 	"fmt"
+	"log"
 	"math"
 	"net"
 	"strings"

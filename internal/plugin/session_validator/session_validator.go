@@ -95,34 +95,34 @@ func (p *Plugin) Disable() error {
 	return nil
 }
 
-func (p *Plugin) onPlayerJoin(cpsThreshold int) event.HandlerFunc {
-	handleEvent := func(e event.Event) {
+func (p *Plugin) onPlayerJoin(cpsThreshold int) event.HandlerSyncFunc {
+	handleEvent := func(e event.Event) (any, error) {
 		switch data := e.Data.(type) {
 		case infrared.PlayerJoinEvent:
 			player := data.Player
 			serverID := data.Server.ID()
 			if err := p.validatePlayer(player, serverID); err != nil {
-				return
+				return nil, err
 			}
 		}
-		return
+		return nil, nil
 	}
 
 	if cpsThreshold <= 0 {
 		return handleEvent
 	}
 
-	return func(e event.Event) {
+	return func(e event.Event) (any, error) {
 		p.cpsCounter.Inc()
 		cps := p.cpsCounter.CPS()
 		if cps < uint32(cpsThreshold) {
-			return
+			return nil, nil
 		}
 		p.logger.Debug("threshold reached",
 			zap.Uint32("cps", cps),
 		)
 
-		handleEvent(e)
+		return handleEvent(e)
 	}
 }
 

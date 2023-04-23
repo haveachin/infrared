@@ -8,6 +8,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/haveachin/infrared/internal/app/infrared"
+	"github.com/haveachin/infrared/pkg/event"
 	"go.uber.org/zap"
 )
 
@@ -40,6 +41,11 @@ func TestCPN_ListenAndServe(t *testing.T) {
 			cp := NewMockConnProcessor(ctrl)
 			cp.EXPECT().ClientTimeout().Times(1).Return(time.Duration(0))
 			cp.EXPECT().ProcessConn(tc.in).Times(1).Return(tc.out, tc.procErr)
+			replyChan := make(chan event.Reply)
+			close(replyChan)
+			bus := NewMockBus(ctrl)
+			bus.EXPECT().Request(gomock.Any(), infrared.PreProcessingEventTopic).
+				Times(1).Return(replyChan)
 
 			if tc.err == nil {
 				tc.in.EXPECT().SetDeadline(gomock.Any()).Times(1).Return(nil)
@@ -49,7 +55,8 @@ func TestCPN_ListenAndServe(t *testing.T) {
 				tc.in.EXPECT().Close().Times(1).Return(nil)
 			} else {
 				tc.in.EXPECT().SetDeadline(time.Time{}).Times(1).Return(nil)
-				//infrared.PostProcessingEvent.EXPECT().Push(gomock.Any(), infrared.PostProcessingPayload).Times(1)
+				bus.EXPECT().Request(gomock.Any(), infrared.PostProcessingEventTopic).
+					Times(1).Return(replyChan)
 			}
 
 			in := make(chan infrared.Conn)
@@ -59,6 +66,7 @@ func TestCPN_ListenAndServe(t *testing.T) {
 				In:            in,
 				Out:           out,
 				Logger:        zap.NewNop(),
+				EventBus:      bus,
 			}
 
 			wg := sync.WaitGroup{}
