@@ -4,22 +4,28 @@ layout: home
 
 hero:
   name: "Infrared"
-  text: "A Minecraft Reverse Proxy"
-  tagline: My great project tagline
+  text: "A Secure Minecraft Reverse Proxy"
+  #tagline: My great project tagline
+  image:
+    src: /logo.svg
+    alt: Infrared
   actions:
     - theme: brand
-      text: Markdown Examples
-      link: /markdown-examples
+      text: Getting Started
+      link: /getting-started
     - theme: alt
-      text: API Examples
-      link: /api-examples
+      text: Configuration
+      link: /configuration
 
 features:
-  - title: Feature A
+  - icon: 🛡️
+    title: Secure
     details: Lorem ipsum dolor sit amet, consectetur adipiscing elit
-  - title: Feature B
+  - icon: 🪶
+    title: Lightweight
     details: Lorem ipsum dolor sit amet, consectetur adipiscing elit
-  - title: Feature C
+  - icon: ⚡
+    title: High Performance
     details: Lorem ipsum dolor sit amet, consectetur adipiscing elit
 ---
 

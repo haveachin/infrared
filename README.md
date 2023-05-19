@@ -1,5 +1,5 @@
 <p align="center">
-  <img width="300" height="auto" src="assets/Infrared_Logo_2000x2000.png">
+  <img width="300" height="auto" src="assets/logo.svg">
 </p>
 
 <div style="float: left;">
@@ -12,11 +12,11 @@
 </div>
 
 <div style="float: right;">
-  <img height="60" src="assets/AGPLv3_Logo.svg"/>
+  <img height="60" src="assets/agplv3_logo.svg"/>
 </div>
 <div style="clear: both;"/>
 
-# Infrared - a Minecraft Proxy
+# Infrared - A Secure Minecraft Reverse Proxy
 
 An ultra lightweight Minecraft reverse proxy and status placeholder:
 Ever wanted to have only one exposed port on your server for multiple Minecraft servers?
