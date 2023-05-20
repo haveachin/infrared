@@ -3,9 +3,9 @@
 layout: home
 
 hero:
-  name: "Infrared"
-  text: "A Secure Minecraft Reverse Proxy"
-  #tagline: My great project tagline
+  name: Infrared
+  text: High Performance Minecraft Proxy
+  tagline: 
   image:
     src: /logo.svg
     alt: Infrared
@@ -14,18 +14,21 @@ hero:
       text: Getting Started
       link: /getting-started
     - theme: alt
-      text: Configuration
-      link: /configuration
+      text: Config
+      link: /config
+    - theme: alt
+      text: OpenAPI Docs
+      link: pathname:///api
 
 features:
-  - icon: 🛡️
-    title: Secure
-    details: Lorem ipsum dolor sit amet, consectetur adipiscing elit
-  - icon: 🪶
-    title: Lightweight
-    details: Lorem ipsum dolor sit amet, consectetur adipiscing elit
+  - icon: 🧼
+    title: Sanitizes Handshakes
+    details: Protects your server from most flooding attacks.
   - icon: ⚡
     title: High Performance
-    details: Lorem ipsum dolor sit amet, consectetur adipiscing elit
+    details: Written with scale in mind.
+  - icon: 📦
+    title: Modular
+    details: Customize your instance to fit your use case.
 ---
 

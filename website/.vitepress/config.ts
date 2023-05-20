@@ -4,16 +4,33 @@ import { defineConfig} from 'vitepress'
 export default defineConfig({
   lang: 'en-US',
   title: 'Infrared',
-  titleTemplate: ':title | Reverse Proxy',
-  description: "A Minecraft Reverse Proxy",
+  titleTemplate: ':title | Minecraft Proxy',
+  description: "Minecraft Proxy",
   cleanUrls: true,
+  head: [
+    [
+      'link',
+      {
+        rel: 'icon',
+        type: 'image/x-icon',
+        href: 'logo.svg',
+      },
+    ],
+  ],
   themeConfig: {
     // https://vitepress.dev/reference/default-theme-config
     logo: "/logo.svg",
 
     nav: [
       { text: 'Home', link: '/' },
-      { text: 'Examples', link: '/markdown-examples' }
+      {
+        text: 'Guides',
+        items: [
+          { text: 'Item A', link: '/item-1' },
+          { text: 'Item B', link: '/item-2' },
+          { text: 'Item C', link: '/item-3' }
+        ]
+      }
     ],
 
     sidebar: [
@@ -34,6 +51,14 @@ export default defineConfig({
     footer: {
       message: 'Released under the AGPL-3.0.',
       copyright: 'Copyright © 2019-present Haveachin and Contributors',
-    }
+    },
+
+    editLink: {
+      pattern: 'https://github.com/haveachin/infrared/edit/master/website/:path'
+    },
+    
+    search: {
+      provider: 'local'
+    },
   }
 })

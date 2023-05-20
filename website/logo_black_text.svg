@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" height="985" width="925">
+<svg xmlns="http://www.w3.org/2000/svg" height="1000" width="4200">
   <style>
     .left-side {
       fill: #b7002d;
@@ -11,12 +11,19 @@
     .top-side {
       fill: #CC0033;
     }
+
+    .title {
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      font-size: 42em;
+      fill: #3c3c43;
+    }
   </style>
 
   <!-- left side -->
   <path 
     class="left-side"
-    d="M 50 300
+    d="M 285 310
       v 400 q 0 37 25 50
       l 350 190 q 25 10 25 -20
       v -400 q 0 -37 -25 -50
@@ -27,7 +34,7 @@
   <!-- right side-->
   <path
     class="right-side"
-    d="M 875 300
+    d="M 1110 310
       v 400 q 0 37 -25 50
       l -350 190 q -25 10 -25 -20
       v -400 q 0 -37 25 -50
@@ -38,11 +45,16 @@
   <!-- top side -->
   <path
     class="top-side"
-    d="M 85 260
+    d="M 320 270
       l 345 180 q 30 15 60 0
       l 345 -180 q 15 -15 0 -30
       l -345 -180 q -30 -15 -60 0
       l -345 180 q -15 15 0 30
       Z"
   />
+
+  <text
+    class="title"
+    x="1400" y="760"
+  >Infrared</text>
 </svg>
