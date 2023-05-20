@@ -2,7 +2,7 @@ version: "3"
 
 services:
   infrared:
-    image: haveachin/infrared:latest
+    image: haveachin/infrared:2.0.0-alpha.13
     container_name: infrared
     restart: always
     ports:
@@ -15,8 +15,8 @@ services:
       # Prometheus
       #- 9070:9070/tcp
     volumes:
-      - ./data/infrared:/infrared
-      #- /var/run/docker.sock:/var/run/docker.sock:ro
+      - ../dev:/infrared
+      - /var/run/docker.sock:/var/run/docker.sock:ro
     networks:
       - infrared
 

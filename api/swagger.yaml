@@ -1,293 +1,246 @@
-basePath: /v1
-definitions:
-  api.errorDTO:
-    properties:
-      message:
-        type: string
-    type: object
-  api.getConfigs.respDTO:
-    properties:
-      docker:
-        additionalProperties: {}
-        type: object
-      file:
-        additionalProperties:
-          additionalProperties: {}
-          type: object
-        type: object
-    type: object
-  api.getPlayerHandler.respDTO:
-    properties:
-      gatewayId:
-        example: default
-        type: string
-      localAddress:
-        example: 127.0.0.1:54265
-        type: string
-      matchedAddress:
-        example: '*.example.com'
-        type: string
-      remoteAddress:
-        example: 123.45.67.89:45372
-        type: string
-      requestedAddress:
-        example: mc.example.com
-        type: string
-      serverId:
-        example: default
-        type: string
-      username:
-        example: H4v34ch1n
-        type: string
-      version:
-        example: 1.19.3
-        type: string
-    type: object
-  api.getPlayersHandler.respDTOItem:
-    properties:
-      gatewayId:
-        example: default
-        type: string
-      remoteAddress:
-        example: 123.45.67.89:45372
-        type: string
-      serverId:
-        example: default
-        type: string
-      username:
-        example: H4v34ch1n
-        type: string
-    type: object
+openapi: '3.0.2'
 info:
-  contact: {}
-  description: API that is baked into Infrared via internal plugin.
-  license:
-    name: AGPL-3.0
-    url: https://www.gnu.org/licenses/agpl-3.0.txt
   title: Infrared API
-  version: "1.0"
+  description: API that is baked into Infrared via internal plugin.
+  version: '1.0'
+  x-logo: 
+    url: /logo.svg
+servers:
+  - url: /v1
 paths:
   /{edition}/players:
     get:
-      description: Query players per edition and filter them by username via regular
-        expression
-      parameters:
-      - description: Minecraft edition
-        enum:
-        - java
-        - bedrock
-        in: path
-        name: edition
-        required: true
-        type: string
-      - description: A regular expression to query usernames
-        in: query
-        name: usernameRegex
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            items:
-              $ref: '#/definitions/api.getPlayersHandler.respDTOItem'
-            type: array
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.errorDTO'
-        "422":
-          description: Unprocessable Entity
-          schema:
-            $ref: '#/definitions/api.errorDTO'
+      tags:
+        - Player
       summary: Query players per edition
-      tags:
-      - Player
+      parameters:
+        - $ref: '#/components/parameters/Edition'
+        - $ref: '#/components/parameters/UsernameRegex'
+      responses:
+        '200':
+          $ref: '#/components/responses/PlayerItems'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
   /{edition}/players/{username}:
-    delete:
-      description: Disconnect a player by edition via username
-      parameters:
-      - description: Minecraft edition
-        enum:
-        - java
-        - bedrock
-        in: path
-        name: edition
-        required: true
-        type: string
-      - description: Player username
-        in: path
-        name: username
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "204":
-          description: No Content
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.errorDTO'
-        "404":
-          description: Not Found
-      summary: Disconnect a player
-      tags:
-      - Player
     get:
-      description: Get a player for an edition by username
-      parameters:
-      - description: Minecraft edition
-        enum:
-        - java
-        - bedrock
-        in: path
-        name: edition
-        required: true
-        type: string
-      - description: Player username
-        in: path
-        name: username
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/api.getPlayerHandler.respDTO'
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.errorDTO'
-        "404":
-          description: Not Found
-      summary: Get a player
       tags:
-      - Player
+        - Player
+      summary: Get a player
+      parameters:
+        - $ref: '#/components/parameters/Edition'
+        - $ref: '#/components/parameters/Username'
+      responses:
+        '200':
+          $ref: '#/components/responses/Player'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: Player not found
+    delete:
+      tags:
+        - Player
+      summary: Disconnect a player
+      parameters:
+        - $ref: '#/components/parameters/Edition'
+        - $ref: '#/components/parameters/Username'
+      responses:
+        '204':
+          description: No content
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: Player not found
   /configs:
     get:
-      description: Get all configs from all providers
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/api.getConfigs.respDTO'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.errorDTO'
+      tags:
+        - "Config"
       summary: Get all configs
-      tags:
-      - Config
+      responses:
+        '200':
+          $ref: '#/components/responses/Configs'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /configs/{configId}:
-    delete:
-      description: Delete a config via ID
-      parameters:
-      - description: Config ID
-        in: path
-        name: configId
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "204":
-          description: No Content
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.errorDTO'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.errorDTO'
-      summary: Delete a config
-      tags:
-      - Config
     get:
-      description: Get a config via ID
-      parameters:
-      - description: Config ID
-        in: path
-        name: configId
-        required: true
-        type: string
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: See the documentation or configs folder for more info on this
-            complex struct
-          schema:
-            type: string
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.errorDTO'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.errorDTO'
+      tags:
+        - "Config"
       summary: Get a config
-      tags:
-      - Config
-    put:
-      consumes:
-      - application/json
-      description: Create/Update a config via ID
       parameters:
-      - description: Config
-        in: body
-        name: request
-        required: true
-        schema:
-          additionalProperties: true
-          type: object
-      - description: Config ID
-        in: path
-        name: configId
-        required: true
-        type: string
-      produces:
-      - application/json
+        - $ref: '#/components/parameters/ConfigID'
       responses:
-        "201":
-          description: See the documentation or configs folder for more info on this
-            complex struct
-          schema:
-            type: string
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/api.errorDTO'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.errorDTO'
+        '200':
+          $ref: '#/components/responses/Config'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    put:
+      tags:
+        - "Config"
       summary: Create/Update a config
-      tags:
-      - Config
-  /configs/reload:
-    post:
-      description: Reads all configs and reloads Infrared
-      produces:
-      - application/json
+      parameters:
+        - $ref: '#/components/parameters/ConfigID'
       responses:
-        "200":
-          description: See the documentation or configs folder for more info on this
-            complex struct
-          schema:
-            type: string
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/api.errorDTO'
-      summary: Reloads Infrared
+        '201':
+          $ref: '#/components/responses/Config'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
       tags:
-      - Config
-swagger: "2.0"
+        - "Config"
+      summary: Delete a config
+      responses:
+        '204':
+          description: No content
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  responses:
+    Player:
+      description: OK
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Player'
+    PlayerItems:
+      description: OK
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/PlayerItem'
+    Config:
+      description: OK
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Config'
+    Configs:
+      description: OK
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Configs'
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    UnprocessableEntity:
+      description: Unprocessable entity
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  parameters:
+    Edition:
+      name: edition
+      in: path
+      description: Minecraft edition
+      required: true
+      schema:
+        type: string
+        enum:
+          - java
+          - bedrock
+    Username:
+      name: username
+      in: path
+      description: Players username
+      required: true
+      schema:
+        type: string
+    UsernameRegex:
+      name: usernameRegex
+      description: A regular expression to query usernames
+      in: query
+      required: false
+      schema:
+        type: string
+    ConfigID:
+      name: configId
+      in: path
+      description: URL encoded config path
+      example: proxies%2Fjava-example.yml
+      required: true
+      schema:
+        type: string
+  schemas:
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+          example: an error has occurred
+    Player:
+      type: object
+      properties:
+        username:
+          type: string
+          example: H4v34ch1n
+        gatewayId:
+          type: string
+          example: default
+        remoteAddress:
+          type: string
+          example: 123.45.67.89:43553
+        localAddress:
+          type: string
+          example: 127.0.0.1:58392
+        version:
+          type: string
+          example: 1.19.3
+        serverId:
+          type: string
+          example: default
+        matchedAddress:
+          type: string
+          example: '*.example.com'
+        requestedAddress:
+          type: string
+          example: mc.example.com
+    PlayerItem:
+      type: object
+      properties:
+        username:
+          type: string
+          example: H4v34ch1n
+        gatewayId:
+          type: string
+          example: default
+        remoteAddress:
+          type: string
+          example: 123.45.67.89:43553
+        serverId:
+          type: string
+          example: default
+    Config:
+      type: object
+      properties:
+        info:
+          type: string
+          example: See the Infrared configs directory for more info on how this complex object can look like.
+    Configs:
+      type: object
+      properties:
+        files:
+          type: array
+          items:
+            $ref: '#/components/schemas/Config'
+        docker:
+          $ref: '#/components/schemas/Config'
