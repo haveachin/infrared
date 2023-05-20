@@ -39,7 +39,7 @@ func (cp *ConnPool) Start() {
 				break
 			}
 
-			if ct.Conn.IsLoginRequest() {
+			if ct.Player.IsLoginRequest() {
 				go cp.handlePlayerLogin(ct)
 			} else {
 				go cp.handlePlayerStatus(ct)
@@ -53,11 +53,11 @@ func (cp *ConnPool) Start() {
 }
 
 func (cp *ConnPool) handlePlayerStatus(ct ConnTunnel) {
-	defer ct.Conn.Close()
+	defer ct.Player.Close()
 
-	logger := cp.Logger.With(logProcessedConn(ct.Conn)...)
+	logger := cp.Logger.With(logProcessedConn(ct.Player)...)
 	logger.Debug("connecting client to server")
-	ct.Conn.SetDeadline(time.Now().Add(time.Millisecond * 500))
+	ct.Player.SetDeadline(time.Now().Add(time.Millisecond * 500))
 	if _, err := ct.Start(); err != nil {
 		logger.Debug("closing connection", zap.Error(err))
 		return
@@ -65,9 +65,9 @@ func (cp *ConnPool) handlePlayerStatus(ct ConnTunnel) {
 }
 
 func (cp *ConnPool) handlePlayerLogin(ct ConnTunnel) {
-	defer ct.Conn.Close()
+	defer ct.Player.Close()
 
-	logger := cp.Logger.With(logProcessedConn(ct.Conn)...)
+	logger := cp.Logger.With(logProcessedConn(ct.Player)...)
 	consumedBytes := int64(0)
 
 	cp.addToPool(ct)
@@ -75,7 +75,7 @@ func (cp *ConnPool) handlePlayerLogin(ct ConnTunnel) {
 		logger.Debug("disconnected client")
 		cp.removeFromPool(ct)
 		cp.EventBus.Push(PlayerLeaveEvent{
-			Player:        ct.Conn,
+			Player:        ct.Player,
 			Server:        ct.Server,
 			MatchedDomain: ct.MatchedDomain,
 			ConsumedBytes: consumedBytes,
@@ -83,7 +83,7 @@ func (cp *ConnPool) handlePlayerLogin(ct ConnTunnel) {
 	}()
 
 	replyChan := cp.EventBus.Request(PlayerJoinEvent{
-		Player:        ct.Conn,
+		Player:        ct.Player,
 		Server:        ct.Server,
 		MatchedDomain: ct.MatchedDomain,
 	}, PlayerJoinEventTopic)
@@ -127,11 +127,11 @@ func (cp *ConnPool) Close() error {
 func (cp *ConnPool) addToPool(ct ConnTunnel) {
 	cp.mu.Lock()
 	defer cp.mu.Unlock()
-	cp.pool[ct.Conn.RemoteAddr()] = ct
+	cp.pool[ct.Player.RemoteAddr()] = ct
 }
 
 func (cp *ConnPool) removeFromPool(ct ConnTunnel) {
 	cp.mu.Lock()
 	defer cp.mu.Unlock()
-	delete(cp.pool, ct.Conn.RemoteAddr())
+	delete(cp.pool, ct.Player.RemoteAddr())
 }

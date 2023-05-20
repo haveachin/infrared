@@ -153,10 +153,12 @@ func (c *Conn) SetEncryption(sharedSecret []byte) error {
 }
 
 func (c *Conn) Close() error {
-	if err := c.Conn.(*net.TCPConn).SetLinger(0); err != nil {
-		return err
+	switch c := c.Conn.(type) {
+	case *net.TCPConn:
+		return c.Close() //c.SetLinger(0)
+	default:
+		return c.Close()
 	}
-	return c.Conn.Close()
 }
 
 type Player struct {

@@ -2,7 +2,6 @@ package infrared
 
 import (
 	"errors"
-	"net"
 	"sync"
 
 	"github.com/gertd/wild"
@@ -16,7 +15,7 @@ type Server interface {
 	ID() string
 	Domains() []string
 	GatewayIDs() []string
-	HandleConn(c net.Conn) (Conn, error)
+	NewConn(Conn) (Conn, error)
 	Edition() Edition
 }
 
@@ -125,7 +124,7 @@ func (sg *ServerGateway) Start() {
 			}
 
 			sg.OutChan <- ConnTunnel{
-				Conn:          player,
+				Player:        player,
 				Server:        srv,
 				MatchedDomain: matchedDomain,
 			}

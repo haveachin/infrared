@@ -39,6 +39,18 @@ services:
       - infrared.bedrock.servers.devserver.domains=[*]
       - infrared.bedrock.servers.devserver.address=:19133
 
+  haproxy:
+    image: haproxy
+    container_name: infrared-dev-haproxy
+    networks:
+      - infrared
+    volumes:
+      - ../dev/haproxy:/usr/local/etc/haproxy:ro
+    sysctls:
+      - net.ipv4.ip_unprivileged_port_start=0
+    ports:
+      - 25567:25565/tcp
+
   redis:
     image: redis
     container_name: infrared-dev-redis

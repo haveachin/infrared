@@ -65,7 +65,7 @@ type Player interface {
 	RequestedAddr() string
 	// MatchedAddr returns the address of the server the player joined
 	MatchedAddr() string
-	// ServerAddr sets the address of the server the player joined
+	// SetServerAddr sets the address of the server the player joined
 	SetMatchedAddr(string)
 	// DisconnectServerNotFound disconnects the client when the server is not found
 	DisconnectServerNotFound() error
@@ -149,9 +149,9 @@ func ServerMessageTemplate(s Server) map[string]string {
 // ConnTunnel is a proxy tunnel between a a client and a server.
 // Similar to net.Pipe
 type ConnTunnel struct {
-	// Conn that will be connected to the server
+	// Player that will be connected to the server
 	// when the ConnTunnel is started.
-	Conn Player
+	Player Player
 	// Server is the minecraft server that the Conn will be connected to.
 	Server Server
 	// MatchedDomain is the domain that the client matched when resolving
@@ -162,7 +162,7 @@ type ConnTunnel struct {
 
 // Start starts to proxy the Conn to the Server. This call is blocking.
 func (ct ConnTunnel) Start() (int64, error) {
-	rc, err := ct.Server.HandleConn(ct.Conn)
+	rc, err := ct.Server.NewConn(ct.Player)
 	if err != nil {
 		return 0, err
 	}
@@ -170,11 +170,11 @@ func (ct ConnTunnel) Start() (int64, error) {
 
 	consumedBytesChan := make(chan int64)
 	go func() {
-		n, _ := ct.Conn.Pipe(rc)
+		n, _ := ct.Player.Pipe(rc)
 		consumedBytesChan <- n
 		close(consumedBytesChan)
 	}()
-	n, _ := rc.Pipe(ct.Conn)
+	n, _ := rc.Pipe(ct.Player)
 	consumedBytes := n
 	consumedBytes += <-consumedBytesChan
 	return consumedBytes, nil
@@ -182,5 +182,5 @@ func (ct ConnTunnel) Start() (int64, error) {
 
 // Close closes both connection (client to server and server to client).
 func (ct ConnTunnel) Close() error {
-	return ct.Conn.Close()
+	return ct.Player.Close()
 }

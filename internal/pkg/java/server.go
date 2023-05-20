@@ -190,8 +190,8 @@ func (s Server) Dial() (*Conn, error) {
 	}, nil
 }
 
-func (s Server) HandleConn(c net.Conn) (infrared.Conn, error) {
-	player := c.(*Player)
+func (s Server) NewConn(p infrared.Conn) (infrared.Conn, error) {
+	player := p.(*Player)
 	player.serverID = s.id
 	rc, err := s.Dial()
 	if err != nil {

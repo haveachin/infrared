@@ -253,7 +253,7 @@ func (p *proxy) Players() []Player {
 
 	pp := make([]Player, 0, len(p.connPool.pool))
 	for _, ct := range p.connPool.pool {
-		pp = append(pp, ct.Conn)
+		pp = append(pp, ct.Player)
 	}
 	return pp
 }

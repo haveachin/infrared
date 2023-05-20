@@ -3,6 +3,7 @@ package java
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -180,7 +181,12 @@ func (l *ProxyProtocolListener) Accept() (net.Conn, error) {
 		return nil, err
 	}
 
-	return &ProxyProtocolConn{
+	if header.SourceAddr == nil {
+		c.Close()
+		return nil, errors.New("no source addr in proxy header")
+	}
+
+	return ProxyProtocolConn{
 		Conn:     c,
 		realAddr: header.SourceAddr,
 	}, nil
