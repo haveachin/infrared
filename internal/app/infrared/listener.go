@@ -1,6 +1,7 @@
 package infrared
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"sync"
@@ -62,6 +63,9 @@ func newManagedListener(l net.Listener) *managedListener {
 			c, err := l.Accept()
 			if err != nil {
 				errChan <- err
+				if errors.Is(err, net.ErrClosed) {
+					return
+				}
 				continue
 			}
 

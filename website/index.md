@@ -7,18 +7,15 @@ hero:
   text: High Performance Minecraft Proxy
   tagline: 
   image:
-    src: /logo.svg
+    src: /assets/logo.svg
     alt: Infrared
   actions:
     - theme: brand
       text: Getting Started
       link: /getting-started
     - theme: alt
-      text: Config
-      link: /config
-    - theme: alt
-      text: OpenAPI Docs
-      link: pathname:///api
+      text: Troubleshooting
+      link: /troubleshooting
 
 features:
   - icon: 🧼
@@ -31,4 +28,3 @@ features:
     title: Modular
     details: Customize your instance to fit your use case.
 ---
-
