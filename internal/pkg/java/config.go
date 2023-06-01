@@ -8,9 +8,11 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/imdario/mergo"
+	"github.com/pires/go-proxyproto"
 	"golang.org/x/net/proxy"
 
 	"github.com/haveachin/infrared/internal/app/infrared"
@@ -132,8 +134,20 @@ func (cfg Config) ListenerBuilder() infrared.ListenerBuilder {
 			return nil, err
 		}
 
+		var require atomic.Bool
+		policy := func(upstream net.Addr) (proxyproto.Policy, error) {
+			if require.Load() {
+				return proxyproto.REQUIRE, nil
+			}
+			return proxyproto.REJECT, nil
+		}
+
 		return &ProxyProtocolListener{
-			Listener: l,
+			Listener: &proxyproto.Listener{
+				Listener: l,
+				Policy:   policy,
+			},
+			requireProxyProtocol: &require,
 		}, nil
 	}
 }

@@ -3,7 +3,6 @@ package java
 import (
 	"bufio"
 	"encoding/json"
-	"log"
 	"net"
 	"sync"
 	"time"
@@ -210,14 +209,10 @@ func (s Server) NewConn(p infrared.Conn) (infrared.Conn, error) {
 		return nil, infrared.ErrClientStatusRequest
 	}
 
-	log.Println(player.readPks[0])
-
 	if err := s.prepareConns(player, rc); err != nil {
 		rc.Close()
 		return nil, err
 	}
-
-	log.Println(player.readPks[0])
 
 	// Sends the handshake and the request or login packet to the server
 	if err := rc.WritePackets(player.readPks...); err != nil {

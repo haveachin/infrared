@@ -3,14 +3,12 @@ package java
 import (
 	"bufio"
 	"encoding/json"
-	"errors"
 	"net"
 	"sync"
 	"sync/atomic"
 
 	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/pkg/event"
-	"github.com/pires/go-proxyproto"
 	"go.uber.org/multierr"
 	"go.uber.org/zap"
 )
@@ -46,7 +44,7 @@ func (gw *Gateway) initListeners() {
 
 		l, err := gw.ListenersManager.Listen(listener.Bind, func(l net.Listener) {
 			pl := l.(*ProxyProtocolListener)
-			pl.active.Store(listener.ReceiveProxyProtocol)
+			pl.requireProxyProtocol.Store(listener.ReceiveProxyProtocol)
 
 			if listener.ReceiveProxyProtocol {
 				logger.Warn("receiving proxy protocol")
@@ -162,32 +160,5 @@ func (c ProxyProtocolConn) RemoteAddr() net.Addr {
 
 type ProxyProtocolListener struct {
 	net.Listener
-
-	active atomic.Bool
-}
-
-func (l *ProxyProtocolListener) Accept() (net.Conn, error) {
-	if !l.active.Load() {
-		return l.Listener.Accept()
-	}
-
-	c, err := l.Listener.Accept()
-	if err != nil {
-		return nil, err
-	}
-
-	header, err := proxyproto.Read(bufio.NewReader(c))
-	if err != nil {
-		return nil, err
-	}
-
-	if header.SourceAddr == nil {
-		c.Close()
-		return nil, errors.New("no source addr in proxy header")
-	}
-
-	return ProxyProtocolConn{
-		Conn:     c,
-		realAddr: header.SourceAddr,
-	}, nil
+	requireProxyProtocol *atomic.Bool
 }
