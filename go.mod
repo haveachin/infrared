@@ -1,6 +1,6 @@
 module github.com/haveachin/infrared
 
-go 1.19
+go 1.20
 
 require (
 	github.com/c2h5oh/datasize v0.0.0-20220606134207-859f65c6625b
@@ -48,20 +48,17 @@ require (
 	github.com/matttproud/golang_protobuf_extensions v1.0.4 // indirect
 	github.com/moby/term v0.0.0-20220808134915-39b0c02b01ae // indirect
 	github.com/morikuni/aec v1.0.0 // indirect
-	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.2 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_model v0.4.0 // indirect
 	github.com/prometheus/common v0.43.0 // indirect
 	github.com/prometheus/procfs v0.9.0 // indirect
-	github.com/sirupsen/logrus v1.9.2 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	golang.org/x/mod v0.10.0 // indirect
 	golang.org/x/sys v0.8.0 // indirect
 	golang.org/x/time v0.0.0-20220609170525-579cf78fd858 // indirect
 	golang.org/x/tools v0.9.1 // indirect
 	google.golang.org/protobuf v1.30.0 // indirect
-	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gotest.tools/v3 v3.4.0 // indirect
 )

@@ -12,13 +12,13 @@ builds:
       - darwin
       - windows
     goarch:
-      - 386
+      - "386"
       - amd64
       - arm
       - arm64
     ignore:
       - goos: darwin
-        goarch: 386
+        goarch: "386"
     mod_timestamp: '{{ .CommitTimestamp }}'
     flags:
       - -trimpath
