@@ -44,7 +44,7 @@ func (e Edition) String() string {
 type Conn interface {
 	net.Conn
 	// GatewayID is the ID of the gateway that they connected through.
-	GatewayID() string
+	GatewayID() GatewayID
 	// Edition returns the Minecraft edition of this connection.
 	Edition() Edition
 	Pipe(c net.Conn) (n int64, err error)
@@ -55,12 +55,14 @@ type Version interface {
 	ProtocolNumber() int32
 }
 
+type Username string
+
 // Player is a already processed connection that waits to be handles by a server
 // All methods need to be thread-safe
 type Player interface {
 	Conn
 	// Username returns the username of the connecting player
-	Username() string
+	Username() Username
 	// RequestedAddr returns the exact Server Address string that the client send to the server
 	RequestedAddr() string
 	// MatchedAddr returns the address of the server the player joined
@@ -76,7 +78,7 @@ type Player interface {
 	// Version returns Minecraft Version
 	Version() Version
 	// ServerID returns the ID of the server that the player joined
-	ServerID() string
+	ServerID() ServerID
 }
 
 type PlayerDisconnecter interface {
@@ -129,12 +131,12 @@ func TimeMessageTemplates() map[string]string {
 
 func PlayerMessageTemplates(p Player) map[string]string {
 	return map[string]string{
-		"username":         p.Username(),
+		"username":         string(p.Username()),
 		"remoteAddress":    p.RemoteAddr().String(),
 		"localAddress":     p.LocalAddr().String(),
 		"matchedAddress":   p.MatchedAddr(),
 		"requestedAddress": p.RequestedAddr(),
-		"gatewayId":        p.GatewayID(),
+		"gatewayId":        string(p.GatewayID()),
 		"versionName":      p.Version().Name(),
 		"protocolNumber":   strconv.Itoa(int(p.Version().ProtocolNumber())),
 	}
@@ -142,7 +144,7 @@ func PlayerMessageTemplates(p Player) map[string]string {
 
 func ServerMessageTemplate(s Server) map[string]string {
 	return map[string]string{
-		"serverId": s.ID(),
+		"serverId": string(s.ID()),
 	}
 }
 

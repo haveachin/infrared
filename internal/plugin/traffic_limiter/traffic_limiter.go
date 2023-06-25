@@ -35,7 +35,7 @@ type Plugin struct {
 	eventBus event.Bus
 	eventIDs []string
 	// ServerID mapped to trafficLimiter
-	trafficLimiters map[string]trafficLimiter
+	trafficLimiters map[infrared.ServerID]trafficLimiter
 }
 
 func (p Plugin) Name() string {
@@ -142,7 +142,7 @@ func (p Plugin) onPreConnConnecting(e event.Event) (any, error) {
 		}
 
 		if t.trafficLimit <= datasize.ByteSize(totalBytes) {
-			p.logger.Info("traffic limit reached", zap.String("serverID", e.Server.ID()))
+			p.logger.Info("traffic limit reached", zap.String("serverID", string(e.Server.ID())))
 			t.OutOfBandwidthDisconnecter.DisconnectPlayer(e.Player, infrared.ApplyTemplates(
 				infrared.TimeMessageTemplates(),
 				infrared.PlayerMessageTemplates(e.Player),

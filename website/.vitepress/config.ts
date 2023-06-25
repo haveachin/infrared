@@ -22,7 +22,6 @@ export default defineConfig({
     logo: '/assets/logo.svg',
 
     nav: [
-      { text: 'Download', link: '/download' },
       {
         text: 'Guides',
         items: [

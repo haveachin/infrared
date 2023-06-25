@@ -7,13 +7,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/haveachin/infrared/internal/app/infrared"
 	"gopkg.in/yaml.v3"
 )
 
 type storage interface {
-	ConsumedBytes(serverID string) (int64, error)
-	AddConsumedBytes(serverID string, consumedBytes int64) (int64, error)
-	ResetConsumedBytes(serverID string) error
+	ConsumedBytes(serverID infrared.ServerID) (int64, error)
+	AddConsumedBytes(serverID infrared.ServerID, consumedBytes int64) (int64, error)
+	ResetConsumedBytes(serverID infrared.ServerID) error
 }
 
 type yamlStorage struct {
@@ -58,7 +59,7 @@ func doesFileExist(path string) (bool, error) {
 }
 
 type Bandwidth struct {
-	Servers map[string]BandwidthServer `yaml:"servers"`
+	Servers map[infrared.ServerID]BandwidthServer `yaml:"servers"`
 }
 
 type BandwidthServer struct {
@@ -84,7 +85,7 @@ func (s *yamlStorage) readBandwidth() (*Bandwidth, error) {
 	if err := yaml.NewDecoder(f).Decode(bw); err != nil {
 		if errors.Is(err, io.EOF) {
 			return &Bandwidth{
-				Servers: map[string]BandwidthServer{},
+				Servers: map[infrared.ServerID]BandwidthServer{},
 			}, nil
 		}
 		return nil, err
@@ -107,7 +108,7 @@ func (s *yamlStorage) writeBandwidth(bw *Bandwidth) error {
 	return os.WriteFile(s.path, data, 0644)
 }
 
-func (s *yamlStorage) ConsumedBytes(serverID string) (int64, error) {
+func (s *yamlStorage) ConsumedBytes(serverID infrared.ServerID) (int64, error) {
 	bw, err := s.readBandwidth()
 	if err != nil {
 		return 0, err
@@ -116,7 +117,7 @@ func (s *yamlStorage) ConsumedBytes(serverID string) (int64, error) {
 	return bw.Servers[serverID].ConsumedBytes, nil
 }
 
-func (s *yamlStorage) AddConsumedBytes(serverID string, consumedBytes int64) (int64, error) {
+func (s *yamlStorage) AddConsumedBytes(serverID infrared.ServerID, consumedBytes int64) (int64, error) {
 	bw, err := s.readBandwidth()
 	if err != nil {
 		return 0, err
@@ -138,7 +139,7 @@ func (s *yamlStorage) AddConsumedBytes(serverID string, consumedBytes int64) (in
 	return srv.ConsumedBytes, nil
 }
 
-func (s *yamlStorage) ResetConsumedBytes(serverID string) error {
+func (s *yamlStorage) ResetConsumedBytes(serverID infrared.ServerID) error {
 	bw, err := s.readBandwidth()
 	if err != nil {
 		return err

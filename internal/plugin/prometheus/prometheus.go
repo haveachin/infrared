@@ -159,18 +159,18 @@ func (p Plugin) handleEvent(e event.Event) {
 		p.playersConnected.With(prometheus.Labels{
 			"requested_domain": e.Player.RequestedAddr(),
 			"matched_domain":   e.MatchedDomain,
-			"server_id":        e.Server.ID(),
+			"server_id":        string(e.Server.ID()),
 			"edition":          e.Player.Edition().String(),
 		}).Inc()
 	case infrared.PlayerLeaveEvent:
 		p.playersConnected.With(prometheus.Labels{
 			"requested_domain": e.Player.RequestedAddr(),
 			"matched_domain":   e.MatchedDomain,
-			"server_id":        e.Server.ID(),
+			"server_id":        string(e.Server.ID()),
 			"edition":          e.Player.Edition().String(),
 		}).Dec()
 		p.consumedBytes.With(prometheus.Labels{
-			"server_id": e.Server.ID(),
+			"server_id": string(e.Server.ID()),
 			"edition":   e.Player.Edition().String(),
 		}).Add(float64(e.ConsumedBytes))
 	}

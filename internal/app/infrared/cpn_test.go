@@ -71,13 +71,13 @@ func TestCPN_ListenAndServe(t *testing.T) {
 
 			wg := sync.WaitGroup{}
 			wg.Add(1)
-			quit := make(chan bool)
+			quit := make(chan struct{})
 			go func() {
 				cpn.ListenAndServe(quit)
 				wg.Done()
 			}()
 			in <- tc.in
-			quit <- true
+			quit <- struct{}{}
 
 			if tc.out != nil {
 				if <-out != tc.out {

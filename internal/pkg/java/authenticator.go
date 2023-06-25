@@ -6,10 +6,11 @@ import (
 	"net/http"
 
 	"github.com/gofrs/uuid"
+	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/internal/pkg/java/sha1"
 )
 
-func sessionServerURLHasJoined(baseURL, username, sessionHash string) string {
+func sessionServerURLHasJoined(baseURL string, username infrared.Username, sessionHash string) string {
 	return fmt.Sprintf(
 		"%s/session/minecraft/hasJoined?username=%s&serverId=%s",
 		baseURL,
@@ -18,14 +19,14 @@ func sessionServerURLHasJoined(baseURL, username, sessionHash string) string {
 	)
 }
 
-func sessionServerURLHasJoinedWithIP(baseURL, username, sessionHash, ip string) string {
+func sessionServerURLHasJoinedWithIP(baseURL string, username infrared.Username, sessionHash, ip string) string {
 	return fmt.Sprintf("%s&ip=%s",
 		sessionServerURLHasJoined(baseURL, username, sessionHash),
 		ip,
 	)
 }
 
-func GenerateSessionHash(serverID string, sharedSecret, publicKey []byte) string {
+func GenerateSessionHash(serverID infrared.ServerID, sharedSecret, publicKey []byte) string {
 	notchHash := sha1.NewHash()
 	notchHash.Update([]byte(serverID))
 	notchHash.Update(sharedSecret)
@@ -44,19 +45,19 @@ type Session struct {
 }
 
 type SessionAuthenticator interface {
-	AuthenticateSession(username, sessionHash string) (*Session, error)
-	AuthenticateSessionPreventProxy(username, sessionHash, ip string) (*Session, error)
+	AuthenticateSession(username infrared.Username, sessionHash string) (*Session, error)
+	AuthenticateSessionPreventProxy(username infrared.Username, sessionHash, ip string) (*Session, error)
 }
 
 type HTTPSessionAuthenticator struct {
 	BaseURL string
 }
 
-func (auth HTTPSessionAuthenticator) AuthenticateSession(username, sessionHash string) (*Session, error) {
+func (auth HTTPSessionAuthenticator) AuthenticateSession(username infrared.Username, sessionHash string) (*Session, error) {
 	return auth.AuthenticateSessionPreventProxy(username, sessionHash, "")
 }
 
-func (auth HTTPSessionAuthenticator) AuthenticateSessionPreventProxy(username, sessionHash, ip string) (*Session, error) {
+func (auth HTTPSessionAuthenticator) AuthenticateSessionPreventProxy(username infrared.Username, sessionHash, ip string) (*Session, error) {
 	var url string
 	if ip == "" {
 		url = sessionServerURLHasJoined(auth.BaseURL, username, sessionHash)

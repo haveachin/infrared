@@ -19,7 +19,7 @@ type Conn struct {
 	decoder *packet.Decoder
 	encoder *packet.Encoder
 
-	gatewayID                  string
+	gatewayID                  infrared.GatewayID
 	proxyProtocol              bool
 	serverNotFoundDisconnector PlayerDisconnecter
 	compression                packet.Compression
@@ -79,7 +79,7 @@ func (c *Conn) Pipe(rc net.Conn) (int64, error) {
 	}
 }
 
-func (c *Conn) GatewayID() string {
+func (c *Conn) GatewayID() infrared.GatewayID {
 	return c.gatewayID
 }
 
@@ -102,8 +102,8 @@ type Player struct {
 	remoteAddr    net.Addr
 	requestedAddr string
 	matchedAddr   string
-	serverID      string
-	username      string
+	serverID      infrared.ServerID
+	username      infrared.Username
 	proxyProtocol bool
 	version       int32
 
@@ -119,11 +119,11 @@ func (p Player) RemoteAddr() net.Addr {
 	return p.remoteAddr
 }
 
-func (p Player) Username() string {
+func (p Player) Username() infrared.Username {
 	return p.username
 }
 
-func (p Player) ServerID() string {
+func (p Player) ServerID() infrared.ServerID {
 	return p.serverID
 }
 

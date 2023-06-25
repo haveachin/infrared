@@ -9,11 +9,15 @@ import (
 	"go.uber.org/zap"
 )
 
+type GatewayID string
+
+type ListenerID string
+
 // Gateway is an interface representation of a Minecraft specifc Gateways implementation.
 // All methods need to be thread-safe
 type Gateway interface {
 	// ID returns the ID of the gateway
-	ID() string
+	ID() GatewayID
 	SetListenersManager(*ListenersManager)
 
 	SetLogger(*zap.Logger)

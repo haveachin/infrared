@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/internal/pkg/bedrock/protocol/login"
 	"github.com/haveachin/infrared/internal/pkg/bedrock/protocol/packet"
 	"github.com/pires/go-proxyproto"
@@ -115,7 +116,7 @@ func handleLogin(player *Player, pkData packet.Data) error {
 	if err != nil {
 		return err
 	}
-	player.username = iData.DisplayName
+	player.username = infrared.Username(iData.DisplayName)
 	player.requestedAddr = cData.ServerAddress
 	return nil
 }

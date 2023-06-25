@@ -28,7 +28,7 @@ func KeyByIP(c Conn) string {
 }
 
 func KeyByGatewayID(c Conn) string {
-	return c.GatewayID()
+	return string(c.GatewayID())
 }
 
 func WithKeyFuncs(keyFuncs ...RateLimiterKeyFunc) RateLimiterOption {

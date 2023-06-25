@@ -19,8 +19,8 @@ type trafficLimiterConfig struct {
 	OutOfBandwidthMessage string                  `mapstructure:"outOfBandwidthMessage"`
 }
 
-func (cfg PluginConfig) loadTrafficLimiterConfigs() (map[string]trafficLimiter, error) {
-	trafficLimiters := map[string]trafficLimiter{}
+func (cfg PluginConfig) loadTrafficLimiterConfigs() (map[infrared.ServerID]trafficLimiter, error) {
+	trafficLimiters := map[infrared.ServerID]trafficLimiter{}
 	storages := map[string]storage{}
 	for _, bwCfg := range cfg.TrafficLimiter.TrafficLimiters {
 		if err := mergo.Merge(&bwCfg, cfg.Defaults.TrafficLimiter); err != nil {
@@ -53,12 +53,13 @@ func (cfg PluginConfig) loadTrafficLimiterConfigs() (map[string]trafficLimiter, 
 		}
 
 		for _, sID := range bwCfg.ServerIDs {
-			_, ok := trafficLimiters[sID]
+			serverID := infrared.ServerID(sID)
+			_, ok := trafficLimiters[serverID]
 			if ok {
 				return nil, fmt.Errorf("server with ID %q already has a traffic limiter", sID)
 			}
 
-			trafficLimiters[sID] = trafficLimiter{
+			trafficLimiters[serverID] = trafficLimiter{
 				file:                       bwCfg.File,
 				trafficLimit:               bwCfg.TrafficLimit,
 				resetCron:                  bwCfg.ResetCron,

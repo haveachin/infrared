@@ -30,15 +30,15 @@ func logProcessedConn(pc Player) []zap.Field {
 		zap.String("connLocalAddr", pc.LocalAddr().String()),
 		zap.String("connRemoteAddr", pc.RemoteAddr().String()),
 		zap.String("requestedServerAddr", pc.MatchedAddr()),
-		zap.String("username", pc.Username()),
-		zap.String("gatewayId", pc.GatewayID()),
+		zap.String("username", string(pc.Username())),
+		zap.String("gatewayId", string(pc.GatewayID())),
 		zap.Bool("isLoginRequest", pc.IsLoginRequest()),
 	}
 }
 
 func logServer(s Server) []zap.Field {
 	return []zap.Field{
-		zap.String("serverId", s.ID()),
+		zap.String("serverId", string(s.ID())),
 		zap.Strings("serverDomains", s.Domains()),
 	}
 }

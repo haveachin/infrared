@@ -11,6 +11,7 @@ import (
 	"github.com/cespare/xxhash/v2"
 	"github.com/go-redis/redis/v9"
 	"github.com/gofrs/uuid"
+	"github.com/haveachin/infrared/internal/app/infrared"
 )
 
 var (
@@ -18,8 +19,8 @@ var (
 )
 
 type storage interface {
-	GetValidation(username string, ip net.IP) (uuid.UUID, error)
-	PutValidation(username string, ip net.IP, uuid uuid.UUID) error
+	GetValidation(username infrared.Username, ip net.IP) (uuid.UUID, error)
+	PutValidation(username infrared.Username, ip net.IP, uuid uuid.UUID) error
 }
 
 type redisConfig struct {
@@ -56,23 +57,23 @@ func newRedis(cfg redisConfig) (*redisStorage, error) {
 	}, nil
 }
 
-func hashUsernameAndIP(username string, ip net.IP) string {
+func hashUsernameAndIP(username infrared.Username, ip net.IP) string {
 	key := xxhash.New()
-	key.WriteString(username)
+	key.WriteString(string(username))
 	key.Write(ip)
 	// preallowcate 8 bytes for uint64 hash
 	sum := key.Sum(make([]byte, 0, 8))
 	return hex.EncodeToString(sum)
 }
 
-func (s redisStorage) PutValidation(username string, ip net.IP, uuid uuid.UUID) error {
+func (s redisStorage) PutValidation(username infrared.Username, ip net.IP, uuid uuid.UUID) error {
 	key := hashUsernameAndIP(username, ip)
 	ctx, cancel := context.WithTimeout(context.Background(), s.readTimeout)
 	defer cancel()
 	return s.cli.Set(ctx, key, uuid.Bytes(), s.ttl).Err()
 }
 
-func (s redisStorage) GetValidation(username string, ip net.IP) (uuid.UUID, error) {
+func (s redisStorage) GetValidation(username infrared.Username, ip net.IP) (uuid.UUID, error) {
 	key := hashUsernameAndIP(username, ip)
 	ctx, cancel := context.WithTimeout(context.Background(), s.readTimeout)
 	defer cancel()

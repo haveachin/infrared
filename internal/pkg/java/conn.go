@@ -31,7 +31,7 @@ type PacketPeeker interface {
 
 type Conn struct {
 	net.Conn
-	gatewayID                  string
+	gatewayID                  infrared.GatewayID
 	realIP                     bool
 	serverNotFoundDisconnector PlayerDisconnecter
 
@@ -44,7 +44,7 @@ func (c *Conn) Pipe(rc net.Conn) (int64, error) {
 	return io.Copy(rc, c)
 }
 
-func (c Conn) GatewayID() string {
+func (c Conn) GatewayID() infrared.GatewayID {
 	return c.gatewayID
 }
 
@@ -167,9 +167,9 @@ type Player struct {
 	handshake     handshaking.ServerBoundHandshake
 	remoteAddr    net.Addr
 	requestedAddr string
-	username      string
+	username      infrared.Username
 	matchedAddr   string
-	serverID      string
+	serverID      infrared.ServerID
 }
 
 func (p Player) Version() infrared.Version {
@@ -180,11 +180,11 @@ func (p Player) RemoteAddr() net.Addr {
 	return p.remoteAddr
 }
 
-func (p Player) Username() string {
+func (p Player) Username() infrared.Username {
 	return p.username
 }
 
-func (p Player) ServerID() string {
+func (p Player) ServerID() infrared.ServerID {
 	return p.serverID
 }
 

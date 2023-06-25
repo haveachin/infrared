@@ -4,7 +4,7 @@ info:
   description: API that is baked into Infrared via internal plugin.
   version: '1.0'
   x-logo: 
-    url: /logo.svg
+    url: assets/logo.svg
 servers:
   - url: /v1
 paths:
@@ -147,6 +147,7 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+
   parameters:
     Edition:
       name: edition

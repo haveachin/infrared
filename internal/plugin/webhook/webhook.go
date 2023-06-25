@@ -142,19 +142,19 @@ func unmarshalConn(data *eventData, c infrared.Conn) {
 	data.Conn.Network = c.LocalAddr().Network()
 	data.Conn.LocalAddr = c.LocalAddr().String()
 	data.Conn.RemoteAddr = c.RemoteAddr().String()
-	data.GatewayID = c.GatewayID()
+	data.GatewayID = string(c.GatewayID())
 }
 
 func unmarshalProcessedConn(data *eventData, pc infrared.Player) {
 	unmarshalConn(data, pc)
 	data.Server.ServerAddr = pc.MatchedAddr()
-	data.Conn.Username = pc.Username()
+	data.Conn.Username = string(pc.Username())
 	var isLoginRequest = pc.IsLoginRequest()
 	data.IsLoginRequest = &isLoginRequest
 }
 
 func unmarshalServer(data *eventData, s infrared.Server) {
-	data.Server.ServerID = s.ID()
+	data.Server.ServerID = string(s.ID())
 	data.Server.Domains = s.Domains()
 }
 

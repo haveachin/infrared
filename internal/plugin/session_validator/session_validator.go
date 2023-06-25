@@ -126,7 +126,7 @@ func (p *Plugin) onPlayerJoin(cpsThreshold int) event.HandlerSyncFunc {
 	}
 }
 
-func (p *Plugin) validatePlayer(player infrared.Player, serverID string) error {
+func (p *Plugin) validatePlayer(player infrared.Player, serverID infrared.ServerID) error {
 	v, ok := p.validators.Load(serverID)
 	if !ok {
 		return nil
@@ -212,7 +212,7 @@ type javaValidator struct {
 	encRespTimeout time.Duration
 }
 
-func (jv javaValidator) Validator(serverID string, pubKey []byte) validator {
+func (jv javaValidator) Validator(serverID infrared.ServerID, pubKey []byte) validator {
 	return validatorFunc(func(player infrared.Player) (uuid.UUID, error) {
 		switch p := player.(type) {
 		case *java.Player:
@@ -227,7 +227,7 @@ func (jv javaValidator) Validator(serverID string, pubKey []byte) validator {
 	})
 }
 
-func (jv javaValidator) validatePlayer(player *java.Player, serverID string, pubKey []byte) (*java.Session, error) {
+func (jv javaValidator) validatePlayer(player *java.Player, serverID infrared.ServerID, pubKey []byte) (*java.Session, error) {
 	verifyToken, err := jv.enc.GenerateVerifyToken()
 	if err != nil {
 		return nil, err

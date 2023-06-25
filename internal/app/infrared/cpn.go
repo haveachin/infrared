@@ -51,7 +51,7 @@ type CPN struct {
 	Middlewares []func(Handler) Handler
 }
 
-func (cpn CPN) ListenAndServe(quit <-chan bool) {
+func (cpn CPN) ListenAndServe(quit <-chan struct{}) {
 	for {
 		select {
 		case c, ok := <-cpn.In:
@@ -109,7 +109,7 @@ type CPNPool struct {
 	CPN CPN
 
 	mu  sync.Mutex
-	cfs []chan bool
+	cfs []chan struct{}
 }
 
 func (p *CPNPool) SetSize(n int) {
@@ -128,9 +128,9 @@ func (p *CPNPool) SetSize(n int) {
 }
 
 func (p *CPNPool) add(n int) {
-	cfs := make([]chan bool, n)
+	cfs := make([]chan struct{}, n)
 	for i := 0; i < n; i++ {
-		quit := make(chan bool)
+		quit := make(chan struct{})
 		go p.CPN.ListenAndServe(quit)
 		cfs[i] = quit
 	}
@@ -150,7 +150,7 @@ func (p *CPNPool) remove(n int) {
 
 	size := l - n
 	for i := l - 1; i >= size; i-- {
-		p.cfs[i] <- true
+		p.cfs[i] <- struct{}{}
 		close(p.cfs[i])
 	}
 

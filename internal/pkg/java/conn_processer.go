@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/haveachin/infrared/internal/app/infrared"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol/handshaking"
 	"github.com/haveachin/infrared/internal/pkg/java/protocol/login"
@@ -73,7 +74,7 @@ func (cp ConnProcessor) ProcessConn(c net.Conn) (net.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	player.username = string(ls.Name)
+	player.username = infrared.Username(ls.Name)
 
 	return player, nil
 }

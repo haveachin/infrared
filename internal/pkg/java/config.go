@@ -243,7 +243,7 @@ func newListener(id string, cfg ListenerConfig) (Listener, error) {
 	}
 
 	return Listener{
-		ID:                    id,
+		ID:                    infrared.ListenerID(id),
 		Bind:                  cfg.Bind,
 		ReceiveProxyProtocol:  cfg.ReceiveProxyProtocol,
 		ReceiveRealIP:         cfg.ReceiveRealIP,
@@ -264,7 +264,7 @@ func newGateway(id string, cfg GatewayConfig) (infrared.Gateway, error) {
 
 	return &InfraredGateway{
 		gateway: Gateway{
-			ID:        id,
+			ID:        infrared.GatewayID(id),
 			Listeners: listeners,
 		},
 	}, nil
@@ -315,8 +315,13 @@ func newServer(id string, cfg ServerConfig) (infrared.Server, error) {
 		}
 	}
 
+	gatewayIDs := make([]infrared.GatewayID, len(cfg.Gateways))
+	for i, g := range cfg.Gateways {
+		gatewayIDs[i] = infrared.GatewayID(g)
+	}
+
 	srv := &Server{
-		id:                      id,
+		id:                      infrared.ServerID(id),
 		domains:                 cfg.Domains,
 		dialer:                  dialer,
 		addr:                    cfg.Address,
@@ -327,7 +332,7 @@ func newServer(id string, cfg ServerConfig) (infrared.Server, error) {
 		overrideAddress:         cfg.OverrideAddress,
 		dialTimeoutDisconnector: dialTimeoutDisconnector,
 		overrideStatus:          overrideStatus,
-		gatewayIDs:              cfg.Gateways,
+		gatewayIDs:              gatewayIDs,
 	}
 
 	srv.statusResponseJSONProvider = &statusResponseJSONProvider{

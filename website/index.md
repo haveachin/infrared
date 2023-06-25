@@ -14,13 +14,16 @@ hero:
       text: Getting Started
       link: /getting-started
     - theme: alt
-      text: Troubleshooting
-      link: /troubleshooting
+      text: Contribute
+      link: /contribute
+    #- theme: alt
+    #  text: Troubleshooting
+    #  link: /troubleshooting
 
 features:
-  - icon: 🧼
-    title: Sanitizes Handshakes
-    details: Protects your server from most flooding attacks.
+  - icon: 📖
+    title: Free and Open Source
+    details: Free as in speech.
   - icon: ⚡
     title: High Performance
     details: Written with scale in mind.

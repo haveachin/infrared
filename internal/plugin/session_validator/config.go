@@ -12,13 +12,13 @@ import (
 )
 
 type sessionValidatorConfig struct {
-	ServerIDs                 []string      `mapstructure:"ServerIds"`
-	CPSThreshold              int           `mapstructure:"cpsThreshold"`
-	EncryptionResponseTimeout time.Duration `mapstructure:"encryptionResponseTimeout"`
-	SessionServerBaseURL      string        `mapstructure:"sessionServerBaseURL"`
-	ValidationSuccessMessage  string        `mapstructure:"validationSuccessMessage"`
-	ValidationFailureMessage  string        `mapstructure:"validationFailureMessage"`
-	Redis                     redisConfig   `mapstructure:"redis"`
+	ServerIDs                 []infrared.ServerID `mapstructure:"ServerIds"`
+	CPSThreshold              int                 `mapstructure:"cpsThreshold"`
+	EncryptionResponseTimeout time.Duration       `mapstructure:"encryptionResponseTimeout"`
+	SessionServerBaseURL      string              `mapstructure:"sessionServerBaseURL"`
+	ValidationSuccessMessage  string              `mapstructure:"validationSuccessMessage"`
+	ValidationFailureMessage  string              `mapstructure:"validationFailureMessage"`
+	Redis                     redisConfig         `mapstructure:"redis"`
 }
 
 type PluginConfig struct {
@@ -31,8 +31,8 @@ type PluginConfig struct {
 	} `mapstructure:"defaults"`
 }
 
-func (cfg PluginConfig) loadSessionValidatorConfigs() (map[string]validator, error) {
-	validators := map[string]validator{}
+func (cfg PluginConfig) loadSessionValidatorConfigs() (map[infrared.ServerID]validator, error) {
+	validators := map[infrared.ServerID]validator{}
 	for _, svCfg := range cfg.SessionValidator.SessionValidators {
 		if err := mergo.Merge(&svCfg, cfg.Defaults.SessionValidator); err != nil {
 			return nil, err

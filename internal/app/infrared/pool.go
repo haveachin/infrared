@@ -21,14 +21,14 @@ type ConnPool struct {
 
 	mu     sync.Mutex
 	reload chan func()
-	quit   chan bool
+	quit   chan struct{}
 	pool   map[net.Addr]ConnTunnel
 }
 
 func (cp *ConnPool) Start() {
 	cp.mu.Lock()
 	cp.reload = make(chan func())
-	cp.quit = make(chan bool)
+	cp.quit = make(chan struct{})
 	cp.mu.Unlock()
 	cp.pool = map[net.Addr]ConnTunnel{}
 
@@ -120,7 +120,7 @@ func (cp *ConnPool) Close() error {
 		return errors.New("server gateway was not running")
 	}
 
-	cp.quit <- true
+	cp.quit <- struct{}{}
 	return nil
 }
 

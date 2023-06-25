@@ -44,7 +44,7 @@ func (p PingStatus) marshal(l *raknet.Listener) []byte {
 }
 
 type Listener struct {
-	ID                    string
+	ID                    infrared.ListenerID
 	Bind                  string
 	ReceiveProxyProtocol  bool
 	PingStatus            PingStatus
@@ -55,7 +55,7 @@ type Listener struct {
 }
 
 type Gateway struct {
-	ID               string
+	ID               infrared.GatewayID
 	ListenersManager *infrared.ListenersManager
 	Listeners        []Listener
 	Logger           *zap.Logger
@@ -99,7 +99,7 @@ type InfraredGateway struct {
 	gateway Gateway
 }
 
-func (gw *InfraredGateway) ID() string {
+func (gw *InfraredGateway) ID() infrared.GatewayID {
 	gw.mu.RLock()
 	defer gw.mu.RUnlock()
 	return gw.gateway.ID

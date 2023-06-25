@@ -12,20 +12,20 @@ import (
 )
 
 type Server struct {
-	id                      string
+	id                      infrared.ServerID
 	domains                 []string
 	dialer                  raknet.Dialer
 	address                 string
 	sendProxyProtocol       bool
 	dialTimeoutDisconnecter *PlayerDisconnecter
-	gatewayIDs              []string
+	gatewayIDs              []infrared.GatewayID
 }
 
 func (s Server) Edition() infrared.Edition {
 	return infrared.BedrockEdition
 }
 
-func (s Server) ID() string {
+func (s Server) ID() infrared.ServerID {
 	return s.id
 }
 
@@ -33,7 +33,7 @@ func (s Server) Domains() []string {
 	return s.domains
 }
 
-func (s Server) GatewayIDs() []string {
+func (s Server) GatewayIDs() []infrared.GatewayID {
 	return s.gatewayIDs
 }
 

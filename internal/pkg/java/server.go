@@ -146,7 +146,7 @@ type StatusResponseJSONProvider interface {
 }
 
 type Server struct {
-	id                         string
+	id                         infrared.ServerID
 	domains                    []string
 	addr                       string
 	addrHost                   string
@@ -157,7 +157,7 @@ type Server struct {
 	dialer                     proxy.Dialer
 	overrideStatus             OverrideServerStatusResponse
 	dialTimeoutDisconnector    *PlayerDisconnecter
-	gatewayIDs                 []string
+	gatewayIDs                 []infrared.GatewayID
 	statusResponseJSONProvider StatusResponseJSONProvider
 }
 
@@ -165,7 +165,7 @@ func (s Server) Edition() infrared.Edition {
 	return infrared.JavaEdition
 }
 
-func (s Server) ID() string {
+func (s Server) ID() infrared.ServerID {
 	return s.id
 }
 
@@ -173,7 +173,7 @@ func (s Server) Domains() []string {
 	return s.domains
 }
 
-func (s Server) GatewayIDs() []string {
+func (s Server) GatewayIDs() []infrared.GatewayID {
 	return s.gatewayIDs
 }
 

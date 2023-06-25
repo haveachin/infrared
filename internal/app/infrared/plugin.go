@@ -15,7 +15,7 @@ var (
 
 type API interface {
 	// PlayerByUsername returns a Player with a specified username and Edition if they are currently being proxied.
-	PlayerByUsername(username string, edition Edition) Player
+	PlayerByUsername(username Username, edition Edition) Player
 
 	// Players returns a slice of Player that are currently being proxied filtered by a regular expression.
 	// If a edition is specified more than once than the slice of Player will contain duplicates.
@@ -61,7 +61,7 @@ func (api pluginAPI) Logger() *zap.Logger {
 	return api.logger
 }
 
-func (api pluginAPI) PlayerByUsername(username string, edition Edition) Player {
+func (api pluginAPI) PlayerByUsername(username Username, edition Edition) Player {
 	if username == "" {
 		return nil
 	}
@@ -95,7 +95,7 @@ func (api pluginAPI) Players(usernameRegex string, editions ...Edition) ([]Playe
 
 	pp := []Player{}
 	for _, player := range players {
-		if pattern.MatchString(player.Username()) {
+		if pattern.MatchString(string(player.Username())) {
 			pp = append(pp, player)
 		}
 	}

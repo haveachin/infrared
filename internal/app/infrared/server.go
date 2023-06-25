@@ -11,10 +11,12 @@ import (
 
 var ErrClientStatusRequest = errors.New("disconnect after status")
 
+type ServerID string
+
 type Server interface {
-	ID() string
+	ID() ServerID
 	Domains() []string
-	GatewayIDs() []string
+	GatewayIDs() []GatewayID
 	NewConn(Conn) (Conn, error)
 	Edition() Edition
 }
@@ -33,12 +35,12 @@ type ServerGateway struct {
 
 	mu         sync.Mutex
 	reloadChan chan func()
-	quitChan   chan bool
-	gwIDSrvIDs map[string][]string
+	quitChan   chan struct{}
+	gwIDSrvIDs map[GatewayID][]ServerID
 	// Server ID mapped to server
-	srvs map[string]Server
+	srvs map[ServerID]Server
 	// Server ID mapped to server domain wildcard expressions
-	srvExprs map[string][]string
+	srvExprs map[ServerID][]string
 }
 
 func (sg *ServerGateway) init() {
@@ -47,8 +49,8 @@ func (sg *ServerGateway) init() {
 }
 
 func (sg *ServerGateway) indexIDs() {
-	sg.gwIDSrvIDs = map[string][]string{}
-	sg.srvs = map[string]Server{}
+	sg.gwIDSrvIDs = make(map[GatewayID][]ServerID)
+	sg.srvs = make(map[ServerID]Server)
 	for _, srv := range sg.Servers {
 		sg.srvs[srv.ID()] = srv
 
@@ -56,7 +58,7 @@ func (sg *ServerGateway) indexIDs() {
 		for _, gwID := range gwIDs {
 			srvIDs, ok := sg.gwIDSrvIDs[gwID]
 			if !ok {
-				sg.gwIDSrvIDs[gwID] = []string{srv.ID()}
+				sg.gwIDSrvIDs[gwID] = []ServerID{srv.ID()}
 				continue
 			}
 			sg.gwIDSrvIDs[gwID] = append(srvIDs, srv.ID())
@@ -65,7 +67,7 @@ func (sg *ServerGateway) indexIDs() {
 }
 
 func (sg *ServerGateway) compileDomainExprs() {
-	sg.srvExprs = map[string][]string{}
+	sg.srvExprs = map[ServerID][]string{}
 	for _, srv := range sg.Servers {
 		exprs := make([]string, len(srv.Domains()))
 		copy(exprs, srv.Domains())
@@ -73,7 +75,7 @@ func (sg *ServerGateway) compileDomainExprs() {
 	}
 }
 
-func (sg *ServerGateway) findServer(gatewayID, domain string) (Server, string) {
+func (sg *ServerGateway) findServer(gatewayID GatewayID, domain string) (Server, string) {
 	for _, srvID := range sg.gwIDSrvIDs[gatewayID] {
 		for _, srvExpr := range sg.srvExprs[srvID] {
 			if wild.Match(srvExpr, domain, true) {
@@ -88,7 +90,7 @@ func (sg *ServerGateway) findServer(gatewayID, domain string) (Server, string) {
 func (sg *ServerGateway) Start() {
 	sg.mu.Lock()
 	sg.reloadChan = make(chan func())
-	sg.quitChan = make(chan bool)
+	sg.quitChan = make(chan struct{})
 	sg.mu.Unlock()
 	sg.init()
 
@@ -159,6 +161,6 @@ func (sg *ServerGateway) Close() error {
 		return errors.New("server gateway was not running")
 	}
 
-	sg.quitChan <- true
+	sg.quitChan <- struct{}{}
 	return nil
 }
