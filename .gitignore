@@ -1,17 +1,17 @@
-# Binaries for programs and plugins
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
+# Artifacts
+out/
+__debug_bin*
 
-# Test binary, build with `go test -c`
+# Benchmark/Profiler
+*.bench
 *.test
+*.prof
 
-# Output of the go coverage tool, specifically when used with LiteIDE
-*.out
+# Local Dev Files
+.dev/
 
-# Config files
-*.yaml
+# VSCode
+.vscode/
 
-.idea
+# IntelliJ
+.idea/

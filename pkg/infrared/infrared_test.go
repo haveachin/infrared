@@ -19,7 +19,7 @@ func (r mockServerRequestResponder) RespondeToServerRequest(req ServerRequest, s
 	req.ResponseChan <- ServerRequestResponse{}
 }
 
-func BenchmarkHandleConn(b *testing.B) {
+func BenchmarkHandleConn_Status(b *testing.B) {
 	var hsPk protocol.Packet
 	handshaking.ServerBoundHandshake{
 		ProtocolVersion: 1337,
@@ -29,6 +29,8 @@ func BenchmarkHandleConn(b *testing.B) {
 	}.Marshal(&hsPk)
 	var statusPk protocol.Packet
 	status.ServerBoundRequest{}.Marshal(&statusPk)
+	var pingPk protocol.Packet
+	pingPk.Encode(0x01)
 
 	tt := []struct {
 		name string
@@ -39,6 +41,7 @@ func BenchmarkHandleConn(b *testing.B) {
 			pks: []protocol.Packet{
 				hsPk,
 				statusPk,
+				pingPk,
 			},
 		},
 	}

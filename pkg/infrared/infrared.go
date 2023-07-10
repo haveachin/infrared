@@ -1,15 +1,14 @@
 package infrared
 
 import (
-	"encoding/json"
 	"io"
 	"log"
 	"net"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/haveachin/infrared/pkg/infrared/protocol"
-	"github.com/haveachin/infrared/pkg/infrared/protocol/status"
 )
 
 type Config struct {
@@ -100,7 +99,7 @@ func (ir *Infrared) ListenAndServe() error {
 				go func(c net.Conn) {
 					conn := newConn(c)
 					defer func() {
-						conn.Close()
+						conn.ForceClose()
 						connPool.Put(conn)
 					}()
 
@@ -122,7 +121,7 @@ func (ir *Infrared) ListenAndServe() error {
 }
 
 func (ir *Infrared) handleConn(c *conn) error {
-	if err := c.ReadPacket(&c.readPks[0]); err != nil {
+	if err := c.ReadPackets(&c.readPks[0], &c.readPks[1]); err != nil {
 		return err
 	}
 
@@ -138,12 +137,7 @@ func (ir *Infrared) handleConn(c *conn) error {
 		}
 		reqDomain = host
 	}
-	reqDomain = strings.ToLower(reqDomain)
 	c.reqDomain = ServerDomain(reqDomain)
-
-	if err := c.ReadPacket(&c.readPks[1]); err != nil {
-		return err
-	}
 
 	respChan := make(chan ServerRequestResponse)
 	c.srvReqChan <- ServerRequest{
@@ -167,33 +161,18 @@ func (ir *Infrared) handleConn(c *conn) error {
 }
 
 func (ir *Infrared) handleStatus(c *conn, resp ServerRequestResponse) error {
-	// TODO: This is very very expensive.
-	// Figure out a way to not marshal this with every request!
-	// 5 allocs/op
-	bb, err := json.Marshal(resp.ResponseJSON)
-	if err != nil {
+	if err := c.WritePacket(resp.StatusResponse); err != nil {
 		return err
 	}
 
-	// 2 allocs/op
-	var pk protocol.Packet
-	// 2 allocs/op
-	status.ClientBoundResponse{
-		JSONResponse: protocol.String(bb),
-	}.Marshal(&pk)
-
-	if err := c.WritePacket(pk); err != nil {
+	pingPk := c.readPks[0]
+	if err := c.ReadPacket(&pingPk); err != nil {
 		return err
 	}
 
-	if err := c.ReadPacket(&pk); err != nil {
+	if err := c.WritePacket(pingPk); err != nil {
 		return err
 	}
-
-	if err := c.WritePacket(pk); err != nil {
-		return err
-	}
-	////////////////////////////////////
 
 	return nil
 }
@@ -204,12 +183,14 @@ func (ir *Infrared) handleLogin(c *conn, resp ServerRequestResponse) error {
 		return err
 	}
 
+	c.timeout = time.Second * 30
+
 	return ir.handlePipe(c, resp)
 }
 
 func (ir *Infrared) handlePipe(c *conn, resp ServerRequestResponse) error {
-	rc := resp.Conn
-	defer rc.Close()
+	rc := resp.ServerConn
+	defer rc.ForceClose()
 	if err := rc.WritePackets(c.readPks[0], c.readPks[1]); err != nil {
 		return err
 	}
@@ -223,10 +204,10 @@ func (ir *Infrared) handlePipe(c *conn, resp ServerRequestResponse) error {
 	var waitChan chan struct{}
 	select {
 	case <-cClosedChan:
-		rc.Close()
+		rc.ForceClose()
 		waitChan = rcClosedChan
 	case <-rcClosedChan:
-		c.Close()
+		c.ForceClose()
 		waitChan = cClosedChan
 	}
 	<-waitChan

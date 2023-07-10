@@ -46,7 +46,7 @@ type ServerConfig struct {
 
 type Server struct {
 	cfg                        ServerConfig
-	statusResponseJSONProvider StatusResponseJSONProvider
+	statusResponseJSONProvider StatusResponseProvider
 }
 
 func NewServer(fns ...ServerConfigFunc) *Server {
@@ -59,9 +59,9 @@ func NewServer(fns ...ServerConfigFunc) *Server {
 		cfg: cfg,
 	}
 
-	srv.statusResponseJSONProvider = &statusResponseJSONProvider{
+	srv.statusResponseJSONProvider = &statusResponseProvider{
 		server:              srv,
-		cacheTTL:            10 * time.Second,
+		cacheTTL:            30 * time.Second,
 		statusHash:          make(map[protocol.Version]uint64),
 		statusResponseCache: make(map[uint64]*statusCacheEntry),
 	}
@@ -75,7 +75,9 @@ func (s Server) Dial() (*conn, error) {
 		return nil, err
 	}
 
-	return newConn(c), nil
+	conn := newConn(c)
+	conn.timeout = time.Second * 10
+	return conn, nil
 }
 
 type ServerRequest struct {
@@ -87,9 +89,9 @@ type ServerRequest struct {
 }
 
 type ServerRequestResponse struct {
-	Conn         *conn
-	ResponseJSON status.ResponseJSON
-	Err          error
+	ServerConn     *conn
+	StatusResponse protocol.Packet
+	Err            error
 }
 
 type serverGateway struct {
@@ -123,8 +125,10 @@ func (sg *serverGateway) init() error {
 }
 
 func (sg *serverGateway) findServer(domain ServerDomain) *Server {
+	dm := string(domain)
+	dm = strings.ToLower(dm)
 	for d, srv := range sg.servers {
-		if wildcard.Match(string(d), string(domain)) {
+		if wildcard.Match(string(d), dm) {
 			return srv
 		}
 	}
@@ -168,12 +172,12 @@ func (r DialServerRequestResponder) RespondeToServerRequest(req ServerRequest, s
 		}
 
 		req.ResponseChan <- ServerRequestResponse{
-			Conn: rc,
+			ServerConn: rc,
 		}
 		return
 	}
 
-	respJSON, err := srv.statusResponseJSONProvider.StatusResponseJSON(req.ProtocolVersion, req.ReadPks)
+	_, pk, err := srv.statusResponseJSONProvider.StatusResponse(req.ProtocolVersion, req.ReadPks)
 	if err != nil {
 		req.ResponseChan <- ServerRequestResponse{
 			Err: err,
@@ -182,24 +186,25 @@ func (r DialServerRequestResponder) RespondeToServerRequest(req ServerRequest, s
 	}
 
 	req.ResponseChan <- ServerRequestResponse{
-		ResponseJSON: respJSON,
+		StatusResponse: pk,
 	}
 }
 
-type StatusResponseJSONProvider interface {
-	StatusResponseJSON(protocol.Version, [2]protocol.Packet) (status.ResponseJSON, error)
+type StatusResponseProvider interface {
+	StatusResponse(protocol.Version, [2]protocol.Packet) (status.ResponseJSON, protocol.Packet, error)
 }
 
 type statusCacheEntry struct {
-	expiresAt      time.Time
-	statusResponse status.ResponseJSON
+	expiresAt    time.Time
+	responseJSON status.ResponseJSON
+	responsePk   protocol.Packet
 }
 
 func (e statusCacheEntry) isExpired() bool {
 	return e.expiresAt.Before(time.Now())
 }
 
-type statusResponseJSONProvider struct {
+type statusResponseProvider struct {
 	server *Server
 
 	mu                  sync.Mutex
@@ -208,19 +213,19 @@ type statusResponseJSONProvider struct {
 	statusResponseCache map[uint64]*statusCacheEntry
 }
 
-func (s *statusResponseJSONProvider) requestNewStatusResponseJSON(readPks [2]protocol.Packet) (uint64, status.ResponseJSON, error) {
+func (s *statusResponseProvider) requestNewStatusResponseJSON(readPks [2]protocol.Packet) (uint64, status.ResponseJSON, protocol.Packet, error) {
 	rc, err := s.server.Dial()
 	if err != nil {
-		return 0, status.ResponseJSON{}, err
+		return 0, status.ResponseJSON{}, protocol.Packet{}, err
 	}
 
 	if err := rc.WritePackets(readPks[0], readPks[1]); err != nil {
-		return 0, status.ResponseJSON{}, err
+		return 0, status.ResponseJSON{}, protocol.Packet{}, err
 	}
 
 	var pk protocol.Packet
 	if err := rc.ReadPacket(&pk); err != nil {
-		return 0, status.ResponseJSON{}, err
+		return 0, status.ResponseJSON{}, protocol.Packet{}, err
 	}
 	rc.Close()
 
@@ -229,21 +234,21 @@ func (s *statusResponseJSONProvider) requestNewStatusResponseJSON(readPks [2]pro
 
 	var respPk status.ClientBoundResponse
 	if err := respPk.Unmarshal(pk); err != nil {
-		return 0, status.ResponseJSON{}, err
+		return 0, status.ResponseJSON{}, protocol.Packet{}, err
 	}
 
 	var respJSON status.ResponseJSON
 	if err := json.Unmarshal([]byte(respPk.JSONResponse), &respJSON); err != nil {
-		return 0, status.ResponseJSON{}, err
+		return 0, status.ResponseJSON{}, protocol.Packet{}, err
 	}
 
-	return hash.Sum64(), respJSON, nil
+	return hash.Sum64(), respJSON, pk, nil
 }
 
-func (s *statusResponseJSONProvider) StatusResponseJSON(protVer protocol.Version, readPks [2]protocol.Packet) (status.ResponseJSON, error) {
+func (s *statusResponseProvider) StatusResponse(protVer protocol.Version, readPks [2]protocol.Packet) (status.ResponseJSON, protocol.Packet, error) {
 	if s.cacheTTL <= 0 {
-		_, statusResp, err := s.requestNewStatusResponseJSON(readPks)
-		return statusResp, err
+		_, statusResp, pk, err := s.requestNewStatusResponseJSON(readPks)
+		return statusResp, pk, err
 	}
 
 	// Prunes all expired status reponses
@@ -254,41 +259,43 @@ func (s *statusResponseJSONProvider) StatusResponseJSON(protVer protocol.Version
 
 	hash, ok := s.statusHash[protVer]
 	if !ok {
-		hash, newStatusResp, err := s.requestNewStatusResponseJSON(readPks)
+		hash, newStatusResp, pk, err := s.requestNewStatusResponseJSON(readPks)
 		if err != nil {
-			return status.ResponseJSON{}, err
+			return status.ResponseJSON{}, protocol.Packet{}, err
 		}
 		s.statusHash[protVer] = hash
 
 		entry, ok := s.statusResponseCache[hash]
 		if !ok {
 			s.statusResponseCache[hash] = &statusCacheEntry{
-				expiresAt:      time.Now().Add(s.cacheTTL),
-				statusResponse: newStatusResp,
+				expiresAt:    time.Now().Add(s.cacheTTL),
+				responseJSON: newStatusResp,
+				responsePk:   pk,
 			}
-			return newStatusResp, nil
+			return newStatusResp, pk, nil
 		}
-		return entry.statusResponse, nil
+		return entry.responseJSON, entry.responsePk, nil
 	}
 
 	entry, ok := s.statusResponseCache[hash]
 	if !ok {
-		hash, newStatusResp, err := s.requestNewStatusResponseJSON(readPks)
+		hash, newStatusResp, pk, err := s.requestNewStatusResponseJSON(readPks)
 		if err != nil {
-			return status.ResponseJSON{}, err
+			return status.ResponseJSON{}, protocol.Packet{}, err
 		}
 
 		s.statusResponseCache[hash] = &statusCacheEntry{
-			expiresAt:      time.Now().Add(s.cacheTTL),
-			statusResponse: newStatusResp,
+			expiresAt:    time.Now().Add(s.cacheTTL),
+			responseJSON: newStatusResp,
+			responsePk:   pk,
 		}
 
-		return newStatusResp, nil
+		return newStatusResp, pk, nil
 	}
-	return entry.statusResponse, nil
+	return entry.responseJSON, entry.responsePk, nil
 }
 
-func (s *statusResponseJSONProvider) prune() {
+func (s *statusResponseProvider) prune() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 

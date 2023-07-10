@@ -16,7 +16,6 @@ var connPool = sync.Pool{
 	New: func() any {
 		return &conn{
 			readPks: [2]protocol.Packet{},
-			timeout: time.Second * 10,
 		}
 	},
 }
@@ -40,6 +39,7 @@ func newConn(c net.Conn) *conn {
 	conn.r = bufio.NewReader(c)
 	conn.w = c
 	conn.reqDomain = ""
+	conn.timeout = time.Second * 10
 	return conn
 }
 
@@ -53,14 +53,12 @@ func (c *conn) Write(b []byte) (int, error) {
 	return c.w.Write(b)
 }
 
-// ReadPacket read a Packet from Conn.
 func (c *conn) ReadPacket(pk *protocol.Packet) error {
 	_, err := pk.ReadFrom(c.r)
 	return err
 }
 
-// ReadPacket read a Packet from Conn.
-func (c *conn) ReadPackets(pks []*protocol.Packet) error {
+func (c *conn) ReadPackets(pks ...*protocol.Packet) error {
 	for i := 0; i < len(pks); i++ {
 		if err := c.ReadPacket(pks[i]); err != nil {
 			return err
@@ -69,13 +67,11 @@ func (c *conn) ReadPackets(pks []*protocol.Packet) error {
 	return nil
 }
 
-// WritePacket write a Packet to Conn.
 func (c *conn) WritePacket(pk protocol.Packet) error {
 	_, err := pk.WriteTo(c.w)
 	return err
 }
 
-// WritePackets writes Packets to Conn.
 func (c *conn) WritePackets(pks ...protocol.Packet) error {
 	for _, pk := range pks {
 		if err := c.WritePacket(pk); err != nil {
@@ -83,4 +79,14 @@ func (c *conn) WritePackets(pks ...protocol.Packet) error {
 		}
 	}
 	return nil
+}
+
+func (c *conn) ForceClose() error {
+	switch conn := c.Conn.(type) {
+	case *net.TCPConn:
+		if err := conn.SetLinger(0); err != nil {
+			return err
+		}
+	}
+	return c.Close()
 }

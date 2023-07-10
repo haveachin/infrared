@@ -33,8 +33,6 @@ type (
 
 	// Chat is encoded as a String with max length of 32767.
 	Chat = String
-	// Identifier is encoded as a String with max length of 32767.
-	Identifier = String
 
 	// VarInt is variable-length data encoding a two's complement signed 32-bit integer
 	VarInt int32
@@ -44,9 +42,6 @@ type (
 
 	// ByteArray is []byte with prefix VarInt as length
 	ByteArray []byte
-
-	// OptionalByteArray is []byte without prefix VarInt as length
-	OptionalByteArray []byte
 )
 
 const (

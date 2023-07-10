@@ -64,3 +64,4 @@ Some tooling that can help you author those commit messages are the following pl
 ## Attributions
 
 * <a href="https://commons.wikimedia.org/wiki/File:AGPLv3_Logo.svg">Free Software Foundation</a>, Public domain, via Wikimedia Commons
+* [Tnze/go-mc](https://github.com/Tnze/go-mc/blob/master/LICENSE), MIT License

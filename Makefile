@@ -13,3 +13,7 @@ bench:
 
 dev:
 	docker compose -f deployments/docker-compose.dev.yml -p infrared up --force-recreate --remove-orphans
+
+dos:
+	CGO_ENABLED=0 go build -ldflags "-s -w" -o ./out/dos ./tools/dos
+	./out/dos
