@@ -7,6 +7,7 @@ const (
 	ConfigType
 	FileType
 	DockerType
+	KubernetesType
 )
 
 func (t Type) String() string {
@@ -17,7 +18,10 @@ func (t Type) String() string {
 		return "file"
 	case DockerType:
 		return "docker"
+	case KubernetesType:
+		return "kubernetes"
 	}
+
 	return "unknown"
 }
 

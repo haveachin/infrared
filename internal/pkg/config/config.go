@@ -12,8 +12,9 @@ import (
 
 type baseConfig struct {
 	Providers struct {
-		Docker provider.DockerConfig `mapstructure:"docker"`
-		File   provider.FileConfig   `mapstructure:"file"`
+		Docker     provider.DockerConfig     `mapstructure:"docker"`
+		File       provider.FileConfig       `mapstructure:"file"`
+		Kubernetes provider.KubernetesConfig `mapstructure:"kubernetes"`
 	} `mapstructure:"providers"`
 }
 
@@ -58,8 +59,9 @@ func New(path string, onChange OnChange, logger *zap.Logger) (Config, error) {
 		dataChan: make(chan provider.Data),
 		onChange: onChange,
 		providers: map[provider.Type]provider.Provider{
-			provider.FileType:   provider.NewFile(providerCfg.Providers.File, logger),
-			provider.DockerType: provider.NewDocker(providerCfg.Providers.Docker, logger),
+			provider.FileType:       provider.NewFile(providerCfg.Providers.File, logger),
+			provider.DockerType:     provider.NewDocker(providerCfg.Providers.Docker, logger),
+			provider.KubernetesType: provider.NewKubernetes(providerCfg.Providers.Kubernetes, logger),
 		},
 		providerData: map[provider.Type]map[string]any{
 			provider.ConfigType: configMap,
