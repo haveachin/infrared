@@ -2,7 +2,6 @@ package provider
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"time"
 
@@ -145,7 +144,6 @@ func (p Kubernetes) watch(dataCh chan<- Data) error {
 		}
 
 		if event.Type == watch.Added || event.Type == watch.Deleted {
-			fmt.Printf("Service %s\n", event.Type)
 			cfg, err := p.readConfigData()
 			if err != nil {
 				p.logger.Info("failed to read data", zap.Error(err))
