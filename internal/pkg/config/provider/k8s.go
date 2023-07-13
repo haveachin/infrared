@@ -125,6 +125,8 @@ func (p Kubernetes) watch(dataCh chan<- Data) error {
 		return err
 	}
 
+	defer watcher.Stop()
+
 	ch := watcher.ResultChan()
 	for {
 		// Wait for any update
