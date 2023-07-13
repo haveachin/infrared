@@ -2,10 +2,10 @@ package provider
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/watch"
@@ -50,17 +50,17 @@ func (p *Kubernetes) Provide(dataCh chan<- Data) (Data, error) {
 	}
 
 	if err != nil {
-		return Data{}, errors.Wrap(err, "Could not load kube config file")
+		return Data{}, fmt.Errorf("could not load kube config file: %w", err)
 	}
 
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		return Data{}, errors.Wrap(err, "Could not create kube clientset")
+		return Data{}, fmt.Errorf("could not create kube clientset: %w", err)
 	}
 
 	p.clientset = clientset
 
-	p.logger.Info("Monitoring Kubernetes for Minecraft services")
+	p.logger.Info("monitoring Kubernetes for Minecraft services")
 
 	cfg, err := p.readConfigData()
 	if err != nil {
