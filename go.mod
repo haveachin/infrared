@@ -22,7 +22,6 @@ require (
 	github.com/klauspost/compress v1.16.5
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/pires/go-proxyproto v0.7.0
-	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.15.1
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/sandertv/go-raknet v1.12.0
@@ -68,6 +67,7 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.0.2 // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/prometheus/client_model v0.4.0 // indirect
 	github.com/prometheus/common v0.43.0 // indirect
 	github.com/prometheus/procfs v0.9.0 // indirect
