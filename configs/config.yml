@@ -54,3 +54,23 @@ providers:
     # If Infrared should watch the network for changes in containers.
     #
     #watch: true
+
+  # Minecraft Servers that run in Kubernetes can have annotations configured for their Service definitions.
+  # These annotations help you configure proxies on the fly (similar to mc-router).
+  #
+  #kubernetes:
+    # Config is either path to a kube config file
+    # or "inCluster" if using a service account inside the cluster
+    #
+    # config: "/path/to/.kube/config|inCluster"
+    # namespace: minecraft
+    
+    # clientTimeout: 3s
+
+    # Prefix for Infrared config service annotations.
+    #
+    # annotationPrefix: infrared.
+
+    # If Infrared should watch the network for changes in containers.
+    #
+    # watch: true
