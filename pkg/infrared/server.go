@@ -268,11 +268,10 @@ func (s *statusResponseProvider) CacheResponse(protVer protocol.Version, readPks
 		return status.ResponseJSON{}, protocol.Packet{}, err
 	}
 
-	hash := xxhash.New()
-	pk.WriteTo(hash)
-	s.statusHash[protVer] = hash.Sum64()
+	hash := xxhash.New().Sum64()
+	s.statusHash[protVer] = hash
 
-	s.statusResponseCache[hash.Sum64()] = &statusCacheEntry{
+	s.statusResponseCache[hash] = &statusCacheEntry{
 		expiresAt:    time.Now().Add(s.cacheTTL),
 		responseJSON: newStatusResp,
 		responsePk:   pk,
