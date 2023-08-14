@@ -256,13 +256,13 @@ func (s *statusResponseProvider) StatusResponse(protVer protocol.Version, readPk
 	hash, okHash := s.statusHash[protVer]
 	entry, okCache := s.statusResponseCache[hash]
 	if !okHash || !okCache {
-		return s.CacheResponse(protVer, readPks)
+		return s.cacheResponse(protVer, readPks)
 	}
 
 	return entry.responseJSON, entry.responsePk, nil
 }
 
-func (s *statusResponseProvider) CacheResponse(protVer protocol.Version, readPks [2]protocol.Packet) (status.ResponseJSON, protocol.Packet, error) {
+func (s *statusResponseProvider) cacheResponse(protVer protocol.Version, readPks [2]protocol.Packet) (status.ResponseJSON, protocol.Packet, error) {
 	newStatusResp, pk, err := s.requestNewStatusResponseJSON(readPks)
 	if err != nil {
 		return status.ResponseJSON{}, protocol.Packet{}, err
