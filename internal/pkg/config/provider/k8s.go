@@ -7,11 +7,14 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/watch"
+	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/kubernetes/pkg/apis/core"
 )
 
 type KubernetesConfig struct {
@@ -20,6 +23,7 @@ type KubernetesConfig struct {
 	ClientTimeout    time.Duration `mapstructure:"clientTimeout"`
 	Watch            bool          `mapstructure:"watch"`
 	Config           string        `mapstructure:"config"`
+	stop             chan struct{}
 }
 
 type Kubernetes struct {
@@ -117,50 +121,52 @@ func (p Kubernetes) readConfigData() (map[string]any, error) {
 }
 
 func (p Kubernetes) watch(dataCh chan<- Data) error {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	p.stop = make(chan struct{}, 1)
 
-	watcher, err := p.clientset.CoreV1().Services(p.Namespace).Watch(ctx, metav1.ListOptions{})
-	if err != nil {
-		return err
-	}
+	_, serviceController := cache.NewInformer(
+		cache.NewListWatchFromClient(
+			p.clientset.CoreV1().RESTClient(),
+			string(core.ResourceServices),
+			p.Namespace,
+			fields.Everything(),
+		),
+		&v1.Service{},
+		0,
+		cache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj interface{}) {
+				cfg, err := p.readConfigData()
+				if err != nil {
+					p.logger.Info("failed to read data", zap.Error(err))
+				}
 
-	defer watcher.Stop()
+				dataCh <- Data{
+					Type:   KubernetesType,
+					Config: cfg,
+				}
+			},
+			DeleteFunc: func(obj interface{}) {
+				cfg, err := p.readConfigData()
+				if err != nil {
+					p.logger.Info("failed to read data", zap.Error(err))
+				}
 
-	ch := watcher.ResultChan()
-	for {
-		// Wait for any update
-		event := <-ch
+				dataCh <- Data{
+					Type:   KubernetesType,
+					Config: cfg,
+				}
+			},
+		},
+	)
 
-		// There will be an item in the channel for *every* service that
-		// is updated. Especially on start-up there will be a storm of
-		// events but we really want to update just once. So wait a short
-		// time for more events and then drain the channel.
-		time.Sleep(100 * time.Millisecond)
-		for drained := false; drained == false; {
-			select {
-			case <-ch:
-			default:
-				drained = true
-			}
-		}
+	go serviceController.Run(p.stop)
 
-		if event.Type == watch.Added || event.Type == watch.Deleted {
-			cfg, err := p.readConfigData()
-			if err != nil {
-				p.logger.Info("failed to read data", zap.Error(err))
-				continue
-			}
-
-			dataCh <- Data{
-				Type:   KubernetesType,
-				Config: cfg,
-			}
-		}
-
-	}
+	return nil
 }
 
 func (p Kubernetes) Close() error {
+	if p.stop != nil {
+		close(p.stop)
+	}
+
 	return nil
 }
