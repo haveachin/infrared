@@ -1,0 +1,20 @@
+listeners:
+  default:
+    bind: :25565
+
+servers:
+  default:
+    listeners:
+      - default
+
+    # This is the domain that players enter in their game client.
+    # You can have multiple domains here or just one.
+    # Currently this holds just a wildcard character as a domain
+    # meaning that is accepts every domain that a player uses.
+    # Supports '*' and '?' wildcards in the pattern string.
+    #
+    domains:
+      - "*"
+
+    addresses:
+      - example.com:25565

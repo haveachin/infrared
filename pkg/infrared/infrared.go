@@ -12,8 +12,9 @@ import (
 )
 
 type Config struct {
-	ListenerConfigs []ListenerConfig
-	ServerConfigs   []ServerConfig
+	ListenerConfigs  []ListenerConfig `yaml:"listeners"`
+	ServerConfigs    []ServerConfig   `yaml:"servers"`
+	KeepAliveTimeout time.Duration    `yaml:"keepAliveTimeout"`
 }
 
 type ConfigFunc func(cfg *Config)
@@ -38,16 +39,24 @@ func AddServerConfig(fns ...ServerConfigFunc) ConfigFunc {
 	}
 }
 
+func DefaultConfig() Config {
+	return Config{
+		KeepAliveTimeout: 30 * time.Second,
+	}
+}
+
 type Infrared struct {
 	cfg Config
 
 	listeners []*Listener
 	srvs      []*Server
 	bufPool   sync.Pool
+	conns     map[net.Addr]*conn
+	mu        sync.Mutex
 }
 
 func New(fns ...ConfigFunc) *Infrared {
-	var cfg Config
+	cfg := DefaultConfig()
 	for _, fn := range fns {
 		fn(&cfg)
 	}
@@ -60,6 +69,7 @@ func New(fns ...ConfigFunc) *Infrared {
 				return &b
 			},
 		},
+		conns: make(map[net.Addr]*conn),
 	}
 }
 
@@ -75,7 +85,12 @@ func (ir *Infrared) init() error {
 	}
 
 	for _, sCfg := range ir.cfg.ServerConfigs {
-		ir.srvs = append(ir.srvs, NewServer(WithServerConfig(sCfg)))
+		srv, err := NewServer(WithServerConfig(sCfg))
+		if err != nil {
+			return err
+		}
+
+		ir.srvs = append(ir.srvs, srv)
 	}
 
 	return nil
@@ -185,11 +200,10 @@ func (ir *Infrared) handleLogin(c *conn, resp ServerRequestResponse) error {
 
 	c.timeout = time.Second * 30
 
-	return ir.handlePipe(c, resp)
+	return ir.handlePipe(c, resp.ServerConn)
 }
 
-func (ir *Infrared) handlePipe(c *conn, resp ServerRequestResponse) error {
-	rc := resp.ServerConn
+func (ir *Infrared) handlePipe(c, rc *conn) error {
 	defer rc.ForceClose()
 	if err := rc.WritePackets(c.readPks[0], c.readPks[1]); err != nil {
 		return err
@@ -197,6 +211,10 @@ func (ir *Infrared) handlePipe(c *conn, resp ServerRequestResponse) error {
 
 	rcClosedChan := make(chan struct{})
 	cClosedChan := make(chan struct{})
+
+	c.timeout = ir.cfg.KeepAliveTimeout
+	rc.timeout = ir.cfg.KeepAliveTimeout
+	ir.addConn(c)
 
 	go ir.copy(rc, c, cClosedChan)
 	go ir.copy(c, rc, rcClosedChan)
@@ -211,6 +229,7 @@ func (ir *Infrared) handlePipe(c *conn, resp ServerRequestResponse) error {
 		waitChan = cClosedChan
 	}
 	<-waitChan
+	ir.removeConn(c)
 
 	return nil
 }
@@ -221,4 +240,16 @@ func (ir *Infrared) copy(dst io.WriteCloser, src io.ReadCloser, srcClosedChan ch
 
 	io.CopyBuffer(dst, src, *b)
 	srcClosedChan <- struct{}{}
+}
+
+func (ir *Infrared) addConn(c *conn) {
+	ir.mu.Lock()
+	defer ir.mu.Unlock()
+	ir.conns[c.RemoteAddr()] = c
+}
+
+func (ir *Infrared) removeConn(c *conn) {
+	ir.mu.Lock()
+	defer ir.mu.Unlock()
+	delete(ir.conns, c.RemoteAddr())
 }

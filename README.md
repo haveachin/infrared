@@ -28,6 +28,9 @@ Infrared works as a reverse proxy using a sub-/domains to connect clients to a s
 - [X] Reverse Proxy
   - [X] Wildcards Support
   - [X] Multi-Domain Support
+- [X] Status Response Caching
+- [ ] Proxy Protocol Support
+- [ ] Ratelimiter
 
 ## Contributing
 

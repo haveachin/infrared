@@ -30,7 +30,7 @@ func WithListenerBind(bind string) ListenerConfigFunc {
 }
 
 type ListenerConfig struct {
-	Bind string
+	Bind string `yaml:"bind"`
 }
 
 type Listener struct {

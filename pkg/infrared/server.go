@@ -33,44 +33,48 @@ func WithServerDomains(dd ...ServerDomain) ServerConfigFunc {
 	}
 }
 
-func WithServerAddress(addr ServerAddress) ServerConfigFunc {
+func WithServerAddresses(addr ...ServerAddress) ServerConfigFunc {
 	return func(cfg *ServerConfig) {
-		cfg.Address = addr
+		cfg.Addresses = addr
 	}
 }
 
 type ServerConfig struct {
-	Domains []ServerDomain `mapstructure:"domains"`
-	Address ServerAddress  `mapstructure:"address"`
+	Domains   []ServerDomain  `yaml:"domains"`
+	Addresses []ServerAddress `yaml:"addresses"`
 }
 
 type Server struct {
-	cfg                        ServerConfig
-	statusResponseJSONProvider StatusResponseProvider
+	cfg            ServerConfig
+	statusRespProv StatusResponseProvider
 }
 
-func NewServer(fns ...ServerConfigFunc) *Server {
+func NewServer(fns ...ServerConfigFunc) (*Server, error) {
 	var cfg ServerConfig
 	for _, fn := range fns {
 		fn(&cfg)
+	}
+
+	if len(cfg.Addresses) == 0 {
+		return nil, errors.New("no addresses")
 	}
 
 	srv := &Server{
 		cfg: cfg,
 	}
 
-	srv.statusResponseJSONProvider = &statusResponseProvider{
+	srv.statusRespProv = &statusResponseProvider{
 		server:              srv,
 		cacheTTL:            30 * time.Second,
 		statusHash:          make(map[protocol.Version]uint64),
 		statusResponseCache: make(map[uint64]*statusCacheEntry),
 	}
 
-	return srv
+	return srv, nil
 }
 
 func (s Server) Dial() (*conn, error) {
-	c, err := net.Dial("tcp", string(s.cfg.Address))
+	c, err := net.Dial("tcp", string(s.cfg.Addresses[0]))
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +181,7 @@ func (r DialServerRequestResponder) RespondeToServerRequest(req ServerRequest, s
 		return
 	}
 
-	_, pk, err := srv.statusResponseJSONProvider.StatusResponse(req.ProtocolVersion, req.ReadPks)
+	_, pk, err := srv.statusRespProv.StatusResponse(req.ProtocolVersion, req.ReadPks)
 	if err != nil {
 		req.ResponseChan <- ServerRequestResponse{
 			Err: err,
