@@ -164,29 +164,18 @@ type DialServerRequestResponder struct{}
 func (r DialServerRequestResponder) RespondeToServerRequest(req ServerRequest, srv *Server) {
 	if req.IsLogin {
 		rc, err := srv.Dial()
-		if err != nil {
-			req.ResponseChan <- ServerRequestResponse{
-				Err: err,
-			}
-			return
-		}
 
 		req.ResponseChan <- ServerRequestResponse{
 			ServerConn: rc,
+			Err:        err,
 		}
 		return
 	}
 
 	_, pk, err := srv.statusResponseJSONProvider.StatusResponse(req.ProtocolVersion, req.ReadPks)
-	if err != nil {
-		req.ResponseChan <- ServerRequestResponse{
-			Err: err,
-		}
-		return
-	}
-
 	req.ResponseChan <- ServerRequestResponse{
 		StatusResponse: pk,
+		Err:            err,
 	}
 }
 
