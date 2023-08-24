@@ -89,9 +89,10 @@ type ServerRequest struct {
 }
 
 type ServerRequestResponse struct {
-	ServerConn     *conn
-	StatusResponse protocol.Packet
-	Err            error
+	ServerConn       *conn
+	StatusResponse   protocol.Packet
+	UseProxyProtocol bool
+	Err              error
 }
 
 type serverGateway struct {
