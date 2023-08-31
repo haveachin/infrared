@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/haveachin/infrared/pkg/infrared/protocol"
+	"github.com/pires/go-proxyproto"
 )
 
 type Config struct {
@@ -215,6 +216,21 @@ func (ir *Infrared) handleLogin(c *conn, resp ServerRequestResponse) error {
 
 func (ir *Infrared) handlePipe(c, rc *conn) error {
 	defer rc.ForceClose()
+
+	if resp.UseProxyProtocol {
+		header := &proxyproto.Header{
+			Version:           2,
+			Command:           proxyproto.PROXY,
+			TransportProtocol: proxyproto.TCPv4,
+			SourceAddr:        c.RemoteAddr(),
+			DestinationAddr:   rc.RemoteAddr(),
+		}
+
+		if _, err := header.WriteTo(rc); err != nil {
+			return err
+		}
+	}
+
 	if err := rc.WritePackets(c.readPks[0], c.readPks[1]); err != nil {
 		return err
 	}
