@@ -15,6 +15,7 @@ import (
 )
 
 type (
+	ServerID      string
 	ServerAddress string
 	ServerDomain  string
 )
@@ -27,9 +28,9 @@ func WithServerConfig(c ServerConfig) ServerConfigFunc {
 	}
 }
 
-func WithServerDomains(dd ...ServerDomain) ServerConfigFunc {
+func WithServerDomains(sd ...ServerDomain) ServerConfigFunc {
 	return func(cfg *ServerConfig) {
-		cfg.Domains = dd
+		cfg.Domains = sd
 	}
 }
 

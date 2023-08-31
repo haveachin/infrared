@@ -9,6 +9,7 @@ __debug_bin*
 
 # Local Dev Files
 .dev/
+cmd/infrared/config.yml
 
 # VSCode
 .vscode/

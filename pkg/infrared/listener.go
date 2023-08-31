@@ -15,6 +15,10 @@ var lMgr = listenersManager{
 	listeners: make(map[string]*managedListener),
 }
 
+type (
+	ListenerID string
+)
+
 type ListenerConfigFunc func(cfg *ListenerConfig)
 
 func WithListenerConfig(c ListenerConfig) ListenerConfigFunc {

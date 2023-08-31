@@ -18,3 +18,7 @@ servers:
 
     addresses:
       - example.com:25565
+
+# Maximum duration between packets before the client gets timed out.
+#
+keep_alive_timeout: 30s

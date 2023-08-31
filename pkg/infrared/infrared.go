@@ -12,30 +12,36 @@ import (
 )
 
 type Config struct {
-	ListenerConfigs  []ListenerConfig `yaml:"listeners"`
-	ServerConfigs    []ServerConfig   `yaml:"servers"`
-	KeepAliveTimeout time.Duration    `yaml:"keepAliveTimeout"`
+	ListenerConfigs  map[ListenerID]ListenerConfig `yaml:"listeners"`
+	ServerConfigs    map[ServerID]ServerConfig     `yaml:"servers"`
+	KeepAliveTimeout time.Duration                 `yaml:"keep_alive_timeout"`
 }
 
 type ConfigFunc func(cfg *Config)
 
-func AddListenerConfig(fns ...ListenerConfigFunc) ConfigFunc {
+func AddListenerConfig(id ListenerID, fns ...ListenerConfigFunc) ConfigFunc {
 	return func(cfg *Config) {
 		var lCfg ListenerConfig
 		for _, fn := range fns {
 			fn(&lCfg)
 		}
-		cfg.ListenerConfigs = append(cfg.ListenerConfigs, lCfg)
+		cfg.ListenerConfigs[id] = lCfg
 	}
 }
 
-func AddServerConfig(fns ...ServerConfigFunc) ConfigFunc {
+func AddServerConfig(id ServerID, fns ...ServerConfigFunc) ConfigFunc {
 	return func(cfg *Config) {
 		var sCfg ServerConfig
 		for _, fn := range fns {
 			fn(&sCfg)
 		}
-		cfg.ServerConfigs = append(cfg.ServerConfigs, sCfg)
+		cfg.ServerConfigs[id] = sCfg
+	}
+}
+
+func WithKeepAliveTimeout(d time.Duration) ConfigFunc {
+	return func(cfg *Config) {
+		cfg.KeepAliveTimeout = d
 	}
 }
 
@@ -61,6 +67,10 @@ func New(fns ...ConfigFunc) *Infrared {
 		fn(&cfg)
 	}
 
+	return NewWithConfig(cfg)
+}
+
+func NewWithConfig(cfg Config) *Infrared {
 	return &Infrared{
 		cfg: cfg,
 		bufPool: sync.Pool{
@@ -198,7 +208,7 @@ func (ir *Infrared) handleLogin(c *conn, resp ServerRequestResponse) error {
 		return err
 	}
 
-	c.timeout = time.Second * 30
+	c.timeout = ir.cfg.KeepAliveTimeout
 
 	return ir.handlePipe(c, resp.ServerConn)
 }
