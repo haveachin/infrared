@@ -22,7 +22,7 @@ type ServerLoginStart struct {
 	Signature protocol.ByteArray
 
 	// Added in 1.19
-	HasPlayerUUID protocol.Boolean
+	HasPlayerUUID protocol.Boolean // removed in 1.20.1
 	PlayerUUID    protocol.UUID
 }
 
@@ -39,8 +39,13 @@ func (pk ServerLoginStart) Marshal(version protocol.Version) protocol.Packet {
 	if pk.HasPublicKey {
 		fields = append(fields, pk.Timestamp, pk.PublicKey, pk.Signature)
 	}
-	fields = append(fields, pk.HasPlayerUUID)
-	if pk.HasPlayerUUID {
+
+	if version < protocol.Version_1_20_2 {
+		fields = append(fields, pk.HasPlayerUUID)
+		if pk.HasPlayerUUID {
+			fields = append(fields, pk.PlayerUUID)
+		}
+	} else {
 		fields = append(fields, pk.PlayerUUID)
 	}
 
@@ -78,8 +83,12 @@ func UnmarshalServerBoundLoginStart(packet protocol.Packet, version protocol.Ver
 		}
 	}
 
-	if err := protocol.ScanFields(r, &pk.HasPlayerUUID); err != nil {
-		return pk, err
+	if version < protocol.Version_1_20_2 {
+		if err := protocol.ScanFields(r, &pk.HasPlayerUUID); err != nil {
+			return pk, err
+		}
+	} else {
+		pk.HasPlayerUUID = true
 	}
 
 	if pk.HasPlayerUUID {
