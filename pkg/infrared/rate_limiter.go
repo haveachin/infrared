@@ -1,6 +1,7 @@
 package infrared
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"net"
@@ -11,11 +12,16 @@ import (
 	"github.com/cespare/xxhash/v2"
 )
 
-func RateLimit(requestLimit int, windowLength time.Duration, options ...RateLimiterOption) func(Handler) Handler {
-	return newRateLimiter(requestLimit, windowLength, options...).Handler
+type RateLimiterConfig struct {
+	RequestLimit int           `yaml:"requestLimit"`
+	WindowLength time.Duration `yaml:"windowLength"`
 }
 
-func RateLimitByIP(requestLimit int, windowLength time.Duration) func(Handler) Handler {
+func RateLimit(requestLimit int, windowLength time.Duration, options ...RateLimiterOption) Filterer {
+	return newRateLimiter(requestLimit, windowLength, options...).Filterer()
+}
+
+func RateLimitByIP(requestLimit int, windowLength time.Duration) Filterer {
 	return RateLimit(requestLimit, windowLength, WithKeyFuncs(KeyByIP))
 }
 
@@ -132,8 +138,10 @@ func (r *rateLimiter) Status(key string) (bool, float64) {
 	return rate > float64(r.requestLimit), rate
 }
 
-func (r *rateLimiter) Handler(next Handler) Handler {
-	return HandlerFunc(func(c net.Conn) {
+var ErrRateLimitReached = errors.New("rate limit reached")
+
+func (r *rateLimiter) Filterer() Filterer {
+	return FilterFunc(func(c net.Conn) error {
 		key := r.keyFn(c)
 		currentWindow := time.Now().UTC().Truncate(r.windowLength)
 
@@ -142,11 +150,11 @@ func (r *rateLimiter) Handler(next Handler) Handler {
 
 		if nrate >= r.requestLimit {
 			r.onRequestLimit(c)
-			return
+			return ErrRateLimitReached
 		}
 
 		r.limitCounter.Inc(key, currentWindow)
-		next.ServeProtocol(c)
+		return nil
 	})
 }
 

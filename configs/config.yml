@@ -1,6 +1,8 @@
 listeners:
   default:
     bind: :25565
+    filters:
+      - default
     #proxyProtocol:
       
       # Receive proxy protocol
@@ -12,6 +14,18 @@ listeners:
       #trustedProxies:
       #  - "127.0.0.1"
 
+filters:
+  default:
+    # Rate limiter limits the amount of request a single IP can do in a specific windows of time.
+    #
+    rateLimiter:
+      # The request limit it the amount of requests a single IP can make in a specific window of time.
+      #
+      requestLimit: 6
+      
+      # This is the window of time in that a single IP can make a specific amount of requests.
+      #
+      windowLength: 500ms
 
 servers:
   default:

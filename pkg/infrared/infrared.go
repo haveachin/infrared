@@ -1,6 +1,7 @@
 package infrared
 
 import (
+	"errors"
 	"io"
 	"log"
 	"net"
@@ -12,19 +13,10 @@ import (
 	"github.com/pires/go-proxyproto"
 )
 
-type Handler interface {
-	ServeProtocol(c net.Conn)
-}
-
-type HandlerFunc func(c net.Conn)
-
-func (f HandlerFunc) ServeProtocol(c net.Conn) {
-	f(c)
-}
-
 type Config struct {
 	ListenerConfigs  map[ListenerID]ListenerConfig `yaml:"listeners"`
 	ServerConfigs    map[ServerID]ServerConfig     `yaml:"servers"`
+	FiltersConfig    map[FilterID]FiltersConfig    `yaml:"filters"`
 	KeepAliveTimeout time.Duration                 `yaml:"keepAliveTimeout"`
 }
 
@@ -65,11 +57,11 @@ func DefaultConfig() Config {
 type Infrared struct {
 	cfg Config
 
-	listeners   []*Listener
-	srvs        []*Server
-	bufPool     sync.Pool
-	conns       map[net.Addr]*conn
-	mu          sync.Mutex
+	listeners []*Listener
+	srvs      []*Server
+	bufPool   sync.Pool
+	conns     map[net.Addr]*conn
+	mu        sync.Mutex
 }
 
 func New(fns ...ConfigFunc) *Infrared {
@@ -95,13 +87,21 @@ func NewWithConfig(cfg Config) *Infrared {
 }
 
 func (ir *Infrared) init() error {
+	filters := make(map[FilterID]Filter)
+	for fID, fCfg := range ir.cfg.FiltersConfig {
+		filters[fID] = NewFilter(WithFilterConfig(fCfg))
+	}
+
 	for _, lCfg := range ir.cfg.ListenerConfigs {
-		l, err := NewListener(func(cfg *ListenerConfig) {
-			*cfg = lCfg
-		})
+		l, err := NewListener(WithListenerConfig(lCfg))
 		if err != nil {
 			return err
 		}
+
+		for _, fID := range lCfg.Filters {
+			l.filters = append(l.filters, filters[fID])
+		}
+
 		ir.listeners = append(ir.listeners, l)
 	}
 
@@ -110,7 +110,6 @@ func (ir *Infrared) init() error {
 		if err != nil {
 			return err
 		}
-
 		ir.srvs = append(ir.srvs, srv)
 	}
 
@@ -127,7 +126,9 @@ func (ir *Infrared) ListenAndServe() error {
 		go func(l net.Listener) {
 			for {
 				c, err := l.Accept()
-				if err != nil {
+				if errors.Is(err, ErrRateLimitReached) {
+					continue
+				} else if err != nil {
 					log.Println(err)
 					continue
 				}

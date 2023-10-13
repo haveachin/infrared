@@ -40,13 +40,14 @@ type ListenerConfig struct {
 	ProxyProtocol struct {
 		Receive bool `yaml:"receive"`
 	} `yaml:"proxyProtocol"`
+	Filters []FilterID `yaml:"filters"`
 }
 
 type Listener struct {
 	net.Listener
 	cfg ListenerConfig
 
-	middlewares []Handler
+	filters []Filter
 }
 
 func NewListener(fns ...ListenerConfigFunc) (*Listener, error) {
@@ -72,6 +73,7 @@ func NewListener(fns ...ListenerConfigFunc) (*Listener, error) {
 	return &Listener{
 		Listener: l,
 		cfg:      cfg,
+		filters:  make([]Filter, 0),
 	}, nil
 }
 
@@ -81,8 +83,10 @@ func (l Listener) Accept() (net.Conn, error) {
 		return nil, err
 	}
 
-	for _, m := range l.middlewares {
-		m.ServeProtocol(c)
+	for _, f := range l.filters {
+		if err := f.Filter(c); err != nil {
+			return nil, err
+		}
 	}
 
 	return c, err
