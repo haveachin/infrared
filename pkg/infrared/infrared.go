@@ -12,6 +12,16 @@ import (
 	"github.com/pires/go-proxyproto"
 )
 
+type Handler interface {
+	ServeProtocol(c net.Conn)
+}
+
+type HandlerFunc func(c net.Conn)
+
+func (f HandlerFunc) ServeProtocol(c net.Conn) {
+	f(c)
+}
+
 type Config struct {
 	ListenerConfigs  map[ListenerID]ListenerConfig `yaml:"listeners"`
 	ServerConfigs    map[ServerID]ServerConfig     `yaml:"servers"`
@@ -55,11 +65,11 @@ func DefaultConfig() Config {
 type Infrared struct {
 	cfg Config
 
-	listeners []*Listener
-	srvs      []*Server
-	bufPool   sync.Pool
-	conns     map[net.Addr]*conn
-	mu        sync.Mutex
+	listeners   []*Listener
+	srvs        []*Server
+	bufPool     sync.Pool
+	conns       map[net.Addr]*conn
+	mu          sync.Mutex
 }
 
 func New(fns ...ConfigFunc) *Infrared {

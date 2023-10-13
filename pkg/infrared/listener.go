@@ -45,6 +45,8 @@ type ListenerConfig struct {
 type Listener struct {
 	net.Listener
 	cfg ListenerConfig
+
+	middlewares []Handler
 }
 
 func NewListener(fns ...ListenerConfigFunc) (*Listener, error) {
@@ -71,6 +73,19 @@ func NewListener(fns ...ListenerConfigFunc) (*Listener, error) {
 		Listener: l,
 		cfg:      cfg,
 	}, nil
+}
+
+func (l Listener) Accept() (net.Conn, error) {
+	c, err := l.Listener.Accept()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, m := range l.middlewares {
+		m.ServeProtocol(c)
+	}
+
+	return c, err
 }
 
 type listener struct {
