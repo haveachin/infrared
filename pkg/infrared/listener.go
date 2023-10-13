@@ -6,6 +6,8 @@ import (
 	"net"
 	"sync"
 	"sync/atomic"
+
+	"github.com/pires/go-proxyproto"
 )
 
 var lMgr = listenersManager{
@@ -34,7 +36,10 @@ func WithListenerBind(bind string) ListenerConfigFunc {
 }
 
 type ListenerConfig struct {
-	Bind string `yaml:"bind"`
+	Bind          string `yaml:"bind"`
+	ProxyProtocol struct {
+		Receive bool `yaml:"receive"`
+	} `yaml:"proxyProtocol"`
 }
 
 type Listener struct {
@@ -51,6 +56,15 @@ func NewListener(fns ...ListenerConfigFunc) (*Listener, error) {
 	l, err := lMgr.Listen(cfg.Bind)
 	if err != nil {
 		return nil, err
+	}
+
+	if cfg.ProxyProtocol.Receive {
+		l = &proxyproto.Listener{
+			Listener: l,
+			Policy: func(upstream net.Addr) (proxyproto.Policy, error) {
+				return proxyproto.REQUIRE, nil
+			},
+		}
 	}
 
 	return &Listener{
@@ -195,4 +209,13 @@ func formatAddr(addr string) (string, error) {
 	}
 
 	return fmt.Sprintf("%s:%s", host, port), nil
+}
+
+type ProxyProtocolConn struct {
+	net.Conn
+	realAddr net.Addr
+}
+
+func (c ProxyProtocolConn) RemoteAddr() net.Addr {
+	return c.realAddr
 }

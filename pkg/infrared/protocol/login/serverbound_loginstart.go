@@ -13,35 +13,38 @@ const (
 )
 
 type ServerBoundLoginStart struct {
-	Name         protocol.String
-	HasPublicKey protocol.Boolean
+	Name protocol.String
 
 	// Added in 1.19; removed in 1.19.3
-	Timestamp protocol.Long
-	PublicKey protocol.ByteArray
-	Signature protocol.ByteArray
+	HasSigData protocol.Boolean
+	Timestamp  protocol.Long
+	PublicKey  protocol.ByteArray
+	Signature  protocol.ByteArray
 
 	// Added in 1.19
-	HasPlayerUUID protocol.Boolean
+	HasPlayerUUID protocol.Boolean // removed in 1.20.2
 	PlayerUUID    protocol.UUID
 }
 
 func (pk ServerBoundLoginStart) Marshal(packet *protocol.Packet, version protocol.Version) {
-	if version < protocol.Version_1_19 {
-		packet.Encode(
-			IDServerBoundLoginStart,
-			pk.Name,
-		)
-		return
-	}
-
 	fields := make([]protocol.FieldEncoder, 0, 7)
-	fields = append(fields, pk.Name, pk.HasPublicKey)
-	if pk.HasPublicKey {
-		fields = append(fields, pk.Timestamp, pk.PublicKey, pk.Signature)
-	}
-	fields = append(fields, pk.HasPlayerUUID)
-	if pk.HasPlayerUUID {
+	fields = append(fields, pk.Name)
+
+	switch {
+	case version >= protocol.Version_1_19 &&
+		version < protocol.Version_1_19_3:
+		fields = append(fields, pk.HasSigData)
+		if pk.HasSigData {
+			fields = append(fields, pk.Timestamp, pk.PublicKey, pk.Signature)
+		}
+		fallthrough
+	case version >= protocol.Version_1_19_3 &&
+		version < protocol.Version_1_20_2:
+		fields = append(fields, pk.HasPlayerUUID)
+		if pk.HasPlayerUUID {
+			fields = append(fields, pk.PlayerUUID)
+		}
+	case version >= protocol.Version_1_20_2:
 		fields = append(fields, pk.PlayerUUID)
 	}
 
@@ -61,27 +64,31 @@ func (pk *ServerBoundLoginStart) Unmarshal(packet protocol.Packet, version proto
 		return err
 	}
 
-	if version < protocol.Version_1_19 {
-		return nil
-	}
-
-	if version < protocol.Version_1_19_3 {
-		if err := protocol.ScanFields(r, &pk.HasPublicKey); err != nil {
+	switch {
+	case version >= protocol.Version_1_19 &&
+		version < protocol.Version_1_19_3:
+		if err := protocol.ScanFields(r, &pk.HasSigData); err != nil {
 			return err
 		}
 
-		if pk.HasPublicKey {
+		if pk.HasSigData {
 			if err := protocol.ScanFields(r, &pk.Timestamp, &pk.PublicKey, &pk.Signature); err != nil {
 				return err
 			}
 		}
-	}
+		fallthrough
+	case version >= protocol.Version_1_19_3 &&
+		version < protocol.Version_1_20_2:
+		if err := protocol.ScanFields(r, &pk.HasPlayerUUID); err != nil {
+			return err
+		}
 
-	if err := protocol.ScanFields(r, &pk.HasPlayerUUID); err != nil {
-		return err
-	}
-
-	if pk.HasPlayerUUID {
+		if pk.HasPlayerUUID {
+			if err := protocol.ScanFields(r, &pk.PlayerUUID); err != nil {
+				return err
+			}
+		}
+	case version >= protocol.Version_1_20_2:
 		if err := protocol.ScanFields(r, &pk.PlayerUUID); err != nil {
 			return err
 		}

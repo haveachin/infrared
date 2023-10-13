@@ -149,8 +149,8 @@ func TestProxyProtocolhandlePipe(t *testing.T) {
 	testConn := ProxyProtocolTesterConn{c: serverConnIn}
 
 	reqResponse := ServerRequestResponse{
-		ServerConn:       newConn(&testConn),
-		UseProxyProtocol: true,
+		ServerConn:        newConn(&testConn),
+		SendProxyProtocol: true,
 	}
 
 	go ir.handlePipe(newConn(&clientConn), reqResponse)
@@ -187,8 +187,8 @@ func TestNoProxyProtocolhandlePipe(t *testing.T) {
 	testConn := ProxyProtocolTesterConn{c: serverConnIn}
 
 	reqResponse := ServerRequestResponse{
-		ServerConn:       newConn(&testConn),
-		UseProxyProtocol: false,
+		ServerConn:        newConn(&testConn),
+		SendProxyProtocol: false,
 	}
 
 	go ir.handlePipe(newConn(&clientConn), reqResponse)

@@ -15,7 +15,7 @@ import (
 type Config struct {
 	ListenerConfigs  map[ListenerID]ListenerConfig `yaml:"listeners"`
 	ServerConfigs    map[ServerID]ServerConfig     `yaml:"servers"`
-	KeepAliveTimeout time.Duration                 `yaml:"keep_alive_timeout"`
+	KeepAliveTimeout time.Duration                 `yaml:"keepAliveTimeout"`
 }
 
 type ConfigFunc func(cfg *Config)
@@ -211,22 +211,15 @@ func (ir *Infrared) handleLogin(c *conn, resp ServerRequestResponse) error {
 
 	c.timeout = ir.cfg.KeepAliveTimeout
 
-	return ir.handlePipe(c, resp.ServerConn)
+	return ir.handlePipe(c, resp)
 }
 
-func (ir *Infrared) handlePipe(c, rc *conn) error {
+func (ir *Infrared) handlePipe(c *conn, resp ServerRequestResponse) error {
+	rc := resp.ServerConn
 	defer rc.ForceClose()
 
-	if resp.UseProxyProtocol {
-		header := &proxyproto.Header{
-			Version:           2,
-			Command:           proxyproto.PROXY,
-			TransportProtocol: proxyproto.TCPv4,
-			SourceAddr:        c.RemoteAddr(),
-			DestinationAddr:   rc.RemoteAddr(),
-		}
-
-		if _, err := header.WriteTo(rc); err != nil {
+	if resp.SendProxyProtocol {
+		if err := writeProxyProtocolHeader(c.RemoteAddr(), rc); err != nil {
 			return err
 		}
 	}
@@ -278,4 +271,28 @@ func (ir *Infrared) removeConn(c *conn) {
 	ir.mu.Lock()
 	defer ir.mu.Unlock()
 	delete(ir.conns, c.RemoteAddr())
+}
+
+func writeProxyProtocolHeader(addr net.Addr, rc net.Conn) error {
+	rcAddr := rc.RemoteAddr()
+	tcpAddr := rcAddr.(*net.TCPAddr)
+
+	tp := proxyproto.TCPv4
+	if tcpAddr.IP.To4() == nil {
+		tp = proxyproto.TCPv6
+	}
+
+	header := &proxyproto.Header{
+		Version:           2,
+		Command:           proxyproto.PROXY,
+		TransportProtocol: tp,
+		SourceAddr:        addr,
+		DestinationAddr:   rcAddr,
+	}
+
+	if _, err := header.WriteTo(rc); err != nil {
+		return err
+	}
+
+	return nil
 }

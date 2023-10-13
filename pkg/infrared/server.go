@@ -41,8 +41,9 @@ func WithServerAddresses(addr ...ServerAddress) ServerConfigFunc {
 }
 
 type ServerConfig struct {
-	Domains   []ServerDomain  `yaml:"domains"`
-	Addresses []ServerAddress `yaml:"addresses"`
+	Domains           []ServerDomain  `yaml:"domains"`
+	Addresses         []ServerAddress `yaml:"addresses"`
+	SendProxyProtocol bool            `yaml:"sendProxyProtocol"`
 }
 
 type Server struct {
@@ -94,10 +95,10 @@ type ServerRequest struct {
 }
 
 type ServerRequestResponse struct {
-	ServerConn       *conn
-	StatusResponse   protocol.Packet
-	UseProxyProtocol bool
-	Err              error
+	ServerConn        *conn
+	StatusResponse    protocol.Packet
+	SendProxyProtocol bool
+	Err               error
 }
 
 type serverGateway struct {
@@ -172,8 +173,9 @@ func (r DialServerRequestResponder) RespondeToServerRequest(req ServerRequest, s
 		rc, err := srv.Dial()
 
 		req.ResponseChan <- ServerRequestResponse{
-			ServerConn: rc,
-			Err:        err,
+			ServerConn:        rc,
+			Err:               err,
+			SendProxyProtocol: srv.cfg.SendProxyProtocol,
 		}
 		return
 	}

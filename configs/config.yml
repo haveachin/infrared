@@ -1,6 +1,17 @@
 listeners:
   default:
     bind: :25565
+    #proxyProtocol:
+      
+      # Receive proxy protocol
+      #
+      #receive: true
+
+      # TODO
+      #
+      #trustedProxies:
+      #  - "127.0.0.1"
+
 
 servers:
   default:
@@ -19,6 +30,10 @@ servers:
     addresses:
       - example.com:25565
 
+    # Send a Proxy Protocol v2 Header to the server to forward the player IP address
+    #
+    #sendProxyProtocol: true
+
 # Maximum duration between packets before the client gets timed out.
 #
-keep_alive_timeout: 30s
+keepAliveTimeout: 30s
