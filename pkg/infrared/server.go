@@ -61,18 +61,9 @@ func NewServer(fns ...ServerConfigFunc) (*Server, error) {
 		return nil, errors.New("no addresses")
 	}
 
-	srv := &Server{
+	return &Server{
 		cfg: cfg,
-	}
-
-	srv.statusRespProv = &statusResponseProvider{
-		server:              srv,
-		cacheTTL:            30 * time.Second,
-		statusHash:          make(map[protocol.Version]uint64),
-		statusResponseCache: make(map[uint64]*statusCacheEntry),
-	}
-
-	return srv, nil
+	}, nil
 }
 
 func (s Server) Dial() (*conn, error) {
@@ -102,9 +93,8 @@ type ServerRequestResponse struct {
 }
 
 type serverGateway struct {
-	Servers     []*Server
-	responder   ServerRequestResponder
-	requestChan <-chan ServerRequest
+	Servers   []*Server
+	responder ServerRequestResponder
 
 	servers map[ServerDomain]*Server
 }
@@ -142,12 +132,12 @@ func (sg *serverGateway) findServer(domain ServerDomain) *Server {
 	return nil
 }
 
-func (sg *serverGateway) listenAndServe() error {
+func (sg *serverGateway) listenAndServe(reqChan <-chan ServerRequest) error {
 	if err := sg.init(); err != nil {
 		return err
 	}
 
-	for req := range sg.requestChan {
+	for req := range reqChan {
 		srv := sg.findServer(req.Domain)
 		if srv == nil {
 			req.ResponseChan <- ServerRequestResponse{
@@ -166,7 +156,9 @@ type ServerRequestResponder interface {
 	RespondeToServerRequest(ServerRequest, *Server)
 }
 
-type DialServerRequestResponder struct{}
+type DialServerRequestResponder struct {
+	respProvs map[*Server]StatusResponseProvider
+}
 
 func (r DialServerRequestResponder) RespondeToServerRequest(req ServerRequest, srv *Server) {
 	if req.IsLogin {
@@ -180,7 +172,18 @@ func (r DialServerRequestResponder) RespondeToServerRequest(req ServerRequest, s
 		return
 	}
 
-	_, pk, err := srv.statusRespProv.StatusResponse(req.ProtocolVersion, req.ReadPks)
+	respProv, ok := r.respProvs[srv]
+	if !ok {
+		respProv = &statusResponseProvider{
+			server:              srv,
+			cacheTTL:            30 * time.Second,
+			statusHash:          make(map[protocol.Version]uint64),
+			statusResponseCache: make(map[uint64]*statusCacheEntry),
+		}
+		r.respProvs[srv] = respProv
+	}
+
+	_, pk, err := respProv.StatusResponse(req.ProtocolVersion, req.ReadPks)
 	req.ResponseChan <- ServerRequestResponse{
 		StatusResponse: pk,
 		Err:            err,

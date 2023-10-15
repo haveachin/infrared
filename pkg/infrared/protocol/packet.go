@@ -51,10 +51,12 @@ func (pk Packet) WriteTo(w io.Writer) (int64, error) {
 		return n, err
 	}
 
-	nData, err := w.Write(pk.Data)
-	n += int64(nData)
-	if err != nil {
-		return n, err
+	if len(pk.Data) > 0 {
+		nData, err := w.Write(pk.Data)
+		n += int64(nData)
+		if err != nil {
+			return n, err
+		}
 	}
 
 	return n, err

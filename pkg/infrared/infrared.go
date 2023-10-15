@@ -58,7 +58,7 @@ type Infrared struct {
 	cfg Config
 
 	listeners []*Listener
-	srvs      []*Server
+	sg        serverGateway
 	bufPool   sync.Pool
 	conns     map[net.Addr]*conn
 	mu        sync.Mutex
@@ -105,12 +105,17 @@ func (ir *Infrared) init() error {
 		ir.listeners = append(ir.listeners, l)
 	}
 
+	srvs := make([]*Server, len(ir.cfg.ServerConfigs))
 	for _, sCfg := range ir.cfg.ServerConfigs {
 		srv, err := NewServer(WithServerConfig(sCfg))
 		if err != nil {
 			return err
 		}
-		ir.srvs = append(ir.srvs, srv)
+		srvs = append(srvs, srv)
+	}
+
+	ir.sg = serverGateway{
+		Servers: srvs,
 	}
 
 	return nil
@@ -121,6 +126,10 @@ func (ir *Infrared) ListenAndServe() error {
 		return err
 	}
 
+	return ir.listenAndServe()
+}
+
+func (ir *Infrared) listenAndServe() error {
 	sgInChan := make(chan ServerRequest)
 	for _, l := range ir.listeners {
 		go func(l net.Listener) {
@@ -150,11 +159,7 @@ func (ir *Infrared) ListenAndServe() error {
 		}(l)
 	}
 
-	sg := serverGateway{
-		Servers:     ir.srvs,
-		requestChan: sgInChan,
-	}
-	return sg.listenAndServe()
+	return ir.sg.listenAndServe(sgInChan)
 }
 
 func (ir *Infrared) handleConn(c *conn) error {

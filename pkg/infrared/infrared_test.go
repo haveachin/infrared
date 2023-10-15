@@ -18,10 +18,15 @@ import (
 type mockServerRequestResponder struct{}
 
 func (r mockServerRequestResponder) RespondeToServerRequest(req ServerRequest, srv *Server) {
-	req.ResponseChan <- ServerRequestResponse{}
+	req.ResponseChan <- ServerRequestResponse{
+		StatusResponse: protocol.Packet{
+			ID:   0x1337,
+			Data: []byte{0x13, 0x37},
+		},
+	}
 }
 
-func BenchmarkHandleConn_Status(b *testing.B) {
+func BenchmarkInfrared_handleConn(b *testing.B) {
 	var hsStatusPk protocol.Packet
 	handshaking.ServerBoundHandshake{
 		ProtocolVersion: 1337,
@@ -56,21 +61,24 @@ func BenchmarkHandleConn_Status(b *testing.B) {
 				Domains: []ServerDomain{
 					"localhost",
 				},
+				Addresses: []ServerAddress{
+					"localhost:25566",
+				},
 			}
 		})
 		if err != nil {
 			b.Error(err)
+			return
 		}
 
 		sg := serverGateway{
 			Servers: []*Server{
 				srv,
 			},
-			requestChan: sgInChan,
-			responder:   mockServerRequestResponder{},
+			responder: mockServerRequestResponder{},
 		}
 		go func() {
-			if err := sg.listenAndServe(); err != nil {
+			if err := sg.listenAndServe(sgInChan); err != nil {
 				b.Error(err)
 			}
 		}()
@@ -108,6 +116,78 @@ func BenchmarkHandleConn_Status(b *testing.B) {
 			}
 		})
 
+		in.Close()
+		out.Close()
+	}
+}
+
+type MockListener struct {
+	in <-chan net.Conn
+}
+
+func (l *MockListener) Accept() (net.Conn, error) {
+	return <-l.in, nil
+}
+
+func (l *MockListener) Close() error {
+	return nil
+}
+
+func (l *MockListener) Addr() net.Addr {
+	return nil
+}
+
+func BenchmarkInfrared_ListenAndServe(b *testing.B) {
+	var hsStatusPk protocol.Packet
+	handshaking.ServerBoundHandshake{
+		ProtocolVersion: 1337,
+		ServerAddress:   "localhost",
+		ServerPort:      25565,
+		NextState:       handshaking.StateStatusServerBoundHandshake,
+	}.Marshal(&hsStatusPk)
+	var statusPk protocol.Packet
+	status.ServerBoundRequest{}.Marshal(&statusPk)
+	var pingPk protocol.Packet
+	pingPk.Encode(0x01)
+
+	connInChan := make(chan net.Conn)
+	ir := Infrared{
+		listeners: []*Listener{
+			{
+				Listener: &MockListener{
+					in: connInChan,
+				},
+			},
+		},
+		sg: serverGateway{
+			Servers: []*Server{
+				{
+					cfg: ServerConfig{
+						Domains: []ServerDomain{
+							"localhost",
+						},
+						Addresses: []ServerAddress{
+							"localhost:25566",
+						},
+					},
+				},
+			},
+			responder: mockServerRequestResponder{},
+		},
+	}
+
+	go ir.listenAndServe()
+
+	for i := 0; i < b.N; i++ {
+		in, out := net.Pipe()
+		outConn := newConn(out)
+		outConn.WritePackets(hsStatusPk, statusPk)
+
+		connInChan <- in
+
+		outConn.ReadPackets(&protocol.Packet{})
+		outConn.WritePackets(pingPk)
+		outConn.ReadPackets(&protocol.Packet{})
 		in.Close()
 		out.Close()
 	}
