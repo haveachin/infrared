@@ -1,39 +1,24 @@
-listeners:
-  default:
-    bind: :25565
-    #proxyProtocol:
-      
-      # Receive proxy protocol
-      #
-      #receive: true
+# Infrared Config
 
-      # TODO
-      #
-      #trustedProxies:
-      #  - "127.0.0.1"
+# Address that Infrared bind and listens to
+#
+bind: :25565
 
+proxyProtocol:
+  # Receive proxy protocol
+  #
+  #receive: true
 
-servers:
-  default:
-    listeners:
-      - default
-
-    # This is the domain that players enter in their game client.
-    # You can have multiple domains here or just one.
-    # Currently this holds just a wildcard character as a domain
-    # meaning that is accepts every domain that a player uses.
-    # Supports '*' and '?' wildcards in the pattern string.
-    #
-    domains:
-      - "*"
-
-    addresses:
-      - example.com:25565
-
-    # Send a Proxy Protocol v2 Header to the server to forward the player IP address
-    #
-    #sendProxyProtocol: true
+  # TODO
+  #
+  #trustedProxies:
+  #  - "127.0.0.1"
 
 # Maximum duration between packets before the client gets timed out.
 #
 keepAliveTimeout: 30s
+
+proxyConfigs:
+  # Directory where all the proxy configs are stored
+  #
+  dir: "./proxies"
