@@ -8,9 +8,7 @@ import (
 
 func main() {
 	srv := ir.New(
-		ir.AddListenerConfig(
-			ir.WithListenerBind(":25565"),
-		),
+		ir.WithBind(":25565"),
 		ir.AddServerConfig(
 			ir.WithServerDomains("*"),
 			ir.WithServerAddress(":25566"),

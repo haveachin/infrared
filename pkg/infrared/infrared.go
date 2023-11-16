@@ -13,19 +13,15 @@ import (
 )
 
 type Config struct {
-	ListenerConfigs []ListenerConfig
-	ServerConfigs   []ServerConfig
+	Bind          string
+	ServerConfigs []ServerConfig
 }
 
 type ConfigFunc func(cfg *Config)
 
-func AddListenerConfig(fns ...ListenerConfigFunc) ConfigFunc {
+func WithBind(bind string) ConfigFunc {
 	return func(cfg *Config) {
-		var lCfg ListenerConfig
-		for _, fn := range fns {
-			fn(&lCfg)
-		}
-		cfg.ListenerConfigs = append(cfg.ListenerConfigs, lCfg)
+		cfg.Bind = bind
 	}
 }
 
@@ -42,9 +38,9 @@ func AddServerConfig(fns ...ServerConfigFunc) ConfigFunc {
 type Infrared struct {
 	cfg Config
 
-	listeners []*Listener
-	srvs      []*Server
-	bufPool   sync.Pool
+	l       net.Listener
+	srvs    []*Server
+	bufPool sync.Pool
 }
 
 func New(fns ...ConfigFunc) *Infrared {
@@ -65,15 +61,11 @@ func New(fns ...ConfigFunc) *Infrared {
 }
 
 func (ir *Infrared) init() error {
-	for _, lCfg := range ir.cfg.ListenerConfigs {
-		l, err := NewListener(func(cfg *ListenerConfig) {
-			*cfg = lCfg
-		})
-		if err != nil {
-			return err
-		}
-		ir.listeners = append(ir.listeners, l)
+	l, err := net.Listen("tcp", ir.cfg.Bind)
+	if err != nil {
+		return err
 	}
+	ir.l = l
 
 	for _, sCfg := range ir.cfg.ServerConfigs {
 		ir.srvs = append(ir.srvs, NewServer(WithServerConfig(sCfg)))
@@ -88,31 +80,30 @@ func (ir *Infrared) ListenAndServe() error {
 	}
 
 	sgInChan := make(chan ServerRequest)
-	for _, l := range ir.listeners {
-		go func(l net.Listener) {
-			for {
-				c, err := l.Accept()
-				if err != nil {
-					log.Println(err)
-					continue
-				}
-
-				go func(c net.Conn) {
-					conn := newConn(c)
-					defer func() {
-						conn.ForceClose()
-						connPool.Put(conn)
-					}()
-
-					conn.srvReqChan = sgInChan
-
-					if err := ir.handleConn(conn); err != nil {
-						log.Println(err)
-					}
-				}(c)
+	go func() {
+		for {
+			c, err := ir.l.Accept()
+			if err != nil {
+				// TODO: Handle Listener closed
+				log.Println(err)
+				continue
 			}
-		}(l)
-	}
+
+			go func(c net.Conn) {
+				conn := newConn(c)
+				defer func() {
+					conn.ForceClose()
+					connPool.Put(conn)
+				}()
+
+				conn.srvReqChan = sgInChan
+
+				if err := ir.handleConn(conn); err != nil {
+					log.Println(err)
+				}
+			}(c)
+		}
+	}()
 
 	sg := serverGateway{
 		Servers:     ir.srvs,
