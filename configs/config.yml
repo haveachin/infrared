@@ -17,8 +17,3 @@ proxyProtocol:
 # Maximum duration between packets before the client gets timed out.
 #
 keepAliveTimeout: 30s
-
-proxyConfigs:
-  # Directory where all the proxy configs are stored
-  #
-  dir: "./proxies"

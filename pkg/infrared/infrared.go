@@ -1,6 +1,7 @@
 package infrared
 
 import (
+	"errors"
 	"io"
 	"log"
 	"net"
@@ -13,9 +14,9 @@ import (
 )
 
 type Config struct {
-	BindAddr             string                    `yaml:"bind"`
-	ServerConfigs    map[ServerID]ServerConfig `yaml:"servers"`
-	KeepAliveTimeout time.Duration             `yaml:"keepAliveTimeout"`
+	BindAddr         string         `yaml:"bind"`
+	ServerConfigs    []ServerConfig `yaml:"servers"`
+	KeepAliveTimeout time.Duration  `yaml:"keepAliveTimeout"`
 }
 
 type ConfigFunc func(cfg *Config)
@@ -26,13 +27,13 @@ func WithBindAddr(bindAddr string) ConfigFunc {
 	}
 }
 
-func AddServerConfig(id ServerID, fns ...ServerConfigFunc) ConfigFunc {
+func AddServerConfig(fns ...ServerConfigFunc) ConfigFunc {
 	return func(cfg *Config) {
 		var sCfg ServerConfig
 		for _, fn := range fns {
 			fn(&sCfg)
 		}
-		cfg.ServerConfigs[id] = sCfg
+		cfg.ServerConfigs = append(cfg.ServerConfigs, sCfg)
 	}
 }
 
@@ -81,6 +82,7 @@ func NewWithConfig(cfg Config) *Infrared {
 }
 
 func (ir *Infrared) init() error {
+	log.Printf("Listening on %s", ir.cfg.BindAddr)
 	l, err := net.Listen("tcp", ir.cfg.BindAddr)
 	if err != nil {
 		return err
@@ -105,6 +107,8 @@ func (ir *Infrared) ListenAndServe() error {
 	}
 
 	sgInChan := make(chan ServerRequest)
+	defer close(sgInChan)
+
 	sg := serverGateway{
 		Servers:     ir.srvs,
 		requestChan: sgInChan,
@@ -117,9 +121,10 @@ func (ir *Infrared) ListenAndServe() error {
 func (ir *Infrared) listenAndServe(srvReqChan chan<- ServerRequest) error {
 	for {
 		c, err := ir.l.Accept()
-		if err != nil {
-			// TODO: Handle Listener closed
-			log.Println(err)
+		if errors.Is(err, net.ErrClosed) {
+			return nil
+		} else if err != nil {
+			log.Printf("Error accepting new conn: %s", err)
 			continue
 		}
 
@@ -168,7 +173,7 @@ func (ir *Infrared) handleConn(c *conn) error {
 		ReadPks:         c.readPks,
 		ResponseChan:    respChan,
 	}
-	
+
 	resp := <-respChan
 	if resp.Err != nil {
 		return resp.Err

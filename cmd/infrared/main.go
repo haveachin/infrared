@@ -16,6 +16,8 @@ const (
 
 var (
 	configPath = "config.yml"
+	workingDir = "."
+	proxiesDir = "./proxies"
 )
 
 func envVarString(p *string, name string) {
@@ -29,10 +31,14 @@ func envVarString(p *string, name string) {
 
 func initEnvVars() {
 	envVarString(&configPath, "CONFIG")
+	envVarString(&workingDir, "WORKING_DIR")
+	envVarString(&proxiesDir, "PROXIES_DIR")
 }
 
 func initFlags() {
 	pflag.StringVarP(&configPath, "config", "c", configPath, "path to the config file")
+	pflag.StringVarP(&workingDir, "working-dir", "w", workingDir, "changes the current working directory")
+	pflag.StringVarP(&proxiesDir, "proxies-dir", "p", proxiesDir, "path to the proxies directory")
 	pflag.Parse()
 }
 
@@ -50,6 +56,14 @@ func main() {
 }
 
 func run() error {
+	if err := os.Chdir(workingDir); err != nil {
+		return err
+	}
+
+	if err := createConfigIfNotExist(); err != nil {
+		return err
+	}
+
 	cfg, err := loadConfig()
 	if err != nil {
 		return err
