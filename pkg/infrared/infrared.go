@@ -13,16 +13,16 @@ import (
 )
 
 type Config struct {
-	Bind             string                    `yaml:"bind"`
+	BindAddr             string                    `yaml:"bind"`
 	ServerConfigs    map[ServerID]ServerConfig `yaml:"servers"`
 	KeepAliveTimeout time.Duration             `yaml:"keepAliveTimeout"`
 }
 
 type ConfigFunc func(cfg *Config)
 
-func WithBind(bind string) ConfigFunc {
+func WithBindAddr(bindAddr string) ConfigFunc {
 	return func(cfg *Config) {
-		cfg.Bind = bind
+		cfg.BindAddr = bindAddr
 	}
 }
 
@@ -81,7 +81,7 @@ func NewWithConfig(cfg Config) *Infrared {
 }
 
 func (ir *Infrared) init() error {
-	l, err := net.Listen("tcp", ir.cfg.Bind)
+	l, err := net.Listen("tcp", ir.cfg.BindAddr)
 	if err != nil {
 		return err
 	}
@@ -105,36 +105,40 @@ func (ir *Infrared) ListenAndServe() error {
 	}
 
 	sgInChan := make(chan ServerRequest)
-	go func() {
-		for {
-			c, err := ir.l.Accept()
-			if err != nil {
-				// TODO: Handle Listener closed
-				log.Println(err)
-				continue
-			}
-
-			go func(c net.Conn) {
-				conn := newConn(c)
-				defer func() {
-					conn.ForceClose()
-					connPool.Put(conn)
-				}()
-
-				conn.srvReqChan = sgInChan
-
-				if err := ir.handleConn(conn); err != nil {
-					log.Println(err)
-				}
-			}(c)
-		}
-	}()
-
 	sg := serverGateway{
 		Servers:     ir.srvs,
 		requestChan: sgInChan,
 	}
-	return sg.listenAndServe()
+	go sg.listenAndServe()
+
+	return ir.listenAndServe(sgInChan)
+}
+
+func (ir *Infrared) listenAndServe(srvReqChan chan<- ServerRequest) error {
+	for {
+		c, err := ir.l.Accept()
+		if err != nil {
+			// TODO: Handle Listener closed
+			log.Println(err)
+			continue
+		}
+
+		go ir.handleNewConn(c, srvReqChan)
+	}
+}
+
+func (ir *Infrared) handleNewConn(c net.Conn, srvReqChan chan<- ServerRequest) {
+	conn := newConn(c)
+	defer func() {
+		conn.ForceClose()
+		connPool.Put(conn)
+	}()
+
+	conn.srvReqChan = srvReqChan
+
+	if err := ir.handleConn(conn); err != nil {
+		log.Println(err)
+	}
 }
 
 func (ir *Infrared) handleConn(c *conn) error {
@@ -164,7 +168,7 @@ func (ir *Infrared) handleConn(c *conn) error {
 		ReadPks:         c.readPks,
 		ResponseChan:    respChan,
 	}
-
+	
 	resp := <-respChan
 	if resp.Err != nil {
 		return resp.Err
