@@ -14,31 +14,27 @@ import (
 )
 
 type Config struct {
-	ListenerConfigs  map[ListenerID]ListenerConfig `yaml:"listeners"`
-	ServerConfigs    map[ServerID]ServerConfig     `yaml:"servers"`
-	FiltersConfig    map[FilterID]FiltersConfig    `yaml:"filters"`
-	KeepAliveTimeout time.Duration                 `yaml:"keepAliveTimeout"`
+	BindAddr         string         `yaml:"bind"`
+	ServerConfigs    []ServerConfig `yaml:"servers"`
+	FiltersConfig    []FiltersConfig    `yaml:"filters"`
+	KeepAliveTimeout time.Duration  `yaml:"keepAliveTimeout"`
 }
 
 type ConfigFunc func(cfg *Config)
 
-func AddListenerConfig(id ListenerID, fns ...ListenerConfigFunc) ConfigFunc {
+func WithBindAddr(bindAddr string) ConfigFunc {
 	return func(cfg *Config) {
-		var lCfg ListenerConfig
-		for _, fn := range fns {
-			fn(&lCfg)
-		}
-		cfg.ListenerConfigs[id] = lCfg
+		cfg.BindAddr = bindAddr
 	}
 }
 
-func AddServerConfig(id ServerID, fns ...ServerConfigFunc) ConfigFunc {
+func AddServerConfig(fns ...ServerConfigFunc) ConfigFunc {
 	return func(cfg *Config) {
 		var sCfg ServerConfig
 		for _, fn := range fns {
 			fn(&sCfg)
 		}
-		cfg.ServerConfigs[id] = sCfg
+		cfg.ServerConfigs = append(cfg.ServerConfigs, sCfg)
 	}
 }
 
@@ -57,7 +53,7 @@ func DefaultConfig() Config {
 type Infrared struct {
 	cfg Config
 
-	listeners []*Listener
+	l Listener
 	sg        serverGateway
 	bufPool   sync.Pool
 	conns     map[net.Addr]*conn
@@ -92,18 +88,12 @@ func (ir *Infrared) init() error {
 		filters[fID] = NewFilter(WithFilterConfig(fCfg))
 	}
 
-	for _, lCfg := range ir.cfg.ListenerConfigs {
-		l, err := NewListener(WithListenerConfig(lCfg))
-		if err != nil {
-			return err
-		}
-
-		for _, fID := range lCfg.Filters {
-			l.filters = append(l.filters, filters[fID])
-		}
-
-		ir.listeners = append(ir.listeners, l)
+	log.Printf("Listening on %s", ir.cfg.BindAddr)
+	l, err := net.Listen("tcp", ir.cfg.BindAddr)
+	if err != nil {
+		return err
 	}
+	ir.l = l
 
 	srvs := make([]*Server, len(ir.cfg.ServerConfigs))
 	for _, sCfg := range ir.cfg.ServerConfigs {
@@ -131,35 +121,43 @@ func (ir *Infrared) ListenAndServe() error {
 
 func (ir *Infrared) listenAndServe() error {
 	sgInChan := make(chan ServerRequest)
-	for _, l := range ir.listeners {
-		go func(l net.Listener) {
-			for {
-				c, err := l.Accept()
-				if errors.Is(err, ErrRateLimitReached) {
-					continue
-				} else if err != nil {
-					log.Println(err)
-					continue
-				}
+	defer close(sgInChan)
 
-				go func(c net.Conn) {
-					conn := newConn(c)
-					defer func() {
-						conn.ForceClose()
-						connPool.Put(conn)
-					}()
-
-					conn.srvReqChan = sgInChan
-
-					if err := ir.handleConn(conn); err != nil {
-						log.Println(err)
-					}
-				}(c)
-			}
-		}(l)
+	sg := serverGateway{
+		Servers:     ir.srvs,
+		requestChan: sgInChan,
 	}
+	go sg.listenAndServe()
 
-	return ir.sg.listenAndServe(sgInChan)
+	return ir.listenAndServe(sgInChan)
+}
+
+func (ir *Infrared) listenAndServe(srvReqChan chan<- ServerRequest) error {
+	for {
+		c, err := ir.l.Accept()
+		if errors.Is(err, net.ErrClosed) {
+			return nil
+		} else if err != nil {
+			log.Printf("Error accepting new conn: %s", err)
+			continue
+		}
+
+		go ir.handleNewConn(c, srvReqChan)
+	}
+}
+
+func (ir *Infrared) handleNewConn(c net.Conn, srvReqChan chan<- ServerRequest) {
+	conn := newConn(c)
+	defer func() {
+		conn.ForceClose()
+		connPool.Put(conn)
+	}()
+
+	conn.srvReqChan = srvReqChan
+
+	if err := ir.handleConn(conn); err != nil {
+		log.Println(err)
+	}
 }
 
 func (ir *Infrared) handleConn(c *conn) error {

@@ -1,17 +1,13 @@
 package main
 
 import (
-	"errors"
-	"io"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
-	"github.com/haveachin/infrared/configs"
 	ir "github.com/haveachin/infrared/pkg/infrared"
 	"github.com/spf13/pflag"
-	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -20,6 +16,8 @@ const (
 
 var (
 	configPath = "config.yml"
+	workingDir = "."
+	proxiesDir = "./proxies"
 )
 
 func envVarString(p *string, name string) {
@@ -33,10 +31,14 @@ func envVarString(p *string, name string) {
 
 func initEnvVars() {
 	envVarString(&configPath, "CONFIG")
+	envVarString(&workingDir, "WORKING_DIR")
+	envVarString(&proxiesDir, "PROXIES_DIR")
 }
 
 func initFlags() {
 	pflag.StringVarP(&configPath, "config", "c", configPath, "path to the config file")
+	pflag.StringVarP(&workingDir, "working-dir", "w", workingDir, "changes the current working directory")
+	pflag.StringVarP(&proxiesDir, "proxies-dir", "p", proxiesDir, "path to the proxies directory")
 	pflag.Parse()
 }
 
@@ -46,13 +48,21 @@ func init() {
 }
 
 func main() {
+	log.Println("Starting Infrared")
+
 	if err := run(); err != nil {
 		log.Fatal(err)
 	}
 }
 
 func run() error {
-	log.Println("Starting Infrared")
+	if err := os.Chdir(workingDir); err != nil {
+		return err
+	}
+
+	if err := createConfigIfNotExist(); err != nil {
+		return err
+	}
 
 	cfg, err := loadConfig()
 	if err != nil {
@@ -81,36 +91,4 @@ func run() error {
 	}
 
 	return nil
-}
-
-func loadConfig() (ir.Config, error) {
-	var f io.ReadCloser
-	f, err := os.Open(configPath)
-	if errors.Is(err, os.ErrNotExist) {
-		return createDefaultConfigFile()
-	} else if err != nil {
-		return ir.Config{}, err
-	}
-	defer f.Close()
-
-	cfg := ir.DefaultConfig()
-	if err := yaml.NewDecoder(f).Decode(&cfg); err != nil {
-		return ir.Config{}, err
-	}
-
-	return cfg, nil
-}
-
-func createDefaultConfigFile() (ir.Config, error) {
-	bb := configs.DefaultInfraredConfig
-	if err := os.WriteFile(configPath, bb, 0666); err != nil {
-		return ir.Config{}, err
-	}
-
-	cfg := ir.DefaultConfig()
-	if err := yaml.Unmarshal(bb, &cfg); err != nil {
-		return ir.Config{}, err
-	}
-
-	return cfg, nil
 }
