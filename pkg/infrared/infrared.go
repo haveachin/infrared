@@ -16,7 +16,7 @@ import (
 type Config struct {
 	BindAddr         string         `yaml:"bind"`
 	ServerConfigs    []ServerConfig `yaml:"servers"`
-	FiltersConfig    []FiltersConfig    `yaml:"filters"`
+	FiltersConfig    FiltersConfig  `yaml:"filters"`
 	KeepAliveTimeout time.Duration  `yaml:"keepAliveTimeout"`
 }
 
@@ -53,11 +53,12 @@ func DefaultConfig() Config {
 type Infrared struct {
 	cfg Config
 
-	l Listener
-	sg        serverGateway
-	bufPool   sync.Pool
-	conns     map[net.Addr]*conn
-	mu        sync.Mutex
+	l       net.Listener
+	sg      serverGateway
+	filter  Filter
+	bufPool sync.Pool
+	conns   map[net.Addr]*conn
+	mu      sync.Mutex
 }
 
 func New(fns ...ConfigFunc) *Infrared {
@@ -83,11 +84,6 @@ func NewWithConfig(cfg Config) *Infrared {
 }
 
 func (ir *Infrared) init() error {
-	filters := make(map[FilterID]Filter)
-	for fID, fCfg := range ir.cfg.FiltersConfig {
-		filters[fID] = NewFilter(WithFilterConfig(fCfg))
-	}
-
 	log.Printf("Listening on %s", ir.cfg.BindAddr)
 	l, err := net.Listen("tcp", ir.cfg.BindAddr)
 	if err != nil {
@@ -95,7 +91,7 @@ func (ir *Infrared) init() error {
 	}
 	ir.l = l
 
-	srvs := make([]*Server, len(ir.cfg.ServerConfigs))
+	srvs := make([]*Server, 0)
 	for _, sCfg := range ir.cfg.ServerConfigs {
 		srv, err := NewServer(WithServerConfig(sCfg))
 		if err != nil {
@@ -104,8 +100,9 @@ func (ir *Infrared) init() error {
 		srvs = append(srvs, srv)
 	}
 
+	ir.filter = NewFilter(WithFilterConfig(ir.cfg.FiltersConfig))
 	ir.sg = serverGateway{
-		Servers: srvs,
+		servers: srvs,
 	}
 
 	return nil
@@ -116,19 +113,10 @@ func (ir *Infrared) ListenAndServe() error {
 		return err
 	}
 
-	return ir.listenAndServe()
-}
-
-func (ir *Infrared) listenAndServe() error {
 	sgInChan := make(chan ServerRequest)
 	defer close(sgInChan)
 
-	sg := serverGateway{
-		Servers:     ir.srvs,
-		requestChan: sgInChan,
-	}
-	go sg.listenAndServe()
-
+	go ir.sg.listenAndServe(sgInChan)
 	return ir.listenAndServe(sgInChan)
 }
 
@@ -147,6 +135,11 @@ func (ir *Infrared) listenAndServe(srvReqChan chan<- ServerRequest) error {
 }
 
 func (ir *Infrared) handleNewConn(c net.Conn, srvReqChan chan<- ServerRequest) {
+	if err := ir.filter.Filter(c); err != nil {
+		//log.Printf("Filtered: %s", err)
+		return
+	}
+
 	conn := newConn(c)
 	defer func() {
 		conn.ForceClose()

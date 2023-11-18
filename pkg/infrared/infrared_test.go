@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"sync"
 	"testing"
 	"time"
 
@@ -72,7 +73,7 @@ func BenchmarkInfrared_handleConn(b *testing.B) {
 		}
 
 		sg := serverGateway{
-			Servers: []*Server{
+			servers: []*Server{
 				srv,
 			},
 			responder: mockServerRequestResponder{},
@@ -152,15 +153,11 @@ func BenchmarkInfrared_ListenAndServe(b *testing.B) {
 
 	connInChan := make(chan net.Conn)
 	ir := Infrared{
-		listeners: []*Listener{
-			{
-				Listener: &MockListener{
-					in: connInChan,
-				},
-			},
+		l: &MockListener{
+			in: connInChan,
 		},
 		sg: serverGateway{
-			Servers: []*Server{
+			servers: []*Server{
 				{
 					cfg: ServerConfig{
 						Domains: []ServerDomain{
@@ -174,9 +171,18 @@ func BenchmarkInfrared_ListenAndServe(b *testing.B) {
 			},
 			responder: mockServerRequestResponder{},
 		},
+		bufPool: sync.Pool{
+			New: func() any {
+				b := make([]byte, 1<<15)
+				return &b
+			},
+		},
+		conns: make(map[net.Addr]*conn),
 	}
 
-	go ir.listenAndServe()
+	sgInChan := make(chan ServerRequest)
+	go ir.sg.listenAndServe(sgInChan)
+	go ir.listenAndServe(sgInChan)
 
 	for i := 0; i < b.N; i++ {
 		in, out := net.Pipe()

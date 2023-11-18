@@ -17,3 +17,10 @@ proxyProtocol:
 # Maximum duration between packets before the client gets timed out.
 #
 keepAliveTimeout: 30s
+
+# Filter
+#
+filters:
+  rateLimiter:
+    requestLimit: 10
+    windowLength: 1s

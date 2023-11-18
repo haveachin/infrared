@@ -47,8 +47,7 @@ type ServerConfig struct {
 }
 
 type Server struct {
-	cfg            ServerConfig
-	statusRespProv StatusResponseProvider
+	cfg ServerConfig
 }
 
 func NewServer(fns ...ServerConfigFunc) (*Server, error) {
@@ -93,29 +92,31 @@ type ServerRequestResponse struct {
 }
 
 type serverGateway struct {
-	Servers   []*Server
+	servers   []*Server
 	responder ServerRequestResponder
 
-	servers map[ServerDomain]*Server
+	srvs map[ServerDomain]*Server
 }
 
 func (sg *serverGateway) init() error {
-	if len(sg.Servers) == 0 {
+	if len(sg.servers) == 0 {
 		return errors.New("server gateway: no servers to route to")
 	}
 
-	sg.servers = make(map[ServerDomain]*Server)
-	for _, srv := range sg.Servers {
+	sg.srvs = make(map[ServerDomain]*Server)
+	for _, srv := range sg.servers {
 		for _, d := range srv.cfg.Domains {
 			dStr := string(d)
 			dStr = strings.ToLower(dStr)
 			dmn := ServerDomain(dStr)
-			sg.servers[dmn] = srv
+			sg.srvs[dmn] = srv
 		}
 	}
 
 	if sg.responder == nil {
-		sg.responder = DialServerRequestResponder{}
+		sg.responder = DialServerRequestResponder{
+			respProvs: make(map[*Server]StatusResponseProvider),
+		}
 	}
 
 	return nil
@@ -124,7 +125,7 @@ func (sg *serverGateway) init() error {
 func (sg *serverGateway) findServer(domain ServerDomain) *Server {
 	dm := string(domain)
 	dm = strings.ToLower(dm)
-	for d, srv := range sg.servers {
+	for d, srv := range sg.srvs {
 		if wildcard.Match(string(d), dm) {
 			return srv
 		}
