@@ -16,3 +16,8 @@ cmd/infrared/config.yml
 
 # IntelliJ
 .idea/
+
+# Docs
+docs/node_modules/
+docs/.vitepress/cache/
+docs/.vitepress/dist/
