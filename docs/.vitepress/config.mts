@@ -25,7 +25,7 @@ export default defineConfig({
       {
         text: 'Guides',
         items: [
-          { text: 'Proxy Protocol', link: '/guide/proxy-protocol' },
+          { text: 'Forward Player IPs', link: '/guide/forward-player-ips' },
         ]
       },
       {
@@ -33,6 +33,7 @@ export default defineConfig({
         items: [
           { text: 'Global', link: '/config/' },
           { text: 'Proxy', link: '/config/proxy' },
+          { text: 'CLI & Env Vars', link: '/config/cli-and-env-vars' },
         ]
       },
       {
@@ -50,17 +51,19 @@ export default defineConfig({
         text: 'Config',
         items: [
           { text: 'Global', link: '/config/' },
-          { text: 'Proxy', link: '/config/proxy' },
+          { text: 'Proxies', link: '/config/proxies' },
+          { text: 'CLI & Env Vars', link: '/config/cli-and-env-vars' },
         ],
       },
       {
         text: 'Guides',
         items: [
-          { text: 'Proxy Protocol', link: '/guide/proxy-protocol' },
+          { text: 'Forward Player IPs', link: '/guide/forward-player-ips' },
         ]
       },
       { text: 'Report an Issue', link: 'https://github.com/haveachin/infrared/issues' },
-      { text: 'Discussions', link: 'https://github.com/haveachin/infrared/discussions' },
+      { text: 'Ask in Discussions', link: 'https://github.com/haveachin/infrared/discussions' },
+      { text: 'Join our Discord', link: 'https://discord.gg/r98YPRsZAx' },
       { text: 'Branding', link: '/branding' },
     ],
 

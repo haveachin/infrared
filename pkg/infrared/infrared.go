@@ -45,6 +45,7 @@ func WithKeepAliveTimeout(d time.Duration) ConfigFunc {
 
 func DefaultConfig() Config {
 	return Config{
+		BindAddr:         ":25565",
 		KeepAliveTimeout: 30 * time.Second,
 	}
 }
