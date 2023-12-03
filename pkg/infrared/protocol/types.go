@@ -71,12 +71,11 @@ func (b *Boolean) ReadFrom(r io.Reader) (n int64, err error) {
 }
 
 func (s String) WriteTo(w io.Writer) (int64, error) {
-	byteStr := []byte(s)
-	n1, err := VarInt(len(byteStr)).WriteTo(w)
+	n1, err := VarInt(len(s)).WriteTo(w)
 	if err != nil {
 		return n1, err
 	}
-	n2, err := w.Write(byteStr)
+	n2, err := w.Write([]byte(s))
 	return n1 + int64(n2), err
 }
 
@@ -103,6 +102,9 @@ func (s *String) ReadFrom(r io.Reader) (n int64, err error) {
 func readByte(r io.Reader) (int64, byte, error) {
 	if r, ok := r.(io.ByteReader); ok {
 		v, err := r.ReadByte()
+		if err != nil {
+			return 0, v, err
+		}
 		return 1, v, err
 	}
 	var v [1]byte
@@ -192,7 +194,7 @@ func (v VarInt) WriteToBytes(buf []byte) int {
 }
 
 func (v *VarInt) ReadFrom(r io.Reader) (n int64, err error) {
-	var V uint32
+	var i uint32
 	var num, n2 int64
 	for sec := byte(0x80); sec&0x80 != 0; num++ {
 		if num > MaxVarIntLen {
@@ -205,10 +207,10 @@ func (v *VarInt) ReadFrom(r io.Reader) (n int64, err error) {
 			return n, err
 		}
 
-		V |= uint32(sec&0x7F) << uint32(7*num)
+		i |= uint32(sec&0x7F) << uint32(7*num)
 	}
 
-	*v = VarInt(V)
+	*v = VarInt(i)
 	return
 }
 
