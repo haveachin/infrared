@@ -37,8 +37,8 @@ func mockPlayer(ctrl *gomock.Controller) *MockPlayer {
 	p.EXPECT().Edition().AnyTimes().Return(infrared.JavaEdition)
 	p.EXPECT().RequestedAddr().AnyTimes().Return("requestedAddr")
 	p.EXPECT().MatchedAddr().AnyTimes().Return("matchedAddr")
-	p.EXPECT().Username().AnyTimes().Return("username")
-	p.EXPECT().GatewayID().AnyTimes().Return("gatewayId")
+	p.EXPECT().Username().AnyTimes().Return(infrared.Username("username"))
+	p.EXPECT().GatewayID().AnyTimes().Return(infrared.GatewayID("gatewayId"))
 	p.EXPECT().IsLoginRequest().AnyTimes().Return(false)
 	p.EXPECT().Version().AnyTimes().Return(mockVersion(ctrl))
 	return p
