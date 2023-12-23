@@ -50,6 +50,19 @@ func DefaultConfig() Config {
 	}
 }
 
+type ConfigProvider interface {
+	Config() (Config, error)
+}
+
+func MustConfig(fn func() (Config, error)) Config {
+	cfg, err := fn()
+	if err != nil {
+		panic(err)
+	}
+
+	return cfg
+}
+
 type Infrared struct {
 	cfg Config
 
@@ -66,6 +79,11 @@ func New(fns ...ConfigFunc) *Infrared {
 		fn(&cfg)
 	}
 
+	return NewWithConfig(cfg)
+}
+
+func NewWithConfigProvider(prv ConfigProvider) *Infrared {
+	cfg := MustConfig(prv.Config)
 	return NewWithConfig(cfg)
 }
 
