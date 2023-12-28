@@ -1,3 +1,9 @@
+# Config
+
+On fist start Infrared should generate a `config.yml` file and a `proxies` directory.
+The default config file should look something like this:
+
+```yml [config.yml]
 # Infrared Config
 
 # Address that Infrared bind and listens to
@@ -17,10 +23,4 @@ proxyProtocol:
 # Maximum duration between packets before the client gets timed out.
 #
 keepAliveTimeout: 30s
-
-# Filter
-#
-filters:
-  rateLimiter:
-    requestLimit: 10
-    windowLength: 1s
+```

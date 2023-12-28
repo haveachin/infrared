@@ -16,10 +16,10 @@ type ServerBoundLoginStart struct {
 	Name protocol.String
 
 	// Added in 1.19; removed in 1.19.3
-	HasSigData protocol.Boolean
-	Timestamp  protocol.Long
-	PublicKey  protocol.ByteArray
-	Signature  protocol.ByteArray
+	HasSignature protocol.Boolean
+	Timestamp    protocol.Long
+	PublicKey    protocol.ByteArray
+	Signature    protocol.ByteArray
 
 	// Added in 1.19
 	HasPlayerUUID protocol.Boolean // removed in 1.20.2
@@ -33,8 +33,8 @@ func (pk ServerBoundLoginStart) Marshal(packet *protocol.Packet, version protoco
 	switch {
 	case version >= protocol.Version_1_19 &&
 		version < protocol.Version_1_19_3:
-		fields = append(fields, pk.HasSigData)
-		if pk.HasSigData {
+		fields = append(fields, pk.HasSignature)
+		if pk.HasSignature {
 			fields = append(fields, pk.Timestamp, pk.PublicKey, pk.Signature)
 		}
 		fallthrough
@@ -67,11 +67,11 @@ func (pk *ServerBoundLoginStart) Unmarshal(packet protocol.Packet, version proto
 	switch {
 	case version >= protocol.Version_1_19 &&
 		version < protocol.Version_1_19_3:
-		if err := protocol.ScanFields(r, &pk.HasSigData); err != nil {
+		if err := protocol.ScanFields(r, &pk.HasSignature); err != nil {
 			return err
 		}
 
-		if pk.HasSigData {
+		if pk.HasSignature {
 			if err := protocol.ScanFields(r, &pk.Timestamp, &pk.PublicKey, &pk.Signature); err != nil {
 				return err
 			}

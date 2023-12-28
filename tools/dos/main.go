@@ -34,7 +34,7 @@ func initPayload() {
 
 	login.ServerBoundLoginStart{
 		Name:          "Test",
-		HasSigData:    false,
+		HasSignature:  false,
 		HasPlayerUUID: false,
 	}.Marshal(&pk, protocol.Version_1_19)
 	buf.Reset()

@@ -7,6 +7,7 @@ import (
 	"syscall"
 
 	ir "github.com/haveachin/infrared/pkg/infrared"
+	"github.com/haveachin/infrared/pkg/infrared/config"
 	"github.com/spf13/pflag"
 )
 
@@ -64,12 +65,10 @@ func run() error {
 		return err
 	}
 
-	cfg, err := loadConfig()
-	if err != nil {
-		return err
-	}
-
-	srv := ir.NewWithConfig(cfg)
+	srv := ir.NewWithConfigProvider(config.FileProvider{
+		ConfigPath:  configPath,
+		ProxiesPath: proxiesDir,
+	})
 
 	errChan := make(chan error, 1)
 	go func() {

@@ -1,3 +1,5 @@
+.PHONY: docs
+
 test:
 	go test -race -timeout 10s ./...
 
@@ -17,3 +19,6 @@ dev:
 dos:
 	CGO_ENABLED=0 go build -ldflags "-s -w" -o ./out/dos ./tools/dos
 	./out/dos
+
+docs:
+	cd ./docs && npm run docs:dev
