@@ -70,7 +70,6 @@ type Infrared struct {
 	srvs    []*Server
 	bufPool sync.Pool
 	conns   map[net.Addr]*conn
-	mu      sync.Mutex
 }
 
 func New(fns ...ConfigFunc) *Infrared {
@@ -199,13 +198,13 @@ func (ir *Infrared) handleConn(c *conn) error {
 	}
 
 	if c.handshake.IsStatusRequest() {
-		return ir.handleStatus(c, resp)
+		return handleStatus(c, resp)
 	}
 
 	return ir.handleLogin(c, resp)
 }
 
-func (ir *Infrared) handleStatus(c *conn, resp ServerRequestResponse) error {
+func handleStatus(c *conn, resp ServerRequestResponse) error {
 	if err := c.WritePacket(resp.StatusResponse); err != nil {
 		return err
 	}
@@ -252,7 +251,7 @@ func (ir *Infrared) handlePipe(c *conn, resp ServerRequestResponse) error {
 
 	c.timeout = ir.cfg.KeepAliveTimeout
 	rc.timeout = ir.cfg.KeepAliveTimeout
-	ir.addConn(c)
+	ir.conns[c.RemoteAddr()] = c
 
 	go ir.copy(rc, c, cClosedChan)
 	go ir.copy(c, rc, rcClosedChan)
@@ -267,7 +266,7 @@ func (ir *Infrared) handlePipe(c *conn, resp ServerRequestResponse) error {
 		waitChan = cClosedChan
 	}
 	<-waitChan
-	ir.removeConn(c)
+	delete(ir.conns, c.RemoteAddr())
 
 	return nil
 }
@@ -278,18 +277,6 @@ func (ir *Infrared) copy(dst io.WriteCloser, src io.ReadCloser, srcClosedChan ch
 
 	io.CopyBuffer(dst, src, *b)
 	srcClosedChan <- struct{}{}
-}
-
-func (ir *Infrared) addConn(c *conn) {
-	ir.mu.Lock()
-	defer ir.mu.Unlock()
-	ir.conns[c.RemoteAddr()] = c
-}
-
-func (ir *Infrared) removeConn(c *conn) {
-	ir.mu.Lock()
-	defer ir.mu.Unlock()
-	delete(ir.conns, c.RemoteAddr())
 }
 
 func writeProxyProtocolHeader(addr net.Addr, rc net.Conn) error {
