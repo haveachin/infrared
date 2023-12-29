@@ -15,21 +15,20 @@ import (
 	"github.com/pires/go-proxyproto"
 )
 
-type mockServerRequestResponder struct {
-}
+type mockServerRequestResponder struct{}
 
 func (r mockServerRequestResponder) RespondeToServerRequest(req ServerRequest, srv *Server) {
 	req.ResponseChan <- ServerRequestResponse{}
 }
 
 func BenchmarkHandleConn_Status(b *testing.B) {
-	var hsPk protocol.Packet
+	var hsStatusPk protocol.Packet
 	handshaking.ServerBoundHandshake{
 		ProtocolVersion: 1337,
 		ServerAddress:   "localhost",
 		ServerPort:      25565,
 		NextState:       handshaking.StateStatusServerBoundHandshake,
-	}.Marshal(&hsPk)
+	}.Marshal(&hsStatusPk)
 	var statusPk protocol.Packet
 	status.ServerBoundRequest{}.Marshal(&statusPk)
 	var pingPk protocol.Packet
@@ -40,9 +39,9 @@ func BenchmarkHandleConn_Status(b *testing.B) {
 		pks  []protocol.Packet
 	}{
 		{
-			name: "normal_handshake",
+			name: "status_handshake",
 			pks: []protocol.Packet{
-				hsPk,
+				hsStatusPk,
 				statusPk,
 				pingPk,
 			},
@@ -50,16 +49,22 @@ func BenchmarkHandleConn_Status(b *testing.B) {
 	}
 
 	for _, tc := range tt {
+		in, out := net.Pipe()
 		sgInChan := make(chan ServerRequest)
+		srv, err := NewServer(func(cfg *ServerConfig) {
+			*cfg = ServerConfig{
+				Domains: []ServerDomain{
+					"localhost",
+				},
+			}
+		})
+		if err != nil {
+			b.Error(err)
+		}
+
 		sg := serverGateway{
 			Servers: []*Server{
-				NewServer(func(cfg *ServerConfig) {
-					*cfg = ServerConfig{
-						Domains: []ServerDomain{
-							"localhost",
-						},
-					}
-				}),
+				srv,
 			},
 			requestChan: sgInChan,
 			responder:   mockServerRequestResponder{},
@@ -69,7 +74,6 @@ func BenchmarkHandleConn_Status(b *testing.B) {
 				b.Error(err)
 			}
 		}()
-		in, out := net.Pipe()
 		c := newConn(out)
 		c.srvReqChan = sgInChan
 
@@ -145,8 +149,8 @@ func TestProxyProtocolhandlePipe(t *testing.T) {
 	testConn := ProxyProtocolTesterConn{c: serverConnIn}
 
 	reqResponse := ServerRequestResponse{
-		ServerConn:       newConn(&testConn),
-		UseProxyProtocol: true,
+		ServerConn:        newConn(&testConn),
+		SendProxyProtocol: true,
 	}
 
 	go ir.handlePipe(newConn(&clientConn), reqResponse)
@@ -183,8 +187,8 @@ func TestNoProxyProtocolhandlePipe(t *testing.T) {
 	testConn := ProxyProtocolTesterConn{c: serverConnIn}
 
 	reqResponse := ServerRequestResponse{
-		ServerConn:       newConn(&testConn),
-		UseProxyProtocol: false,
+		ServerConn:        newConn(&testConn),
+		SendProxyProtocol: false,
 	}
 
 	go ir.handlePipe(newConn(&clientConn), reqResponse)

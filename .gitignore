@@ -9,9 +9,15 @@ __debug_bin*
 
 # Local Dev Files
 .dev/
+cmd/infrared/config.yml
 
 # VSCode
 .vscode/
 
 # IntelliJ
 .idea/
+
+# Docs
+docs/node_modules/
+docs/.vitepress/cache/
+docs/.vitepress/dist/

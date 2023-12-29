@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" height="1000" width="4200">
+  <style>
+    .left-side {
+      fill: #b7002d;
+    }
+
+    .right-side {
+      fill: #a30028;
+    }
+
+    .top-side {
+      fill: #CC0033;
+    }
+
+    .title {
+      font-family: 'Inter', sans-serif;
+      font-weight: 600;
+      font-size: 42em;
+      fill: #f9e5ea;
+    }
+  </style>
+
+  <!-- left side -->
+  <path 
+    class="left-side"
+    d="M 285 310
+      v 400 q 0 37 25 50
+      l 350 190 q 25 10 25 -20
+      v -400 q 0 -37 -25 -50
+      l -350 -190 q -25 -10 -25 20
+      Z"
+  />
+
+  <!-- right side-->
+  <path
+    class="right-side"
+    d="M 1110 310
+      v 400 q 0 37 -25 50
+      l -350 190 q -25 10 -25 -20
+      v -400 q 0 -37 25 -50
+      l 350 -190 q 25 -10 25 20
+      Z"
+  />
+
+  <!-- top side -->
+  <path
+    class="top-side"
+    d="M 320 270
+      l 345 180 q 30 15 60 0
+      l 345 -180 q 15 -15 0 -30
+      l -345 -180 q -30 -15 -60 0
+      l -345 180 q -15 15 0 30
+      Z"
+  />
+
+  <text
+    class="title"
+    x="1400" y="760"
+  >Infrared</text>
+</svg>

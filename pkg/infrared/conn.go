@@ -82,8 +82,7 @@ func (c *conn) WritePackets(pks ...protocol.Packet) error {
 }
 
 func (c *conn) ForceClose() error {
-	switch conn := c.Conn.(type) {
-	case *net.TCPConn:
+	if conn, ok := c.Conn.(*net.TCPConn); ok {
 		if err := conn.SetLinger(0); err != nil {
 			return err
 		}

@@ -1,6 +1,7 @@
 package infrared
 
 import (
+	"errors"
 	"io"
 	"log"
 	"net"
@@ -13,8 +14,9 @@ import (
 )
 
 type Config struct {
-	BindAddr      string
-	ServerConfigs []ServerConfig
+	BindAddr         string         `yaml:"bind"`
+	ServerConfigs    []ServerConfig `yaml:"servers"`
+	KeepAliveTimeout time.Duration  `yaml:"keepAliveTimeout"`
 }
 
 type ConfigFunc func(cfg *Config)
@@ -35,20 +37,56 @@ func AddServerConfig(fns ...ServerConfigFunc) ConfigFunc {
 	}
 }
 
+func WithKeepAliveTimeout(d time.Duration) ConfigFunc {
+	return func(cfg *Config) {
+		cfg.KeepAliveTimeout = d
+	}
+}
+
+func DefaultConfig() Config {
+	return Config{
+		BindAddr:         ":25565",
+		KeepAliveTimeout: 30 * time.Second,
+	}
+}
+
+type ConfigProvider interface {
+	Config() (Config, error)
+}
+
+func MustConfig(fn func() (Config, error)) Config {
+	cfg, err := fn()
+	if err != nil {
+		panic(err)
+	}
+
+	return cfg
+}
+
 type Infrared struct {
 	cfg Config
 
 	l       net.Listener
 	srvs    []*Server
 	bufPool sync.Pool
+	conns   map[net.Addr]*conn
 }
 
 func New(fns ...ConfigFunc) *Infrared {
-	var cfg Config
+	cfg := DefaultConfig()
 	for _, fn := range fns {
 		fn(&cfg)
 	}
 
+	return NewWithConfig(cfg)
+}
+
+func NewWithConfigProvider(prv ConfigProvider) *Infrared {
+	cfg := MustConfig(prv.Config)
+	return NewWithConfig(cfg)
+}
+
+func NewWithConfig(cfg Config) *Infrared {
 	return &Infrared{
 		cfg: cfg,
 		bufPool: sync.Pool{
@@ -57,10 +95,12 @@ func New(fns ...ConfigFunc) *Infrared {
 				return &b
 			},
 		},
+		conns: make(map[net.Addr]*conn),
 	}
 }
 
 func (ir *Infrared) init() error {
+	log.Printf("Listening on %s", ir.cfg.BindAddr)
 	l, err := net.Listen("tcp", ir.cfg.BindAddr)
 	if err != nil {
 		return err
@@ -68,7 +108,11 @@ func (ir *Infrared) init() error {
 	ir.l = l
 
 	for _, sCfg := range ir.cfg.ServerConfigs {
-		srv := NewServer(WithServerConfig(sCfg))
+		srv, err := NewServer(WithServerConfig(sCfg))
+		if err != nil {
+			return err
+		}
+
 		ir.srvs = append(ir.srvs, srv)
 	}
 
@@ -81,6 +125,8 @@ func (ir *Infrared) ListenAndServe() error {
 	}
 
 	sgInChan := make(chan ServerRequest)
+	defer close(sgInChan)
+
 	sg := serverGateway{
 		Servers:     ir.srvs,
 		requestChan: sgInChan,
@@ -93,9 +139,10 @@ func (ir *Infrared) ListenAndServe() error {
 func (ir *Infrared) listenAndServe(srvReqChan chan<- ServerRequest) error {
 	for {
 		c, err := ir.l.Accept()
-		if err != nil {
-			// TODO: Handle Listener closed
-			log.Println(err)
+		if errors.Is(err, net.ErrClosed) {
+			return nil
+		} else if err != nil {
+			log.Printf("Error accepting new conn: %s", err)
 			continue
 		}
 
@@ -144,20 +191,20 @@ func (ir *Infrared) handleConn(c *conn) error {
 		ReadPks:         c.readPks,
 		ResponseChan:    respChan,
 	}
-	
+
 	resp := <-respChan
 	if resp.Err != nil {
 		return resp.Err
 	}
 
 	if c.handshake.IsStatusRequest() {
-		return ir.handleStatus(c, resp)
+		return handleStatus(c, resp)
 	}
 
 	return ir.handleLogin(c, resp)
 }
 
-func (ir *Infrared) handleStatus(c *conn, resp ServerRequestResponse) error {
+func handleStatus(c *conn, resp ServerRequestResponse) error {
 	if err := c.WritePacket(resp.StatusResponse); err != nil {
 		return err
 	}
@@ -180,7 +227,7 @@ func (ir *Infrared) handleLogin(c *conn, resp ServerRequestResponse) error {
 		return err
 	}
 
-	c.timeout = time.Second * 30
+	c.timeout = ir.cfg.KeepAliveTimeout
 
 	return ir.handlePipe(c, resp)
 }
@@ -189,16 +236,8 @@ func (ir *Infrared) handlePipe(c *conn, resp ServerRequestResponse) error {
 	rc := resp.ServerConn
 	defer rc.ForceClose()
 
-	if resp.UseProxyProtocol {
-		header := &proxyproto.Header{
-			Version:           2,
-			Command:           proxyproto.PROXY,
-			TransportProtocol: proxyproto.TCPv4,
-			SourceAddr:        c.RemoteAddr(),
-			DestinationAddr:   rc.RemoteAddr(),
-		}
-
-		if _, err := header.WriteTo(rc); err != nil {
+	if resp.SendProxyProtocol {
+		if err := writeProxyProtocolHeader(c.RemoteAddr(), rc); err != nil {
 			return err
 		}
 	}
@@ -209,6 +248,10 @@ func (ir *Infrared) handlePipe(c *conn, resp ServerRequestResponse) error {
 
 	rcClosedChan := make(chan struct{})
 	cClosedChan := make(chan struct{})
+
+	c.timeout = ir.cfg.KeepAliveTimeout
+	rc.timeout = ir.cfg.KeepAliveTimeout
+	ir.conns[c.RemoteAddr()] = c
 
 	go ir.copy(rc, c, cClosedChan)
 	go ir.copy(c, rc, rcClosedChan)
@@ -223,6 +266,7 @@ func (ir *Infrared) handlePipe(c *conn, resp ServerRequestResponse) error {
 		waitChan = cClosedChan
 	}
 	<-waitChan
+	delete(ir.conns, c.RemoteAddr())
 
 	return nil
 }
@@ -233,4 +277,28 @@ func (ir *Infrared) copy(dst io.WriteCloser, src io.ReadCloser, srcClosedChan ch
 
 	io.CopyBuffer(dst, src, *b)
 	srcClosedChan <- struct{}{}
+}
+
+func writeProxyProtocolHeader(addr net.Addr, rc net.Conn) error {
+	rcAddr := rc.RemoteAddr()
+	tcpAddr := rcAddr.(*net.TCPAddr)
+
+	tp := proxyproto.TCPv4
+	if tcpAddr.IP.To4() == nil {
+		tp = proxyproto.TCPv6
+	}
+
+	header := &proxyproto.Header{
+		Version:           2,
+		Command:           proxyproto.PROXY,
+		TransportProtocol: tp,
+		SourceAddr:        addr,
+		DestinationAddr:   rcAddr,
+	}
+
+	if _, err := header.WriteTo(rc); err != nil {
+		return err
+	}
+
+	return nil
 }
