@@ -3,11 +3,13 @@
 test:
 	go test -race -timeout 10s ./...
 
-all: test
+build:
 	CGO_ENABLED=0 go build -ldflags "-s -w" -o ./out/infrared ./cmd/infrared
 
-run: all
-	./out/infrared
+all: test build
+
+run: build
+	./out/infrared -w .dev/infrared
 
 bench:
 	go test -bench=. -run=x -benchmem -memprofile mem.prof -cpuprofile cpu.prof -benchtime=10s > 0.bench
