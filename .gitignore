@@ -1,6 +1,7 @@
 # Artifacts
 out/
 __debug_bin*
+dist/
 
 # Benchmark/Profiler
 *.bench
