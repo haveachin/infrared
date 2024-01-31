@@ -23,14 +23,14 @@ services:
   haproxy:
     image: haproxy
     container_name: infrared-dev-haproxy
-    networks:
-      - infrared
-    volumes:
-      - ../.dev/haproxy:/usr/local/etc/haproxy:ro
     sysctls:
       - net.ipv4.ip_unprivileged_port_start=0
+    volumes:
+      - ../.dev/haproxy:/usr/local/etc/haproxy:ro
     ports:
       - 25567:25565/tcp
+    networks:
+      - infrared
 
   redis:
     image: redis

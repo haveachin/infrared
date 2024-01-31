@@ -1,6 +1,5 @@
 import { defineConfig} from 'vitepress'
 
-// https://vitepress.dev/reference/site-config
 export default defineConfig({
   lang: 'en-US',
   title: 'Infrared',
@@ -18,21 +17,21 @@ export default defineConfig({
     ],
   ],
   themeConfig: {
-    // https://vitepress.dev/reference/default-theme-config
     logo: '/assets/logo.svg',
 
     nav: [
       {
-        text: 'Guides',
+        text: 'Features',
         items: [
-          { text: 'Forward Player IPs', link: '/guide/forward-player-ips' },
+          { text: 'PROXY Protocol', link: '/features/forward-player-ips' },
+          { text: 'Rate Limiter', link: '/features/rate-limit-ips' },
         ]
       },
       {
         text: 'Config',
         items: [
           { text: 'Global', link: '/config/' },
-          { text: 'Proxy', link: '/config/proxy' },
+          { text: 'Proxies', link: '/config/proxies' },
           { text: 'CLI & Env Vars', link: '/config/cli-and-env-vars' },
         ]
       },
@@ -56,9 +55,16 @@ export default defineConfig({
         ],
       },
       {
-        text: 'Guides',
+        text: 'Features',
         items: [
-          { text: 'Forward Player IPs', link: '/guide/forward-player-ips' },
+          { text: 'Forward Player IPs', link: '/features/forward-player-ips' },
+          {
+            text: 'Filters',
+            link: '/features/filters',
+            items: [
+              { text: 'Rate Limit IPs', link: '/features/rate-limit-ips' },
+            ]
+          }
         ]
       },
       { text: 'Report an Issue', link: 'https://github.com/haveachin/infrared/issues' },

@@ -8,9 +8,12 @@ You can also contribute indirectly by donation.
 ## Tools
 
 - Coding
-    - [Go](https://go.dev/) 1.20+
+    - [Go](https://go.dev/)
+    - [GNUMake](https://www.gnu.org/software/make/) (Optional)
+    - [Docker](https://www.docker.com/get-started/) (Optional)
+    - [golangci-lint](https://golangci-lint.run/) (Optional)
 - Docs
-    - [Node.js]()
+    - [Node.js](https://nodejs.org/)
 
 
 ## Contributing

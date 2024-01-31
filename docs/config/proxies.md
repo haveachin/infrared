@@ -12,13 +12,8 @@ Proxy config example:
 # Supports '*' and '?' wildcards in the pattern string.
 #
 domains:
-  - "*"
+  - "example.com"
 
 addresses:
-  - example.com:25565
-
-# Send a Proxy Protocol v2 Header to the server to
-# forward the players IP address
-#
-#sendProxyProtocol: true
+  - 127.0.0.1:25565
 ```

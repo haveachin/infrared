@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/IGLOU-EU/go-wildcard"
-	"github.com/cespare/xxhash"
+	"github.com/cespare/xxhash/v2"
 	"github.com/haveachin/infrared/pkg/infrared/protocol"
 	"github.com/haveachin/infrared/pkg/infrared/protocol/status"
 )

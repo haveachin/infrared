@@ -12,10 +12,10 @@ dist/
 .dev/
 cmd/infrared/config.yml
 
-# VSCode
+# VSCode Dev Files
 .vscode/
 
-# IntelliJ
+# IntelliJ Dev Files
 .idea/
 
 # Docs

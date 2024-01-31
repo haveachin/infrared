@@ -15,10 +15,16 @@
   <img alt="CI" src="https://github.com/haveachin/infrared/actions/workflows/ci.yml/badge.svg" />
 </p>
 
+> [!WARNING] 
+> Infrared is currently under active development: breaking changes can happen.
+> Feedback and contributions are welcome.
+
 An ultra lightweight Minecraft reverse proxy and status placeholder:
 Ever wanted to have only one exposed port on your server for multiple Minecraft servers?
 Then Infrared is the tool you need!
 Infrared works as a reverse proxy using a sub-/domains to connect clients to a specific Minecraft server.
+
+
 
 ## Features
 
@@ -29,9 +35,10 @@ Infrared works as a reverse proxy using a sub-/domains to connect clients to a s
 - [X] Proxy Protocol Support
 - [X] Ratelimiter
 
-## Links
+## Useful Links
 
-- [Docs](https://infrared.dev)
+- **[Docs](https://infrared.dev)**
+- **[Ask Questions](https://github.com/haveachin/infrared/discussions)**
 - [Latest Release](https://github.com/haveachin/infrared/releases/latest)
 - [Discord Invite](https://discord.gg/r98YPRsZAx)
 - [Contributing](CONTRIBUTING.md)
@@ -39,7 +46,7 @@ Infrared works as a reverse proxy using a sub-/domains to connect clients to a s
 ## Build
 
 Requirements:
-- [Go](https://go.dev/) 1.20+
+- [Go](https://go.dev/) 1.21+
 
 ```
 CGO_ENABLED=0 go build -ldflags "-s -w" -o ./out/infrared ./cmd/infrared
@@ -60,6 +67,7 @@ or `make all` (requires GNU Make). The binary is in the `out/` directory.
 - [pires/go-proxyproto](https://github.com/pires/go-proxyproto), Apache-2.0
 - [spf13/pflag](https://github.com/spf13/pflag), BSD-3-Clause
 - [go-yaml/yaml](https://github.com/go-yaml/yaml), Apache-2.0, MIT
+- [vitepress](https://github.com/vuejs/vitepress), MIT
 
 <br />
 <p align="center">

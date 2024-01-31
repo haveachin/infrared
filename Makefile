@@ -23,4 +23,7 @@ dos:
 	./out/dos
 
 docs:
-	cd ./docs && npm run docs:dev
+	cd ./docs && npm i && npm run docs:dev
+
+lint:
+	golangci-lint run

@@ -1,4 +1,0 @@
-FROM alpine:latest
-COPY infrared /usr/bin/infrared
-RUN mkdir /etc/infrared
-ENTRYPOINT [ "/usr/bin/infrared", "-w", "/etc/infrared" ]

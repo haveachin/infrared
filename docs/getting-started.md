@@ -75,5 +75,5 @@ services:
     ports:
       - 25565:25565/tcp
     volumes:
-      - ./data/infrared:/infrared
+      - ./data/infrared:/etc/infrared
 ```
