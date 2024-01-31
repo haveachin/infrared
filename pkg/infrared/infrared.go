@@ -167,7 +167,7 @@ func (ir *Infrared) listenAndServe(srvReqChan chan<- ServerRequest) error {
 
 func (ir *Infrared) handleNewConn(c net.Conn, srvReqChan chan<- ServerRequest) {
 	if err := ir.filter.Filter(c); err != nil {
-		//log.Printf("Filtered: %s", err)
+		// log.Printf("Filtered: %s", err)
 		return
 	}
 

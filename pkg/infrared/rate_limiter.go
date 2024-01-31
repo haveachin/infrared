@@ -2,9 +2,9 @@ package infrared
 
 import (
 	"errors"
-	"fmt"
 	"math"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -86,7 +86,8 @@ func canonicalizeIP(ip string) string {
 		return ip
 	}
 
-	return ipv6.Mask(net.CIDRMask(64, 128)).String()
+	ones, bits := 64, 128
+	return ipv6.Mask(net.CIDRMask(ones, bits)).String()
 }
 
 func newRateLimiter(requestLimit int, windowLength time.Duration, options ...RateLimiterOption) *rateLimiter {
@@ -207,15 +208,13 @@ func (c *localCounter) evict() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	d := c.windowLength * 3
-
-	if time.Since(c.lastEvict) < d {
+	if time.Since(c.lastEvict) < c.windowLength {
 		return
 	}
 	c.lastEvict = time.Now()
 
 	for k, v := range c.counters {
-		if time.Since(v.updatedAt) >= d {
+		if time.Since(v.updatedAt) >= c.windowLength {
 			delete(c.counters, k)
 		}
 	}
@@ -224,6 +223,6 @@ func (c *localCounter) evict() {
 func limitCounterKey(key string, window time.Time) uint64 {
 	h := xxhash.New()
 	_, _ = h.WriteString(key)
-	_, _ = h.WriteString(fmt.Sprintf("%d", window.Unix()))
+	_, _ = h.WriteString(strconv.FormatInt(window.Unix(), 10))
 	return h.Sum64()
 }
