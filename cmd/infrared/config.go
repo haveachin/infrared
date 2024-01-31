@@ -10,7 +10,7 @@ import (
 func createConfigIfNotExist() error {
 	info, err := os.Stat(configPath)
 	if errors.Is(err, os.ErrNotExist) {
-		if err := os.Mkdir(proxiesDir, 0755); err != nil {
+		if err = os.Mkdir(proxiesDir, 0755); err != nil {
 			return err
 		}
 
@@ -26,5 +26,5 @@ func createConfigIfNotExist() error {
 
 func createDefaultConfigFile() error {
 	bb := configs.DefaultInfraredConfig
-	return os.WriteFile(configPath, bb, 0664)
+	return os.WriteFile(configPath, bb, 0600)
 }

@@ -30,8 +30,8 @@ type ServerBoundHandshake struct {
 	NextState       protocol.Byte
 }
 
-func (pk ServerBoundHandshake) Marshal(packet *protocol.Packet) {
-	packet.Encode(
+func (pk ServerBoundHandshake) Marshal(packet *protocol.Packet) error {
+	return packet.Encode(
 		IDServerBoundHandshake,
 		pk.ProtocolVersion,
 		pk.ServerAddress,

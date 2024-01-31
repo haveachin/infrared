@@ -65,7 +65,7 @@ func NewServer(fns ...ServerConfigFunc) (*Server, error) {
 	}, nil
 }
 
-func (s Server) Dial() (*conn, error) {
+func (s Server) Dial() (*Conn, error) {
 	c, err := net.Dial("tcp", string(s.cfg.Addresses[0]))
 	if err != nil {
 		return nil, err
@@ -85,7 +85,7 @@ type ServerRequest struct {
 }
 
 type ServerRequestResponse struct {
-	ServerConn        *conn
+	ServerConn        *Conn
 	StatusResponse    protocol.Packet
 	SendProxyProtocol bool
 	Err               error
@@ -214,7 +214,9 @@ type statusResponseProvider struct {
 	statusResponseCache map[uint64]*statusCacheEntry
 }
 
-func (s *statusResponseProvider) requestNewStatusResponseJSON(readPks [2]protocol.Packet) (status.ResponseJSON, protocol.Packet, error) {
+func (s *statusResponseProvider) requestNewStatusResponseJSON(
+	readPks [2]protocol.Packet,
+) (status.ResponseJSON, protocol.Packet, error) {
 	rc, err := s.server.Dial()
 	if err != nil {
 		return status.ResponseJSON{}, protocol.Packet{}, err
@@ -243,7 +245,10 @@ func (s *statusResponseProvider) requestNewStatusResponseJSON(readPks [2]protoco
 	return respJSON, pk, nil
 }
 
-func (s *statusResponseProvider) StatusResponse(protVer protocol.Version, readPks [2]protocol.Packet) (status.ResponseJSON, protocol.Packet, error) {
+func (s *statusResponseProvider) StatusResponse(
+	protVer protocol.Version,
+	readPks [2]protocol.Packet,
+) (status.ResponseJSON, protocol.Packet, error) {
 	if s.cacheTTL <= 0 {
 		return s.requestNewStatusResponseJSON(readPks)
 	}
@@ -263,7 +268,10 @@ func (s *statusResponseProvider) StatusResponse(protVer protocol.Version, readPk
 	return entry.responseJSON, entry.responsePk, nil
 }
 
-func (s *statusResponseProvider) cacheResponse(protVer protocol.Version, readPks [2]protocol.Packet) (status.ResponseJSON, protocol.Packet, error) {
+func (s *statusResponseProvider) cacheResponse(
+	protVer protocol.Version,
+	readPks [2]protocol.Packet,
+) (status.ResponseJSON, protocol.Packet, error) {
 	newStatusResp, pk, err := s.requestNewStatusResponseJSON(readPks)
 	if err != nil {
 		return status.ResponseJSON{}, protocol.Packet{}, err

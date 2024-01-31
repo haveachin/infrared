@@ -15,7 +15,10 @@ type ProxyProtocolTesterConn struct {
 }
 
 func (c *ProxyProtocolTesterConn) RemoteAddr() net.Addr {
-	return &net.TCPAddr{IP: net.IPv4(127, 0, 0, 1), Port: 25565}
+	return &net.TCPAddr{
+		IP:   net.IPv4(127, 0, 0, 1),
+		Port: 25565,
+	}
 }
 
 func (c *ProxyProtocolTesterConn) Read(b []byte) (int, error) {
@@ -49,7 +52,9 @@ func TestProxyProtocolhandlePipe(t *testing.T) {
 		SendProxyProtocol: true,
 	}
 
-	go ir.handlePipe(newConn(&clientConn), reqResponse)
+	go func() {
+		_ = ir.handlePipe(newConn(&clientConn), reqResponse)
+	}()
 
 	bufReader := bufio.NewReader(serverConnOut)
 	header, err := proxyproto.Read(bufReader)
@@ -86,7 +91,9 @@ func TestNoProxyProtocolhandlePipe(t *testing.T) {
 		SendProxyProtocol: false,
 	}
 
-	go ir.handlePipe(newConn(&clientConn), reqResponse)
+	go func() {
+		_ = ir.handlePipe(newConn(&clientConn), reqResponse)
+	}()
 
 	bufReader := bufio.NewReader(serverConnOut)
 	_, err := proxyproto.Read(bufReader)

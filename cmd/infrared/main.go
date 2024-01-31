@@ -43,13 +43,11 @@ func initFlags() {
 	pflag.Parse()
 }
 
-func init() {
-	initEnvVars()
-	initFlags()
-}
-
 func main() {
 	log.Println("Starting Infrared")
+
+	initEnvVars()
+	initFlags()
 
 	if err := run(); err != nil {
 		log.Fatal(err)

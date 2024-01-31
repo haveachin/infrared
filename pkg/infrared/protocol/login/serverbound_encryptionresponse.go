@@ -12,8 +12,8 @@ type ServerBoundEncryptionResponse struct {
 	VerifyToken  protocol.ByteArray
 }
 
-func (pk ServerBoundEncryptionResponse) Marshal(packet *protocol.Packet) {
-	packet.Encode(
+func (pk ServerBoundEncryptionResponse) Marshal(packet *protocol.Packet) error {
+	return packet.Encode(
 		IDServerBoundEncryptionResponse,
 		pk.SharedSecret,
 		pk.VerifyToken,

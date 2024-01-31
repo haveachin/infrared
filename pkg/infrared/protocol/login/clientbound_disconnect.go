@@ -8,8 +8,8 @@ type ClientBoundDisconnect struct {
 	Reason protocol.Chat
 }
 
-func (pk ClientBoundDisconnect) Marshal(packet *protocol.Packet) {
-	packet.Encode(
+func (pk ClientBoundDisconnect) Marshal(packet *protocol.Packet) error {
+	return packet.Encode(
 		IDClientBoundDisconnect,
 		pk.Reason,
 	)

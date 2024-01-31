@@ -11,8 +11,8 @@ type ClientBoundResponse struct {
 	JSONResponse protocol.String
 }
 
-func (pk ClientBoundResponse) Marshal(packet *protocol.Packet) {
-	packet.Encode(
+func (pk ClientBoundResponse) Marshal(packet *protocol.Packet) error {
+	return packet.Encode(
 		IDClientBoundResponse,
 		pk.JSONResponse,
 	)
@@ -68,7 +68,7 @@ type DescriptionJSON struct {
 	Text string `json:"text"`
 }
 
-// FMLModInfoJSON is a part of the FML Server List Ping
+// FMLModInfoJSON is a part of the FML Server List Ping.
 type FMLModInfoJSON struct {
 	LoaderType string       `json:"type"`
 	ModList    []FMLModJSON `json:"modList"`
@@ -79,7 +79,7 @@ type FMLModJSON struct {
 	Version string `json:"version"`
 }
 
-// FML2ForgeDataJSON is a part of the FML2 Server List Ping
+// FML2ForgeDataJSON is a part of the FML2 Server List Ping.
 type FML2ForgeDataJSON struct {
 	Channels          []FML2ChannelsJSON `json:"channels"`
 	Mods              []FML2ModJSON      `json:"mods"`

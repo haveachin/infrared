@@ -1,35 +1,38 @@
-package protocol
+package protocol_test
 
 import (
 	"bufio"
 	"bytes"
+	"errors"
 	"io"
 	"testing"
+
+	"github.com/haveachin/infrared/pkg/infrared/protocol"
 )
 
 func TestBytePeeker_ReadByte(t *testing.T) {
 	tt := []struct {
-		peeker       bytePeeker
+		peeker       protocol.BytePeeker
 		data         []byte
 		expectedByte byte
 	}{
 		{
-			peeker: bytePeeker{
-				cursor: 0,
+			peeker: protocol.BytePeeker{
+				Cursor: 0,
 			},
 			data:         []byte{0x00, 0x01, 0x02, 0x03},
 			expectedByte: 0x00,
 		},
 		{
-			peeker: bytePeeker{
-				cursor: 1,
+			peeker: protocol.BytePeeker{
+				Cursor: 1,
 			},
 			data:         []byte{0x00, 0x01, 0x02, 0x03},
 			expectedByte: 0x01,
 		},
 		{
-			peeker: bytePeeker{
-				cursor: 3,
+			peeker: protocol.BytePeeker{
+				Cursor: 3,
 			},
 			data:         []byte{0x00, 0x01, 0x02, 0x03},
 			expectedByte: 0x03,
@@ -44,7 +47,7 @@ func TestBytePeeker_ReadByte(t *testing.T) {
 
 		// Act
 		b, err := tc.peeker.ReadByte()
-		if err != nil && err != io.EOF {
+		if err != nil && errors.Is(err, io.EOF) {
 			t.Error(err)
 		}
 
@@ -61,30 +64,30 @@ func TestBytePeeker_ReadByte(t *testing.T) {
 
 func TestBytePeeker_Read(t *testing.T) {
 	tt := []struct {
-		peeker       bytePeeker
+		peeker       protocol.BytePeeker
 		data         []byte
 		expectedData []byte
 		expectedN    int
 	}{
 		{
-			peeker: bytePeeker{
-				cursor: 0,
+			peeker: protocol.BytePeeker{
+				Cursor: 0,
 			},
 			data:         []byte{0x00, 0x01, 0x02, 0x03},
 			expectedData: []byte{0x00, 0x01, 0x02, 0x03},
 			expectedN:    4,
 		},
 		{
-			peeker: bytePeeker{
-				cursor: 1,
+			peeker: protocol.BytePeeker{
+				Cursor: 1,
 			},
 			data:         []byte{0x00, 0x01, 0x02, 0x03},
 			expectedData: []byte{0x01, 0x02, 0x03},
 			expectedN:    3,
 		},
 		{
-			peeker: bytePeeker{
-				cursor: 3,
+			peeker: protocol.BytePeeker{
+				Cursor: 3,
 			},
 			data:         []byte{0x00, 0x01, 0x02, 0x03},
 			expectedData: []byte{0x03},
@@ -101,7 +104,7 @@ func TestBytePeeker_Read(t *testing.T) {
 
 		// Act
 		n, err := tc.peeker.Read(resultData)
-		if err != nil && err != io.EOF {
+		if err != nil && errors.Is(err, io.EOF) {
 			t.Error(err)
 		}
 

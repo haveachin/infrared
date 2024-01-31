@@ -1,19 +1,20 @@
-package status
+package status_test
 
 import (
 	"bytes"
 	"testing"
 
 	"github.com/haveachin/infrared/pkg/infrared/protocol"
+	"github.com/haveachin/infrared/pkg/infrared/protocol/status"
 )
 
 func TestClientBoundResponse_Marshal(t *testing.T) {
 	tt := []struct {
-		packet          ClientBoundResponse
+		packet          status.ClientBoundResponse
 		marshaledPacket protocol.Packet
 	}{
 		{
-			packet: ClientBoundResponse{
+			packet: status.ClientBoundResponse{
 				JSONResponse: protocol.String(""),
 			},
 			marshaledPacket: protocol.Packet{
@@ -22,7 +23,7 @@ func TestClientBoundResponse_Marshal(t *testing.T) {
 			},
 		},
 		{
-			packet: ClientBoundResponse{
+			packet: status.ClientBoundResponse{
 				JSONResponse: protocol.String("Hello, World!"),
 			},
 			marshaledPacket: protocol.Packet{
@@ -34,9 +35,9 @@ func TestClientBoundResponse_Marshal(t *testing.T) {
 
 	var pk protocol.Packet
 	for _, tc := range tt {
-		tc.packet.Marshal(&pk)
+		_ = tc.packet.Marshal(&pk)
 
-		if pk.ID != IDClientBoundResponse {
+		if pk.ID != status.IDClientBoundResponse {
 			t.Error("invalid packet id")
 		}
 
@@ -49,14 +50,14 @@ func TestClientBoundResponse_Marshal(t *testing.T) {
 func TestUnmarshalClientBoundResponse(t *testing.T) {
 	tt := []struct {
 		packet             protocol.Packet
-		unmarshalledPacket ClientBoundResponse
+		unmarshalledPacket status.ClientBoundResponse
 	}{
 		{
 			packet: protocol.Packet{
 				ID:   0x00,
 				Data: []byte{0x00},
 			},
-			unmarshalledPacket: ClientBoundResponse{
+			unmarshalledPacket: status.ClientBoundResponse{
 				JSONResponse: "",
 			},
 		},
@@ -65,13 +66,13 @@ func TestUnmarshalClientBoundResponse(t *testing.T) {
 				ID:   0x00,
 				Data: []byte{0x0d, 0x48, 0x65, 0x6c, 0x6c, 0x6f, 0x2c, 0x20, 0x57, 0x6f, 0x72, 0x6c, 0x64, 0x21},
 			},
-			unmarshalledPacket: ClientBoundResponse{
+			unmarshalledPacket: status.ClientBoundResponse{
 				JSONResponse: protocol.String("Hello, World!"),
 			},
 		},
 	}
 
-	var actual ClientBoundResponse
+	var actual status.ClientBoundResponse
 	for _, tc := range tt {
 		if err := actual.Unmarshal(tc.packet); err != nil {
 			t.Error(err)
@@ -83,5 +84,4 @@ func TestUnmarshalClientBoundResponse(t *testing.T) {
 			t.Errorf("got: %v, want: %v", actual, expected)
 		}
 	}
-
 }

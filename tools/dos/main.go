@@ -22,23 +22,23 @@ var (
 
 func initPayload() {
 	var pk protocol.Packet
-	handshaking.ServerBoundHandshake{
+	_ = handshaking.ServerBoundHandshake{
 		ProtocolVersion: 758,
 		ServerAddress:   "localhost",
 		ServerPort:      25565,
 		NextState:       handshaking.StateStatusServerBoundHandshake,
 	}.Marshal(&pk)
 	var buf bytes.Buffer
-	pk.WriteTo(&buf)
+	_, _ = pk.WriteTo(&buf)
 	handshakePayload = buf.Bytes()
 
-	login.ServerBoundLoginStart{
+	_ = login.ServerBoundLoginStart{
 		Name:          "Test",
 		HasSignature:  false,
 		HasPlayerUUID: false,
-	}.Marshal(&pk, protocol.Version_1_19)
+	}.Marshal(&pk, protocol.Version1_19)
 	buf.Reset()
-	pk.WriteTo(&buf)
+	_, _ = pk.WriteTo(&buf)
 	loginStartPayload = buf.Bytes()
 
 	log.Println(len(handshakePayload) + len(loginStartPayload))
@@ -53,14 +53,12 @@ func initFlags() {
 	flag.Parse()
 }
 
-func init() {
+func main() {
 	runtime.GOMAXPROCS(4)
 
 	initFlags()
 	initPayload()
-}
 
-func main() {
 	targetAddr := "localhost:25565"
 
 	if len(os.Args) < 2 {
@@ -70,11 +68,11 @@ func main() {
 		targetAddr = os.Args[1]
 	}
 
-	c, err := net.Dial("tcp", targetAddr)
+	conn, err := net.Dial("tcp", targetAddr)
 	if err != nil {
 		log.Fatal(err)
 	}
-	c.Close()
+	conn.Close()
 
 	for i := 0; ; i++ {
 		if i > 0 && i%10 == 0 {
@@ -88,20 +86,22 @@ func main() {
 			}
 
 			if sendProxyProtocol {
-				writeProxyProtocolHeader(randomAddr(), c)
+				if err = writeProxyProtocolHeader(randomAddr(), c); err != nil {
+					log.Printf("Write proxy protocol: %s", err)
+				}
 			}
 
-			c.Write(handshakePayload)
-			c.Write(loginStartPayload)
-			c.Close()
+			_, _ = c.Write(handshakePayload)
+			_, _ = c.Write(loginStartPayload)
+			_ = c.Close()
 		}()
-		//time.Sleep(time.Millisecond * 10)
+		// time.Sleep(time.Millisecond * 10)
 	}
 }
 
 func randomAddr() net.Addr {
 	addrBytes := make([]byte, 6)
-	rand.Read(addrBytes)
+	_, _ = rand.Read(addrBytes)
 
 	return &net.TCPAddr{
 		IP:   net.IPv4(addrBytes[0], addrBytes[1], addrBytes[2], addrBytes[3]),
@@ -111,7 +111,11 @@ func randomAddr() net.Addr {
 
 func writeProxyProtocolHeader(addr net.Addr, rc net.Conn) error {
 	tp := proxyproto.TCPv4
-	addrTCP := addr.(*net.TCPAddr)
+	addrTCP, ok := addr.(*net.TCPAddr)
+	if !ok {
+		panic("not a tcp connection")
+	}
+
 	if addrTCP.IP.To4() == nil {
 		tp = proxyproto.TCPv6
 	}

@@ -28,13 +28,16 @@ func ScanFields(r io.Reader, fields ...FieldDecoder) error {
 	return nil
 }
 
-func (pk *Packet) Encode(id int32, fields ...FieldEncoder) {
+func (pk *Packet) Encode(id int32, fields ...FieldEncoder) error {
 	buf := bytes.NewBuffer(pk.Data[:0])
 	for _, f := range fields {
-		f.WriteTo(buf)
+		if _, err := f.WriteTo(buf); err != nil {
+			return err
+		}
 	}
 	pk.ID = id
 	pk.Data = buf.Bytes()
+	return nil
 }
 
 func (pk Packet) WriteTo(w io.Writer) (int64, error) {

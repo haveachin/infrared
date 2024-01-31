@@ -14,13 +14,13 @@ import (
 
 var connPool = sync.Pool{
 	New: func() any {
-		return &conn{
+		return &Conn{
 			readPks: [2]protocol.Packet{},
 		}
 	},
 }
 
-type conn struct {
+type Conn struct {
 	net.Conn
 
 	r          *bufio.Reader
@@ -33,8 +33,12 @@ type conn struct {
 	srvReqChan chan<- ServerRequest
 }
 
-func newConn(c net.Conn) *conn {
-	conn := connPool.Get().(*conn)
+func newConn(c net.Conn) *Conn {
+	conn, ok := connPool.Get().(*Conn)
+	if !ok {
+		panic("connPool contains other implementations of net.Conn")
+	}
+
 	conn.Conn = c
 	conn.r = bufio.NewReader(c)
 	conn.w = c
@@ -43,22 +47,26 @@ func newConn(c net.Conn) *conn {
 	return conn
 }
 
-func (c *conn) Read(b []byte) (int, error) {
-	c.SetReadDeadline(time.Now().Add(c.timeout))
+func (c *Conn) Read(b []byte) (int, error) {
+	if err := c.SetReadDeadline(time.Now().Add(c.timeout)); err != nil {
+		return 0, err
+	}
 	return c.r.Read(b)
 }
 
-func (c *conn) Write(b []byte) (int, error) {
-	c.SetWriteDeadline(time.Now().Add(c.timeout))
+func (c *Conn) Write(b []byte) (int, error) {
+	if err := c.SetWriteDeadline(time.Now().Add(c.timeout)); err != nil {
+		return 0, err
+	}
 	return c.w.Write(b)
 }
 
-func (c *conn) ReadPacket(pk *protocol.Packet) error {
+func (c *Conn) ReadPacket(pk *protocol.Packet) error {
 	_, err := pk.ReadFrom(c.r)
 	return err
 }
 
-func (c *conn) ReadPackets(pks ...*protocol.Packet) error {
+func (c *Conn) ReadPackets(pks ...*protocol.Packet) error {
 	for i := 0; i < len(pks); i++ {
 		if err := c.ReadPacket(pks[i]); err != nil {
 			return err
@@ -67,12 +75,12 @@ func (c *conn) ReadPackets(pks ...*protocol.Packet) error {
 	return nil
 }
 
-func (c *conn) WritePacket(pk protocol.Packet) error {
+func (c *Conn) WritePacket(pk protocol.Packet) error {
 	_, err := pk.WriteTo(c.w)
 	return err
 }
 
-func (c *conn) WritePackets(pks ...protocol.Packet) error {
+func (c *Conn) WritePackets(pks ...protocol.Packet) error {
 	for _, pk := range pks {
 		if err := c.WritePacket(pk); err != nil {
 			return err
@@ -81,7 +89,7 @@ func (c *conn) WritePackets(pks ...protocol.Packet) error {
 	return nil
 }
 
-func (c *conn) ForceClose() error {
+func (c *Conn) ForceClose() error {
 	if conn, ok := c.Conn.(*net.TCPConn); ok {
 		if err := conn.SetLinger(0); err != nil {
 			return err

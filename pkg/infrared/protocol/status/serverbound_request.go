@@ -6,8 +6,8 @@ const IDServerBoundRequest int32 = 0x00
 
 type ServerBoundRequest struct{}
 
-func (pk ServerBoundRequest) Marshal(packet *protocol.Packet) {
-	packet.Encode(
+func (pk ServerBoundRequest) Marshal(packet *protocol.Packet) error {
+	return packet.Encode(
 		IDServerBoundRequest,
 	)
 }

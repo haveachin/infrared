@@ -34,7 +34,7 @@ func newYamlDecoder() decoder {
 	})
 }
 
-// FileProvider reads a config file and returns a populated infrared.Config struct
+// FileProvider reads a config file and returns a populated infrared.Config struct.
 type FileProvider struct {
 	ConfigPath string
 	// Must be a directory
@@ -69,7 +69,7 @@ func (p FileProvider) readAndUnmashalConfig(dcr decoder) (ir.Config, error) {
 	defer f.Close()
 
 	var cfg ir.Config
-	if err := dcr.Decode(f, &cfg); err != nil {
+	if err = dcr.Decode(f, &cfg); err != nil {
 		return ir.Config{}, fmt.Errorf("failed to decode file %q: %w", p.ConfigPath, err)
 	}
 
@@ -89,7 +89,7 @@ func loadServerConfigs(dcr decoder, path string) ([]ir.ServerConfig, error) {
 	}
 
 	paths := make([]string, 0)
-	if err := filepath.WalkDir(path, walkServerDirFunc(&paths)); err != nil {
+	if err = filepath.WalkDir(path, walkServerDirFunc(&paths)); err != nil {
 		return nil, err
 	}
 
@@ -139,7 +139,7 @@ func readAndUnmashalServerConfig(dcr decoder, path string) (ir.ServerConfig, err
 	defer f.Close()
 
 	cfg := ir.ServerConfig{}
-	if err := dcr.Decode(f, &cfg); err != nil && !errors.Is(err, io.EOF) {
+	if err = dcr.Decode(f, &cfg); err != nil && !errors.Is(err, io.EOF) {
 		return ir.ServerConfig{}, err
 	}
 

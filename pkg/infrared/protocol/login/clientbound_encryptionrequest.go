@@ -12,8 +12,8 @@ type ClientBoundEncryptionRequest struct {
 	VerifyToken protocol.ByteArray
 }
 
-func (pk ClientBoundEncryptionRequest) Marshal(packet *protocol.Packet) {
-	packet.Encode(
+func (pk ClientBoundEncryptionRequest) Marshal(packet *protocol.Packet) error {
+	return packet.Encode(
 		IDClientBoundEncryptionRequest,
 		pk.ServerID,
 		pk.PublicKey,
