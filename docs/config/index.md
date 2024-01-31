@@ -1,7 +1,7 @@
 # Config
 
 On fist start Infrared should generate a `config.yml` file and a `proxies` directory.
-A minmal
+Here is a minimal `config.yml` example:
 
 ```yml
 # Minimal Infrared Config
@@ -14,3 +14,5 @@ bind: 0.0.0.0:25565
 #
 keepAliveTimeout: 30s
 ```
+
+[Complete config example](https://github.com/haveachin/infrared/blob/revise/configs/config.yml)

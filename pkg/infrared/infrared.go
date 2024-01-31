@@ -134,8 +134,21 @@ func (ir *Infrared) ListenAndServe() error {
 	sgInChan := make(chan ServerRequest)
 	defer close(sgInChan)
 
-	go ir.sg.listenAndServe(sgInChan)
-	return ir.listenAndServe(sgInChan)
+	errChan := make(chan error)
+
+	go func() {
+		if err := ir.sg.listenAndServe(sgInChan); err != nil {
+			errChan <- err
+		}
+	}()
+
+	go func() {
+		if err := ir.listenAndServe(sgInChan); err != nil {
+			errChan <- err
+		}
+	}()
+
+	return <-errChan
 }
 
 func (ir *Infrared) listenAndServe(srvReqChan chan<- ServerRequest) error {

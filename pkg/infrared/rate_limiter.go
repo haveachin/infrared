@@ -183,7 +183,7 @@ func (c *localCounter) Inc(key string, currentWindow time.Time) {
 		v = &count{}
 		c.counters[hkey] = v
 	}
-	v.value += 1
+	v.value++
 	v.updatedAt = time.Now()
 }
 
@@ -223,7 +223,7 @@ func (c *localCounter) evict() {
 
 func limitCounterKey(key string, window time.Time) uint64 {
 	h := xxhash.New()
-	h.WriteString(key)
-	h.WriteString(fmt.Sprintf("%d", window.Unix()))
+	_, _ = h.WriteString(key)
+	_, _ = h.WriteString(fmt.Sprintf("%d", window.Unix()))
 	return h.Sum64()
 }
