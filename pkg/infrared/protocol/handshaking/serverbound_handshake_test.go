@@ -352,6 +352,10 @@ func TestServerBoundHandshake_UpgradeToRealIP(t *testing.T) {
 		}
 
 		realIPSegments := strings.Split(string(hs.ServerAddress), handshaking.SeparatorRealIP)
+		if len(realIPSegments) < 3 {
+			t.Error("no real ip to test")
+			return
+		}
 
 		if realIPSegments[1] != tc.clientAddr.String() {
 			t.Errorf("got: %v; want: %v", realIPSegments[1], tc.addr)

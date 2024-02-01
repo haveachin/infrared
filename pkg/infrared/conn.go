@@ -34,6 +34,10 @@ type Conn struct {
 }
 
 func newConn(c net.Conn) *Conn {
+	if c == nil {
+		panic("c cannot be nil")
+	}
+
 	conn, ok := connPool.Get().(*Conn)
 	if !ok {
 		panic("connPool contains other implementations of net.Conn")

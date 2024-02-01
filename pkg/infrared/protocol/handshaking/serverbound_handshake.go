@@ -130,7 +130,9 @@ func (pk *ServerBoundHandshake) UpgradeToRealIP(clientAddr net.Addr, timestamp t
 	addr := string(pk.ServerAddress)
 	addrWithForge := strings.SplitN(addr, SeparatorForge, 3)
 
-	addr = fmt.Sprintf("%s///%s///%d", addrWithForge[0], clientAddr.String(), timestamp.Unix())
+	if len(addrWithForge) > 0 {
+		addr = fmt.Sprintf("%s///%s///%d", addrWithForge[0], clientAddr.String(), timestamp.Unix())
+	}
 
 	if len(addrWithForge) > 1 {
 		addr = fmt.Sprintf("%s\x00%s\x00", addr, addrWithForge[1])

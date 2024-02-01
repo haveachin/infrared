@@ -68,6 +68,7 @@ or `make all` (requires GNU Make). The binary is in the `out/` directory.
 - [spf13/pflag](https://github.com/spf13/pflag), BSD-3-Clause
 - [go-yaml/yaml](https://github.com/go-yaml/yaml), Apache-2.0, MIT
 - [vitepress](https://github.com/vuejs/vitepress), MIT
+- [tollbooth](https://github.com/didip/tollbooth), MIT
 
 <br />
 <p align="center">

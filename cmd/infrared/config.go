@@ -15,6 +15,8 @@ func createConfigIfNotExist() error {
 		}
 
 		return createDefaultConfigFile()
+	} else if err != nil {
+		return err
 	}
 
 	if info.IsDir() {

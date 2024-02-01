@@ -167,9 +167,9 @@ func (l *Long) ReadFrom(r io.Reader) (int64, error) {
 
 func (v VarInt) WriteTo(w io.Writer) (int64, error) {
 	var vi [MaxVarIntLen]byte
-	nn := v.WriteToBytes(vi[:])
-	nn, err := w.Write(vi[:nn])
-	return int64(nn), err
+	n := v.WriteToBytes(vi[:])
+	n, err := w.Write(vi[:n])
+	return int64(n), err
 }
 
 // WriteToBytes encodes the VarInt into buf and returns the number of bytes written.

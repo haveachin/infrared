@@ -48,6 +48,12 @@ func DefaultConfig() Config {
 	return Config{
 		BindAddr:         ":25565",
 		KeepAliveTimeout: 30 * time.Second,
+		FiltersConfig: FiltersConfig{
+			RateLimiter: &RateLimiterConfig{
+				RequestLimit: 10,
+				WindowLength: time.Second,
+			},
+		},
 	}
 }
 
