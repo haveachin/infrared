@@ -3,7 +3,6 @@ package infrared
 import (
 	"errors"
 	"io"
-	"log"
 	"net"
 	"strings"
 	"sync"
@@ -11,6 +10,7 @@ import (
 
 	"github.com/haveachin/infrared/pkg/infrared/protocol"
 	"github.com/pires/go-proxyproto"
+	"github.com/rs/zerolog"
 )
 
 type Config struct {
@@ -71,6 +71,8 @@ func MustConfig(fn func() (Config, error)) Config {
 }
 
 type Infrared struct {
+	Logger zerolog.Logger
+
 	cfg Config
 
 	l       net.Listener
@@ -108,7 +110,10 @@ func NewWithConfig(cfg Config) *Infrared {
 }
 
 func (ir *Infrared) init() error {
-	log.Printf("Listening on %s", ir.cfg.BindAddr)
+	ir.Logger.Info().
+		Str("bind", ir.cfg.BindAddr).
+		Msg("Starting listener")
+
 	l, err := net.Listen("tcp", ir.cfg.BindAddr)
 	if err != nil {
 		return err
@@ -144,7 +149,10 @@ func (ir *Infrared) ListenAndServe() error {
 		if errors.Is(err, net.ErrClosed) {
 			return err
 		} else if err != nil {
-			log.Printf("Error accepting new conn: %s", err)
+			ir.Logger.Debug().
+				Err(err).
+				Msg("Error accepting new connection")
+
 			continue
 		}
 
@@ -154,7 +162,9 @@ func (ir *Infrared) ListenAndServe() error {
 
 func (ir *Infrared) handleNewConn(c net.Conn) {
 	if err := ir.filter.Filter(c); err != nil {
-		// log.Printf("Filtered: %s", err)
+		ir.Logger.Debug().
+			Err(err).
+			Msg("Filtered connection")
 		return
 	}
 
@@ -165,7 +175,9 @@ func (ir *Infrared) handleNewConn(c net.Conn) {
 	}()
 
 	if err := ir.handleConn(conn); err != nil {
-		log.Println(err)
+		ir.Logger.Debug().
+			Err(err).
+			Msg("Error while handling connection")
 	}
 }
 

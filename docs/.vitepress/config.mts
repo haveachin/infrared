@@ -40,6 +40,7 @@ export default defineConfig({
         items: [
           { text: 'PayPal', link: 'https://paypal.me/hendrikschlehlein' },
           { text: 'Ko-Fi', link: 'https://ko-fi.com/haveachin' },
+          { text: 'Liberapay', link: 'https://liberapay.com/haveachin' },
         ]
       },
     ],

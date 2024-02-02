@@ -21,7 +21,7 @@ features:
     title: Free and Open Source
     details: Infrared is developed as free software to ensure transparency and integrity.
   - icon: 🧩
-    title: Build as a Foundation
+    title: Build as a Library
     details: Use Infrared as a library for your projects and extend it's functionallty easily via it's rich API.
   - icon: 🪶
     title: Simple and Lightweight

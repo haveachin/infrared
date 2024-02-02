@@ -72,7 +72,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	conn.Close()
+	_ = conn.Close()
 
 	for i := 0; ; i++ {
 		if i > 0 && i%10 == 0 {

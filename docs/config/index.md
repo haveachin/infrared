@@ -15,4 +15,4 @@ bind: 0.0.0.0:25565
 keepAliveTimeout: 30s
 ```
 
-[Complete config example](https://github.com/haveachin/infrared/blob/revise/configs/config.yml)
+[Complete config example](https://github.com/haveachin/infrared/blob/main/configs/config.yml)

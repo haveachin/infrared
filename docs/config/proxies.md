@@ -18,4 +18,4 @@ addresses:
   - 127.0.0.1:25565
 ```
 
-[Complete proxy config example](https://github.com/haveachin/infrared/blob/revise/configs/proxy.yml)
+[Complete proxy config example](https://github.com/haveachin/infrared/blob/main/configs/proxy.yml)

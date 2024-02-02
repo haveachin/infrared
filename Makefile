@@ -22,6 +22,10 @@ dos:
 	CGO_ENABLED=0 go build -ldflags "-s -w" -o ./out/dos ./tools/dos
 	./out/dos
 
+malpk:
+	CGO_ENABLED=0 go build -ldflags "-s -w" -o ./out/malpk ./tools/malpk
+	./out/malpk
+
 docs:
 	cd ./docs && npm i && npm run docs:dev
 
