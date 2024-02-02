@@ -6,7 +6,7 @@ hero:
   text: The Reverse Proxy for Minecraft
   tagline: 
   image:
-    src: /assets/logo.svg
+    src: /img/logo.svg
     alt: Infrared
   actions:
     - theme: brand
