@@ -1,18 +1,19 @@
-package status
+package status_test
 
 import (
 	"testing"
 
 	"github.com/haveachin/infrared/pkg/infrared/protocol"
+	"github.com/haveachin/infrared/pkg/infrared/protocol/status"
 )
 
 func TestServerBoundRequest_Marshal(t *testing.T) {
 	tt := []struct {
-		packet          ServerBoundRequest
+		packet          status.ServerBoundRequest
 		marshaledPacket protocol.Packet
 	}{
 		{
-			packet: ServerBoundRequest{},
+			packet: status.ServerBoundRequest{},
 			marshaledPacket: protocol.Packet{
 				ID:   0x00,
 				Data: []byte{},
@@ -22,9 +23,9 @@ func TestServerBoundRequest_Marshal(t *testing.T) {
 
 	var pk protocol.Packet
 	for _, tc := range tt {
-		tc.packet.Marshal(&pk)
+		_ = tc.packet.Marshal(&pk)
 
-		if pk.ID != IDServerBoundRequest {
+		if pk.ID != status.ServerBoundRequestID {
 			t.Error("invalid packet id")
 		}
 	}

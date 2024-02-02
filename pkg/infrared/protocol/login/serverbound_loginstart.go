@@ -6,11 +6,7 @@ import (
 	"github.com/haveachin/infrared/pkg/infrared/protocol"
 )
 
-const (
-	// MaxSizeServerBoundLoginStart might be a bit generous, but there is no offical max size for the public key
-	MaxSizeServerBoundLoginStart       = 1 + 16*4 + 1 + 8 + 3000 + 3000 + 1 + 16
-	IDServerBoundLoginStart      int32 = 0x00
-)
+const ServerBoundLoginStartID int32 = 0x00
 
 type ServerBoundLoginStart struct {
 	Name protocol.String
@@ -26,36 +22,37 @@ type ServerBoundLoginStart struct {
 	PlayerUUID    protocol.UUID
 }
 
-func (pk ServerBoundLoginStart) Marshal(packet *protocol.Packet, version protocol.Version) {
+func (pk ServerBoundLoginStart) Marshal(packet *protocol.Packet, version protocol.Version) error {
 	fields := make([]protocol.FieldEncoder, 0, 7)
 	fields = append(fields, pk.Name)
 
 	switch {
-	case version >= protocol.Version_1_19 &&
-		version < protocol.Version_1_19_3:
+	case version >= protocol.Version1_19 &&
+		version < protocol.Version1_19_3:
 		fields = append(fields, pk.HasSignature)
 		if pk.HasSignature {
 			fields = append(fields, pk.Timestamp, pk.PublicKey, pk.Signature)
 		}
 		fallthrough
-	case version >= protocol.Version_1_19_3 &&
-		version < protocol.Version_1_20_2:
+	case version >= protocol.Version1_19_3 &&
+		version < protocol.Version1_20_2:
 		fields = append(fields, pk.HasPlayerUUID)
 		if pk.HasPlayerUUID {
 			fields = append(fields, pk.PlayerUUID)
 		}
-	case version >= protocol.Version_1_20_2:
+	case version >= protocol.Version1_20_2:
 		fields = append(fields, pk.PlayerUUID)
 	}
 
-	packet.Encode(
-		IDServerBoundLoginStart,
+	return packet.Encode(
+		ServerBoundLoginStartID,
 		fields...,
 	)
 }
 
+//nolint:gocognit
 func (pk *ServerBoundLoginStart) Unmarshal(packet protocol.Packet, version protocol.Version) error {
-	if packet.ID != IDServerBoundLoginStart {
+	if packet.ID != ServerBoundLoginStartID {
 		return protocol.ErrInvalidPacketID
 	}
 
@@ -65,8 +62,8 @@ func (pk *ServerBoundLoginStart) Unmarshal(packet protocol.Packet, version proto
 	}
 
 	switch {
-	case version >= protocol.Version_1_19 &&
-		version < protocol.Version_1_19_3:
+	case version >= protocol.Version1_19 &&
+		version < protocol.Version1_19_3:
 		if err := protocol.ScanFields(r, &pk.HasSignature); err != nil {
 			return err
 		}
@@ -77,8 +74,8 @@ func (pk *ServerBoundLoginStart) Unmarshal(packet protocol.Packet, version proto
 			}
 		}
 		fallthrough
-	case version >= protocol.Version_1_19_3 &&
-		version < protocol.Version_1_20_2:
+	case version >= protocol.Version1_19_3 &&
+		version < protocol.Version1_20_2:
 		if err := protocol.ScanFields(r, &pk.HasPlayerUUID); err != nil {
 			return err
 		}
@@ -88,7 +85,7 @@ func (pk *ServerBoundLoginStart) Unmarshal(packet protocol.Packet, version proto
 				return err
 			}
 		}
-	case version >= protocol.Version_1_20_2:
+	case version >= protocol.Version1_20_2:
 		if err := protocol.ScanFields(r, &pk.PlayerUUID); err != nil {
 			return err
 		}

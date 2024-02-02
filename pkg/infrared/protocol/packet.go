@@ -28,13 +28,16 @@ func ScanFields(r io.Reader, fields ...FieldDecoder) error {
 	return nil
 }
 
-func (pk *Packet) Encode(id int32, fields ...FieldEncoder) {
+func (pk *Packet) Encode(id int32, fields ...FieldEncoder) error {
 	buf := bytes.NewBuffer(pk.Data[:0])
 	for _, f := range fields {
-		f.WriteTo(buf)
+		if _, err := f.WriteTo(buf); err != nil {
+			return err
+		}
 	}
 	pk.ID = id
 	pk.Data = buf.Bytes()
+	return nil
 }
 
 func (pk Packet) WriteTo(w io.Writer) (int64, error) {
@@ -51,10 +54,12 @@ func (pk Packet) WriteTo(w io.Writer) (int64, error) {
 		return n, err
 	}
 
-	nData, err := w.Write(pk.Data)
-	n += int64(nData)
-	if err != nil {
-		return n, err
+	if len(pk.Data) > 0 {
+		nData, err := w.Write(pk.Data)
+		n += int64(nData)
+		if err != nil {
+			return n, err
+		}
 	}
 
 	return n, err
@@ -62,11 +67,10 @@ func (pk Packet) WriteTo(w io.Writer) (int64, error) {
 
 func (pk *Packet) ReadFrom(r io.Reader) (int64, error) {
 	var pkLen VarInt
-	nLen, err := pkLen.ReadFrom(r)
+	n, err := pkLen.ReadFrom(r)
 	if err != nil {
-		return nLen, err
+		return n, err
 	}
-	n := nLen
 
 	var pkID VarInt
 	nID, err := pkID.ReadFrom(r)

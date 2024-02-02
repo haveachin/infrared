@@ -1,6 +1,7 @@
 # Artifacts
 out/
 __debug_bin*
+dist/
 
 # Benchmark/Profiler
 *.bench
@@ -11,10 +12,10 @@ __debug_bin*
 .dev/
 cmd/infrared/config.yml
 
-# VSCode
+# VSCode Dev Files
 .vscode/
 
-# IntelliJ
+# IntelliJ Dev Files
 .idea/
 
 # Docs

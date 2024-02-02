@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// A Field is both FieldEncoder and FieldDecoder
+// A Field is both FieldEncoder and FieldDecoder.
 type Field interface {
 	FieldEncoder
 	FieldDecoder
@@ -16,31 +16,31 @@ type Field interface {
 // A FieldEncoder can be encoded as minecraft protocol used.
 type FieldEncoder io.WriterTo
 
-// A FieldDecoder can Decode from minecraft protocol
+// A FieldDecoder can Decode from minecraft protocol.
 type FieldDecoder io.ReaderFrom
 
 type (
 	// Boolean of True is encoded as 0x01, false as 0x00.
 	Boolean bool
-	// Byte is signed 8-bit integer, two's complement
+	// Byte is signed 8-bit integer, two's complement.
 	Byte int8
-	// UnsignedShort is unsigned 16-bit integer
+	// UnsignedShort is unsigned 16-bit integer.
 	UnsignedShort uint16
-	// Long is signed 64-bit integer, two's complement
+	// Long is signed 64-bit integer, two's complement.
 	Long int64
-	// String is sequence of Unicode scalar values
+	// String is sequence of Unicode scalar values.
 	String string
 
 	// Chat is encoded as a String with max length of 32767.
 	Chat = String
 
-	// VarInt is variable-length data encoding a two's complement signed 32-bit integer
+	// VarInt is variable-length data encoding a two's complement signed 32-bit integer.
 	VarInt int32
 
-	// UUID encoded as an unsigned 128-bit integer
+	// UUID encoded as an unsigned 128-bit integer.
 	UUID uuid.UUID
 
-	// ByteArray is []byte with prefix VarInt as length
+	// ByteArray is []byte with prefix VarInt as length.
 	ByteArray []byte
 )
 
@@ -60,7 +60,7 @@ func (b Boolean) WriteTo(w io.Writer) (int64, error) {
 	return int64(nn), err
 }
 
-func (b *Boolean) ReadFrom(r io.Reader) (n int64, err error) {
+func (b *Boolean) ReadFrom(r io.Reader) (int64, error) {
 	n, v, err := readByte(r)
 	if err != nil {
 		return n, err
@@ -80,14 +80,14 @@ func (s String) WriteTo(w io.Writer) (int64, error) {
 	return n1 + int64(n2), err
 }
 
-func (s *String) ReadFrom(r io.Reader) (n int64, err error) {
+func (s *String) ReadFrom(r io.Reader) (int64, error) {
 	var l VarInt // String length
 
 	nn, err := l.ReadFrom(r)
 	if err != nil {
 		return nn, err
 	}
-	n += nn
+	n := nn
 
 	bs := make([]byte, l)
 	if _, err := io.ReadFull(r, bs); err != nil {
@@ -99,7 +99,7 @@ func (s *String) ReadFrom(r io.Reader) (n int64, err error) {
 	return n, nil
 }
 
-// readByte read one byte from io.Reader
+// readByte read one byte from io.Reader.
 func readByte(r io.Reader) (int64, byte, error) {
 	if r, ok := r.(io.ByteReader); ok {
 		v, err := r.ReadByte()
@@ -110,12 +110,12 @@ func readByte(r io.Reader) (int64, byte, error) {
 	return int64(n), v[0], err
 }
 
-func (b Byte) WriteTo(w io.Writer) (n int64, err error) {
+func (b Byte) WriteTo(w io.Writer) (int64, error) {
 	nn, err := w.Write([]byte{byte(b)})
 	return int64(nn), err
 }
 
-func (b *Byte) ReadFrom(r io.Reader) (n int64, err error) {
+func (b *Byte) ReadFrom(r io.Reader) (int64, error) {
 	n, v, err := readByte(r)
 	if err != nil {
 		return n, err
@@ -126,20 +126,21 @@ func (b *Byte) ReadFrom(r io.Reader) (n int64, err error) {
 
 func (us UnsignedShort) WriteTo(w io.Writer) (int64, error) {
 	n := uint16(us)
-	nn, err := w.Write([]byte{byte(n >> 8), byte(n)})
+	byteLen := uint16(8)
+	nn, err := w.Write([]byte{byte(n >> byteLen), byte(n)})
 	return int64(nn), err
 }
 
-func (us *UnsignedShort) ReadFrom(r io.Reader) (n int64, err error) {
+func (us *UnsignedShort) ReadFrom(r io.Reader) (int64, error) {
 	var bs [2]byte
-	if nn, err := io.ReadFull(r, bs[:]); err != nil {
+	nn, err := io.ReadFull(r, bs[:])
+	if err != nil {
 		return int64(nn), err
-	} else {
-		n += int64(nn)
 	}
+	n := int64(nn)
 
 	*us = UnsignedShort(int16(bs[0])<<8 | int16(bs[1]))
-	return
+	return n, nil
 }
 
 func (l Long) WriteTo(w io.Writer) (int64, error) {
@@ -151,24 +152,24 @@ func (l Long) WriteTo(w io.Writer) (int64, error) {
 	return int64(nn), err
 }
 
-func (l *Long) ReadFrom(r io.Reader) (n int64, err error) {
+func (l *Long) ReadFrom(r io.Reader) (int64, error) {
 	var bs [8]byte
-	if nn, err := io.ReadFull(r, bs[:]); err != nil {
+	nn, err := io.ReadFull(r, bs[:])
+	if err != nil {
 		return int64(nn), err
-	} else {
-		n += int64(nn)
 	}
+	n := int64(nn)
 
 	*l = Long(int64(bs[0])<<56 | int64(bs[1])<<48 | int64(bs[2])<<40 | int64(bs[3])<<32 |
 		int64(bs[4])<<24 | int64(bs[5])<<16 | int64(bs[6])<<8 | int64(bs[7]))
-	return
+	return n, nil
 }
 
-func (v VarInt) WriteTo(w io.Writer) (n int64, err error) {
+func (v VarInt) WriteTo(w io.Writer) (int64, error) {
 	var vi [MaxVarIntLen]byte
-	nn := v.WriteToBytes(vi[:])
-	nn, err = w.Write(vi[:nn])
-	return int64(nn), err
+	n := v.WriteToBytes(vi[:])
+	n, err := w.Write(vi[:n])
+	return int64(n), err
 }
 
 // WriteToBytes encodes the VarInt into buf and returns the number of bytes written.
@@ -191,25 +192,24 @@ func (v VarInt) WriteToBytes(buf []byte) int {
 	return i
 }
 
-func (v *VarInt) ReadFrom(r io.Reader) (n int64, err error) {
-	var V uint32
-	var num, n2 int64
+func (v *VarInt) ReadFrom(r io.Reader) (int64, error) {
+	var vi uint32
+	var num, n int64
 	for sec := byte(0x80); sec&0x80 != 0; num++ {
 		if num > MaxVarIntLen {
-			return n, errors.New("VarInt is too big")
+			return 0, errors.New("VarInt is too big")
 		}
 
-		n2, sec, err = readByte(r)
-		n += n2
+		var err error
+		n, sec, err = readByte(r)
 		if err != nil {
 			return n, err
 		}
 
-		V |= uint32(sec&0x7F) << uint32(7*num)
+		vi |= uint32(sec&0x7F) << uint32(7*num)
 	}
-
-	*v = VarInt(V)
-	return
+	*v = VarInt(vi)
+	return n, nil
 }
 
 // Len returns the number of bytes required to encode the VarInt.
@@ -230,7 +230,7 @@ func (v VarInt) Len() int {
 	}
 }
 
-func (b ByteArray) WriteTo(w io.Writer) (n int64, err error) {
+func (b ByteArray) WriteTo(w io.Writer) (int64, error) {
 	n1, err := VarInt(len(b)).WriteTo(w)
 	if err != nil {
 		return n1, err
@@ -239,27 +239,27 @@ func (b ByteArray) WriteTo(w io.Writer) (n int64, err error) {
 	return n1 + int64(n2), err
 }
 
-func (b *ByteArray) ReadFrom(r io.Reader) (n int64, err error) {
-	var Len VarInt
-	n1, err := Len.ReadFrom(r)
+func (b *ByteArray) ReadFrom(r io.Reader) (int64, error) {
+	var length VarInt
+	n1, err := length.ReadFrom(r)
 	if err != nil {
 		return n1, err
 	}
-	if cap(*b) < int(Len) {
-		*b = make(ByteArray, Len)
+	if cap(*b) < int(length) {
+		*b = make(ByteArray, length)
 	} else {
-		*b = (*b)[:Len]
+		*b = (*b)[:length]
 	}
 	n2, err := io.ReadFull(r, *b)
 	return n1 + int64(n2), err
 }
 
-func (u UUID) WriteTo(w io.Writer) (n int64, err error) {
+func (u UUID) WriteTo(w io.Writer) (int64, error) {
 	nn, err := w.Write(u[:])
 	return int64(nn), err
 }
 
-func (u *UUID) ReadFrom(r io.Reader) (n int64, err error) {
+func (u *UUID) ReadFrom(r io.Reader) (int64, error) {
 	nn, err := io.ReadFull(r, (*u)[:])
 	return int64(nn), err
 }

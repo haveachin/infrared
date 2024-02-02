@@ -3,7 +3,6 @@ package infrared
 import (
 	"errors"
 	"io"
-	"log"
 	"net"
 	"strings"
 	"sync"
@@ -11,11 +10,13 @@ import (
 
 	"github.com/haveachin/infrared/pkg/infrared/protocol"
 	"github.com/pires/go-proxyproto"
+	"github.com/rs/zerolog"
 )
 
 type Config struct {
 	BindAddr         string         `yaml:"bind"`
 	ServerConfigs    []ServerConfig `yaml:"servers"`
+	FiltersConfig    FiltersConfig  `yaml:"filters"`
 	KeepAliveTimeout time.Duration  `yaml:"keepAliveTimeout"`
 }
 
@@ -47,6 +48,12 @@ func DefaultConfig() Config {
 	return Config{
 		BindAddr:         ":25565",
 		KeepAliveTimeout: 30 * time.Second,
+		FiltersConfig: FiltersConfig{
+			RateLimiter: &RateLimiterConfig{
+				RequestLimit: 10,
+				WindowLength: time.Second,
+			},
+		},
 	}
 }
 
@@ -64,12 +71,15 @@ func MustConfig(fn func() (Config, error)) Config {
 }
 
 type Infrared struct {
+	Logger zerolog.Logger
+
 	cfg Config
 
 	l       net.Listener
-	srvs    []*Server
+	sg      *ServerGateway
+	filter  Filter
 	bufPool sync.Pool
-	conns   map[net.Addr]*conn
+	conns   map[net.Addr]*Conn
 }
 
 func New(fns ...ConfigFunc) *Infrared {
@@ -95,26 +105,36 @@ func NewWithConfig(cfg Config) *Infrared {
 				return &b
 			},
 		},
-		conns: make(map[net.Addr]*conn),
+		conns: make(map[net.Addr]*Conn),
 	}
 }
 
 func (ir *Infrared) init() error {
-	log.Printf("Listening on %s", ir.cfg.BindAddr)
+	ir.Logger.Info().
+		Str("bind", ir.cfg.BindAddr).
+		Msg("Starting listener")
+
 	l, err := net.Listen("tcp", ir.cfg.BindAddr)
 	if err != nil {
 		return err
 	}
 	ir.l = l
 
+	srvs := make([]*Server, 0)
 	for _, sCfg := range ir.cfg.ServerConfigs {
 		srv, err := NewServer(WithServerConfig(sCfg))
 		if err != nil {
 			return err
 		}
-
-		ir.srvs = append(ir.srvs, srv)
+		srvs = append(srvs, srv)
 	}
+
+	ir.filter = NewFilter(WithFilterConfig(ir.cfg.FiltersConfig))
+	sg, err := NewServerGateway(srvs, nil)
+	if err != nil {
+		return err
+	}
+	ir.sg = sg
 
 	return nil
 }
@@ -124,47 +144,44 @@ func (ir *Infrared) ListenAndServe() error {
 		return err
 	}
 
-	sgInChan := make(chan ServerRequest)
-	defer close(sgInChan)
-
-	sg := serverGateway{
-		Servers:     ir.srvs,
-		requestChan: sgInChan,
-	}
-	go sg.listenAndServe()
-
-	return ir.listenAndServe(sgInChan)
-}
-
-func (ir *Infrared) listenAndServe(srvReqChan chan<- ServerRequest) error {
 	for {
 		c, err := ir.l.Accept()
 		if errors.Is(err, net.ErrClosed) {
-			return nil
+			return err
 		} else if err != nil {
-			log.Printf("Error accepting new conn: %s", err)
+			ir.Logger.Debug().
+				Err(err).
+				Msg("Error accepting new connection")
+
 			continue
 		}
 
-		go ir.handleNewConn(c, srvReqChan)
+		go ir.handleNewConn(c)
 	}
 }
 
-func (ir *Infrared) handleNewConn(c net.Conn, srvReqChan chan<- ServerRequest) {
+func (ir *Infrared) handleNewConn(c net.Conn) {
+	if err := ir.filter.Filter(c); err != nil {
+		ir.Logger.Debug().
+			Err(err).
+			Msg("Filtered connection")
+		return
+	}
+
 	conn := newConn(c)
 	defer func() {
 		conn.ForceClose()
 		connPool.Put(conn)
 	}()
 
-	conn.srvReqChan = srvReqChan
-
 	if err := ir.handleConn(conn); err != nil {
-		log.Println(err)
+		ir.Logger.Debug().
+			Err(err).
+			Msg("Error while handling connection")
 	}
 }
 
-func (ir *Infrared) handleConn(c *conn) error {
+func (ir *Infrared) handleConn(c *Conn) error {
 	if err := c.ReadPackets(&c.readPks[0], &c.readPks[1]); err != nil {
 		return err
 	}
@@ -183,18 +200,14 @@ func (ir *Infrared) handleConn(c *conn) error {
 	}
 	c.reqDomain = ServerDomain(reqDomain)
 
-	respChan := make(chan ServerRequestResponse)
-	c.srvReqChan <- ServerRequest{
+	resp, err := ir.sg.RequestServer(ServerRequest{
 		Domain:          c.reqDomain,
 		IsLogin:         c.handshake.IsLoginRequest(),
 		ProtocolVersion: protocol.Version(c.handshake.ProtocolVersion),
-		ReadPks:         c.readPks,
-		ResponseChan:    respChan,
-	}
-
-	resp := <-respChan
-	if resp.Err != nil {
-		return resp.Err
+		ReadPackets:     c.readPks,
+	})
+	if err != nil {
+		return err
 	}
 
 	if c.handshake.IsStatusRequest() {
@@ -204,7 +217,7 @@ func (ir *Infrared) handleConn(c *conn) error {
 	return ir.handleLogin(c, resp)
 }
 
-func handleStatus(c *conn, resp ServerRequestResponse) error {
+func handleStatus(c *Conn, resp ServerResponse) error {
 	if err := c.WritePacket(resp.StatusResponse); err != nil {
 		return err
 	}
@@ -221,7 +234,7 @@ func handleStatus(c *conn, resp ServerRequestResponse) error {
 	return nil
 }
 
-func (ir *Infrared) handleLogin(c *conn, resp ServerRequestResponse) error {
+func (ir *Infrared) handleLogin(c *Conn, resp ServerResponse) error {
 	hsVersion := protocol.Version(c.handshake.ProtocolVersion)
 	if err := c.loginStart.Unmarshal(c.readPks[1], hsVersion); err != nil {
 		return err
@@ -232,9 +245,9 @@ func (ir *Infrared) handleLogin(c *conn, resp ServerRequestResponse) error {
 	return ir.handlePipe(c, resp)
 }
 
-func (ir *Infrared) handlePipe(c *conn, resp ServerRequestResponse) error {
+func (ir *Infrared) handlePipe(c *Conn, resp ServerResponse) error {
 	rc := resp.ServerConn
-	defer rc.ForceClose()
+	defer rc.Close()
 
 	if resp.SendProxyProtocol {
 		if err := writeProxyProtocolHeader(c.RemoteAddr(), rc); err != nil {
@@ -259,7 +272,7 @@ func (ir *Infrared) handlePipe(c *conn, resp ServerRequestResponse) error {
 	var waitChan chan struct{}
 	select {
 	case <-cClosedChan:
-		rc.ForceClose()
+		rc.Close()
 		waitChan = rcClosedChan
 	case <-rcClosedChan:
 		c.ForceClose()
@@ -272,16 +285,16 @@ func (ir *Infrared) handlePipe(c *conn, resp ServerRequestResponse) error {
 }
 
 func (ir *Infrared) copy(dst io.WriteCloser, src io.ReadCloser, srcClosedChan chan struct{}) {
-	b := ir.bufPool.Get().(*[]byte)
-	defer ir.bufPool.Put(b)
-
-	io.CopyBuffer(dst, src, *b)
+	_, _ = io.Copy(dst, src)
 	srcClosedChan <- struct{}{}
 }
 
 func writeProxyProtocolHeader(addr net.Addr, rc net.Conn) error {
 	rcAddr := rc.RemoteAddr()
-	tcpAddr := rcAddr.(*net.TCPAddr)
+	tcpAddr, ok := rcAddr.(*net.TCPAddr)
+	if !ok {
+		panic("not a tcp connection")
+	}
 
 	tp := proxyproto.TCPv4
 	if tcpAddr.IP.To4() == nil {

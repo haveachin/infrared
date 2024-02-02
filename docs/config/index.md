@@ -1,26 +1,18 @@
 # Config
 
 On fist start Infrared should generate a `config.yml` file and a `proxies` directory.
-The default config file should look something like this:
+Here is a minimal `config.yml` example:
 
-```yml [config.yml]
-# Infrared Config
+```yml
+# Minimal Infrared Config
 
 # Address that Infrared bind and listens to
 #
 bind: 0.0.0.0:25565
 
-proxyProtocol:
-  # Receive proxy protocol
-  #
-  #receive: true
-
-  # TODO
-  #
-  #trustedProxies:
-  #  - "127.0.0.1"
-
 # Maximum duration between packets before the client gets timed out.
 #
 keepAliveTimeout: 30s
 ```
+
+[Complete config example](https://github.com/haveachin/infrared/blob/main/configs/config.yml)

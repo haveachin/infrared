@@ -1,19 +1,20 @@
-package login
+package login_test
 
 import (
 	"bytes"
 	"testing"
 
 	"github.com/haveachin/infrared/pkg/infrared/protocol"
+	"github.com/haveachin/infrared/pkg/infrared/protocol/login"
 )
 
 func TestClientBoundDisconnect_Marshal(t *testing.T) {
 	tt := []struct {
-		packet          ClientBoundDisconnect
+		packet          login.ClientBoundDisconnect
 		marshaledPacket protocol.Packet
 	}{
 		{
-			packet: ClientBoundDisconnect{
+			packet: login.ClientBoundDisconnect{
 				Reason: protocol.Chat(""),
 			},
 			marshaledPacket: protocol.Packet{
@@ -22,7 +23,7 @@ func TestClientBoundDisconnect_Marshal(t *testing.T) {
 			},
 		},
 		{
-			packet: ClientBoundDisconnect{
+			packet: login.ClientBoundDisconnect{
 				Reason: protocol.Chat("Hello, World!"),
 			},
 			marshaledPacket: protocol.Packet{
@@ -34,9 +35,9 @@ func TestClientBoundDisconnect_Marshal(t *testing.T) {
 
 	var pk protocol.Packet
 	for _, tc := range tt {
-		tc.packet.Marshal(&pk)
+		_ = tc.packet.Marshal(&pk)
 
-		if pk.ID != IDClientBoundDisconnect {
+		if pk.ID != login.ClientBoundDisconnectID {
 			t.Error("invalid packet id")
 		}
 

@@ -3,7 +3,7 @@
 All proxy configs should live in the `proxies` directory.
 The proxy directory can be changed via the [Proxies Path](cli-and-env-vars#proxies-path)
 
-Proxy config example:
+Minimal proxy config example:
 ```yml [my-server.yml]
 # This is the domain that players enter in their game client.
 # You can have multiple domains here or just one.
@@ -12,13 +12,10 @@ Proxy config example:
 # Supports '*' and '?' wildcards in the pattern string.
 #
 domains:
-  - "*"
+  - "example.com"
 
 addresses:
-  - example.com:25565
-
-# Send a Proxy Protocol v2 Header to the server to
-# forward the players IP address
-#
-#sendProxyProtocol: true
+  - 127.0.0.1:25565
 ```
+
+[Complete proxy config example](https://github.com/haveachin/infrared/blob/main/configs/proxy.yml)

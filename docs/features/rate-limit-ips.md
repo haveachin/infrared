@@ -1,16 +1,9 @@
-# Infrared Config
+# Rate Limit IPs
 
-# Address that Infrared bind and listens to
-#
-bind: 0.0.0.0:25565
+You can rate limit by IP address using the `rateLimit` filter.
+This can be easily activated in your [**global config**](../config/index.md) by adding this:
 
-# Maximum duration between packets before the client gets timed out.
-#
-keepAliveTimeout: 30s
-
-# Filter are hooks that trigger befor a connection is processed.
-# They are used as preconditions to validate a connection.
-#
+```yml{2-16}
 filters:
   # Rate Limiter will only allow an IP address to connect a specified
   # amount of times in a given time frame.
@@ -24,3 +17,4 @@ filters:
     # Windows Length is the time frame for the Request Limit.
     #
     windowLength: 1s
+```

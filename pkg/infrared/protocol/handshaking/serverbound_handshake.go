@@ -12,9 +12,7 @@ import (
 )
 
 const (
-	MaxSizeServerBoundHandshake = 1 + 2 + 255*4 + 2 + 1
-
-	IDServerBoundHandshake int32 = 0x00
+	ServerBoundHandshakeID int32 = 0x00
 
 	StateStatusServerBoundHandshake = protocol.Byte(1)
 	StateLoginServerBoundHandshake  = protocol.Byte(2)
@@ -30,9 +28,9 @@ type ServerBoundHandshake struct {
 	NextState       protocol.Byte
 }
 
-func (pk ServerBoundHandshake) Marshal(packet *protocol.Packet) {
-	packet.Encode(
-		IDServerBoundHandshake,
+func (pk ServerBoundHandshake) Marshal(packet *protocol.Packet) error {
+	return packet.Encode(
+		ServerBoundHandshakeID,
 		pk.ProtocolVersion,
 		pk.ServerAddress,
 		pk.ServerPort,
@@ -41,7 +39,7 @@ func (pk ServerBoundHandshake) Marshal(packet *protocol.Packet) {
 }
 
 func (pk *ServerBoundHandshake) Unmarshal(packet protocol.Packet) error {
-	if packet.ID != IDServerBoundHandshake {
+	if packet.ID != ServerBoundHandshakeID {
 		return protocol.ErrInvalidPacketID
 	}
 
@@ -130,7 +128,9 @@ func (pk *ServerBoundHandshake) UpgradeToRealIP(clientAddr net.Addr, timestamp t
 	addr := string(pk.ServerAddress)
 	addrWithForge := strings.SplitN(addr, SeparatorForge, 3)
 
-	addr = fmt.Sprintf("%s///%s///%d", addrWithForge[0], clientAddr.String(), timestamp.Unix())
+	if len(addrWithForge) > 0 {
+		addr = fmt.Sprintf("%s///%s///%d", addrWithForge[0], clientAddr.String(), timestamp.Unix())
+	}
 
 	if len(addrWithForge) > 1 {
 		addr = fmt.Sprintf("%s\x00%s\x00", addr, addrWithForge[1])

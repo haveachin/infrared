@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/IGLOU-EU/go-wildcard"
-	"github.com/cespare/xxhash"
+	"github.com/cespare/xxhash/v2"
 	"github.com/haveachin/infrared/pkg/infrared/protocol"
 	"github.com/haveachin/infrared/pkg/infrared/protocol/status"
 )
@@ -47,8 +47,7 @@ type ServerConfig struct {
 }
 
 type Server struct {
-	cfg            ServerConfig
-	statusRespProv StatusResponseProvider
+	cfg ServerConfig
 }
 
 func NewServer(fns ...ServerConfigFunc) (*Server, error) {
@@ -61,21 +60,12 @@ func NewServer(fns ...ServerConfigFunc) (*Server, error) {
 		return nil, errors.New("no addresses")
 	}
 
-	srv := &Server{
+	return &Server{
 		cfg: cfg,
-	}
-
-	srv.statusRespProv = &statusResponseProvider{
-		server:              srv,
-		cacheTTL:            30 * time.Second,
-		statusHash:          make(map[protocol.Version]uint64),
-		statusResponseCache: make(map[uint64]*statusCacheEntry),
-	}
-
-	return srv, nil
+	}, nil
 }
 
-func (s Server) Dial() (*conn, error) {
+func (s Server) Dial() (*Conn, error) {
 	c, err := net.Dial("tcp", string(s.cfg.Addresses[0]))
 	if err != nil {
 		return nil, err
@@ -90,48 +80,52 @@ type ServerRequest struct {
 	Domain          ServerDomain
 	IsLogin         bool
 	ProtocolVersion protocol.Version
-	ReadPks         [2]protocol.Packet
-	ResponseChan    chan<- ServerRequestResponse
+	ReadPackets     [2]protocol.Packet
 }
 
-type ServerRequestResponse struct {
-	ServerConn        *conn
+type ServerResponse struct {
+	ServerConn        *Conn
 	StatusResponse    protocol.Packet
 	SendProxyProtocol bool
-	Err               error
 }
 
-type serverGateway struct {
-	Servers     []*Server
-	responder   ServerRequestResponder
-	requestChan <-chan ServerRequest
-
-	servers map[ServerDomain]*Server
+type ServerRequester interface {
+	RequestServer(ServerRequest) (ServerResponse, error)
 }
 
-func (sg *serverGateway) init() error {
-	if len(sg.Servers) == 0 {
-		return errors.New("server gateway: no servers to route to")
+type ServerGateway struct {
+	responder ServerRequestResponder
+	servers   map[ServerDomain]*Server
+}
+
+func NewServerGateway(servers []*Server, responder ServerRequestResponder) (*ServerGateway, error) {
+	if len(servers) == 0 {
+		return nil, errors.New("server gateway: no servers to route to")
 	}
 
-	sg.servers = make(map[ServerDomain]*Server)
-	for _, srv := range sg.Servers {
+	srvs := make(map[ServerDomain]*Server)
+	for _, srv := range servers {
 		for _, d := range srv.cfg.Domains {
 			dStr := string(d)
 			dStr = strings.ToLower(dStr)
 			dmn := ServerDomain(dStr)
-			sg.servers[dmn] = srv
+			srvs[dmn] = srv
 		}
 	}
 
-	if sg.responder == nil {
-		sg.responder = DialServerRequestResponder{}
+	if responder == nil {
+		responder = DialServerResponder{
+			respProvs: make(map[*Server]StatusResponseProvider),
+		}
 	}
 
-	return nil
+	return &ServerGateway{
+		servers:   srvs,
+		responder: responder,
+	}, nil
 }
 
-func (sg *serverGateway) findServer(domain ServerDomain) *Server {
+func (sg *ServerGateway) findServer(domain ServerDomain) *Server {
 	dm := string(domain)
 	dm = strings.ToLower(dm)
 	for d, srv := range sg.servers {
@@ -142,49 +136,63 @@ func (sg *serverGateway) findServer(domain ServerDomain) *Server {
 	return nil
 }
 
-func (sg *serverGateway) listenAndServe() error {
-	if err := sg.init(); err != nil {
-		return err
+func (sg *ServerGateway) RequestServer(req ServerRequest) (ServerResponse, error) {
+	srv := sg.findServer(req.Domain)
+	if srv == nil {
+		return ServerResponse{}, errors.New("server not found")
 	}
 
-	for req := range sg.requestChan {
-		srv := sg.findServer(req.Domain)
-		if srv == nil {
-			req.ResponseChan <- ServerRequestResponse{
-				Err: errors.New("server not found"),
-			}
-			continue
-		}
-
-		go sg.responder.RespondeToServerRequest(req, srv)
-	}
-
-	return nil
+	return sg.responder.RespondeToServerRequest(req, srv)
 }
 
 type ServerRequestResponder interface {
-	RespondeToServerRequest(ServerRequest, *Server)
+	RespondeToServerRequest(ServerRequest, *Server) (ServerResponse, error)
 }
 
-type DialServerRequestResponder struct{}
+type DialServerResponder struct {
+	respProvs map[*Server]StatusResponseProvider
+}
 
-func (r DialServerRequestResponder) RespondeToServerRequest(req ServerRequest, srv *Server) {
+func (r DialServerResponder) RespondeToServerRequest(req ServerRequest, srv *Server) (ServerResponse, error) {
 	if req.IsLogin {
-		rc, err := srv.Dial()
+		return r.respondeToLoginRequest(req, srv)
+	}
 
-		req.ResponseChan <- ServerRequestResponse{
-			ServerConn:        rc,
-			Err:               err,
-			SendProxyProtocol: srv.cfg.SendProxyProtocol,
+	return r.respondeToStatusRequest(req, srv)
+}
+
+func (r DialServerResponder) respondeToLoginRequest(_ ServerRequest, srv *Server) (ServerResponse, error) {
+	rc, err := srv.Dial()
+	if err != nil {
+		return ServerResponse{}, err
+	}
+
+	return ServerResponse{
+		ServerConn:        rc,
+		SendProxyProtocol: srv.cfg.SendProxyProtocol,
+	}, nil
+}
+
+func (r DialServerResponder) respondeToStatusRequest(req ServerRequest, srv *Server) (ServerResponse, error) {
+	respProv, ok := r.respProvs[srv]
+	if !ok {
+		respProv = &statusResponseProvider{
+			server:              srv,
+			cacheTTL:            30 * time.Second,
+			statusHash:          make(map[protocol.Version]uint64),
+			statusResponseCache: make(map[uint64]*statusCacheEntry),
 		}
-		return
+		r.respProvs[srv] = respProv
 	}
 
-	_, pk, err := srv.statusRespProv.StatusResponse(req.ProtocolVersion, req.ReadPks)
-	req.ResponseChan <- ServerRequestResponse{
-		StatusResponse: pk,
-		Err:            err,
+	_, pk, err := respProv.StatusResponse(req.ProtocolVersion, req.ReadPackets)
+	if err != nil {
+		return ServerResponse{}, err
 	}
+
+	return ServerResponse{
+		StatusResponse: pk,
+	}, nil
 }
 
 type StatusResponseProvider interface {
@@ -210,7 +218,9 @@ type statusResponseProvider struct {
 	statusResponseCache map[uint64]*statusCacheEntry
 }
 
-func (s *statusResponseProvider) requestNewStatusResponseJSON(readPks [2]protocol.Packet) (status.ResponseJSON, protocol.Packet, error) {
+func (s *statusResponseProvider) requestNewStatusResponseJSON(
+	readPks [2]protocol.Packet,
+) (status.ResponseJSON, protocol.Packet, error) {
 	rc, err := s.server.Dial()
 	if err != nil {
 		return status.ResponseJSON{}, protocol.Packet{}, err
@@ -239,7 +249,10 @@ func (s *statusResponseProvider) requestNewStatusResponseJSON(readPks [2]protoco
 	return respJSON, pk, nil
 }
 
-func (s *statusResponseProvider) StatusResponse(protVer protocol.Version, readPks [2]protocol.Packet) (status.ResponseJSON, protocol.Packet, error) {
+func (s *statusResponseProvider) StatusResponse(
+	protVer protocol.Version,
+	readPks [2]protocol.Packet,
+) (status.ResponseJSON, protocol.Packet, error) {
 	if s.cacheTTL <= 0 {
 		return s.requestNewStatusResponseJSON(readPks)
 	}
@@ -259,7 +272,10 @@ func (s *statusResponseProvider) StatusResponse(protVer protocol.Version, readPk
 	return entry.responseJSON, entry.responsePk, nil
 }
 
-func (s *statusResponseProvider) cacheResponse(protVer protocol.Version, readPks [2]protocol.Packet) (status.ResponseJSON, protocol.Packet, error) {
+func (s *statusResponseProvider) cacheResponse(
+	protVer protocol.Version,
+	readPks [2]protocol.Packet,
+) (status.ResponseJSON, protocol.Packet, error) {
 	newStatusResp, pk, err := s.requestNewStatusResponseJSON(readPks)
 	if err != nil {
 		return status.ResponseJSON{}, protocol.Packet{}, err

@@ -8,7 +8,7 @@ domains:
   - "*"
 
 addresses:
-  - example.com:25565
+  - 127.0.0.1:25565
 
 # Send a Proxy Protocol v2 Header to the server to
 # forward the players IP address

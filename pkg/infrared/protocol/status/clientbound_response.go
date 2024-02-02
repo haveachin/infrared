@@ -3,23 +3,22 @@ package status
 import "github.com/haveachin/infrared/pkg/infrared/protocol"
 
 const (
-	MaxSizeClientBoundResponse       = 1 + 32767*4
-	IDClientBoundResponse      int32 = 0x00
+	ClientBoundResponseID int32 = 0x00
 )
 
 type ClientBoundResponse struct {
 	JSONResponse protocol.String
 }
 
-func (pk ClientBoundResponse) Marshal(packet *protocol.Packet) {
-	packet.Encode(
-		IDClientBoundResponse,
+func (pk ClientBoundResponse) Marshal(packet *protocol.Packet) error {
+	return packet.Encode(
+		ClientBoundResponseID,
 		pk.JSONResponse,
 	)
 }
 
 func (pk *ClientBoundResponse) Unmarshal(packet protocol.Packet) error {
-	if packet.ID != IDClientBoundResponse {
+	if packet.ID != ClientBoundResponseID {
 		return protocol.ErrInvalidPacketID
 	}
 
@@ -68,7 +67,7 @@ type DescriptionJSON struct {
 	Text string `json:"text"`
 }
 
-// FMLModInfoJSON is a part of the FML Server List Ping
+// FMLModInfoJSON is a part of the FML Server List Ping.
 type FMLModInfoJSON struct {
 	LoaderType string       `json:"type"`
 	ModList    []FMLModJSON `json:"modList"`
@@ -79,7 +78,7 @@ type FMLModJSON struct {
 	Version string `json:"version"`
 }
 
-// FML2ForgeDataJSON is a part of the FML2 Server List Ping
+// FML2ForgeDataJSON is a part of the FML2 Server List Ping.
 type FML2ForgeDataJSON struct {
 	Channels          []FML2ChannelsJSON `json:"channels"`
 	Mods              []FML2ModJSON      `json:"mods"`

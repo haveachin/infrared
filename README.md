@@ -1,22 +1,23 @@
 <p align="center">
-  <img width="300" height="auto" src="assets/logo.svg">
+  <img width="200" height="auto" src="docs/assets/logo.svg">
+</p>
+<h1 align="center"><b>Infrared</b></h1>
+<h3 align="center"><b>A Minecraft Reverse Proxy</b></h3>
+
+<p align="center">
+  <a href="https://discord.gg/r98YPRsZAx">
+  <img alt="Discord" src="https://img.shields.io/discord/800456341088370698?label=discord&logo=discord" />
+  </a>
+  <a href="https://hub.docker.com/r/haveachin/infrared">
+  <img alt="Docker Pulls" src="https://img.shields.io/docker/pulls/haveachin/infrared?logo=docker" />
+  </a>
+  <br />
+  <img alt="CI" src="https://github.com/haveachin/infrared/actions/workflows/ci.yml/badge.svg" />
 </p>
 
-<div style="float: left;">
-
-[![Discord](https://img.shields.io/discord/800456341088370698?label=discord&logo=discord)](https://discord.gg/r98YPRsZAx)
-[![Docker Pulls](https://img.shields.io/docker/pulls/haveachin/infrared?logo=docker)](https://hub.docker.com/r/haveachin/infrared)
-
-![Test, Build, Release](https://github.com/haveachin/infrared/actions/workflows/test-build-release.yml/badge.svg)
-
-</div>
-
-<div style="float: right;">
-  <img height="60" src="assets/agplv3_logo.svg"/>
-</div>
-<div style="clear: both;"/>
-
-# Infrared - A Minecraft Reverse Proxy
+> [!WARNING] 
+> Infrared is currently under active development: breaking changes can happen.
+> Feedback and contributions are welcome.
 
 An ultra lightweight Minecraft reverse proxy and status placeholder:
 Ever wanted to have only one exposed port on your server for multiple Minecraft servers?
@@ -29,36 +30,26 @@ Infrared works as a reverse proxy using a sub-/domains to connect clients to a s
   - [X] Wildcards Support
   - [X] Multi-Domain Support
 - [X] Status Response Caching
-- [ ] Proxy Protocol Support
-- [ ] Ratelimiter
+- [X] Proxy Protocol Support
+- [X] Ratelimiter
 
-## Contributing
+## Useful Links
 
-Feel free to add or modify the source code. On GitHub the best way of doing this is by forking this repository, then cloning your fork with Git to your local system. After adding or modifying the source code, push it back to your fork and open a pull request in this repository.
+- **[Docs](https://infrared.dev)**
+- **[Ask Questions](https://github.com/haveachin/infrared/discussions)**
+- [Latest Release](https://github.com/haveachin/infrared/releases/latest)
+- [Discord Invite](https://discord.gg/r98YPRsZAx)
+- [Contributing](CONTRIBUTING.md)
 
-If you can't contribute by adding or modifying the source code, then you might be able to reach out to someone who can.
-You can also contribute indirectly by donation.
+## Build
 
-## Coding Guidelines
+Requirements:
+- [Go](https://go.dev/) 1.21+
 
-## Project Layout
-
-We try to use [golang-standards/project-layout](https://github.com/golang-standards/project-layout) as a reference. This should give Infrared a good foundation to grow on.
-
-### Commit Messages
-
-When contributing to this project please follow the [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) 
-specification for writing commit messages, so that changelogs and release versions can be generated automatically.
-
-Examples can be found here: https://www.conventionalcommits.org/en/v1.0.0/#examples
-
-Some tooling that can help you author those commit messages are the following plugins:
-
-* JetBrains Plugin [Conventional Commit](https://plugins.jetbrains.com/plugin/13389-conventional-commit)
-  by [Edoardo Luppi](https://github.com/lppedd)
-* Visual Studio
-  Plugin [Conventional Commits](https://marketplace.visualstudio.com/items?itemName=vivaxy.vscode-conventional-commits)
-  by [vivaxy](https://marketplace.visualstudio.com/publishers/vivaxy)
+```
+CGO_ENABLED=0 go build -ldflags "-s -w" -o ./out/infrared ./cmd/infrared
+```
+or `make all` (requires GNU Make). The binary is in the `out/` directory.
 
 ## Similar Projects
 
@@ -66,5 +57,18 @@ Some tooling that can help you author those commit messages are the following pl
 
 ## Attributions
 
-* <a href="https://commons.wikimedia.org/wiki/File:AGPLv3_Logo.svg">Free Software Foundation</a>, Public domain, via Wikimedia Commons
-* [Tnze/go-mc](https://github.com/Tnze/go-mc/blob/master/LICENSE), MIT License
+- [Free Software Foundation](https://commons.wikimedia.org/wiki/File:AGPLv3_Logo.svg), Public domain, via Wikimedia Commons
+- [Tnze/go-mc](https://github.com/Tnze/go-mc) 🚀, MIT
+- [IGLOU-EU/go-wildcard](https://github.com/IGLOU-EU/go-wildcard), Apache-2.0
+- [cespare/xxhash](https://github.com/cespare/xxhash), MIT
+- [google/uuid](https://github.com/google/uuid), BSD-3-Clause
+- [pires/go-proxyproto](https://github.com/pires/go-proxyproto), Apache-2.0
+- [spf13/pflag](https://github.com/spf13/pflag), BSD-3-Clause
+- [go-yaml/yaml](https://github.com/go-yaml/yaml), Apache-2.0, MIT
+- [vitepress](https://github.com/vuejs/vitepress), MIT
+- [tollbooth](https://github.com/didip/tollbooth), MIT
+
+<br />
+<p align="center">
+  <img height="60" src="docs/assets/agplv3_logo.svg"/>
+</p>

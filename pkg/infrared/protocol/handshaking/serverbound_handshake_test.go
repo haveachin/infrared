@@ -1,4 +1,4 @@
-package handshaking
+package handshaking_test
 
 import (
 	"bytes"
@@ -9,44 +9,55 @@ import (
 	"time"
 
 	"github.com/haveachin/infrared/pkg/infrared/protocol"
+	"github.com/haveachin/infrared/pkg/infrared/protocol/handshaking"
 )
 
 func TestServerBoundHandshake_Marshal(t *testing.T) {
 	tt := []struct {
-		packet          ServerBoundHandshake
+		packet          handshaking.ServerBoundHandshake
 		marshaledPacket protocol.Packet
 	}{
 		{
-			packet: ServerBoundHandshake{
+			packet: handshaking.ServerBoundHandshake{
 				ProtocolVersion: 578,
-				ServerAddress:   "spook.space",
+				ServerAddress:   "example.com",
 				ServerPort:      25565,
-				NextState:       StateStatusServerBoundHandshake,
+				NextState:       handshaking.StateStatusServerBoundHandshake,
 			},
 			marshaledPacket: protocol.Packet{
-				ID:   0x00,
-				Data: []byte{0xC2, 0x04, 0x0B, 0x73, 0x70, 0x6F, 0x6F, 0x6B, 0x2E, 0x73, 0x70, 0x61, 0x63, 0x65, 0x63, 0xDD, 0x01},
+				ID: 0x00,
+				Data: []byte{
+					0xC2, 0x04, // ProtoVerion
+					0x0B, 0x65, 0x78, 0x61, 0x6D, 0x70, 0x6C, 0x65, 0x2E, 0x63, 0x6F, 0x6D, // Server Address
+					0x63, 0xDD, // Server Port
+					0x01, // Next State
+				},
 			},
 		},
 		{
-			packet: ServerBoundHandshake{
+			packet: handshaking.ServerBoundHandshake{
 				ProtocolVersion: 578,
 				ServerAddress:   "example.com",
 				ServerPort:      1337,
-				NextState:       StateStatusServerBoundHandshake,
+				NextState:       handshaking.StateStatusServerBoundHandshake,
 			},
 			marshaledPacket: protocol.Packet{
-				ID:   0x00,
-				Data: []byte{0xC2, 0x04, 0x0B, 0x65, 0x78, 0x61, 0x6D, 0x70, 0x6C, 0x65, 0x2E, 0x63, 0x6F, 0x6D, 0x05, 0x39, 0x01},
+				ID: 0x00,
+				Data: []byte{
+					0xC2, 0x04, // ProtoVerion
+					0x0B, 0x65, 0x78, 0x61, 0x6D, 0x70, 0x6C, 0x65, 0x2E, 0x63, 0x6F, 0x6D, // Server Address
+					0x05, 0x39, // Server Port
+					0x01, // Next State
+				},
 			},
 		},
 	}
 
 	for _, tc := range tt {
 		var pk protocol.Packet
-		tc.packet.Marshal(&pk)
+		_ = tc.packet.Marshal(&pk)
 
-		if pk.ID != IDServerBoundHandshake {
+		if pk.ID != handshaking.ServerBoundHandshakeID {
 			t.Error("invalid packet id")
 		}
 
@@ -59,37 +70,45 @@ func TestServerBoundHandshake_Marshal(t *testing.T) {
 func TestUnmarshalServerBoundHandshake(t *testing.T) {
 	tt := []struct {
 		packet             protocol.Packet
-		unmarshalledPacket ServerBoundHandshake
+		unmarshalledPacket handshaking.ServerBoundHandshake
 	}{
 		{
 			packet: protocol.Packet{
 				ID: 0x00,
-				//           ProtoVer. | Server Address                                                        |Serv. Port | Nxt State
-				Data: []byte{0xC2, 0x04, 0x0B, 0x73, 0x70, 0x6F, 0x6F, 0x6B, 0x2E, 0x73, 0x70, 0x61, 0x63, 0x65, 0x63, 0xDD, 0x01},
+				Data: []byte{
+					0xC2, 0x04, // ProtoVerion
+					0x0B, 0x65, 0x78, 0x61, 0x6D, 0x70, 0x6C, 0x65, 0x2E, 0x63, 0x6F, 0x6D, // Server Address
+					0x63, 0xDD, // Server Port
+					0x01, // Next State
+				},
 			},
-			unmarshalledPacket: ServerBoundHandshake{
+			unmarshalledPacket: handshaking.ServerBoundHandshake{
 				ProtocolVersion: 578,
-				ServerAddress:   "spook.space",
+				ServerAddress:   "example.com",
 				ServerPort:      25565,
-				NextState:       StateStatusServerBoundHandshake,
+				NextState:       handshaking.StateStatusServerBoundHandshake,
 			},
 		},
 		{
 			packet: protocol.Packet{
 				ID: 0x00,
-				//           ProtoVer. | Server Address                                                        |Serv. Port | Nxt State
-				Data: []byte{0xC2, 0x04, 0x0B, 0x65, 0x78, 0x61, 0x6D, 0x70, 0x6C, 0x65, 0x2E, 0x63, 0x6F, 0x6D, 0x05, 0x39, 0x01},
+				Data: []byte{
+					0xC2, 0x04, // ProtoVerion
+					0x0B, 0x65, 0x78, 0x61, 0x6D, 0x70, 0x6C, 0x65, 0x2E, 0x63, 0x6F, 0x6D, // Server Address
+					0x05, 0x39, // Server Port
+					0x01, // Next State
+				},
 			},
-			unmarshalledPacket: ServerBoundHandshake{
+			unmarshalledPacket: handshaking.ServerBoundHandshake{
 				ProtocolVersion: 578,
 				ServerAddress:   "example.com",
 				ServerPort:      1337,
-				NextState:       StateStatusServerBoundHandshake,
+				NextState:       handshaking.StateStatusServerBoundHandshake,
 			},
 		},
 	}
 
-	var actual ServerBoundHandshake
+	var actual handshaking.ServerBoundHandshake
 	for _, tc := range tt {
 		err := actual.Unmarshal(tc.packet)
 		if err != nil {
@@ -109,18 +128,18 @@ func TestUnmarshalServerBoundHandshake(t *testing.T) {
 
 func TestServerBoundHandshake_IsStatusRequest(t *testing.T) {
 	tt := []struct {
-		handshake ServerBoundHandshake
+		handshake handshaking.ServerBoundHandshake
 		result    bool
 	}{
 		{
-			handshake: ServerBoundHandshake{
-				NextState: StateStatusServerBoundHandshake,
+			handshake: handshaking.ServerBoundHandshake{
+				NextState: handshaking.StateStatusServerBoundHandshake,
 			},
 			result: true,
 		},
 		{
-			handshake: ServerBoundHandshake{
-				NextState: StateLoginServerBoundHandshake,
+			handshake: handshaking.ServerBoundHandshake{
+				NextState: handshaking.StateLoginServerBoundHandshake,
 			},
 			result: false,
 		},
@@ -135,18 +154,18 @@ func TestServerBoundHandshake_IsStatusRequest(t *testing.T) {
 
 func TestServerBoundHandshake_IsLoginRequest(t *testing.T) {
 	tt := []struct {
-		handshake ServerBoundHandshake
+		handshake handshaking.ServerBoundHandshake
 		result    bool
 	}{
 		{
-			handshake: ServerBoundHandshake{
-				NextState: StateStatusServerBoundHandshake,
+			handshake: handshaking.ServerBoundHandshake{
+				NextState: handshaking.StateStatusServerBoundHandshake,
 			},
 			result: false,
 		},
 		{
-			handshake: ServerBoundHandshake{
-				NextState: StateLoginServerBoundHandshake,
+			handshake: handshaking.ServerBoundHandshake{
+				NextState: handshaking.StateLoginServerBoundHandshake,
 			},
 			result: true,
 		},
@@ -165,19 +184,19 @@ func TestServerBoundHandshake_IsForgeAddress(t *testing.T) {
 		result bool
 	}{
 		{
-			addr:   SeparatorForge,
+			addr:   handshaking.SeparatorForge,
 			result: true,
 		},
 		{
-			addr:   "example.com:1234" + SeparatorForge,
+			addr:   "example.com:1234" + handshaking.SeparatorForge,
 			result: true,
 		},
 		{
-			addr:   "example.com" + SeparatorForge + "some data",
+			addr:   "example.com" + handshaking.SeparatorForge + "some data",
 			result: true,
 		},
 		{
-			addr:   "example.com" + SeparatorForge + "some data" + SeparatorRealIP + "more",
+			addr:   "example.com" + handshaking.SeparatorForge + "some data" + handshaking.SeparatorRealIP + "more",
 			result: true,
 		},
 		{
@@ -191,7 +210,7 @@ func TestServerBoundHandshake_IsForgeAddress(t *testing.T) {
 	}
 
 	for _, tc := range tt {
-		hs := ServerBoundHandshake{ServerAddress: protocol.String(tc.addr)}
+		hs := handshaking.ServerBoundHandshake{ServerAddress: protocol.String(tc.addr)}
 		if hs.IsForgeAddress() != tc.result {
 			t.Errorf("%s: got: %v; want: %v", tc.addr, !tc.result, tc.result)
 		}
@@ -204,19 +223,19 @@ func TestServerBoundHandshake_IsRealIPAddress(t *testing.T) {
 		result bool
 	}{
 		{
-			addr:   SeparatorRealIP,
+			addr:   handshaking.SeparatorRealIP,
 			result: true,
 		},
 		{
-			addr:   "example.com:25565" + SeparatorRealIP,
+			addr:   "example.com:25565" + handshaking.SeparatorRealIP,
 			result: true,
 		},
 		{
-			addr:   "example.com:1337" + SeparatorRealIP + "some data",
+			addr:   "example.com:1337" + handshaking.SeparatorRealIP + "some data",
 			result: true,
 		},
 		{
-			addr:   "example.com" + SeparatorForge + "some data" + SeparatorRealIP + "more",
+			addr:   "example.com" + handshaking.SeparatorForge + "some data" + handshaking.SeparatorRealIP + "more",
 			result: true,
 		},
 		{
@@ -230,7 +249,7 @@ func TestServerBoundHandshake_IsRealIPAddress(t *testing.T) {
 	}
 
 	for _, tc := range tt {
-		hs := ServerBoundHandshake{ServerAddress: protocol.String(tc.addr)}
+		hs := handshaking.ServerBoundHandshake{ServerAddress: protocol.String(tc.addr)}
 		if hs.IsRealIPAddress() != tc.result {
 			t.Errorf("%s: got: %v; want: %v", tc.addr, !tc.result, tc.result)
 		}
@@ -251,33 +270,33 @@ func TestServerBoundHandshake_ParseServerAddress(t *testing.T) {
 			expectedAddr: "example.com:25565",
 		},
 		{
-			addr:         SeparatorForge,
+			addr:         handshaking.SeparatorForge,
 			expectedAddr: "",
 		},
 		{
-			addr:         SeparatorRealIP,
+			addr:         handshaking.SeparatorRealIP,
 			expectedAddr: "",
 		},
 		{
-			addr:         "example.com" + SeparatorForge,
+			addr:         "example.com" + handshaking.SeparatorForge,
 			expectedAddr: "example.com",
 		},
 		{
-			addr:         "example.com" + SeparatorForge + "some data",
+			addr:         "example.com" + handshaking.SeparatorForge + "some data",
 			expectedAddr: "example.com",
 		},
 		{
-			addr:         "example.com:25565" + SeparatorRealIP + "some data",
+			addr:         "example.com:25565" + handshaking.SeparatorRealIP + "some data",
 			expectedAddr: "example.com:25565",
 		},
 		{
-			addr:         "example.com:1234" + SeparatorForge + "some data" + SeparatorRealIP + "more",
+			addr:         "example.com:1234" + handshaking.SeparatorForge + "some data" + handshaking.SeparatorRealIP + "more",
 			expectedAddr: "example.com:1234",
 		},
 	}
 
 	for _, tc := range tt {
-		hs := ServerBoundHandshake{ServerAddress: protocol.String(tc.addr)}
+		hs := handshaking.ServerBoundHandshake{ServerAddress: protocol.String(tc.addr)}
 		if hs.ParseServerAddress() != tc.expectedAddr {
 			t.Errorf("got: %v; want: %v", hs.ParseServerAddress(), tc.expectedAddr)
 		}
@@ -325,20 +344,24 @@ func TestServerBoundHandshake_UpgradeToRealIP(t *testing.T) {
 	}
 
 	for _, tc := range tt {
-		hs := ServerBoundHandshake{ServerAddress: protocol.String(tc.addr)}
+		hs := handshaking.ServerBoundHandshake{ServerAddress: protocol.String(tc.addr)}
 		hs.UpgradeToRealIP(&tc.clientAddr, tc.timestamp)
 
 		if hs.ParseServerAddress() != tc.addr {
 			t.Errorf("got: %v; want: %v", hs.ParseServerAddress(), tc.addr)
 		}
 
-		realIpSegments := strings.Split(string(hs.ServerAddress), SeparatorRealIP)
-
-		if realIpSegments[1] != tc.clientAddr.String() {
-			t.Errorf("got: %v; want: %v", realIpSegments[1], tc.addr)
+		realIPSegments := strings.Split(string(hs.ServerAddress), handshaking.SeparatorRealIP)
+		if len(realIPSegments) < 3 {
+			t.Error("no real ip to test")
+			return
 		}
 
-		unixTimestamp, err := strconv.ParseInt(realIpSegments[2], 10, 64)
+		if realIPSegments[1] != tc.clientAddr.String() {
+			t.Errorf("got: %v; want: %v", realIPSegments[1], tc.addr)
+		}
+
+		unixTimestamp, err := strconv.ParseInt(realIPSegments[2], 10, 64)
 		if err != nil {
 			t.Error(err)
 		}
@@ -350,7 +373,7 @@ func TestServerBoundHandshake_UpgradeToRealIP(t *testing.T) {
 }
 
 func BenchmarkHandshakingServerBoundHandshake_Marshal(b *testing.B) {
-	hsPk := ServerBoundHandshake{
+	hsPk := handshaking.ServerBoundHandshake{
 		ProtocolVersion: 578,
 		ServerAddress:   "example.com",
 		ServerPort:      25565,
@@ -358,7 +381,7 @@ func BenchmarkHandshakingServerBoundHandshake_Marshal(b *testing.B) {
 	}
 
 	var pk protocol.Packet
-	hsPk.Marshal(&pk)
+	_ = hsPk.Marshal(&pk)
 
 	for n := 0; n < b.N; n++ {
 		if err := hsPk.Unmarshal(pk); err != nil {
