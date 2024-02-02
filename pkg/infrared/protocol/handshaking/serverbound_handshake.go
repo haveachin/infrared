@@ -12,9 +12,7 @@ import (
 )
 
 const (
-	MaxSizeServerBoundHandshake = 1 + 2 + 255*4 + 2 + 1
-
-	IDServerBoundHandshake int32 = 0x00
+	ServerBoundHandshakeID int32 = 0x00
 
 	StateStatusServerBoundHandshake = protocol.Byte(1)
 	StateLoginServerBoundHandshake  = protocol.Byte(2)
@@ -32,7 +30,7 @@ type ServerBoundHandshake struct {
 
 func (pk ServerBoundHandshake) Marshal(packet *protocol.Packet) error {
 	return packet.Encode(
-		IDServerBoundHandshake,
+		ServerBoundHandshakeID,
 		pk.ProtocolVersion,
 		pk.ServerAddress,
 		pk.ServerPort,
@@ -41,7 +39,7 @@ func (pk ServerBoundHandshake) Marshal(packet *protocol.Packet) error {
 }
 
 func (pk *ServerBoundHandshake) Unmarshal(packet protocol.Packet) error {
-	if packet.ID != IDServerBoundHandshake {
+	if packet.ID != ServerBoundHandshakeID {
 		return protocol.ErrInvalidPacketID
 	}
 

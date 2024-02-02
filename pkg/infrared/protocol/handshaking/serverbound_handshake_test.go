@@ -57,7 +57,7 @@ func TestServerBoundHandshake_Marshal(t *testing.T) {
 		var pk protocol.Packet
 		_ = tc.packet.Marshal(&pk)
 
-		if pk.ID != handshaking.IDServerBoundHandshake {
+		if pk.ID != handshaking.ServerBoundHandshakeID {
 			t.Error("invalid packet id")
 		}
 

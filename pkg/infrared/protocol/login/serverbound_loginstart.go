@@ -6,11 +6,7 @@ import (
 	"github.com/haveachin/infrared/pkg/infrared/protocol"
 )
 
-const (
-	// MaxSizeServerBoundLoginStart might be a bit generous, but there is no offical max size for the public key.
-	MaxSizeServerBoundLoginStart       = 1 + 16*4 + 1 + 8 + 3000 + 3000 + 1 + 16
-	IDServerBoundLoginStart      int32 = 0x00
-)
+const ServerBoundLoginStartID int32 = 0x00
 
 type ServerBoundLoginStart struct {
 	Name protocol.String
@@ -49,13 +45,13 @@ func (pk ServerBoundLoginStart) Marshal(packet *protocol.Packet, version protoco
 	}
 
 	return packet.Encode(
-		IDServerBoundLoginStart,
+		ServerBoundLoginStartID,
 		fields...,
 	)
 }
 
 func (pk *ServerBoundLoginStart) Unmarshal(packet protocol.Packet, version protocol.Version) error {
-	if packet.ID != IDServerBoundLoginStart {
+	if packet.ID != ServerBoundLoginStartID {
 		return protocol.ErrInvalidPacketID
 	}
 

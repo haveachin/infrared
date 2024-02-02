@@ -3,8 +3,7 @@ package status
 import "github.com/haveachin/infrared/pkg/infrared/protocol"
 
 const (
-	MaxSizeClientBoundResponse       = 1 + 32767*4
-	IDClientBoundResponse      int32 = 0x00
+	ClientBoundResponseID int32 = 0x00
 )
 
 type ClientBoundResponse struct {
@@ -13,13 +12,13 @@ type ClientBoundResponse struct {
 
 func (pk ClientBoundResponse) Marshal(packet *protocol.Packet) error {
 	return packet.Encode(
-		IDClientBoundResponse,
+		ClientBoundResponseID,
 		pk.JSONResponse,
 	)
 }
 
 func (pk *ClientBoundResponse) Unmarshal(packet protocol.Packet) error {
-	if packet.ID != IDClientBoundResponse {
+	if packet.ID != ClientBoundResponseID {
 		return protocol.ErrInvalidPacketID
 	}
 

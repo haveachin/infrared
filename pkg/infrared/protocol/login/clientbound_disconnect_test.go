@@ -37,7 +37,7 @@ func TestClientBoundDisconnect_Marshal(t *testing.T) {
 	for _, tc := range tt {
 		_ = tc.packet.Marshal(&pk)
 
-		if pk.ID != login.IDClientBoundDisconnect {
+		if pk.ID != login.ClientBoundDisconnectID {
 			t.Error("invalid packet id")
 		}
 

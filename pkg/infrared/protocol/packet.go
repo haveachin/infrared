@@ -67,11 +67,10 @@ func (pk Packet) WriteTo(w io.Writer) (int64, error) {
 
 func (pk *Packet) ReadFrom(r io.Reader) (int64, error) {
 	var pkLen VarInt
-	nLen, err := pkLen.ReadFrom(r)
+	n, err := pkLen.ReadFrom(r)
 	if err != nil {
-		return nLen, err
+		return n, err
 	}
-	n := nLen
 
 	var pkID VarInt
 	nID, err := pkID.ReadFrom(r)

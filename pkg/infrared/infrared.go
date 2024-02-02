@@ -74,7 +74,7 @@ type Infrared struct {
 	cfg Config
 
 	l       net.Listener
-	sg      serverGateway
+	sg      *ServerGateway
 	filter  Filter
 	bufPool sync.Pool
 	conns   map[net.Addr]*Conn
@@ -125,9 +125,11 @@ func (ir *Infrared) init() error {
 	}
 
 	ir.filter = NewFilter(WithFilterConfig(ir.cfg.FiltersConfig))
-	ir.sg = serverGateway{
-		servers: srvs,
+	sg, err := NewServerGateway(srvs, nil)
+	if err != nil {
+		return err
 	}
+	ir.sg = sg
 
 	return nil
 }
@@ -137,37 +139,20 @@ func (ir *Infrared) ListenAndServe() error {
 		return err
 	}
 
-	sgInChan := make(chan ServerRequest)
-	defer close(sgInChan)
-
-	errChan := make(chan error)
-
-	go func() {
-		if err := ir.sg.listenAndServe(sgInChan); err != nil {
-			errChan <- err
-		}
-	}()
-
-	go ir.listenAndServe(sgInChan)
-
-	return <-errChan
-}
-
-func (ir *Infrared) listenAndServe(srvReqChan chan<- ServerRequest) {
 	for {
 		c, err := ir.l.Accept()
 		if errors.Is(err, net.ErrClosed) {
-			return
+			return err
 		} else if err != nil {
 			log.Printf("Error accepting new conn: %s", err)
 			continue
 		}
 
-		go ir.handleNewConn(c, srvReqChan)
+		go ir.handleNewConn(c)
 	}
 }
 
-func (ir *Infrared) handleNewConn(c net.Conn, srvReqChan chan<- ServerRequest) {
+func (ir *Infrared) handleNewConn(c net.Conn) {
 	if err := ir.filter.Filter(c); err != nil {
 		// log.Printf("Filtered: %s", err)
 		return
@@ -178,8 +163,6 @@ func (ir *Infrared) handleNewConn(c net.Conn, srvReqChan chan<- ServerRequest) {
 		conn.ForceClose()
 		connPool.Put(conn)
 	}()
-
-	conn.srvReqChan = srvReqChan
 
 	if err := ir.handleConn(conn); err != nil {
 		log.Println(err)
@@ -205,18 +188,14 @@ func (ir *Infrared) handleConn(c *Conn) error {
 	}
 	c.reqDomain = ServerDomain(reqDomain)
 
-	respChan := make(chan ServerRequestResponse)
-	c.srvReqChan <- ServerRequest{
+	resp, err := ir.sg.RequestServer(ServerRequest{
 		Domain:          c.reqDomain,
 		IsLogin:         c.handshake.IsLoginRequest(),
 		ProtocolVersion: protocol.Version(c.handshake.ProtocolVersion),
-		ReadPks:         c.readPks,
-		ResponseChan:    respChan,
-	}
-
-	resp := <-respChan
-	if resp.Err != nil {
-		return resp.Err
+		ReadPackets:     c.readPks,
+	})
+	if err != nil {
+		return err
 	}
 
 	if c.handshake.IsStatusRequest() {
@@ -226,7 +205,7 @@ func (ir *Infrared) handleConn(c *Conn) error {
 	return ir.handleLogin(c, resp)
 }
 
-func handleStatus(c *Conn, resp ServerRequestResponse) error {
+func handleStatus(c *Conn, resp ServerResponse) error {
 	if err := c.WritePacket(resp.StatusResponse); err != nil {
 		return err
 	}
@@ -243,7 +222,7 @@ func handleStatus(c *Conn, resp ServerRequestResponse) error {
 	return nil
 }
 
-func (ir *Infrared) handleLogin(c *Conn, resp ServerRequestResponse) error {
+func (ir *Infrared) handleLogin(c *Conn, resp ServerResponse) error {
 	hsVersion := protocol.Version(c.handshake.ProtocolVersion)
 	if err := c.loginStart.Unmarshal(c.readPks[1], hsVersion); err != nil {
 		return err
@@ -254,7 +233,7 @@ func (ir *Infrared) handleLogin(c *Conn, resp ServerRequestResponse) error {
 	return ir.handlePipe(c, resp)
 }
 
-func (ir *Infrared) handlePipe(c *Conn, resp ServerRequestResponse) error {
+func (ir *Infrared) handlePipe(c *Conn, resp ServerResponse) error {
 	rc := resp.ServerConn
 	defer rc.Close()
 
@@ -310,9 +289,8 @@ func writeProxyProtocolHeader(addr net.Addr, rc net.Conn) error {
 		tp = proxyproto.TCPv6
 	}
 
-	ppv := byte(2)
 	header := &proxyproto.Header{
-		Version:           ppv,
+		Version:           2,
 		Command:           proxyproto.PROXY,
 		TransportProtocol: tp,
 		SourceAddr:        addr,

@@ -4,14 +4,12 @@ import (
 	"bufio"
 	"net"
 	"testing"
-	"time"
 
 	"github.com/pires/go-proxyproto"
 )
 
 type ProxyProtocolTesterConn struct {
 	net.Conn
-	c net.Conn
 }
 
 func (c *ProxyProtocolTesterConn) RemoteAddr() net.Addr {
@@ -21,33 +19,17 @@ func (c *ProxyProtocolTesterConn) RemoteAddr() net.Addr {
 	}
 }
 
-func (c *ProxyProtocolTesterConn) Read(b []byte) (int, error) {
-	return c.c.Read(b)
-}
-
-func (c *ProxyProtocolTesterConn) Write(b []byte) (int, error) {
-	return c.c.Write(b)
-}
-
-func (c *ProxyProtocolTesterConn) SetWriteDeadline(t time.Time) error {
-	return c.c.SetWriteDeadline(t)
-}
-
-func (c *ProxyProtocolTesterConn) SetReadDeadline(t time.Time) error {
-	return c.c.SetReadDeadline(t)
-}
-
 func TestProxyProtocolhandlePipe(t *testing.T) {
 	serverConnIn, serverConnOut := net.Pipe()
 	_, clientConnOut := net.Pipe()
 
-	clientConn := ProxyProtocolTesterConn{c: clientConnOut}
+	clientConn := ProxyProtocolTesterConn{Conn: clientConnOut}
 
 	ir := New()
 
-	testConn := ProxyProtocolTesterConn{c: serverConnIn}
+	testConn := ProxyProtocolTesterConn{Conn: serverConnIn}
 
-	reqResponse := ServerRequestResponse{
+	reqResponse := ServerResponse{
 		ServerConn:        newConn(&testConn),
 		SendProxyProtocol: true,
 	}
@@ -80,13 +62,13 @@ func TestNoProxyProtocolhandlePipe(t *testing.T) {
 	serverConnIn, serverConnOut := net.Pipe()
 	_, clientConnOut := net.Pipe()
 
-	clientConn := ProxyProtocolTesterConn{c: clientConnOut}
+	clientConn := ProxyProtocolTesterConn{Conn: clientConnOut}
 
 	ir := New()
 
-	testConn := ProxyProtocolTesterConn{c: serverConnIn}
+	testConn := ProxyProtocolTesterConn{Conn: serverConnIn}
 
-	reqResponse := ServerRequestResponse{
+	reqResponse := ServerResponse{
 		ServerConn:        newConn(&testConn),
 		SendProxyProtocol: false,
 	}

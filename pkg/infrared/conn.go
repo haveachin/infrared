@@ -30,7 +30,6 @@ type Conn struct {
 	handshake  handshaking.ServerBoundHandshake
 	loginStart login.ServerBoundLoginStart
 	reqDomain  ServerDomain
-	srvReqChan chan<- ServerRequest
 }
 
 func newConn(c net.Conn) *Conn {

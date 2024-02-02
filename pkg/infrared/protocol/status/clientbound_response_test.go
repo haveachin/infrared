@@ -37,7 +37,7 @@ func TestClientBoundResponse_Marshal(t *testing.T) {
 	for _, tc := range tt {
 		_ = tc.packet.Marshal(&pk)
 
-		if pk.ID != status.IDClientBoundResponse {
+		if pk.ID != status.ClientBoundResponseID {
 			t.Error("invalid packet id")
 		}
 

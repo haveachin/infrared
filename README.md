@@ -1,5 +1,5 @@
 <p align="center">
-  <img width="300" height="auto" src="docs/assets/logo.svg">
+  <img width="200" height="auto" src="docs/assets/logo.svg">
 </p>
 <h1 align="center"><b>Infrared</b></h1>
 <h3 align="center"><b>A Minecraft Reverse Proxy</b></h3>
@@ -23,8 +23,6 @@ An ultra lightweight Minecraft reverse proxy and status placeholder:
 Ever wanted to have only one exposed port on your server for multiple Minecraft servers?
 Then Infrared is the tool you need!
 Infrared works as a reverse proxy using a sub-/domains to connect clients to a specific Minecraft server.
-
-
 
 ## Features
 
