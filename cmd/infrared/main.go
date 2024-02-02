@@ -1,138 +1,128 @@
 package main
 
 import (
-	"flag"
-	"log"
 	"os"
-	"strconv"
+	"os/signal"
+	"syscall"
+	"time"
 
-	"github.com/haveachin/infrared/api"
-
-	"github.com/haveachin/infrared"
+	ir "github.com/haveachin/infrared/pkg/infrared"
+	"github.com/haveachin/infrared/pkg/infrared/config"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
+	"github.com/spf13/pflag"
 )
 
 const (
-	envPrefix               = "INFRARED_"
-	envConfigPath           = envPrefix + "CONFIG_PATH"
-	envReceiveProxyProtocol = envPrefix + "RECEIVE_PROXY_PROTOCOL"
-	envApiEnabled           = envPrefix + "API_ENABLED"
-	envApiBind              = envPrefix + "API_BIND"
-	envPrometheusEnabled    = envPrefix + "PROMETHEUS_ENABLED"
-	envPrometheusBind       = envPrefix + "PROMETHEUS_BIND"
-)
-
-const (
-	clfConfigPath           = "config-path"
-	clfReceiveProxyProtocol = "receive-proxy-protocol"
-	clfPrometheusEnabled    = "enable-prometheus"
-	clfPrometheusBind       = "prometheus-bind"
+	envVarPrefix = "INFRARED"
 )
 
 var (
-	configPath           = "./configs"
-	receiveProxyProtocol = false
-	prometheusEnabled    = false
-	prometheusBind       = ":9100"
-	apiEnabled           = false
-	apiBind              = "127.0.0.1:8080"
+	configPath = "config.yml"
+	workingDir = "."
+	proxiesDir = "./proxies"
+	logLevel   = "info"
 )
 
-func envBool(name string, value bool) bool {
-	envString := os.Getenv(name)
-	if envString == "" {
-		return value
+func envVarString(p *string, name string) {
+	key := envVarPrefix + "_" + name
+	v := os.Getenv(key)
+	if v == "" {
+		return
 	}
-
-	envBool, err := strconv.ParseBool(envString)
-	if err != nil {
-		return value
-	}
-
-	return envBool
+	*p = v
 }
 
-func envString(name string, value string) string {
-	envString := os.Getenv(name)
-	if envString == "" {
-		return value
-	}
-
-	return envString
-}
-
-func initEnv() {
-	configPath = envString(envConfigPath, configPath)
-	receiveProxyProtocol = envBool(envReceiveProxyProtocol, receiveProxyProtocol)
-	apiEnabled = envBool(envApiEnabled, apiEnabled)
-	apiBind = envString(envApiBind, apiBind)
-	prometheusEnabled = envBool(envPrometheusEnabled, prometheusEnabled)
-	prometheusBind = envString(envPrometheusBind, prometheusBind)
+func initEnvVars() {
+	envVarString(&configPath, "CONFIG")
+	envVarString(&workingDir, "WORKING_DIR")
+	envVarString(&proxiesDir, "PROXIES_DIR")
+	envVarString(&logLevel, "LOG_LEVEL")
 }
 
 func initFlags() {
-	flag.StringVar(&configPath, clfConfigPath, configPath, "path of all proxy configs")
-	flag.BoolVar(&receiveProxyProtocol, clfReceiveProxyProtocol, receiveProxyProtocol, "should accept proxy protocol")
-	flag.BoolVar(&prometheusEnabled, clfPrometheusEnabled, prometheusEnabled, "should run prometheus client exposing metrics")
-	flag.StringVar(&prometheusBind, clfPrometheusBind, prometheusBind, "bind address and/or port for prometheus")
-	flag.Parse()
+	pflag.StringVarP(&configPath, "config", "c", configPath, "path to the config file")
+	pflag.StringVarP(&workingDir, "working-dir", "w", workingDir, "changes the current working directory")
+	pflag.StringVarP(&proxiesDir, "proxies-dir", "p", proxiesDir, "path to the proxies directory")
+	pflag.StringVarP(&logLevel, "log-level", "l", logLevel, "log level [debug, info, warn, error]")
+	pflag.Parse()
 }
 
-func init() {
-	initEnv()
-	initFlags()
+func initLogger() {
+	log.Logger = log.Output(zerolog.ConsoleWriter{
+		Out:        os.Stdout,
+		TimeFormat: time.RFC3339,
+	})
+
+	var level zerolog.Level
+	switch logLevel {
+	case "debug":
+		level = zerolog.DebugLevel
+	case "info":
+		level = zerolog.InfoLevel
+	case "warn":
+		level = zerolog.WarnLevel
+	case "error":
+		level = zerolog.ErrorLevel
+	default:
+		log.Warn().
+			Str("level", logLevel).
+			Msg("Invalid log level; defaulting to info")
+	}
+
+	zerolog.SetGlobalLevel(level)
+	log.Debug().
+		Str("level", logLevel).
+		Msg("Log level set")
 }
 
 func main() {
-	log.Println("Loading proxy configs")
+	initEnvVars()
+	initFlags()
+	initLogger()
 
-	cfgs, err := infrared.LoadProxyConfigsFromPath(configPath, false)
-	if err != nil {
-		log.Printf("Failed loading proxy configs from %s; error: %s", configPath, err)
-		return
+	log.Info().Msg("Starting Infrared")
+
+	if err := run(); err != nil {
+		log.Fatal().
+			Err(err).
+			Msg("Failed to run")
+	}
+}
+
+func run() error {
+	if err := os.Chdir(workingDir); err != nil {
+		return err
 	}
 
-	var proxies []*infrared.Proxy
-	for _, cfg := range cfgs {
-		proxies = append(proxies, &infrared.Proxy{
-			Config: cfg,
-		})
+	if err := createConfigIfNotExist(); err != nil {
+		return err
 	}
 
-	outCfgs := make(chan *infrared.ProxyConfig)
+	srv := ir.NewWithConfigProvider(config.FileProvider{
+		ConfigPath:  configPath,
+		ProxiesPath: proxiesDir,
+	})
+	srv.Logger = log.Logger
+
+	errChan := make(chan error, 1)
 	go func() {
-		if err := infrared.WatchProxyConfigFolder(configPath, outCfgs); err != nil {
-			log.Println("Failed watching config folder; error:", err)
-			log.Println("SYSTEM FAILURE: CONFIG WATCHER FAILED")
-		}
+		errChan <- srv.ListenAndServe()
 	}()
 
-	gateway := infrared.Gateway{ReceiveProxyProtocol: receiveProxyProtocol}
-	go func() {
-		for {
-			cfg, ok := <-outCfgs
-			if !ok {
-				return
-			}
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
-			proxy := &infrared.Proxy{Config: cfg}
-			if err := gateway.RegisterProxy(proxy); err != nil {
-				log.Println("Failed registering proxy; error:", err)
-			}
+	log.Info().Msg("System is online")
+
+	select {
+	case sig := <-sigChan:
+		log.Printf("Received %s", sig.String())
+	case err := <-errChan:
+		if err != nil {
+			return err
 		}
-	}()
-
-	if apiEnabled {
-		go api.ListenAndServe(configPath, apiBind)
 	}
 
-	if prometheusEnabled {
-		gateway.EnablePrometheus(prometheusBind)
-	}
-
-	log.Println("Starting Infrared")
-	if err := gateway.ListenAndServe(proxies); err != nil {
-		log.Fatal("Gateway exited; error: ", err)
-	}
-
-	gateway.KeepProcessActive()
+	return nil
 }

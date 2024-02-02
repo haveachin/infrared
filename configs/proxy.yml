@@ -1,0 +1,16 @@
+# This is the domain that players enter in their game client.
+# You can have multiple domains here or just one.
+# Currently this holds just a wildcard character as a domain
+# meaning that is accepts every domain that a player uses.
+# Supports '*' and '?' wildcards in the pattern string.
+#
+domains:
+  - "*"
+
+addresses:
+  - 127.0.0.1:25565
+
+# Send a Proxy Protocol v2 Header to the server to
+# forward the players IP address
+#
+#sendProxyProtocol: true
