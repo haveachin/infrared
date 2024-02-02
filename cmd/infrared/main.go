@@ -71,7 +71,7 @@ func initLogger() {
 	}
 
 	zerolog.SetGlobalLevel(level)
-	log.Info().
+	log.Debug().
 		Str("level", logLevel).
 		Msg("Log level set")
 }

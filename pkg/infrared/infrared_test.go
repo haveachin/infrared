@@ -8,39 +8,37 @@ import (
 	"github.com/pires/go-proxyproto"
 )
 
-type ProxyProtocolTesterConn struct {
+type TestConn struct {
 	net.Conn
 }
 
-func (c *ProxyProtocolTesterConn) RemoteAddr() net.Addr {
+func (c *TestConn) RemoteAddr() net.Addr {
 	return &net.TCPAddr{
 		IP:   net.IPv4(127, 0, 0, 1),
 		Port: 25565,
 	}
 }
 
-func TestProxyProtocolhandlePipe(t *testing.T) {
-	serverConnIn, serverConnOut := net.Pipe()
-	_, clientConnOut := net.Pipe()
+func TestInfrared_handlePipe_ProxyProtocol(t *testing.T) {
+	rcIn, rcOut := net.Pipe()
+	_, cOut := net.Pipe()
 
-	clientConn := ProxyProtocolTesterConn{Conn: clientConnOut}
+	c := TestConn{Conn: cOut}
+	rc := TestConn{Conn: rcIn}
 
-	ir := New()
-
-	testConn := ProxyProtocolTesterConn{Conn: serverConnIn}
-
-	reqResponse := ServerResponse{
-		ServerConn:        newConn(&testConn),
-		SendProxyProtocol: true,
-	}
+	srv := New()
 
 	go func() {
-		_ = ir.handlePipe(newConn(&clientConn), reqResponse)
+		resp := ServerResponse{
+			ServerConn:        newConn(&rc),
+			SendProxyProtocol: true,
+		}
+
+		_ = srv.handlePipe(newConn(&c), resp)
 	}()
 
-	bufReader := bufio.NewReader(serverConnOut)
-	header, err := proxyproto.Read(bufReader)
-
+	r := bufio.NewReader(rcOut)
+	header, err := proxyproto.Read(r)
 	if err != nil {
 		t.Fatalf("Unexpected error reading proxy protocol header: %v", err)
 	}
@@ -58,29 +56,26 @@ func TestProxyProtocolhandlePipe(t *testing.T) {
 	}
 }
 
-func TestNoProxyProtocolhandlePipe(t *testing.T) {
-	serverConnIn, serverConnOut := net.Pipe()
-	_, clientConnOut := net.Pipe()
+func TestInfrared_handlePipe_NoProxyProtocol(t *testing.T) {
+	rcIn, rcOut := net.Pipe()
+	_, cOut := net.Pipe()
 
-	clientConn := ProxyProtocolTesterConn{Conn: clientConnOut}
+	c := TestConn{Conn: cOut}
+	rc := TestConn{Conn: rcIn}
 
-	ir := New()
-
-	testConn := ProxyProtocolTesterConn{Conn: serverConnIn}
-
-	reqResponse := ServerResponse{
-		ServerConn:        newConn(&testConn),
-		SendProxyProtocol: false,
-	}
+	srv := New()
 
 	go func() {
-		_ = ir.handlePipe(newConn(&clientConn), reqResponse)
+		resp := ServerResponse{
+			ServerConn:        newConn(&rc),
+			SendProxyProtocol: false,
+		}
+
+		_ = srv.handlePipe(newConn(&c), resp)
 	}()
 
-	bufReader := bufio.NewReader(serverConnOut)
-	_, err := proxyproto.Read(bufReader)
-
-	if err == nil {
+	r := bufio.NewReader(rcOut)
+	if _, err := proxyproto.Read(r); err == nil {
 		t.Fatal("Expected error reading proxy protocol header, but got nothing")
 	}
 }

@@ -14,12 +14,12 @@ var payload []byte
 
 func initPayload() {
 	buf := new(bytes.Buffer)
-	protocol.VarInt(0x200000).WriteTo(buf)
-	protocol.VarInt(handshaking.ServerBoundHandshakeID).WriteTo(buf)
-	protocol.VarInt(protocol.Version1_20_2.ProtocolNumber()).WriteTo(buf)
-	protocol.String("localhost").WriteTo(buf)
-	protocol.UnsignedShort(25565).WriteTo(buf)
-	protocol.Byte(2).WriteTo(buf)
+	_, _ = protocol.VarInt(0x200000).WriteTo(buf)
+	_, _ = protocol.VarInt(handshaking.ServerBoundHandshakeID).WriteTo(buf)
+	_, _ = protocol.VarInt(protocol.Version1_20_2.ProtocolNumber()).WriteTo(buf)
+	_, _ = protocol.String("localhost").WriteTo(buf)
+	_, _ = protocol.UnsignedShort(25565).WriteTo(buf)
+	_, _ = protocol.Byte(2).WriteTo(buf)
 	payload = buf.Bytes()
 }
 

@@ -50,6 +50,7 @@ func (pk ServerBoundLoginStart) Marshal(packet *protocol.Packet, version protoco
 	)
 }
 
+//nolint:gocognit
 func (pk *ServerBoundLoginStart) Unmarshal(packet protocol.Packet, version protocol.Version) error {
 	if packet.ID != ServerBoundLoginStartID {
 		return protocol.ErrInvalidPacketID
