@@ -1,5 +1,5 @@
 <p align="center">
-  <img width="200" height="auto" src="docs/assets/logo.svg">
+  <img width="200" height="auto" src="docs/public/img/logo.svg">
 </p>
 <h1 align="center"><b>Infrared</b></h1>
 <h3 align="center"><b>A Minecraft Reverse Proxy</b></h3>
@@ -70,5 +70,5 @@ or `make all` (requires GNU Make). The binary is in the `out/` directory.
 
 <br />
 <p align="center">
-  <img height="60" src="docs/assets/agplv3_logo.svg"/>
+  <img height="60" src="docs/public/img/agplv3_logo.svg"/>
 </p>
