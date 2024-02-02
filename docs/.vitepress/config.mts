@@ -12,12 +12,12 @@ export default defineConfig({
       {
         rel: 'icon',
         type: 'image/x-icon',
-        href: '/assets/logo.svg',
+        href: '/img/logo.svg',
       },
     ],
   ],
   themeConfig: {
-    logo: '/assets/logo.svg',
+    logo: '/img/logo.svg',
 
     nav: [
       {
@@ -85,7 +85,7 @@ export default defineConfig({
     },
 
     editLink: {
-      pattern: 'https://github.com/haveachin/infrared/edit/master/website/:path'
+      pattern: 'https://github.com/haveachin/infrared/edit/main/docs/:path'
     },
     
     search: {
