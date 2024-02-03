@@ -252,6 +252,9 @@ linters:
     - wastedassign # finds wasted assignment statements
     - whitespace # detects leading and trailing whitespace
     - prealloc # [premature optimization, but can be used in some cases] finds slice declarations that could potentially be preallocated
+    - zerologlint # detects the wrong usage of zerolog that a user forgets to dispatch zerolog.Event
+    - testpackage # makes you use a separate _test package
+    - tagalign # checks that struct tags are well aligned
 
     ## you may want to enable
     #- decorder # checks declaration order and count of types, constants, variables and functions
@@ -263,13 +266,10 @@ linters:
     #- inamedparam # [great idea, but too strict, need to ignore a lot of cases by default] reports interfaces with unnamed method parameters
     #- interfacebloat # checks the number of methods inside an interface
     #- ireturn # accept interfaces, return concrete types
-    #- tagalign # checks that struct tags are well aligned
     #- varnamelen # [great idea, but too many false positives] checks that the length of a variable's name matches its scope
     #- wrapcheck # checks that errors returned from external packages are wrapped
-    #- zerologlint # detects the wrong usage of zerolog that a user forgets to dispatch zerolog.Event
     #- gochecknoglobals # checks that no global variables exist
     #- gomnd # detects magic numbers
-    #- testpackage # makes you use a separate _test package
 
     ## disabled
     #- containedctx # detects struct contained context.Context field

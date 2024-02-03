@@ -14,10 +14,6 @@ func (f FilterFunc) Filter(c net.Conn) error {
 	return f(c)
 }
 
-type (
-	FilterID string
-)
-
 type FilterConfigFunc func(cfg *FiltersConfig)
 
 func WithFilterConfig(c FiltersConfig) FilterConfigFunc {

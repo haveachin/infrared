@@ -14,8 +14,11 @@ import (
 	"github.com/haveachin/infrared/pkg/infrared/protocol/status"
 )
 
+var (
+	ErrNoServers = errors.New("no servers to route to")
+)
+
 type (
-	ServerID      string
 	ServerAddress string
 	ServerDomain  string
 )
@@ -65,15 +68,13 @@ func NewServer(fns ...ServerConfigFunc) (*Server, error) {
 	}, nil
 }
 
-func (s Server) Dial() (*Conn, error) {
+func (s Server) Dial() (*ServerConn, error) {
 	c, err := net.Dial("tcp", string(s.cfg.Addresses[0]))
 	if err != nil {
 		return nil, err
 	}
 
-	conn := newConn(c)
-	conn.timeout = time.Second * 10
-	return conn, nil
+	return NewServerConn(c), nil
 }
 
 type ServerRequest struct {
@@ -84,13 +85,19 @@ type ServerRequest struct {
 }
 
 type ServerResponse struct {
-	ServerConn        *Conn
+	ServerConn        *ServerConn
 	StatusResponse    protocol.Packet
 	SendProxyProtocol bool
 }
 
 type ServerRequester interface {
 	RequestServer(ServerRequest) (ServerResponse, error)
+}
+
+type ServerRequesterFunc func(ServerRequest) (ServerResponse, error)
+
+func (fn ServerRequesterFunc) RequestServer(req ServerRequest) (ServerResponse, error) {
+	return fn(req)
 }
 
 type ServerGateway struct {
@@ -100,7 +107,7 @@ type ServerGateway struct {
 
 func NewServerGateway(servers []*Server, responder ServerRequestResponder) (*ServerGateway, error) {
 	if len(servers) == 0 {
-		return nil, errors.New("server gateway: no servers to route to")
+		return nil, ErrNoServers
 	}
 
 	srvs := make(map[ServerDomain]*Server)

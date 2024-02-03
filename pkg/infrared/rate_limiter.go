@@ -22,7 +22,7 @@ func RateLimit(requestLimit int, windowLength time.Duration, options ...RateLimi
 }
 
 func RateLimitByIP(requestLimit int, windowLength time.Duration) Filterer {
-	return RateLimit(requestLimit, windowLength, WithKeyFuncs(KeyByIP))
+	return RateLimit(requestLimit, windowLength, WithKeyByIP())
 }
 
 func KeyByIP(c net.Conn) string {

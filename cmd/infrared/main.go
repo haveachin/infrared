@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"os/signal"
 	"syscall"
@@ -83,6 +84,8 @@ func main() {
 
 	log.Info().Msg("Starting Infrared")
 
+	ir.AddServerConfig()
+
 	if err := run(); err != nil {
 		log.Fatal().
 			Err(err).
@@ -117,12 +120,18 @@ func run() error {
 
 	select {
 	case sig := <-sigChan:
-		log.Printf("Received %s", sig.String())
+		log.Info().Msg("Received " + sig.String())
 	case err := <-errChan:
-		if err != nil {
+		if errors.Is(err, ir.ErrNoServers) {
+			log.Fatal().
+				Str("docs", "https://infrared.dev/config/proxies").
+				Msg("No proxy configs found; check the docs")
+		} else if err != nil {
 			return err
 		}
 	}
+
+	log.Info().Msg("Bye")
 
 	return nil
 }
