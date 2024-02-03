@@ -9,42 +9,18 @@ import (
 	"time"
 
 	"github.com/haveachin/infrared/pkg/infrared/protocol"
-	"github.com/pires/go-proxyproto"
 	"github.com/rs/zerolog"
 )
 
 type Config struct {
-	BindAddr         string         `yaml:"bind"`
-	ServerConfigs    []ServerConfig `yaml:"servers"`
-	FiltersConfig    FiltersConfig  `yaml:"filters"`
-	KeepAliveTimeout time.Duration  `yaml:"keepAliveTimeout"`
+	BindAddr            string              `yaml:"bind"`
+	KeepAliveTimeout    time.Duration       `yaml:"keepAliveTimeout"`
+	ServerConfigs       []ServerConfig      `yaml:"servers"`
+	FiltersConfig       FiltersConfig       `yaml:"filters"`
+	ProxyProtocolConfig ProxyProtocolConfig `yaml:"proxyProtocol"`
 }
 
-type ConfigFunc func(cfg *Config)
-
-func WithBindAddr(bindAddr string) ConfigFunc {
-	return func(cfg *Config) {
-		cfg.BindAddr = bindAddr
-	}
-}
-
-func AddServerConfig(fns ...ServerConfigFunc) ConfigFunc {
-	return func(cfg *Config) {
-		var sCfg ServerConfig
-		for _, fn := range fns {
-			fn(&sCfg)
-		}
-		cfg.ServerConfigs = append(cfg.ServerConfigs, sCfg)
-	}
-}
-
-func WithKeepAliveTimeout(d time.Duration) ConfigFunc {
-	return func(cfg *Config) {
-		cfg.KeepAliveTimeout = d
-	}
-}
-
-func DefaultConfig() Config {
+func NewConfig() Config {
 	return Config{
 		BindAddr:         ":25565",
 		KeepAliveTimeout: 30 * time.Second,
@@ -54,7 +30,49 @@ func DefaultConfig() Config {
 				WindowLength: time.Second,
 			},
 		},
+		ProxyProtocolConfig: ProxyProtocolConfig{
+			TrustedCIDRs: make([]string, 0),
+		},
 	}
+}
+
+func (cfg Config) WithBindAddr(bindAddr string) Config {
+	cfg.BindAddr = bindAddr
+	return cfg
+}
+
+func (cfg Config) AddServerConfig(fns ...ServerConfigFunc) Config {
+	var sCfg ServerConfig
+	for _, fn := range fns {
+		fn(&sCfg)
+	}
+	cfg.ServerConfigs = append(cfg.ServerConfigs, sCfg)
+	return cfg
+}
+
+func (cfg Config) WithKeepAliveTimeout(d time.Duration) Config {
+	cfg.KeepAliveTimeout = d
+	return cfg
+}
+
+func (cfg Config) WithProxyProtocolReceive(receive bool) Config {
+	cfg.ProxyProtocolConfig.Receive = receive
+	return cfg
+}
+
+func (cfg Config) WithProxyProtocolTrustedCIDRs(trustedCIDRs ...string) Config {
+	cfg.ProxyProtocolConfig.TrustedCIDRs = trustedCIDRs
+	return cfg
+}
+
+func (cfg Config) WithRateLimiterWindowLength(windowLength time.Duration) Config {
+	cfg.FiltersConfig.RateLimiter.WindowLength = windowLength
+	return cfg
+}
+
+func (cfg Config) WithRateLimiterRequestLimit(requestLimit int) Config {
+	cfg.FiltersConfig.RateLimiter.RequestLimit = requestLimit
+	return cfg
 }
 
 type ConfigProvider interface {
@@ -89,13 +107,8 @@ type Infrared struct {
 	sr      ServerRequester
 }
 
-func New(fns ...ConfigFunc) *Infrared {
-	cfg := DefaultConfig()
-	for _, fn := range fns {
-		fn(&cfg)
-	}
-
-	return NewWithConfig(cfg)
+func New() *Infrared {
+	return NewWithConfig(NewConfig())
 }
 
 func NewWithConfigProvider(prv ConfigProvider) *Infrared {
@@ -124,6 +137,18 @@ func (ir *Infrared) initListener() error {
 	if ir.NewListenerFunc == nil {
 		ir.NewListenerFunc = func(addr string) (net.Listener, error) {
 			return net.Listen("tcp", addr)
+		}
+	}
+
+	if ir.cfg.ProxyProtocolConfig.Receive {
+		fn := ir.NewListenerFunc
+		ir.NewListenerFunc = func(addr string) (net.Listener, error) {
+			l, err := fn(addr)
+			if err != nil {
+				return nil, err
+			}
+
+			return newProxyProtocolListener(l, ir.cfg.ProxyProtocolConfig.TrustedCIDRs)
 		}
 	}
 
@@ -328,31 +353,4 @@ func (ir *Infrared) pipe(dst io.WriteCloser, src io.ReadCloser, srcClosedChan ch
 	}
 
 	srcClosedChan <- struct{}{}
-}
-
-func writeProxyProtocolHeader(addr net.Addr, rc net.Conn) error {
-	rcAddr := rc.RemoteAddr()
-	tcpAddr, ok := rcAddr.(*net.TCPAddr)
-	if !ok {
-		panic("not a tcp connection")
-	}
-
-	tp := proxyproto.TCPv4
-	if tcpAddr.IP.To4() == nil {
-		tp = proxyproto.TCPv6
-	}
-
-	header := &proxyproto.Header{
-		Version:           2,
-		Command:           proxyproto.PROXY,
-		TransportProtocol: tp,
-		SourceAddr:        addr,
-		DestinationAddr:   rcAddr,
-	}
-
-	if _, err := header.WriteTo(rc); err != nil {
-		return err
-	}
-
-	return nil
 }

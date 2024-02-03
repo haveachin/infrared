@@ -23,8 +23,8 @@ export default defineConfig({
       {
         text: 'Features',
         items: [
-          { text: 'PROXY Protocol', link: '/features/forward-player-ips' },
-          { text: 'Rate Limiter', link: '/features/rate-limit-ips' },
+          { text: 'PROXY Protocol', link: '/features/proxy-protocol' },
+          { text: 'Rate Limiter', link: '/features/rate-limiter' },
         ]
       },
       {
@@ -58,12 +58,12 @@ export default defineConfig({
       {
         text: 'Features',
         items: [
-          { text: 'Forward Player IPs', link: '/features/forward-player-ips' },
+          { text: 'PROXY Protocol', link: '/features/proxy-protocol' },
           {
             text: 'Filters',
             link: '/features/filters',
             items: [
-              { text: 'Rate Limit IPs', link: '/features/rate-limit-ips' },
+              { text: 'Rate Limiter', link: '/features/rate-limiter' },
             ]
           }
         ]

@@ -24,6 +24,22 @@ func (c VirtualConn) RemoteAddr() net.Addr {
 	}
 }
 
+func (c VirtualConn) SendProxyProtocolHeader() error {
+	header := &proxyproto.Header{
+		Version:           2,
+		Command:           proxyproto.PROXY,
+		TransportProtocol: proxyproto.TCPv4,
+		SourceAddr:        c.RemoteAddr(),
+		DestinationAddr:   c.RemoteAddr(),
+	}
+
+	if _, err := header.WriteTo(c); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (c VirtualConn) SendHandshake(hs handshaking.ServerBoundHandshake) error {
 	pk := protocol.Packet{}
 	if err := hs.Marshal(&pk); err != nil {
@@ -90,8 +106,11 @@ func (vi *VirtualInfrared) Close() {
 // Connections are simulated via synchronous, in-memory, full duplex network connection (see net.Pipe).
 // It returns a the virtual Infrared instance and the output pipe to the virutal external server.
 // Use the out pipe to see what is actually sent to the server. Like the PROXY Protocol header.
-func NewVirtualInfrared(sendProxyProtocol bool) (*VirtualInfrared, net.Conn) {
-	vir := ir.New()
+func NewVirtualInfrared(
+	cfg ir.Config,
+	sendProxyProtocol bool,
+) (*VirtualInfrared, net.Conn) {
+	vir := ir.NewWithConfig(cfg)
 
 	connChan := make(chan net.Conn)
 	vir.NewListenerFunc = func(addr string) (net.Listener, error) {
@@ -126,10 +145,14 @@ func NewVirtualInfrared(sendProxyProtocol bool) (*VirtualInfrared, net.Conn) {
 }
 
 func TestInfrared_SendProxyProtocol_True(t *testing.T) {
-	vi, srvOut := NewVirtualInfrared(true)
+	vi, srvOut := NewVirtualInfrared(ir.NewConfig(), true)
 	vc := vi.NewConn()
-	_ = vc.SendHandshake(handshaking.ServerBoundHandshake{})
-	_ = vc.SendLoginStart(login.ServerBoundLoginStart{}, protocol.Version1_20_2)
+	if err := vc.SendHandshake(handshaking.ServerBoundHandshake{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := vc.SendLoginStart(login.ServerBoundLoginStart{}, protocol.Version1_20_2); err != nil {
+		t.Fatal(err)
+	}
 
 	r := bufio.NewReader(srvOut)
 	header, err := proxyproto.Read(r)
@@ -151,13 +174,35 @@ func TestInfrared_SendProxyProtocol_True(t *testing.T) {
 }
 
 func TestInfrared_SendProxyProtocol_False(t *testing.T) {
-	vi, srvOut := NewVirtualInfrared(false)
+	vi, srvOut := NewVirtualInfrared(ir.NewConfig(), false)
 	vc := vi.NewConn()
-	_ = vc.SendHandshake(handshaking.ServerBoundHandshake{})
-	_ = vc.SendLoginStart(login.ServerBoundLoginStart{}, protocol.Version1_20_2)
+	if err := vc.SendHandshake(handshaking.ServerBoundHandshake{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := vc.SendLoginStart(login.ServerBoundLoginStart{}, protocol.Version1_20_2); err != nil {
+		t.Fatal(err)
+	}
 
 	r := bufio.NewReader(srvOut)
 	if _, err := proxyproto.Read(r); err == nil {
 		t.Fatal("Expected error reading proxy protocol header, but got nothing")
+	}
+}
+
+func TestInfrared_ReceiveProxyProtocol_True(t *testing.T) {
+	cfg := ir.NewConfig().
+		WithProxyProtocolReceive(true).
+		WithProxyProtocolTrustedCIDRs()
+
+	vi, _ := NewVirtualInfrared(cfg, false)
+	vc := vi.NewConn()
+	if err := vc.SendProxyProtocolHeader(); err != nil {
+		t.Fatal(err)
+	}
+	if err := vc.SendHandshake(handshaking.ServerBoundHandshake{}); err != nil {
+		t.Fatal(err)
+	}
+	if err := vc.SendLoginStart(login.ServerBoundLoginStart{}, protocol.Version1_20_2); err != nil {
+		t.Fatal(err)
 	}
 }
