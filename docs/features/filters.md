@@ -17,4 +17,4 @@ filters:
 Now you actually need to add filters to your config.
 This is a list of all the filters that currently exist:
 
-- [Rate Limiter](rate-limit-ips)
+- [Rate Limiter](rate-limiter)

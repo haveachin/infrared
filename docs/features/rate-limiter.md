@@ -1,7 +1,7 @@
 # Rate Limit IPs
 
 You can rate limit by IP address using the `rateLimit` filter.
-This can be easily activated in your [**global config**](../config/index.md) by adding this:
+This can be easily activated in your [**global config**](../config/index) by adding this:
 
 ```yml{2-16}
 filters:

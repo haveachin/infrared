@@ -1,11 +1,11 @@
 # PROXY Protocol
 
-Infrared supportes [PROXY Protocol v2]().
+Infrared supportes [PROXY Protocol v2](https://www.haproxy.org/download/1.8/doc/proxy-protocol.txt).
 
 ## Receive PROXY Protocol
 
 You can receive PROXY Protocol Headers, but you **need** to specify your trusted [CIDRs](https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing#IPv4_CIDR_blocks).
-To enable it in Infrared you just have to change this in you [global config](../config/index.md):
+To enable it in Infrared you just have to change this in you [global config](../config/index):
 
 ```yml
 # This is for receiving PROXY Protocol Headers
@@ -28,7 +28,7 @@ proxyProtocol:
 ## Forward Player IPs
 
 You can forward the player IPs via PROXY Protocol.
-To enable it in Infrared you just have to change this in you [**proxy config**](../config/proxies.md):
+To enable it in Infrared you just have to change this in you [**proxy config**](../config/proxies):
 ```yml
 # Send a PROXY Protocol Header to the server to
 # forward the players IP address.
