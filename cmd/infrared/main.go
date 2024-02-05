@@ -120,16 +120,19 @@ func run() error {
 	case sig := <-sigChan:
 		log.Info().Msg("Received " + sig.String())
 	case err := <-errChan:
-		if errors.Is(err, ir.ErrNoServers) {
+		switch {
+		case errors.Is(err, ir.ErrNoServers):
 			log.Fatal().
 				Str("docs", "https://infrared.dev/config/proxies").
 				Msg("No proxy configs found; Check the docs")
-		} else if errors.Is(err, ir.ErrNoTrustedCIDRs) {
+		case errors.Is(err, ir.ErrNoTrustedCIDRs):
 			log.Fatal().
 				Str("docs", "https://infrared.dev/features/proxy-protocol#receive-proxy-protocol").
 				Msg("Receive PROXY Protocol enabled, but no CIDRs specified; Check the docs")
-		} else if err != nil {
-			return err
+		default:
+			if err != nil {
+				return err
+			}
 		}
 	}
 

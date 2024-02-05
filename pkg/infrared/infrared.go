@@ -262,6 +262,7 @@ func (ir *Infrared) handleConn(c *clientConn) error {
 	c.reqDomain = ServerDomain(reqDomain)
 
 	resp, err := ir.sr.RequestServer(ServerRequest{
+		ClientAddr:      c.RemoteAddr(),
 		Domain:          c.reqDomain,
 		IsLogin:         c.handshake.IsLoginRequest(),
 		ProtocolVersion: protocol.Version(c.handshake.ProtocolVersion),

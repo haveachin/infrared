@@ -78,6 +78,7 @@ func (s Server) Dial() (*ServerConn, error) {
 }
 
 type ServerRequest struct {
+	ClientAddr      net.Addr
 	Domain          ServerDomain
 	IsLogin         bool
 	ProtocolVersion protocol.Version
@@ -192,7 +193,7 @@ func (r DialServerResponder) respondeToStatusRequest(req ServerRequest, srv *Ser
 		r.respProvs[srv] = respProv
 	}
 
-	_, pk, err := respProv.StatusResponse(req.ProtocolVersion, req.ReadPackets)
+	_, pk, err := respProv.StatusResponse(req.ClientAddr, req.ProtocolVersion, req.ReadPackets)
 	if err != nil {
 		return ServerResponse{}, err
 	}
@@ -203,7 +204,7 @@ func (r DialServerResponder) respondeToStatusRequest(req ServerRequest, srv *Ser
 }
 
 type StatusResponseProvider interface {
-	StatusResponse(protocol.Version, [2]protocol.Packet) (status.ResponseJSON, protocol.Packet, error)
+	StatusResponse(net.Addr, protocol.Version, [2]protocol.Packet) (status.ResponseJSON, protocol.Packet, error)
 }
 
 type statusCacheEntry struct {
@@ -226,11 +227,18 @@ type statusResponseProvider struct {
 }
 
 func (s *statusResponseProvider) requestNewStatusResponseJSON(
+	cliAddr net.Addr,
 	readPks [2]protocol.Packet,
 ) (status.ResponseJSON, protocol.Packet, error) {
 	rc, err := s.server.Dial()
 	if err != nil {
 		return status.ResponseJSON{}, protocol.Packet{}, err
+	}
+
+	if s.server.cfg.SendProxyProtocol {
+		if err := writeProxyProtocolHeader(cliAddr, rc); err != nil {
+			return status.ResponseJSON{}, protocol.Packet{}, err
+		}
 	}
 
 	if err := rc.WritePackets(readPks[0], readPks[1]); err != nil {
@@ -257,11 +265,12 @@ func (s *statusResponseProvider) requestNewStatusResponseJSON(
 }
 
 func (s *statusResponseProvider) StatusResponse(
+	cliAddr net.Addr,
 	protVer protocol.Version,
 	readPks [2]protocol.Packet,
 ) (status.ResponseJSON, protocol.Packet, error) {
 	if s.cacheTTL <= 0 {
-		return s.requestNewStatusResponseJSON(readPks)
+		return s.requestNewStatusResponseJSON(cliAddr, readPks)
 	}
 
 	// Prunes all expired status reponses
@@ -273,17 +282,18 @@ func (s *statusResponseProvider) StatusResponse(
 	hash, okHash := s.statusHash[protVer]
 	entry, okCache := s.statusResponseCache[hash]
 	if !okHash || !okCache {
-		return s.cacheResponse(protVer, readPks)
+		return s.cacheResponse(cliAddr, protVer, readPks)
 	}
 
 	return entry.responseJSON, entry.responsePk, nil
 }
 
 func (s *statusResponseProvider) cacheResponse(
+	cliAddr net.Addr,
 	protVer protocol.Version,
 	readPks [2]protocol.Packet,
 ) (status.ResponseJSON, protocol.Packet, error) {
-	newStatusResp, pk, err := s.requestNewStatusResponseJSON(readPks)
+	newStatusResp, pk, err := s.requestNewStatusResponseJSON(cliAddr, readPks)
 	if err != nil {
 		return status.ResponseJSON{}, protocol.Packet{}, err
 	}

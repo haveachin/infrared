@@ -192,7 +192,7 @@ func TestInfrared_SendProxyProtocol_False(t *testing.T) {
 func TestInfrared_ReceiveProxyProtocol_True(t *testing.T) {
 	cfg := ir.NewConfig().
 		WithProxyProtocolReceive(true).
-		WithProxyProtocolTrustedCIDRs()
+		WithProxyProtocolTrustedCIDRs("127.0.0.1/32")
 
 	vi, _ := NewVirtualInfrared(cfg, false)
 	vc := vi.NewConn()
@@ -205,4 +205,20 @@ func TestInfrared_ReceiveProxyProtocol_True(t *testing.T) {
 	if err := vc.SendLoginStart(login.ServerBoundLoginStart{}, protocol.Version1_20_2); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestInfrared_ReceiveProxyProtocol_False(t *testing.T) {
+	cfg := ir.NewConfig().
+		WithProxyProtocolReceive(false).
+		WithProxyProtocolTrustedCIDRs("127.0.0.1/32")
+
+	vi, _ := NewVirtualInfrared(cfg, false)
+	vc := vi.NewConn()
+	if err := vc.SendProxyProtocolHeader(); err != nil {
+		t.Fatal(err)
+	}
+	if err := vc.SendHandshake(handshaking.ServerBoundHandshake{}); err != nil {
+		return
+	}
+	t.Fatal("no disconnect after invalid proxy protocol header")
 }
