@@ -15,13 +15,18 @@ import (
 
 type VirtualConn struct {
 	net.Conn
+	remoteAddr net.Addr
 }
 
 func (c VirtualConn) RemoteAddr() net.Addr {
-	return &net.TCPAddr{
-		IP:   net.IPv4(127, 0, 0, 1),
-		Port: 25565,
+	if c.remoteAddr == nil {
+		c.remoteAddr = &net.TCPAddr{
+			IP:   net.IPv4(127, 0, 0, 1),
+			Port: 25565,
+		}
 	}
+
+	return c.remoteAddr
 }
 
 func (c VirtualConn) SendProxyProtocolHeader() error {
@@ -61,13 +66,21 @@ func (c VirtualConn) SendLoginStart(ls login.ServerBoundLoginStart, v protocol.V
 }
 
 type VirtualListener struct {
-	net.Listener
-	connChan <-chan net.Conn
-	errChan  chan error
+	connChan         <-chan net.Conn
+	errChan          chan error
+	acceptTickerChan chan struct{}
 }
 
 func (l *VirtualListener) Accept() (net.Conn, error) {
 	l.errChan = make(chan error)
+
+	l.acceptTickerChan <- struct{}{}
+	defer func() {
+		select {
+		case <-l.acceptTickerChan:
+		default:
+		}
+	}()
 
 	select {
 	case c := <-l.connChan:
@@ -75,6 +88,10 @@ func (l *VirtualListener) Accept() (net.Conn, error) {
 	case err := <-l.errChan:
 		return nil, err
 	}
+}
+
+func (l *VirtualListener) AcceptTick() <-chan struct{} {
+	return l.acceptTickerChan
 }
 
 func (l *VirtualListener) Close() error {
@@ -92,14 +109,33 @@ type VirtualInfrared struct {
 	connChan chan<- net.Conn
 }
 
-func (vi *VirtualInfrared) NewConn() VirtualConn {
+func (vi *VirtualInfrared) ListenAndServe() error {
+	return vi.vir.ListenAndServe()
+}
+
+func (vi *VirtualInfrared) MustListenAndServe(t *testing.T) {
+	if err := vi.ListenAndServe(); errors.Is(err, net.ErrClosed) {
+		return
+	} else if err != nil {
+		t.Error(err)
+	}
+}
+
+func (vi *VirtualInfrared) NewConn(remoteAddr net.Addr) VirtualConn {
 	cIn, cOut := net.Pipe()
-	vi.connChan <- VirtualConn{Conn: cOut}
+	vi.connChan <- VirtualConn{
+		Conn:       cOut,
+		remoteAddr: remoteAddr,
+	}
 	return VirtualConn{Conn: cIn}
 }
 
 func (vi *VirtualInfrared) Close() {
-	vi.vl.Close()
+	_ = vi.vl.Close()
+}
+
+func (vi *VirtualInfrared) AcceptTick() <-chan struct{} {
+	return vi.vl.AcceptTick()
 }
 
 // NewVirtualInfrared sets up a virtualized Infrared instance that is ready to accept new virutal connections.
@@ -113,10 +149,13 @@ func NewVirtualInfrared(
 	vir := ir.NewWithConfig(cfg)
 
 	connChan := make(chan net.Conn)
+	vl := &VirtualListener{
+		connChan:         connChan,
+		errChan:          make(chan error),
+		acceptTickerChan: make(chan struct{}, 1),
+	}
 	vir.NewListenerFunc = func(addr string) (net.Listener, error) {
-		return &VirtualListener{
-			connChan: connChan,
-		}, nil
+		return vl, nil
 	}
 
 	rcIn, rcOut := net.Pipe()
@@ -130,23 +169,18 @@ func NewVirtualInfrared(
 		}), nil
 	}
 
-	go func() {
-		if err := vir.ListenAndServe(); errors.Is(err, net.ErrClosed) {
-			return
-		} else if err != nil {
-			panic(err)
-		}
-	}()
-
 	return &VirtualInfrared{
 		vir:      vir,
+		vl:       vl,
 		connChan: connChan,
 	}, rcOut
 }
 
 func TestInfrared_SendProxyProtocol_True(t *testing.T) {
 	vi, srvOut := NewVirtualInfrared(ir.NewConfig(), true)
-	vc := vi.NewConn()
+	go vi.MustListenAndServe(t)
+
+	vc := vi.NewConn(nil)
 	if err := vc.SendHandshake(handshaking.ServerBoundHandshake{}); err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +209,9 @@ func TestInfrared_SendProxyProtocol_True(t *testing.T) {
 
 func TestInfrared_SendProxyProtocol_False(t *testing.T) {
 	vi, srvOut := NewVirtualInfrared(ir.NewConfig(), false)
-	vc := vi.NewConn()
+	go vi.MustListenAndServe(t)
+
+	vc := vi.NewConn(nil)
 	if err := vc.SendHandshake(handshaking.ServerBoundHandshake{}); err != nil {
 		t.Fatal(err)
 	}
@@ -195,7 +231,9 @@ func TestInfrared_ReceiveProxyProtocol_True(t *testing.T) {
 		WithProxyProtocolTrustedCIDRs("127.0.0.1/32")
 
 	vi, _ := NewVirtualInfrared(cfg, false)
-	vc := vi.NewConn()
+	go vi.MustListenAndServe(t)
+
+	vc := vi.NewConn(nil)
 	if err := vc.SendProxyProtocolHeader(); err != nil {
 		t.Fatal(err)
 	}
@@ -209,11 +247,12 @@ func TestInfrared_ReceiveProxyProtocol_True(t *testing.T) {
 
 func TestInfrared_ReceiveProxyProtocol_False(t *testing.T) {
 	cfg := ir.NewConfig().
-		WithProxyProtocolReceive(false).
-		WithProxyProtocolTrustedCIDRs("127.0.0.1/32")
+		WithProxyProtocolReceive(false)
 
 	vi, _ := NewVirtualInfrared(cfg, false)
-	vc := vi.NewConn()
+	go vi.MustListenAndServe(t)
+
+	vc := vi.NewConn(nil)
 	if err := vc.SendProxyProtocolHeader(); err != nil {
 		t.Fatal(err)
 	}
@@ -221,4 +260,45 @@ func TestInfrared_ReceiveProxyProtocol_False(t *testing.T) {
 		return
 	}
 	t.Fatal("no disconnect after invalid proxy protocol header")
+}
+
+func TestInfrared_ReceiveProxyProtocol_True_ErrNoTrustedCIDRs(t *testing.T) {
+	cfg := ir.NewConfig().
+		WithProxyProtocolReceive(true).
+		WithProxyProtocolTrustedCIDRs()
+
+	vi, _ := NewVirtualInfrared(cfg, false)
+
+	errChan := make(chan error, 1)
+	go func() {
+		errChan <- vi.ListenAndServe()
+	}()
+
+	select {
+	case err := <-errChan:
+		if !errors.Is(err, ir.ErrNoTrustedCIDRs) {
+			t.Fatalf("got: %s; want: %s", err, ir.ErrNoTrustedCIDRs)
+		}
+	case <-vi.AcceptTick():
+		vi.Close()
+		t.Fatalf("got: no error during init; want: %s", ir.ErrNoTrustedCIDRs)
+	}
+}
+
+func TestInfrared_ReceiveProxyProtocol_True_UntrustedIP(t *testing.T) {
+	cfg := ir.NewConfig().
+		WithProxyProtocolReceive(true).
+		WithProxyProtocolTrustedCIDRs("127.0.0.1/32")
+
+	vi, _ := NewVirtualInfrared(cfg, false)
+	go vi.MustListenAndServe(t)
+
+	vc := vi.NewConn(&net.TCPAddr{
+		IP:   net.IPv4(12, 34, 56, 78),
+		Port: 12345,
+	})
+
+	if err := vc.SendProxyProtocolHeader(); err == nil {
+		t.Fatal("no disconnect after untrusted IP")
+	}
 }
