@@ -3,7 +3,7 @@
 > [!NOTE]
 > These projects are managed by the Infrared Community.
 > We do **not** provide official support for these projects.
-> Please use their dedicated issue trackers or support channels provided by respective project.
+> Please use their dedicated issue trackers or support channels provided by the respective project.
 > Thanks for understanding.
 
 ## Infrared for Pterodactyl
