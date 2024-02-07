@@ -16,7 +16,7 @@
 </p>
 
 > [!WARNING] 
-> Infrared is currently under active development: breaking changes can happen.
+> Infrared is currently under active development: bugs and breaking changes can happen.
 > Feedback and contributions are welcome.
 
 An ultra lightweight Minecraft reverse proxy and status placeholder:

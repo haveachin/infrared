@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"os/signal"
 	"syscall"
@@ -117,12 +118,25 @@ func run() error {
 
 	select {
 	case sig := <-sigChan:
-		log.Printf("Received %s", sig.String())
+		log.Info().Msg("Received " + sig.String())
 	case err := <-errChan:
-		if err != nil {
-			return err
+		switch {
+		case errors.Is(err, ir.ErrNoServers):
+			log.Fatal().
+				Str("docs", "https://infrared.dev/config/proxies").
+				Msg("No proxy configs found; Check the docs")
+		case errors.Is(err, ir.ErrNoTrustedCIDRs):
+			log.Fatal().
+				Str("docs", "https://infrared.dev/features/proxy-protocol#receive-proxy-protocol").
+				Msg("Receive PROXY Protocol enabled, but no CIDRs specified; Check the docs")
+		default:
+			if err != nil {
+				return err
+			}
 		}
 	}
+
+	log.Info().Msg("Bye")
 
 	return nil
 }

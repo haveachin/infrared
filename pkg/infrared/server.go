@@ -14,8 +14,11 @@ import (
 	"github.com/haveachin/infrared/pkg/infrared/protocol/status"
 )
 
+var (
+	ErrNoServers = errors.New("no servers to route to")
+)
+
 type (
-	ServerID      string
 	ServerAddress string
 	ServerDomain  string
 )
@@ -65,18 +68,17 @@ func NewServer(fns ...ServerConfigFunc) (*Server, error) {
 	}, nil
 }
 
-func (s Server) Dial() (*Conn, error) {
+func (s Server) Dial() (*ServerConn, error) {
 	c, err := net.Dial("tcp", string(s.cfg.Addresses[0]))
 	if err != nil {
 		return nil, err
 	}
 
-	conn := newConn(c)
-	conn.timeout = time.Second * 10
-	return conn, nil
+	return NewServerConn(c), nil
 }
 
 type ServerRequest struct {
+	ClientAddr      net.Addr
 	Domain          ServerDomain
 	IsLogin         bool
 	ProtocolVersion protocol.Version
@@ -84,13 +86,19 @@ type ServerRequest struct {
 }
 
 type ServerResponse struct {
-	ServerConn        *Conn
+	ServerConn        *ServerConn
 	StatusResponse    protocol.Packet
 	SendProxyProtocol bool
 }
 
 type ServerRequester interface {
 	RequestServer(ServerRequest) (ServerResponse, error)
+}
+
+type ServerRequesterFunc func(ServerRequest) (ServerResponse, error)
+
+func (fn ServerRequesterFunc) RequestServer(req ServerRequest) (ServerResponse, error) {
+	return fn(req)
 }
 
 type ServerGateway struct {
@@ -100,7 +108,7 @@ type ServerGateway struct {
 
 func NewServerGateway(servers []*Server, responder ServerRequestResponder) (*ServerGateway, error) {
 	if len(servers) == 0 {
-		return nil, errors.New("server gateway: no servers to route to")
+		return nil, ErrNoServers
 	}
 
 	srvs := make(map[ServerDomain]*Server)
@@ -185,7 +193,7 @@ func (r DialServerResponder) respondeToStatusRequest(req ServerRequest, srv *Ser
 		r.respProvs[srv] = respProv
 	}
 
-	_, pk, err := respProv.StatusResponse(req.ProtocolVersion, req.ReadPackets)
+	_, pk, err := respProv.StatusResponse(req.ClientAddr, req.ProtocolVersion, req.ReadPackets)
 	if err != nil {
 		return ServerResponse{}, err
 	}
@@ -196,7 +204,7 @@ func (r DialServerResponder) respondeToStatusRequest(req ServerRequest, srv *Ser
 }
 
 type StatusResponseProvider interface {
-	StatusResponse(protocol.Version, [2]protocol.Packet) (status.ResponseJSON, protocol.Packet, error)
+	StatusResponse(net.Addr, protocol.Version, [2]protocol.Packet) (status.ResponseJSON, protocol.Packet, error)
 }
 
 type statusCacheEntry struct {
@@ -219,11 +227,18 @@ type statusResponseProvider struct {
 }
 
 func (s *statusResponseProvider) requestNewStatusResponseJSON(
+	cliAddr net.Addr,
 	readPks [2]protocol.Packet,
 ) (status.ResponseJSON, protocol.Packet, error) {
 	rc, err := s.server.Dial()
 	if err != nil {
 		return status.ResponseJSON{}, protocol.Packet{}, err
+	}
+
+	if s.server.cfg.SendProxyProtocol {
+		if err := writeProxyProtocolHeader(cliAddr, rc); err != nil {
+			return status.ResponseJSON{}, protocol.Packet{}, err
+		}
 	}
 
 	if err := rc.WritePackets(readPks[0], readPks[1]); err != nil {
@@ -250,11 +265,12 @@ func (s *statusResponseProvider) requestNewStatusResponseJSON(
 }
 
 func (s *statusResponseProvider) StatusResponse(
+	cliAddr net.Addr,
 	protVer protocol.Version,
 	readPks [2]protocol.Packet,
 ) (status.ResponseJSON, protocol.Packet, error) {
 	if s.cacheTTL <= 0 {
-		return s.requestNewStatusResponseJSON(readPks)
+		return s.requestNewStatusResponseJSON(cliAddr, readPks)
 	}
 
 	// Prunes all expired status reponses
@@ -266,17 +282,18 @@ func (s *statusResponseProvider) StatusResponse(
 	hash, okHash := s.statusHash[protVer]
 	entry, okCache := s.statusResponseCache[hash]
 	if !okHash || !okCache {
-		return s.cacheResponse(protVer, readPks)
+		return s.cacheResponse(cliAddr, protVer, readPks)
 	}
 
 	return entry.responseJSON, entry.responsePk, nil
 }
 
 func (s *statusResponseProvider) cacheResponse(
+	cliAddr net.Addr,
 	protVer protocol.Version,
 	readPks [2]protocol.Packet,
 ) (status.ResponseJSON, protocol.Packet, error) {
-	newStatusResp, pk, err := s.requestNewStatusResponseJSON(readPks)
+	newStatusResp, pk, err := s.requestNewStatusResponseJSON(cliAddr, readPks)
 	if err != nil {
 		return status.ResponseJSON{}, protocol.Packet{}, err
 	}

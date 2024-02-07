@@ -21,19 +21,14 @@ services:
       - infrared.java.servers.devserver.address=:25566
 
   haproxy:
-    image: haproxy
+    image: haproxy:alpine
     container_name: infrared-dev-haproxy
-    sysctls:
-      - net.ipv4.ip_unprivileged_port_start=0
     volumes:
       - ../.dev/haproxy:/usr/local/etc/haproxy:ro
-    ports:
-      - 25567:25565/tcp
-    networks:
-      - infrared
+    network_mode: host
 
   redis:
-    image: redis
+    image: redis:alpine
     container_name: infrared-dev-redis
     ports:
       - 6379:6379/tcp

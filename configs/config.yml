@@ -4,6 +4,23 @@
 #
 bind: 0.0.0.0:25565
 
+# This is for receiving PROXY Protocol Headers
+#
+proxyProtocol:
+  # Set this to true to enable it.
+  # You also need to set trusted CIDRs to use this feature.
+  # You can only receive PROXY Protocol Headers from trusted CIDRs.
+  #
+  receive: false
+  
+  # List all your trusted CIDRs here.
+  # A CIDR is basically a way to talk about a whole range of IPs
+  # instead of just one. See here for more info: 
+  # https://en.wikipedia.org/wiki/Classless_Inter-Domain_Routing#IPv4_CIDR_blocks
+  #
+  trustedCIDRs:
+    - 127.0.0.1/32
+
 # Maximum duration between packets before the client gets timed out.
 #
 keepAliveTimeout: 30s

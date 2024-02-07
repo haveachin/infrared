@@ -10,7 +10,7 @@ domains:
 addresses:
   - 127.0.0.1:25565
 
-# Send a Proxy Protocol v2 Header to the server to
+# Send a PROXY Protocol Header to the server to
 # forward the players IP address
 #
 #sendProxyProtocol: true
