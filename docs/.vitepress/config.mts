@@ -47,6 +47,7 @@ export default defineConfig({
 
     sidebar: [
       { text: 'Getting Started', link: '/getting-started' },
+      { text: 'Community Projects', link: '/community-projects' },
       {
         text: 'Config',
         items: [
