@@ -146,7 +146,7 @@ func NewVirtualInfrared(
 	cfg ir.Config,
 	sendProxyProtocol bool,
 ) (*VirtualInfrared, net.Conn) {
-	vir := ir.NewWithConfig(cfg)
+	vir := ir.New(cfg)
 
 	connChan := make(chan net.Conn)
 	vl := &VirtualListener{
@@ -227,8 +227,11 @@ func TestInfrared_SendProxyProtocol_False(t *testing.T) {
 
 func TestInfrared_ReceiveProxyProtocol_True(t *testing.T) {
 	cfg := ir.NewConfig().
-		WithProxyProtocolReceive(true).
-		WithProxyProtocolTrustedCIDRs("127.0.0.1/32")
+		WithProxyProtocolConfig(
+			ir.NewProxyProtocolConfig().
+				WithReceive(true).
+				WithTrustedCIDRs("127.0.0.1/32"),
+		)
 
 	vi, _ := NewVirtualInfrared(cfg, false)
 	go vi.MustListenAndServe(t)
@@ -247,7 +250,10 @@ func TestInfrared_ReceiveProxyProtocol_True(t *testing.T) {
 
 func TestInfrared_ReceiveProxyProtocol_False(t *testing.T) {
 	cfg := ir.NewConfig().
-		WithProxyProtocolReceive(false)
+		WithProxyProtocolConfig(
+			ir.NewProxyProtocolConfig().
+				WithReceive(false),
+		)
 
 	vi, _ := NewVirtualInfrared(cfg, false)
 	go vi.MustListenAndServe(t)
@@ -264,8 +270,10 @@ func TestInfrared_ReceiveProxyProtocol_False(t *testing.T) {
 
 func TestInfrared_ReceiveProxyProtocol_True_ErrNoTrustedCIDRs(t *testing.T) {
 	cfg := ir.NewConfig().
-		WithProxyProtocolReceive(true).
-		WithProxyProtocolTrustedCIDRs()
+		WithProxyProtocolConfig(
+			ir.NewProxyProtocolConfig().
+				WithReceive(true),
+		)
 
 	vi, _ := NewVirtualInfrared(cfg, false)
 
@@ -287,8 +295,11 @@ func TestInfrared_ReceiveProxyProtocol_True_ErrNoTrustedCIDRs(t *testing.T) {
 
 func TestInfrared_ReceiveProxyProtocol_True_UntrustedIP(t *testing.T) {
 	cfg := ir.NewConfig().
-		WithProxyProtocolReceive(true).
-		WithProxyProtocolTrustedCIDRs("127.0.0.1/32")
+		WithProxyProtocolConfig(
+			ir.NewProxyProtocolConfig().
+				WithReceive(true).
+				WithTrustedCIDRs("127.0.0.1/32"),
+		)
 
 	vi, _ := NewVirtualInfrared(cfg, false)
 	go vi.MustListenAndServe(t)

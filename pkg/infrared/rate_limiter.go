@@ -17,6 +17,23 @@ type RateLimiterConfig struct {
 	WindowLength time.Duration `yaml:"windowLength"`
 }
 
+func NewRateLimiterConfig() RateLimiterConfig {
+	return RateLimiterConfig{
+		RequestLimit: 10,
+		WindowLength: time.Second,
+	}
+}
+
+func (cfg RateLimiterConfig) WithWindowLength(windowLength time.Duration) RateLimiterConfig {
+	cfg.WindowLength = windowLength
+	return cfg
+}
+
+func (cfg RateLimiterConfig) WithRequestLimit(requestLimit int) RateLimiterConfig {
+	cfg.RequestLimit = requestLimit
+	return cfg
+}
+
 func RateLimit(requestLimit int, windowLength time.Duration, options ...RateLimiterOption) Filterer {
 	return newRateLimiter(requestLimit, windowLength, options...).Filterer()
 }
