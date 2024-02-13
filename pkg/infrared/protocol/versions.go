@@ -9,6 +9,7 @@ const (
 	Version1_19   Version = 759
 	Version1_19_3 Version = 761
 	Version1_20_2 Version = 764
+	Version1_20_4 Version = 765
 )
 
 func (v Version) Name() string {
@@ -21,6 +22,8 @@ func (v Version) Name() string {
 		return "1.19.3"
 	case Version1_20_2:
 		return "1.20.2"
+	case Version1_20_4:
+		return "1.20.4"
 	default:
 		return strconv.Itoa(int(v))
 	}
