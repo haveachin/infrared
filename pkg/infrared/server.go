@@ -29,9 +29,11 @@ type (
 )
 
 type ServerConfig struct {
-	Domains           []ServerDomain  `yaml:"domains"`
-	Addresses         []ServerAddress `yaml:"addresses"`
-	SendProxyProtocol bool            `yaml:"sendProxyProtocol"`
+	Domains                      []ServerDomain                     `yaml:"domains"`
+	Addresses                    []ServerAddress                    `yaml:"addresses"`
+	SendProxyProtocol            bool                               `yaml:"sendProxyProtocol"`
+	ServerStatusResponse         ServerStatusResponseConfig         `yaml:"statusResponse"`
+	OverrideServerStatusResponse OverrideServerStatusResponseConfig `yaml:"overrideStatusResponse"`
 }
 
 func NewServerConfig() ServerConfig {

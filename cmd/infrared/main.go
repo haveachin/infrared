@@ -75,6 +75,8 @@ func initLogger() {
 	log.Debug().
 		Str("level", logLevel).
 		Msg("Log level set")
+
+	ir.Log = log.Logger
 }
 
 func main() {
@@ -104,7 +106,6 @@ func run() error {
 		ConfigPath:  configPath,
 		ProxiesPath: proxiesDir,
 	})
-	srv.Logger = log.Logger
 
 	errChan := make(chan error, 1)
 	go func() {

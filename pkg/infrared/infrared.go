@@ -11,6 +11,8 @@ import (
 	"github.com/rs/zerolog"
 )
 
+var Log = zerolog.Nop()
+
 type Config struct {
 	BindAddr            string              `yaml:"bind"`
 	KeepAliveTimeout    time.Duration       `yaml:"keepAliveTimeout"`
@@ -78,7 +80,6 @@ type (
 )
 
 type Infrared struct {
-	Logger                 zerolog.Logger
 	NewListenerFunc        NewListenerFunc
 	NewServerRequesterFunc NewServerRequesterFunc
 	Filters                []Filterer
@@ -105,7 +106,7 @@ func NewWithConfigProvider(prv ConfigProvider) *Infrared {
 }
 
 func (ir *Infrared) initListener() error {
-	ir.Logger.Info().
+	Log.Info().
 		Str("bind", ir.cfg.BindAddr).
 		Msg("Starting listener")
 
@@ -186,7 +187,7 @@ func (ir *Infrared) ListenAndServe() error {
 		if errors.Is(err, net.ErrClosed) {
 			return nil
 		} else if err != nil {
-			ir.Logger.Debug().
+			Log.Debug().
 				Err(err).
 				Msg("Error accepting new connection")
 
@@ -199,7 +200,7 @@ func (ir *Infrared) ListenAndServe() error {
 
 func (ir *Infrared) handleNewConn(c net.Conn) {
 	if err := ir.filter.Filter(c); err != nil {
-		ir.Logger.Debug().
+		Log.Debug().
 			Err(err).
 			Msg("Filtered connection")
 		return
@@ -212,7 +213,7 @@ func (ir *Infrared) handleNewConn(c net.Conn) {
 	}()
 
 	if err := ir.handleConn(conn); err != nil {
-		ir.Logger.Debug().
+		Log.Debug().
 			Err(err).
 			Msg("Error while handling connection")
 	}
@@ -324,7 +325,7 @@ func (ir *Infrared) handlePipe(c *clientConn, resp ServerResponse) error {
 
 func (ir *Infrared) pipe(dst io.WriteCloser, src io.ReadCloser, srcClosedChan chan struct{}) {
 	if _, err := io.Copy(dst, src); err != nil && !errors.Is(err, io.EOF) {
-		ir.Logger.Debug().
+		Log.Debug().
 			Err(err).
 			Msg("Connection closed unexpectedly")
 	}
