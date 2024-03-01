@@ -246,7 +246,12 @@ func (ir *Infrared) handleConn(c *clientConn) error {
 		ReadPackets:     c.readPks,
 	})
 	if err != nil {
-		return err
+		switch {
+		case errors.Is(err, ErrServerNotReachable) && c.handshake.IsLoginRequest():
+			return ir.handleLoginDisconnect(c, resp)
+		default:
+			return err
+		}
 	}
 
 	if c.handshake.IsStatusRequest() {
@@ -271,6 +276,10 @@ func handleStatus(c *clientConn, resp ServerResponse) error {
 	}
 
 	return nil
+}
+
+func (ir *Infrared) handleLoginDisconnect(c *clientConn, resp ServerResponse) error {
+	return c.WritePacket(resp.StatusResponse)
 }
 
 func (ir *Infrared) handleLogin(c *clientConn, resp ServerResponse) error {

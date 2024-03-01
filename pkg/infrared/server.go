@@ -18,9 +18,9 @@ import (
 )
 
 var (
-	ErrNoServers = errors.New("no servers to route to")
-
-	errServerNotReachable = errors.New("server not reachable")
+	ErrNoServers          = errors.New("no servers to route to")
+	ErrServerNotFound     = errors.New("server not found")
+	ErrServerNotReachable = errors.New("server not reachable")
 )
 
 type (
@@ -29,11 +29,11 @@ type (
 )
 
 type ServerConfig struct {
-	Domains                      []ServerDomain                     `yaml:"domains"`
-	Addresses                    []ServerAddress                    `yaml:"addresses"`
-	SendProxyProtocol            bool                               `yaml:"sendProxyProtocol"`
-	ServerStatusResponse         ServerStatusResponseConfig         `yaml:"statusResponse"`
-	OverrideServerStatusResponse OverrideServerStatusResponseConfig `yaml:"overrideStatusResponse"`
+	Domains                []ServerDomain               `yaml:"domains"`
+	Addresses              []ServerAddress              `yaml:"addresses"`
+	SendProxyProtocol      bool                         `yaml:"sendProxyProtocol"`
+	DialTimeoutResponse    HandshakeResponseConfig      `yaml:"dialTimeoutResponse"`
+	OverrideStatusResponse OverrideStatusResponseConfig `yaml:"overrideStatus"`
 }
 
 func NewServerConfig() ServerConfig {
@@ -52,6 +52,9 @@ func (cfg ServerConfig) WithAddresses(addr ...ServerAddress) ServerConfig {
 
 type Server struct {
 	cfg ServerConfig
+
+	dialTimeoutResp    HandshakeResponse
+	overrideStatusResp OverrideStatusResponse
 }
 
 func NewServer(cfg ServerConfig) (*Server, error) {
@@ -61,10 +64,16 @@ func NewServer(cfg ServerConfig) (*Server, error) {
 
 	return &Server{
 		cfg: cfg,
+		dialTimeoutResp: HandshakeResponse{
+			Config: cfg.DialTimeoutResponse,
+		},
+		overrideStatusResp: OverrideStatusResponse{
+			Config: cfg.OverrideStatusResponse,
+		},
 	}, nil
 }
 
-func (s Server) Dial() (*ServerConn, error) {
+func (s *Server) Dial() (*ServerConn, error) {
 	c, err := net.Dial("tcp", string(s.cfg.Addresses[0]))
 	if err != nil {
 		return nil, err
@@ -143,7 +152,7 @@ func (sg *ServerGateway) findServer(domain ServerDomain) *Server {
 func (sg *ServerGateway) RequestServer(req ServerRequest) (ServerResponse, error) {
 	srv := sg.findServer(req.Domain)
 	if srv == nil {
-		return ServerResponse{}, errors.New("server not found")
+		return ServerResponse{}, ErrServerNotFound
 	}
 
 	return sg.responder.RespondeToServerRequest(req, srv)
@@ -168,7 +177,9 @@ func (r DialServerResponder) RespondeToServerRequest(req ServerRequest, srv *Ser
 func (r DialServerResponder) respondeToLoginRequest(_ ServerRequest, srv *Server) (ServerResponse, error) {
 	rc, err := srv.Dial()
 	if err != nil {
-		return ServerResponse{}, err
+		return ServerResponse{
+			StatusResponse: srv.dialTimeoutResp.LoginReponse(),
+		}, ErrServerNotReachable
 	}
 
 	return ServerResponse{
@@ -235,28 +246,12 @@ func (s *statusResponseProvider) StatusResponse(
 	}
 
 	statusResp, statusPk, err := s.requestNewStatusResponseJSON(cliAddr, readPks)
-	switch {
-	case errors.Is(err, errServerNotReachable):
-		respJSON := status.ResponseJSON{
-			Version: status.VersionJSON{
-				Name:     "Infrared",
-				Protocol: int(protocol.Version1_20_2),
-			},
-			Description: status.DescriptionJSON{
-				Text: "Hello there!",
-			},
-		}
-		bb, err := json.Marshal(respJSON)
-		if err != nil {
-			return status.ResponseJSON{}, protocol.Packet{}, err
-		}
-		pk := protocol.Packet{}
-		status.ClientBoundResponse{
-			JSONResponse: protocol.String(string(bb)),
-		}.Marshal(&pk)
-		return respJSON, pk, nil
-	default:
-		if err != nil {
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrServerNotReachable):
+			respJSON, respPk := s.server.dialTimeoutResp.StatusResponse(protVer)
+			return respJSON, respPk, nil
+		default:
 			return status.ResponseJSON{}, protocol.Packet{}, err
 		}
 	}
@@ -276,7 +271,7 @@ func (s *statusResponseProvider) requestNewStatusResponseJSON(
 ) (status.ResponseJSON, protocol.Packet, error) {
 	rc, err := s.server.Dial()
 	if err != nil {
-		return status.ResponseJSON{}, protocol.Packet{}, errServerNotReachable
+		return status.ResponseJSON{}, protocol.Packet{}, ErrServerNotReachable
 	}
 
 	if s.server.cfg.SendProxyProtocol {

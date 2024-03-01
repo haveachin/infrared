@@ -113,7 +113,6 @@ type clientConn struct {
 	handshake  handshaking.ServerBoundHandshake
 	loginStart login.ServerBoundLoginStart
 	reqDomain  ServerDomain
-	protoVer   protocol.Version
 }
 
 func newClientConn(c net.Conn) (*clientConn, func()) {

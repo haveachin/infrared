@@ -1,6 +1,10 @@
 package status
 
-import "github.com/haveachin/infrared/pkg/infrared/protocol"
+import (
+	"encoding/json"
+
+	"github.com/haveachin/infrared/pkg/infrared/protocol"
+)
 
 const (
 	ClientBoundResponseID int32 = 0x00
@@ -31,8 +35,8 @@ type ResponseJSON struct {
 	Version VersionJSON `json:"version"`
 	Players PlayersJSON `json:"players"`
 	// This has to be any to support the new chat style system
-	Description any    `json:"description"`
-	Favicon     string `json:"favicon,omitempty"`
+	Description json.RawMessage `json:"description"`
+	Favicon     string          `json:"favicon,omitempty"`
 	// Added since 1.19
 	PreviewsChat bool `json:"previewsChat"`
 	// Added since 1.19.1
