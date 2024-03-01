@@ -5,12 +5,13 @@ import (
 	"io"
 	"net"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/haveachin/infrared/pkg/infrared/protocol"
 	"github.com/rs/zerolog"
 )
+
+var Log = zerolog.Nop()
 
 type Config struct {
 	BindAddr            string              `yaml:"bind"`
@@ -22,17 +23,11 @@ type Config struct {
 
 func NewConfig() Config {
 	return Config{
-		BindAddr:         ":25565",
-		KeepAliveTimeout: 30 * time.Second,
-		FiltersConfig: FiltersConfig{
-			RateLimiter: &RateLimiterConfig{
-				RequestLimit: 10,
-				WindowLength: time.Second,
-			},
-		},
-		ProxyProtocolConfig: ProxyProtocolConfig{
-			TrustedCIDRs: make([]string, 0),
-		},
+		BindAddr:            ":25565",
+		KeepAliveTimeout:    30 * time.Second,
+		ServerConfigs:       make([]ServerConfig, 0),
+		FiltersConfig:       NewFilterConfig(),
+		ProxyProtocolConfig: NewProxyProtocolConfig(),
 	}
 }
 
@@ -41,37 +36,28 @@ func (cfg Config) WithBindAddr(bindAddr string) Config {
 	return cfg
 }
 
-func (cfg Config) AddServerConfig(fns ...ServerConfigFunc) Config {
-	var sCfg ServerConfig
-	for _, fn := range fns {
-		fn(&sCfg)
-	}
-	cfg.ServerConfigs = append(cfg.ServerConfigs, sCfg)
-	return cfg
-}
-
 func (cfg Config) WithKeepAliveTimeout(d time.Duration) Config {
 	cfg.KeepAliveTimeout = d
 	return cfg
 }
 
-func (cfg Config) WithProxyProtocolReceive(receive bool) Config {
-	cfg.ProxyProtocolConfig.Receive = receive
+func (cfg Config) WithServerConfigs(sCfgs ...ServerConfig) Config {
+	cfg.ServerConfigs = sCfgs
 	return cfg
 }
 
-func (cfg Config) WithProxyProtocolTrustedCIDRs(trustedCIDRs ...string) Config {
-	cfg.ProxyProtocolConfig.TrustedCIDRs = trustedCIDRs
+func (cfg Config) AddServerConfigs(sCfgs ...ServerConfig) Config {
+	cfg.ServerConfigs = append(cfg.ServerConfigs, sCfgs...)
 	return cfg
 }
 
-func (cfg Config) WithRateLimiterWindowLength(windowLength time.Duration) Config {
-	cfg.FiltersConfig.RateLimiter.WindowLength = windowLength
+func (cfg Config) WithFiltersConfig(fCfg FiltersConfig) Config {
+	cfg.FiltersConfig = fCfg
 	return cfg
 }
 
-func (cfg Config) WithRateLimiterRequestLimit(requestLimit int) Config {
-	cfg.FiltersConfig.RateLimiter.RequestLimit = requestLimit
+func (cfg Config) WithProxyProtocolConfig(ppCfg ProxyProtocolConfig) Config {
+	cfg.ProxyProtocolConfig = ppCfg
 	return cfg
 }
 
@@ -94,43 +80,33 @@ type (
 )
 
 type Infrared struct {
-	Logger                 zerolog.Logger
 	NewListenerFunc        NewListenerFunc
 	NewServerRequesterFunc NewServerRequesterFunc
+	Filters                []Filterer
 
 	cfg Config
 
-	l       net.Listener
-	filter  Filter
-	bufPool sync.Pool
-	conns   map[net.Addr]*clientConn
-	sr      ServerRequester
+	l      net.Listener
+	filter Filter
+	sr     ServerRequester
+
+	conns map[net.Addr]*clientConn
 }
 
-func New() *Infrared {
-	return NewWithConfig(NewConfig())
-}
-
-func NewWithConfigProvider(prv ConfigProvider) *Infrared {
-	cfg := MustProvideConfig(prv.Config)
-	return NewWithConfig(cfg)
-}
-
-func NewWithConfig(cfg Config) *Infrared {
+func New(cfg Config) *Infrared {
 	return &Infrared{
-		cfg: cfg,
-		bufPool: sync.Pool{
-			New: func() any {
-				b := make([]byte, 1<<15)
-				return &b
-			},
-		},
+		cfg:   cfg,
 		conns: make(map[net.Addr]*clientConn),
 	}
 }
 
+func NewWithConfigProvider(prv ConfigProvider) *Infrared {
+	cfg := MustProvideConfig(prv.Config)
+	return New(cfg)
+}
+
 func (ir *Infrared) initListener() error {
-	ir.Logger.Info().
+	Log.Info().
 		Str("bind", ir.cfg.BindAddr).
 		Msg("Starting listener")
 
@@ -164,7 +140,7 @@ func (ir *Infrared) initListener() error {
 func (ir *Infrared) initServerGateway() error {
 	srvs := make([]*Server, 0)
 	for _, sCfg := range ir.cfg.ServerConfigs {
-		srv, err := NewServer(WithServerConfig(sCfg))
+		srv, err := NewServer(sCfg)
 		if err != nil {
 			return err
 		}
@@ -195,7 +171,8 @@ func (ir *Infrared) init() error {
 		return err
 	}
 
-	ir.filter = NewFilter(WithFilterConfig(ir.cfg.FiltersConfig))
+	ir.filter = NewFilter(ir.cfg.FiltersConfig)
+	ir.filter.filterers = append(ir.filter.filterers, ir.Filters...)
 
 	return nil
 }
@@ -210,7 +187,7 @@ func (ir *Infrared) ListenAndServe() error {
 		if errors.Is(err, net.ErrClosed) {
 			return nil
 		} else if err != nil {
-			ir.Logger.Debug().
+			Log.Debug().
 				Err(err).
 				Msg("Error accepting new connection")
 
@@ -223,7 +200,7 @@ func (ir *Infrared) ListenAndServe() error {
 
 func (ir *Infrared) handleNewConn(c net.Conn) {
 	if err := ir.filter.Filter(c); err != nil {
-		ir.Logger.Debug().
+		Log.Debug().
 			Err(err).
 			Msg("Filtered connection")
 		return
@@ -236,7 +213,7 @@ func (ir *Infrared) handleNewConn(c net.Conn) {
 	}()
 
 	if err := ir.handleConn(conn); err != nil {
-		ir.Logger.Debug().
+		Log.Debug().
 			Err(err).
 			Msg("Error while handling connection")
 	}
@@ -269,7 +246,12 @@ func (ir *Infrared) handleConn(c *clientConn) error {
 		ReadPackets:     c.readPks,
 	})
 	if err != nil {
-		return err
+		switch {
+		case errors.Is(err, ErrServerNotReachable) && c.handshake.IsLoginRequest():
+			return ir.handleLoginDisconnect(c, resp)
+		default:
+			return err
+		}
 	}
 
 	if c.handshake.IsStatusRequest() {
@@ -294,6 +276,10 @@ func handleStatus(c *clientConn, resp ServerResponse) error {
 	}
 
 	return nil
+}
+
+func (ir *Infrared) handleLoginDisconnect(c *clientConn, resp ServerResponse) error {
+	return c.WritePacket(resp.StatusResponse)
 }
 
 func (ir *Infrared) handleLogin(c *clientConn, resp ServerResponse) error {
@@ -348,7 +334,7 @@ func (ir *Infrared) handlePipe(c *clientConn, resp ServerResponse) error {
 
 func (ir *Infrared) pipe(dst io.WriteCloser, src io.ReadCloser, srcClosedChan chan struct{}) {
 	if _, err := io.Copy(dst, src); err != nil && !errors.Is(err, io.EOF) {
-		ir.Logger.Debug().
+		Log.Debug().
 			Err(err).
 			Msg("Connection closed unexpectedly")
 	}

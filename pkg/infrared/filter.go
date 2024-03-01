@@ -14,16 +14,16 @@ func (f FilterFunc) Filter(c net.Conn) error {
 	return f(c)
 }
 
-type FilterConfigFunc func(cfg *FiltersConfig)
-
-func WithFilterConfig(c FiltersConfig) FilterConfigFunc {
-	return func(cfg *FiltersConfig) {
-		*cfg = c
-	}
-}
-
 type FiltersConfig struct {
 	RateLimiter *RateLimiterConfig `yaml:"rateLimiter"`
+}
+
+func NewFilterConfig() FiltersConfig {
+	rl := NewRateLimiterConfig()
+
+	return FiltersConfig{
+		RateLimiter: &rl,
+	}
 }
 
 type Filter struct {
@@ -31,12 +31,7 @@ type Filter struct {
 	filterers []Filterer
 }
 
-func NewFilter(fns ...FilterConfigFunc) Filter {
-	var cfg FiltersConfig
-	for _, fn := range fns {
-		fn(&cfg)
-	}
-
+func NewFilter(cfg FiltersConfig) Filter {
 	filterers := make([]Filterer, 0)
 
 	if cfg.RateLimiter != nil {
