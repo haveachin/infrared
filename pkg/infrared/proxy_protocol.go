@@ -17,6 +17,27 @@ type ProxyProtocolConfig struct {
 	TrustedCIDRs []string `yaml:"trustedCIDRs"`
 }
 
+func NewProxyProtocolConfig() ProxyProtocolConfig {
+	return ProxyProtocolConfig{
+		TrustedCIDRs: make([]string, 0),
+	}
+}
+
+func (cfg ProxyProtocolConfig) WithReceive(receive bool) ProxyProtocolConfig {
+	cfg.Receive = receive
+	return cfg
+}
+
+func (cfg ProxyProtocolConfig) WithTrustedCIDRs(trustedCIDRs ...string) ProxyProtocolConfig {
+	cfg.TrustedCIDRs = trustedCIDRs
+	return cfg
+}
+
+func (cfg ProxyProtocolConfig) AddTrustedCIDRs(trustedCIDRs ...string) ProxyProtocolConfig {
+	cfg.TrustedCIDRs = append(cfg.TrustedCIDRs, trustedCIDRs...)
+	return cfg
+}
+
 func newProxyProtocolListener(l net.Listener, trustedCIDRs []string) (net.Listener, error) {
 	if len(trustedCIDRs) == 0 {
 		return nil, ErrNoTrustedCIDRs

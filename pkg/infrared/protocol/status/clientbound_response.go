@@ -1,6 +1,13 @@
 package status
 
-import "github.com/haveachin/infrared/pkg/infrared/protocol"
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+
+	"github.com/haveachin/infrared/pkg/infrared/protocol"
+	"github.com/tidwall/sjson"
+)
 
 const (
 	ClientBoundResponseID int32 = 0x00
@@ -27,12 +34,28 @@ func (pk *ClientBoundResponse) Unmarshal(packet protocol.Packet) error {
 	)
 }
 
+func (pk *ClientBoundResponse) SetVersionProtocol(protVer protocol.Version) error {
+	jsonStr := string(pk.JSONResponse)
+	if jsonStr == "" {
+		return errors.New("no json in packet")
+	}
+
+	version := int32(protVer)
+	jsonStr, err := sjson.Set(jsonStr, "version.protocol", version)
+	if err != nil {
+		return fmt.Errorf("set version.protocol: %w", err)
+	}
+	pk.JSONResponse = protocol.String(jsonStr)
+
+	return nil
+}
+
 type ResponseJSON struct {
 	Version VersionJSON `json:"version"`
 	Players PlayersJSON `json:"players"`
 	// This has to be any to support the new chat style system
-	Description any    `json:"description"`
-	Favicon     string `json:"favicon,omitempty"`
+	Description json.RawMessage `json:"description"`
+	Favicon     string          `json:"favicon,omitempty"`
 	// Added since 1.19
 	PreviewsChat bool `json:"previewsChat"`
 	// Added since 1.19.1

@@ -41,3 +41,36 @@ filters:
     # Windows Length is the time frame for the Request Limit.
     #
     windowLength: 1s
+
+# Reponse that the player sees when there is no server for that domain.
+#
+notFoundResponse:
+  # The status response that should be displayed to the players
+  #
+  status:
+
+    # The name of the version.
+    # This is displayed on the client side when the version is incompatible.
+    #
+    versionName: "Infrared 1.20.6"
+
+    # The protocol version number determens if the version of the client is compatible with the server.
+    # A list of protocol versions can be found here: https://wiki.vg/Protocol_version_numbers
+    # Set this to -1 to mirror the client version back.
+    #
+    protocolNumber: -1
+    maxPlayerCount: 0
+    playerCount: 0
+    playerSamples: []
+
+    # Server icon can be provided as base64 or path to a file.
+    #
+    icon: ""
+    
+    # MOTD can be just a string or a JSON Text Component.
+    #
+    motd: "Server not found"
+
+  # Reason why the player was disconnected during login.
+  #
+  message: "Server not found"

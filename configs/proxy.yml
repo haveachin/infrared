@@ -14,3 +14,29 @@ addresses:
 # forward the players IP address
 #
 #sendProxyProtocol: true
+
+# Reponse that the player sees when the connection to the backend server
+# times out during status or login request.
+#
+dialTimeoutResponse:
+  status:
+    versionName: "Infrared 1.20.6"
+    protocolNumber: 766
+    maxPlayerCount: 20
+    playerCount: 0
+    playerSamples: []
+    icon: ""
+    motd: "Unable to reach backend server"
+  message: "Unable to reach backend server"
+
+# Override Status is similar to the dial timeout response status
+# but instead you just can override some fields in the status.
+#
+overrideStatus:
+  versionName: "1.20.6"
+  protocolNumber: 766
+  maxPlayerCount: 20
+  playerCount: 0
+  playerSamples: []
+  icon: ""
+  motd: "Unable to reach backend server"

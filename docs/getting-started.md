@@ -27,9 +27,9 @@ The URL of your download should look something like this:
 ```
 https://github.com/haveachin/infrared/releases/download/{version}/infrared_{architecture}.tar.gz
 ```
-For example:
+For latest:
 ```
-https://github.com/haveachin/infrared/releases/download/v1.3.4/infrared_Linux_x86_64.tar.gz
+https://github.com/haveachin/infrared/releases/latest/download/infrared_Linux_x86_64.tar.gz
 ```
 
 ::: tip
@@ -43,7 +43,7 @@ curl -LO https://github.com/haveachin/infrared/releases/download/{version}/infra
 
 Downloading by using Powershell on Windows:
 ```Powershell
-Invoke-WebRequest -Uri https://github.com/haveachin/infrared/releases/download/v1.3.4/infrared_Windows_x86_64.zip -OutFile c:\infrared.zip
+Invoke-WebRequest -Uri https://github.com/haveachin/infrared/releases/latest/download/infrared_Windows_x86_64.zip -OutFile c:\infrared.zip
 ```
 
 ### Extracting the binary

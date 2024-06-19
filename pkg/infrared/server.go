@@ -12,10 +12,13 @@ import (
 	"github.com/cespare/xxhash/v2"
 	"github.com/haveachin/infrared/pkg/infrared/protocol"
 	"github.com/haveachin/infrared/pkg/infrared/protocol/status"
+	"github.com/rs/zerolog/log"
 )
 
 var (
-	ErrNoServers = errors.New("no servers to route to")
+	ErrNoServers          = errors.New("no servers to route to")
+	ErrServerNotFound     = errors.New("server not found")
+	ErrServerNotReachable = errors.New("server not reachable")
 )
 
 type (
@@ -23,52 +26,52 @@ type (
 	ServerDomain  string
 )
 
-type ServerConfigFunc func(cfg *ServerConfig)
-
-func WithServerConfig(c ServerConfig) ServerConfigFunc {
-	return func(cfg *ServerConfig) {
-		*cfg = c
-	}
-}
-
-func WithServerDomains(sd ...ServerDomain) ServerConfigFunc {
-	return func(cfg *ServerConfig) {
-		cfg.Domains = sd
-	}
-}
-
-func WithServerAddresses(addr ...ServerAddress) ServerConfigFunc {
-	return func(cfg *ServerConfig) {
-		cfg.Addresses = addr
-	}
-}
-
 type ServerConfig struct {
-	Domains           []ServerDomain  `yaml:"domains"`
-	Addresses         []ServerAddress `yaml:"addresses"`
-	SendProxyProtocol bool            `yaml:"sendProxyProtocol"`
+	Domains                []ServerDomain               `yaml:"domains"`
+	Addresses              []ServerAddress              `yaml:"addresses"`
+	SendProxyProtocol      bool                         `yaml:"sendProxyProtocol"`
+	DialTimeoutResponse    HandshakeResponseConfig      `yaml:"dialTimeoutResponse"`
+	OverrideStatusResponse OverrideStatusResponseConfig `yaml:"overrideStatus"`
+}
+
+func NewServerConfig() ServerConfig {
+	return ServerConfig{}
+}
+
+func (cfg ServerConfig) WithDomains(sd ...ServerDomain) ServerConfig {
+	cfg.Domains = sd
+	return cfg
+}
+
+func (cfg ServerConfig) WithAddresses(addr ...ServerAddress) ServerConfig {
+	cfg.Addresses = addr
+	return cfg
 }
 
 type Server struct {
 	cfg ServerConfig
+
+	dialTimeoutResp    HandshakeResponse
+	overrideStatusResp OverrideStatusResponse
 }
 
-func NewServer(fns ...ServerConfigFunc) (*Server, error) {
-	var cfg ServerConfig
-	for _, fn := range fns {
-		fn(&cfg)
-	}
-
+func NewServer(cfg ServerConfig) (*Server, error) {
 	if len(cfg.Addresses) == 0 {
 		return nil, errors.New("no addresses")
 	}
 
 	return &Server{
 		cfg: cfg,
+		dialTimeoutResp: HandshakeResponse{
+			Config: cfg.DialTimeoutResponse,
+		},
+		overrideStatusResp: OverrideStatusResponse{
+			Config: cfg.OverrideStatusResponse,
+		},
 	}, nil
 }
 
-func (s Server) Dial() (*ServerConn, error) {
+func (s *Server) Dial() (*ServerConn, error) {
 	c, err := net.Dial("tcp", string(s.cfg.Addresses[0]))
 	if err != nil {
 		return nil, err
@@ -87,7 +90,7 @@ type ServerRequest struct {
 
 type ServerResponse struct {
 	ServerConn        *ServerConn
-	StatusResponse    protocol.Packet
+	Packet            protocol.Packet
 	SendProxyProtocol bool
 }
 
@@ -133,7 +136,7 @@ func NewServerGateway(servers []*Server, responder ServerRequestResponder) (*Ser
 	}, nil
 }
 
-func (sg *ServerGateway) findServer(domain ServerDomain) *Server {
+func (sg ServerGateway) findServer(domain ServerDomain) *Server {
 	dm := string(domain)
 	dm = strings.ToLower(dm)
 	for d, srv := range sg.servers {
@@ -144,10 +147,10 @@ func (sg *ServerGateway) findServer(domain ServerDomain) *Server {
 	return nil
 }
 
-func (sg *ServerGateway) RequestServer(req ServerRequest) (ServerResponse, error) {
+func (sg ServerGateway) RequestServer(req ServerRequest) (ServerResponse, error) {
 	srv := sg.findServer(req.Domain)
 	if srv == nil {
-		return ServerResponse{}, errors.New("server not found")
+		return ServerResponse{}, ErrServerNotFound
 	}
 
 	return sg.responder.RespondeToServerRequest(req, srv)
@@ -172,7 +175,9 @@ func (r DialServerResponder) RespondeToServerRequest(req ServerRequest, srv *Ser
 func (r DialServerResponder) respondeToLoginRequest(_ ServerRequest, srv *Server) (ServerResponse, error) {
 	rc, err := srv.Dial()
 	if err != nil {
-		return ServerResponse{}, err
+		return ServerResponse{
+			Packet: srv.dialTimeoutResp.LoginReponse(),
+		}, ErrServerNotReachable
 	}
 
 	return ServerResponse{
@@ -185,31 +190,32 @@ func (r DialServerResponder) respondeToStatusRequest(req ServerRequest, srv *Ser
 	respProv, ok := r.respProvs[srv]
 	if !ok {
 		respProv = &statusResponseProvider{
-			server:              srv,
-			cacheTTL:            30 * time.Second,
-			statusHash:          make(map[protocol.Version]uint64),
-			statusResponseCache: make(map[uint64]*statusCacheEntry),
+			server: srv,
+			cache: statusResponseCache{
+				ttl:                 3 * time.Second,
+				statusHash:          make(map[protocol.Version]uint64),
+				statusResponseCache: make(map[uint64]*statusCacheEntry),
+			},
 		}
 		r.respProvs[srv] = respProv
 	}
 
-	_, pk, err := respProv.StatusResponse(req.ClientAddr, req.ProtocolVersion, req.ReadPackets)
+	pk, err := respProv.StatusResponse(req.ClientAddr, req.ProtocolVersion, req.ReadPackets)
 	if err != nil {
 		return ServerResponse{}, err
 	}
 
 	return ServerResponse{
-		StatusResponse: pk,
+		Packet: pk,
 	}, nil
 }
 
 type StatusResponseProvider interface {
-	StatusResponse(net.Addr, protocol.Version, [2]protocol.Packet) (status.ResponseJSON, protocol.Packet, error)
+	StatusResponse(net.Addr, protocol.Version, [2]protocol.Packet) (protocol.Packet, error)
 }
 
 type statusCacheEntry struct {
 	expiresAt    time.Time
-	responseJSON status.ResponseJSON
 	responsePk   protocol.Packet
 }
 
@@ -219,11 +225,41 @@ func (e statusCacheEntry) isExpired() bool {
 
 type statusResponseProvider struct {
 	server *Server
+	cache  statusResponseCache
+}
 
-	mu                  sync.Mutex
-	cacheTTL            time.Duration
-	statusHash          map[protocol.Version]uint64
-	statusResponseCache map[uint64]*statusCacheEntry
+func (s *statusResponseProvider) StatusResponse(
+	cliAddr net.Addr,
+	protVer protocol.Version,
+	readPks [2]protocol.Packet,
+) (protocol.Packet, error) {
+	cacheRespone := false
+	if s.cache.ttl > 0 {
+	    statusPk, err := s.cache.statusResponse(protVer)
+		if err == nil {
+			return statusPk, nil
+		}
+		cacheRespone = true
+	}
+
+	statusResp, statusPk, err := s.requestNewStatusResponseJSON(cliAddr, readPks)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrServerNotReachable):
+			respPk := s.server.dialTimeoutResp.StatusResponse(protVer)
+			return respPk, nil
+		default:
+			return protocol.Packet{}, err
+		}
+	}
+
+	if cacheRespone {
+		if err := s.cache.cacheStatusResponse(protVer, statusResp, statusPk); err != nil {
+			return protocol.Packet{}, err
+		}
+	}
+
+	return statusPk, nil
 }
 
 func (s *statusResponseProvider) requestNewStatusResponseJSON(
@@ -232,7 +268,7 @@ func (s *statusResponseProvider) requestNewStatusResponseJSON(
 ) (status.ResponseJSON, protocol.Packet, error) {
 	rc, err := s.server.Dial()
 	if err != nil {
-		return status.ResponseJSON{}, protocol.Packet{}, err
+		return status.ResponseJSON{}, protocol.Packet{}, ErrServerNotReachable
 	}
 
 	if s.server.cfg.SendProxyProtocol {
@@ -264,15 +300,16 @@ func (s *statusResponseProvider) requestNewStatusResponseJSON(
 	return respJSON, pk, nil
 }
 
-func (s *statusResponseProvider) StatusResponse(
-	cliAddr net.Addr,
-	protVer protocol.Version,
-	readPks [2]protocol.Packet,
-) (status.ResponseJSON, protocol.Packet, error) {
-	if s.cacheTTL <= 0 {
-		return s.requestNewStatusResponseJSON(cliAddr, readPks)
-	}
+type statusResponseCache struct {
+	mu                  sync.Mutex
+	ttl                 time.Duration
+	statusHash          map[protocol.Version]uint64
+	statusResponseCache map[uint64]*statusCacheEntry
+}
 
+func (s *statusResponseCache) statusResponse(
+	protVer protocol.Version,
+) (protocol.Packet, error) {
 	// Prunes all expired status reponses
 	s.prune()
 
@@ -282,35 +319,48 @@ func (s *statusResponseProvider) StatusResponse(
 	hash, okHash := s.statusHash[protVer]
 	entry, okCache := s.statusResponseCache[hash]
 	if !okHash || !okCache {
-		return s.cacheResponse(cliAddr, protVer, readPks)
+		return protocol.Packet{}, errors.New("not in cache")
 	}
 
-	return entry.responseJSON, entry.responsePk, nil
+	return entry.responsePk, nil
 }
 
-func (s *statusResponseProvider) cacheResponse(
-	cliAddr net.Addr,
+func (s *statusResponseCache) cacheStatusResponse(
 	protVer protocol.Version,
-	readPks [2]protocol.Packet,
-) (status.ResponseJSON, protocol.Packet, error) {
-	newStatusResp, pk, err := s.requestNewStatusResponseJSON(cliAddr, readPks)
-	if err != nil {
-		return status.ResponseJSON{}, protocol.Packet{}, err
+	statusResp status.ResponseJSON,
+	respPk protocol.Packet,
+) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	hash := xxhash.New()
+	hash.Write(statusResp.Description)
+	hash.WriteString(statusResp.Favicon)
+	hashSum := hash.Sum64()
+
+	s.statusHash[protVer] = hashSum
+
+	if _, ok := s.statusResponseCache[hashSum]; ok {
+		log.Debug().
+			Int32("protVer", int32(protVer)).
+			Msg("Linked existing cache entry")
+
+		return nil
 	}
 
-	hash := xxhash.New().Sum64()
-	s.statusHash[protVer] = hash
-
-	s.statusResponseCache[hash] = &statusCacheEntry{
-		expiresAt:    time.Now().Add(s.cacheTTL),
-		responseJSON: newStatusResp,
-		responsePk:   pk,
+	s.statusResponseCache[hashSum] = &statusCacheEntry{
+		expiresAt:    time.Now().Add(s.ttl),
+		responsePk:   respPk,
 	}
 
-	return newStatusResp, pk, nil
+	log.Debug().
+		Int32("protVer", int32(protVer)).
+		Msg("Created new cache entry")
+
+	return nil
 }
 
-func (s *statusResponseProvider) prune() {
+func (s *statusResponseCache) prune() {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -326,6 +376,10 @@ func (s *statusResponseProvider) prune() {
 		for _, expiredHash := range expiredHashes {
 			if hash == expiredHash {
 				delete(s.statusHash, protVer)
+
+				log.Debug().
+					Int32("protVer", int32(protVer)).
+					Msg("Deleted cache entry")
 			}
 		}
 	}
