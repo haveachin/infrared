@@ -1,11 +1,11 @@
 # Filters
 
-Filter are hooks that trigger befor a connection is processed.
+Filter are hooks that trigger before a connection is processed.
 They are used as preconditions to validate a connection.
 
 ## Use Filters
 
-To use filters you just need to a this to your [**global config**](../config/index.md):
+To use filters you just need to add this to your [**global config**](../config/index.md):
 
 ```yml
 # Filter are hooks that trigger befor a connection is processed.
