@@ -1,6 +1,6 @@
 # Config
 
-On fist start Infrared should generate a `config.yml` file and a `proxies` directory.
+When Infrared is run for the first time, it should generate a `config.yml` file and a `proxies` directory.
 Here is a minimal `config.yml` example:
 
 ```yml
